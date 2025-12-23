@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Đặt Xe - Khách hàng",
+    "slug": "dat-xe-customer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "sdkVersion": "51.0.0",
+    "entryPoint": "./index.js",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.datxe.customer"
+    },
+    "android": {
+      "package": "com.datxe.customer",
+      "versionCode": 1
+    },
+    "plugins": [
+      [
+        "expo-font",
+        {
+          "fonts": ["node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf"]
+        }
+      ]
+    ]
+  }
+}

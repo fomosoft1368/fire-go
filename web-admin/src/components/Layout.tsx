@@ -1,0 +1,269 @@
+import { ReactNode, useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+interface LayoutProps {
+  children: ReactNode;
+}
+
+export default function Layout({ children }: LayoutProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [darkMode, setDarkMode] = useState(false);
+  const [userInfo, setUserInfo] = useState<any>(null);
+
+  useEffect(() => {
+    // Get user info from localStorage or API
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    // Parse user info from token or set default
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const decoded = JSON.parse(atob(parts[1]));
+        setUserInfo({
+          email: decoded.email || 'admin@firego.com',
+          firstName: decoded.firstName || 'Admin',
+          lastName: decoded.lastName || 'User',
+          role: decoded.role || 'admin',
+        });
+      }
+    } catch (err) {
+      console.log('Could not decode token, using defaults');
+      setUserInfo({
+        email: 'admin@firego.com',
+        firstName: 'Admin',
+        lastName: 'User',
+        role: 'admin',
+      });
+    }
+
+    // Load dark mode preference
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(savedDarkMode);
+    if (savedDarkMode) {
+      document.documentElement.classList.add('dark');
+    }
+  }, [navigate]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('darkMode');
+    navigate('/login');
+  };
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    localStorage.setItem('darkMode', String(newDarkMode));
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  const isActive = (path: string) => location.pathname === path;
+  const userInitials = userInfo ? `${userInfo.firstName[0]}${userInfo.lastName[0]}`.toUpperCase() : 'AD';
+
+  return (
+    <div className="flex h-screen bg-background-light dark:bg-background-dark">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white dark:bg-card-dark border-r border-slate-200 dark:border-slate-800 flex flex-col">
+        {/* Logo */}
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center">
+              <span className="material-symbols-outlined filled text-white" style={{ fontSize: '24px' }}>local_fire_department</span>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">FireGo</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Admin Panel</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-1">
+          <button
+            onClick={() => navigate('/')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/') ? 'filled' : ''}`}>dashboard</span>
+            <span className="font-semibold">Tổng quan</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/user-management')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/user-management')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/user-management') ? 'filled' : ''}`}>group</span>
+            <span className="font-semibold">Người dùng</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/drivers')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/drivers')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/drivers') ? 'filled' : ''}`}>local_taxi</span>
+            <span className="font-semibold">Tài xế</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/rides')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/rides')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/rides') ? 'filled' : ''}`}>route</span>
+            <span className="font-semibold">Cuốc xe</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/customers')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/customers')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/customers') ? 'filled' : ''}`}>person</span>
+            <span className="font-semibold">Khách hàng</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/revenue')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/revenue')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/revenue') ? 'filled' : ''}`}>payments</span>
+            <span className="font-semibold">Doanh thu</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/dispatch')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/dispatch')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/dispatch') ? 'filled' : ''}`}>assignment_late</span>
+            <span className="font-semibold whitespace-nowrap">Điều phối & Tranh chấp</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/reports')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/reports')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/reports') ? 'filled' : ''}`}>analytics</span>
+            <span className="font-semibold whitespace-nowrap">Báo cáo & Thống kê</span>
+          </button>
+
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 mt-4">
+            <button
+              onClick={() => navigate('/settings')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                isActive('/settings')
+                  ? 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <span className={`material-symbols-outlined ${isActive('/settings') ? 'filled' : ''}`}>settings</span>
+              <span className="font-semibold">Cài đặt</span>
+            </button>
+          </div>
+        </nav>
+
+        {/* User Profile */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-bold text-sm">
+              {userInitials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                {userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : 'Admin User'}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                {userInfo?.email || 'admin@firego.com'}
+              </p>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              title="Đăng xuất"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>logout</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="h-16 bg-white dark:bg-card-dark border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6">
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {location.pathname === '/' && 'Tổng quan'}
+              {location.pathname === '/user-management' && 'Quản lý Người dùng'}
+              {location.pathname === '/drivers' && 'Quản lý Tài xế'}
+              {location.pathname === '/rides' && 'Quản lý Cuốc xe'}
+              {location.pathname === '/customers' && 'Quản lý Khách hàng'}
+              {location.pathname === '/revenue' && 'Quản lý Doanh thu'}
+              {location.pathname === '/dispatch' && 'Điều phối & Tranh chấp'}
+              {location.pathname === '/reports' && 'Báo cáo & Thống kê'}
+              {location.pathname === '/settings' && 'Cài đặt'}
+            </h2>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {/* Notifications */}
+            <button className="relative h-10 w-10 flex items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <span className="material-symbols-outlined">notifications</span>
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-card-dark"></span>
+            </button>
+
+            {/* Dark Mode Toggle */}
+            <button 
+              onClick={toggleDarkMode}
+              className="h-10 w-10 flex items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <span className="material-symbols-outlined">{darkMode ? 'light_mode' : 'dark_mode'}</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-auto">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
