@@ -36,7 +36,7 @@ export default function LoginScreen() {
   const [registerStep, setRegisterStep] = useState<RegisterStep>(1)
 
   // Login states
-  const [loginPhone, setLoginPhone] = useState('')
+  const [loginIdentifier, setLoginIdentifier] = useState('') // email or phone
   const [loginPassword, setLoginPassword] = useState('')
   const [showLoginPassword, setShowLoginPassword] = useState(false)
 
@@ -55,8 +55,8 @@ export default function LoginScreen() {
   // Login handlers
   const handleLoginContinue = async () => {
     if (loginStep === 1) {
-      if (!loginPhone) {
-        Alert.alert('Thông báo', 'Vui lòng nhập số điện thoại')
+      if (!loginIdentifier) {
+        Alert.alert('Thông báo', 'Vui lòng nhập email hoặc số điện thoại')
         return
       }
       setLoginStep(2)
@@ -72,7 +72,8 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     dispatch(loginStart())
     try {
-      const response = await authService.login(loginPhone, loginPassword)
+      // Pass identifier (email or phone) to login
+      const response = await authService.login(loginIdentifier, loginPassword)
       dispatch(loginSuccess({ token: response.token, user: response.user }))
     } catch (err: any) {
       const errorMessage = err.message || 'Đăng nhập thất bại'
@@ -140,7 +141,7 @@ export default function LoginScreen() {
     setAuthMode(mode)
     setLoginStep(1)
     setRegisterStep(1)
-    setLoginPhone('')
+    setLoginIdentifier('')
     setLoginPassword('')
     setShowLoginPassword(false)
     setRegName('')
@@ -164,9 +165,7 @@ export default function LoginScreen() {
         {/* Header with Background Image */}
         <View style={styles.headerContainer}>
           <ImageBackground
-            source={{
-              uri: 'https://images.unsplash.com/photo-1596881642151-2f2c4a1e10b0?w=500&h=600&fit=crop',
-            }}
+            source={require('../assets/heritage.png')}
             style={styles.headerBackground}
             imageStyle={{ resizeMode: 'cover' }}
           >
@@ -248,7 +247,7 @@ export default function LoginScreen() {
               <>
                 {loginStep === 1 && (
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Số điện thoại / Email</Text>
+                    <Text style={styles.label}>Email hoặc Số điện thoại</Text>
                     <View style={styles.inputWrapper}>
                       <MaterialIcons
                         name="person"
@@ -258,12 +257,12 @@ export default function LoginScreen() {
                       />
                       <TextInput
                         style={styles.input}
-                        placeholder="Nhập số điện thoại..."
+                        placeholder="Nhập email hoặc số điện thoại..."
                         placeholderTextColor="#64748b"
-                        value={loginPhone}
-                        onChangeText={setLoginPhone}
+                        value={loginIdentifier}
+                        onChangeText={setLoginIdentifier}
                         editable={!isLoading}
-                        keyboardType="phone-pad"
+                        keyboardType="default"
                         autoFocus
                       />
                     </View>
@@ -544,7 +543,7 @@ export default function LoginScreen() {
                   />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.socialButton}>
-                  <MaterialIcons name="apple" size={24} color="#000" />
+                  <MaterialIcons name="public" size={24} color="#000" />
                 </TouchableOpacity>
               </View>
 
@@ -577,7 +576,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   headerContainer: {
-    height: height * 0.35,
+    height: height * 0.34,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -597,6 +596,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: SPACING.xxl,
   },
   logoContainer: {
     width: 64,

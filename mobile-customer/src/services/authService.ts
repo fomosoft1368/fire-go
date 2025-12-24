@@ -1,113 +1,165 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { User, LoginResponse, ApiResponse } from '../types'
 
-const API_BASE_URL = 'http://localhost:3000/api'
+// Update API_BASE_URL to your backend URL (use 10.0.2.2 for Android emulator, localhost for iOS)
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.19:3000/api'
 const TOKEN_KEY = 'authToken'
+const REFRESH_TOKEN_KEY = 'refreshToken'
+const USER_KEY = 'user'
 
-// Mock credentials for testing without backend
-const MOCK_CREDENTIALS = {
-  phone: '0987100748',
-  password: '123456789',
-}
-
-const MOCK_USER: User = {
-  id: 'cust_001',
-  name: 'Khách hàng',
-  email: 'customer@gmail.com',
-  phone: '0987100748',
-  role: 'customer',
-  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=customer1',
-  rating: 4.8,
+// Helper to normalize Vietnamese phone numbers
+const normalizePhoneNumber = (phone: string): string => {
+  let normalized = phone.replace(/\D/g, '')
+  
+  // If starts with 84, it's already international format
+  if (normalized.startsWith('84')) {
+    return '+' + normalized
+  }
+  
+  // If starts with 0, remove it and add country code
+  if (normalized.startsWith('0')) {
+    return '+84' + normalized.substring(1)
+  }
+  
+  // Otherwise assume it's missing country code
+  return '+84' + normalized
 }
 
 export const authService = {
-  // Login with phone and password
-  async login(phone: string, password: string): Promise<LoginResponse> {
+  // Login with identifier (email or phone) and password
+  async login(identifier: string, password: string): Promise<LoginResponse> {
     try {
-      // Mock login - replace with real API when backend ready
-      if (phone === MOCK_CREDENTIALS.phone && password === MOCK_CREDENTIALS.password) {
-        const response: LoginResponse = {
-          token: 'mock_token_customer_' + Date.now(),
-          user: MOCK_USER,
+      console.log('[Auth] Login attempt:', { identifier, apiUrl: API_BASE_URL })
+      
+      const response = await fetch(`${API_BASE_URL}/customers/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ identifier, password }),
+      })
+
+      console.log('[Auth] Login response status:', response.status)
+
+      if (!response.ok) {
+        let errorData: any
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = { message: `HTTP ${response.status}` }
         }
-        await AsyncStorage.setItem(TOKEN_KEY, response.token)
-        await AsyncStorage.setItem('user', JSON.stringify(response.user))
-        return response
+        console.error('[Auth] Login error:', errorData)
+        throw new Error(errorData.message || 'Đăng nhập thất bại')
       }
 
-      throw new Error('Invalid phone or password')
+      const data = await response.json()
+      console.log('[Auth] Login success:', { userId: data.user.id })
 
-      // Real API call (uncomment when backend ready):
-      // const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ phone, password }),
-      // })
-      //
-      // if (!response.ok) {
-      //   throw new Error('Login failed')
-      // }
-      //
-      // const data: ApiResponse<LoginResponse> = await response.json()
-      // if (data.success) {
-      //   await AsyncStorage.setItem(TOKEN_KEY, data.data.token)
-      //   await AsyncStorage.setItem('user', JSON.stringify(data.data.user))
-      //   return data.data
-      // } else {
-      //   throw new Error(data.message || 'Login failed')
-      // }
-    } catch (error) {
+      // Store tokens and user info
+      await AsyncStorage.setItem(TOKEN_KEY, data.accessToken)
+      await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
+      
+      const user: User = {
+        id: data.user.id,
+        name: `${data.user.firstName} ${data.user.lastName}`,
+        email: data.user.email,
+        phone: data.user.phone || '',
+        role: data.user.role,
+        avatar: data.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
+        rating: data.user.rating || 5,
+      }
+      
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
+
+      return {
+        token: data.accessToken,
+        user,
+      }
+    } catch (error: any) {
+      console.error('[Auth] Login failed:', error.message || error)
       throw error
     }
   },
 
+  // Register with name, email, phone, password
   async register(
-    name: string,
+    firstName: string,
     email: string,
     phone: string,
     password: string
   ): Promise<LoginResponse> {
     try {
-      // Mock register
-      const newUser: User = {
-        id: 'cust_' + Date.now(),
-        name,
-        email,
-        phone,
+      console.log('[Auth] Register attempt:', { firstName, email, phone: phone.replace(/\d(?=\d{4})/g, '*'), apiUrl: API_BASE_URL })
+      
+      // Split name into firstName and lastName
+      const nameParts = firstName.split(' ')
+      const lastNameOrFull = nameParts.length > 1 ? nameParts.pop() : ''
+      const finalFirstName = nameParts.join(' ') || firstName
+      
+      // Normalize phone number to Vietnam format
+      const normalizedPhone = normalizePhoneNumber(phone)
+      console.log('[Auth] Normalized phone:', normalizedPhone)
+
+      const registerPayload = {
+        firstName: finalFirstName.trim(),
+        lastName: lastNameOrFull?.trim() || '',
+        email: email.trim(),
+        phone: normalizedPhone,
+        password,
+        confirmPassword: password,
         role: 'customer',
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-        rating: 5,
       }
 
-      const response: LoginResponse = {
-        token: 'mock_token_customer_' + Date.now(),
-        user: newUser,
+      console.log('[Auth] Register payload:', { ...registerPayload, password: '***', confirmPassword: '***' })
+
+      const response = await fetch(`${API_BASE_URL}/customers/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(registerPayload),
+      })
+
+      console.log('[Auth] Register response status:', response.status)
+
+      if (!response.ok) {
+        let errorData: any
+        try {
+          errorData = await response.json()
+        } catch {
+          const text = await response.text()
+          console.error('[Auth] Response body:', text)
+          errorData = { message: `HTTP ${response.status}: ${text}` }
+        }
+        console.error('[Auth] Register error:', errorData)
+        throw new Error(errorData.message || 'Đăng ký thất bại')
       }
 
-      await AsyncStorage.setItem(TOKEN_KEY, response.token)
-      await AsyncStorage.setItem('user', JSON.stringify(response.user))
-      return response
+      const data = await response.json()
+      console.log('[Auth] Register success:', { userId: data.user.id })
 
-      // Real API call (uncomment when backend ready):
-      // const response = await fetch(`${API_BASE_URL}/auth/register`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ name, email, phone, password }),
-      // })
-      //
-      // const data: ApiResponse<LoginResponse> = await response.json()
-      // if (data.success) {
-      //   await AsyncStorage.setItem(TOKEN_KEY, data.data.token)
-      //   await AsyncStorage.setItem('user', JSON.stringify(data.data.user))
-      //   return data.data
-      // } else {
-      //   throw new Error(data.message || 'Registration failed')
-      // }
-    } catch (error) {
+      // Store tokens and user info
+      await AsyncStorage.setItem(TOKEN_KEY, data.accessToken)
+      await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
+
+      const user: User = {
+        id: data.user.id,
+        name: `${data.user.firstName} ${data.user.lastName}`,
+        email: data.user.email,
+        phone: data.user.phone || '',
+        role: data.user.role,
+        avatar: data.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
+        rating: data.user.rating || 5,
+      }
+
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
+
+      return {
+        token: data.accessToken,
+        user,
+      }
+    } catch (error: any) {
+      console.error('[Auth] Register failed:', error.message || error)
       throw error
     }
   },

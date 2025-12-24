@@ -1,14 +1,30 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document } from 'mongoose';
 
 export type CustomerDocument = Customer & Document;
 
 @Schema({ timestamps: true })
 export class Customer {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
-  userId: Types.ObjectId;
+  // Authentication fields (tài khoản độc lập)
+  @Prop({ required: true, unique: true })
+  email: string;
 
-  // Contact information (additional to User model)
+  @Prop({ required: true })
+  password: string;
+
+  @Prop({ required: true })
+  phone: string;
+
+  @Prop({ required: true })
+  firstName: string;
+
+  @Prop({ required: true })
+  lastName: string;
+
+  @Prop()
+  avatar?: string;
+
+  // Contact information
   @Prop()
   dateOfBirth?: Date;
 
@@ -112,6 +128,7 @@ export class Customer {
 
 export const CustomerSchema = SchemaFactory.createForClass(Customer);
 
-CustomerSchema.index({ userId: 1 });
+CustomerSchema.index({ email: 1 });
+CustomerSchema.index({ phone: 1 });
 CustomerSchema.index({ isBlacklisted: 1 });
 CustomerSchema.index({ isAccountLocked: 1 });

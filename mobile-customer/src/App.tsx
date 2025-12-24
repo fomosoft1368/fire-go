@@ -36,9 +36,7 @@ const MainNavigator = () => (
       tabBarActiveTintColor: COLORS.primary,
       tabBarInactiveTintColor: COLORS.textSecondary,
       tabBarStyle: {
-        borderTopWidth: 1,
-        borderTopColor: COLORS.lightBorder,
-        backgroundColor: COLORS.lightBg,
+        backgroundColor: '#101922',
       },
       tabBarLabelStyle: {
         fontSize: 11,

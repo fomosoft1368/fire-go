@@ -1,6 +1,41 @@
-import { IsOptional, IsString, IsBoolean, IsDate, IsArray } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsDate, IsArray, IsEmail, IsNotEmpty, MinLength } from 'class-validator';
 
 export class CreateCustomerDto {
+  // Authentication fields (required)
+  @IsNotEmpty()
+  @IsString()
+  firstName: string;
+
+  @IsNotEmpty()
+  @IsString()
+  lastName: string;
+
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
+
+  @IsNotEmpty()
+  @IsString()
+  phone: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(6)
+  password: string;
+
+  @IsOptional()
+  @IsString()
+  confirmPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @IsOptional()
+  @IsString()
+  avatar?: string;
+
+  // Contact information (optional)
   @IsOptional()
   @IsDate()
   dateOfBirth?: Date;
