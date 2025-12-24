@@ -5,18 +5,26 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "sdkVersion": "51.0.0",
+    "sdkVersion": "54.0.0",
     "entryPoint": "./index.js",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTabletMode": true,
-      "bundleIdentifier": "com.datxe.customer"
+      "bundleIdentifier": "com.datxe.customer",
+      "jsEngine": "jsc",
+      "runtimeVersion": {
+        "policy": "sdkVersion"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow app to access your location"
+      }
     },
     "android": {
       "package": "com.datxe.customer",
-      "versionCode": 1
+      "versionCode": 1,
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
     "plugins": [
       [
@@ -24,7 +32,7 @@
         {
           "fonts": ["node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf"]
         }
-      ]
+      ],
     ]
   }
 }

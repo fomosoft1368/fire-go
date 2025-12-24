@@ -1,11 +1,133 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Delete, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto, SavedAddressDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
 
 @Controller('api/customers')
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  /**
+   * POST /api/customers/register
+   * Đăng ký tài khoản khách hàng
+   */
+  @Post('register')
+  async register(@Body() createCustomerDto: CreateCustomerDto) {
+    try {
+      const customer = await this.customersService.create(createCustomerDto);
+      
+      // Generate JWT tokens
+      const accessToken = this.jwtService.sign(
+        {
+          sub: customer._id,
+          email: customer.email,
+          role: 'customer',
+        },
+        {
+          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+          expiresIn: '24h',
+        }
+      );
+
+      const refreshToken = this.jwtService.sign(
+        {
+          sub: customer._id,
+          email: customer.email,
+        },
+        {
+          secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key',
+          expiresIn: '7d',
+        }
+      );
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: customer._id,
+          firstName: customer.firstName,
+          lastName: customer.lastName,
+          email: customer.email,
+          phone: customer.phone,
+          role: 'customer',
+          avatar: customer.avatar,
+        },
+      };
+    } catch (error: any) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * POST /api/customers/login
+   * Đăng nhập tài khoản khách hàng bằng email hoặc số điện thoại
+   */
+  @Post('login')
+  async login(@Body() loginDto: { identifier: string; password: string }) {
+    try {
+      if (!loginDto.identifier || !loginDto.password) {
+        throw new UnauthorizedException('Email/Phone and password are required');
+      }
+
+      const customer = await this.customersService.findByEmailOrPhone(loginDto.identifier);
+      
+      if (!customer) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      // Compare password
+      const isPasswordValid = await bcrypt.compare(loginDto.password, customer.password);
+      
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      // Generate JWT tokens
+      const accessToken = this.jwtService.sign(
+        {
+          sub: customer._id,
+          email: customer.email,
+          role: 'customer',
+        },
+        {
+          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+          expiresIn: '24h',
+        }
+      );
+
+      const refreshToken = this.jwtService.sign(
+        {
+          sub: customer._id,
+          email: customer.email,
+        },
+        {
+          secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key',
+          expiresIn: '7d',
+        }
+      );
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: customer._id,
+          firstName: customer.firstName,
+          lastName: customer.lastName,
+          email: customer.email,
+          phone: customer.phone,
+          role: 'customer',
+          avatar: customer.avatar,
+        },
+      };
+    } catch (error: any) {
+      throw new UnauthorizedException(error.message || 'Invalid email or password');
+    }
+  }
 
   /**
    * GET /api/customers
@@ -16,16 +138,10 @@ export class CustomersController {
     return this.customersService.findAll();
   }
 
-  @Post()
-  @UseGuards(JwtAuthGuard)
-  async create(@Request() req: any, @Body() createCustomerDto: CreateCustomerDto) {
-    return this.customersService.create(req.user.id, createCustomerDto);
-  }
-
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async getMyProfile(@Request() req: any) {
-    return this.customersService.findByUserId(req.user.id);
+    return this.customersService.findById(req.user.sub);
   }
 
   @Get(':id')

@@ -1,5 +1,6 @@
 export { default as LoginScreen } from './LoginScreen'
 export { default as HomeScreen } from './HomeScreen'
+export { default as HireDriverScreen } from './HireDriverScreen'
 export { default as BookingsScreen } from './BookingsScreen'
 export { default as WalletScreen } from './WalletScreen'
 export { default as ProfileScreen } from './ProfileScreen'

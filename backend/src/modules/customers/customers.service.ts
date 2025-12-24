@@ -1,26 +1,40 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { Customer, CustomerDocument } from './schemas/customer.schema';
 import { CreateCustomerDto, UpdateCustomerDto, SavedAddressDto } from './dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class CustomersService {
   constructor(@InjectModel(Customer.name) private customerModel: Model<CustomerDocument>) {}
 
-  async create(userId: string, createCustomerDto: CreateCustomerDto): Promise<CustomerDocument> {
+  async create(createCustomerDto: CreateCustomerDto): Promise<CustomerDocument> {
+    // Check if customer with this email or phone already exists
+    const existing = await this.customerModel.findOne({
+      $or: [{ email: createCustomerDto.email }, { phone: createCustomerDto.phone }],
+    });
+
+    if (existing) {
+      throw new BadRequestException('Customer with this email or phone already exists');
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(createCustomerDto.password, salt);
+
     const customer = await this.customerModel.create({
       ...createCustomerDto,
-      userId: new Types.ObjectId(userId),
+      password: hashedPassword,
       savedAddresses: [],
       emergencyContacts: [],
     });
 
-    return customer.populate('userId');
+    return customer;
   }
 
   async findById(id: string): Promise<CustomerDocument> {
-    const customer = await this.customerModel.findById(id).populate('userId');
+    const customer = await this.customerModel.findById(id);
 
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${id} not found`);
@@ -29,13 +43,26 @@ export class CustomersService {
     return customer;
   }
 
-  async findByUserId(userId: string): Promise<CustomerDocument> {
-    const customer = await this.customerModel
-      .findOne({ userId: new Types.ObjectId(userId) })
-      .populate('userId');
+  async findByEmail(email: string): Promise<CustomerDocument> {
+    const customer = await this.customerModel.findOne({ email });
 
     if (!customer) {
-      throw new NotFoundException(`Customer with user ID ${userId} not found`);
+      throw new NotFoundException(`Customer with email ${email} not found`);
+    }
+
+    return customer;
+  }
+
+  async findByEmailOrPhone(identifier: string): Promise<CustomerDocument> {
+    const customer = await this.customerModel.findOne({
+      $or: [
+        { email: identifier },
+        { phone: identifier }
+      ]
+    });
+
+    if (!customer) {
+      throw new NotFoundException(`Customer with email/phone ${identifier} not found`);
     }
 
     return customer;
@@ -44,7 +71,6 @@ export class CustomersService {
   async findAll(filters?: any): Promise<CustomerDocument[]> {
     return this.customerModel
       .find(filters || {})
-      .populate('userId')
       .sort({ createdAt: -1 });
   }
 

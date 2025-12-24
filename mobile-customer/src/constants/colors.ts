@@ -4,7 +4,7 @@ export const COLORS = {
   primaryLight: '#FF6B0020',
 
   // Light theme (khác driver - dùng light)
-  lightBg: '#ffffff',
+  lightBg: '#d9d9d9',
   lightCard: '#f8f9fa',
   lightBorder: '#e0e0e0',
 
