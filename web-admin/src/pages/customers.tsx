@@ -21,6 +21,7 @@ interface Customer {
   isBlacklisted?: boolean;
   isAccountLocked?: boolean;
   createdAt?: string;
+  address?: string;
 }
 
 const Customers: React.FC = () => {
@@ -65,10 +66,19 @@ const Customers: React.FC = () => {
         }
 
         // Transform API response to UI format
-        const transformedCustomers = allCustomers.map((customer: any) => {
+        const transformedCustomers = allCustomers.map((customer: any, idx: number) => {
           // Get user info from populated userId
           const userInfo = customer.userId || {};
-          
+          console.log(`[CUSTOMER MAP][${idx}]`, {
+            raw: customer,
+            userInfo,
+            fullName: userInfo.fullName,
+            name: userInfo.name,
+            email: userInfo.email,
+            phone: userInfo.phone,
+            avatar: userInfo.avatar,
+            id: userInfo._id,
+          });
           return {
             ...customer,
             displayName: userInfo.fullName || userInfo.name || 'Chưa có tên',
@@ -85,7 +95,7 @@ const Customers: React.FC = () => {
           };
         });
 
-        console.log('✅ Transformed customers:', transformedCustomers.length);
+        console.log('✅ Transformed customers:', transformedCustomers.length, transformedCustomers);
         setCustomers(transformedCustomers);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Lỗi tải dữ liệu khách hàng';
@@ -235,7 +245,7 @@ const Customers: React.FC = () => {
 
   const openEditModal = (customer: Customer) => {
     const userInfo = customer.userId || {};
-    const [firstName, ...lastNameParts] = (userInfo.fullName || userInfo.name || '').split(' ');
+    const [firstName, ...lastNameParts] = ((userInfo as any).fullName || (userInfo as any).name || '').split(' ');
     setSelectedCustomer(customer);
     setFormData({
       firstName: firstName || '',
@@ -289,9 +299,9 @@ const Customers: React.FC = () => {
   ];
 
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         customer.phone.includes(searchQuery);
+    const matchesSearch = (customer.displayName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+                         (customer.email?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+                         (customer.phone || '').includes(searchQuery);
     const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
     return matchesSearch && matchesStatus;
   });

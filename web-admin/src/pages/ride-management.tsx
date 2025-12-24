@@ -54,7 +54,31 @@ export default function RideManagement() {
         console.log('📦 API Response:', allRides);
         console.log('📊 Number of rides:', allRides?.length || 0);
 
-        setRides(allRides || []);
+        // Map populated driver/customer info with fallback for name and avatar
+        const mappedRides = (allRides || []).map((ride: any) => ({
+          ...ride,
+          driver: ride.driverId && typeof ride.driverId === 'object' ? {
+            name:
+              ride.driverId.userId?.fullName ||
+              ride.driverId.userId?.name ||
+              ride.driverId.bankAccountHolder ||
+              'Tài xế',
+            avatar:
+              ride.driverId.userId?.avatar ||
+              `https://i.pravatar.cc/150?u=${ride.driverId.bankAccountHolder || ride.driverId.userId?._id || ride.driverId._id}`,
+            rating: ride.driverId.averageRating,
+          } : undefined,
+          customer: ride.customerId && typeof ride.customerId === 'object' ? {
+            name:
+              (ride.customerId.userId?.firstName && ride.customerId.userId?.lastName)
+                ? `${ride.customerId.userId.firstName} ${ride.customerId.userId.lastName}`
+                : 'Khách hàng',
+            avatar:
+              ride.customerId.userId?.avatar ||
+              `https://i.pravatar.cc/150?u=${ride.customerId.userId?._id || ride.customerId._id || ride.customerId}`,
+          } : undefined,
+        }));
+        setRides(mappedRides);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Lỗi tải dữ liệu cuốc xe';
         console.error('❌ Error fetching rides:', err);
@@ -296,24 +320,38 @@ export default function RideManagement() {
                 </div>
               </div>
 
-              {/* Driver & Customer (would need to populate from separate API calls) */}
+              {/* Driver & Customer (populated) */}
               <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
-                <div className={`flex items-center gap-3 flex-1 ${isCancelled ? 'opacity-50' : ''}`}>
-                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400">
-                    <span className="material-symbols-outlined text-xl">local_taxi</span>
-                  </div>
+                <div className={`flex items-center gap-3 flex-1 ${isCancelled ? 'opacity-50' : ''}`}> 
+                  {ride.driver?.avatar ? (
+                    <img className="w-10 h-10 rounded-full object-cover" src={ride.driver.avatar} alt={ride.driver.name} />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400">
+                      <span className="material-symbols-outlined text-xl">local_taxi</span>
+                    </div>
+                  )}
                   <div className="flex flex-col">
-                    <span className="text-slate-900 dark:text-white text-sm font-semibold">Tài xế</span>
+                    <span className="text-slate-900 dark:text-white text-sm font-semibold">{ride.driver?.name || 'Tài xế'}</span>
+                    {ride.driver?.rating && (
+                      <span className="text-xs text-yellow-500 font-bold flex items-center gap-1">
+                        {ride.driver.rating.toFixed(1)}
+                        <span className="material-symbols-outlined text-[16px]">star</span>
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-3"></div>
                 <div className="flex items-center gap-3 flex-1 justify-end">
                   <div className="flex flex-col items-end">
-                    <span className="text-slate-900 dark:text-white text-sm font-semibold">Khách hàng</span>
+                    <span className="text-slate-900 dark:text-white text-sm font-semibold">{ride.customer?.name || 'Khách hàng'}</span>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400">
-                    <span className="material-symbols-outlined text-xl">person</span>
-                  </div>
+                  {ride.customer?.avatar ? (
+                    <img className="w-10 h-10 rounded-full object-cover" src={ride.customer.avatar} alt={ride.customer.name} />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400">
+                      <span className="material-symbols-outlined text-xl">person</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

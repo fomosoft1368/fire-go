@@ -36,14 +36,16 @@ export class RidesService {
   async findAll(filters?: any): Promise<RideDocument[]> {
     return this.rideModel
       .find(filters || {})
-      .populate(['customerId', 'driverId'])
+      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate({ path: 'customerId', populate: { path: 'userId' } })
       .sort({ createdAt: -1 });
   }
 
   async findById(id: string): Promise<RideDocument> {
     const ride = await this.rideModel
       .findById(id)
-      .populate(['customerId', 'driverId']);
+      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate({ path: 'customerId', populate: { path: 'userId' } });
 
     if (!ride) {
       throw new NotFoundException(`Ride with ID ${id} not found`);
@@ -55,14 +57,16 @@ export class RidesService {
   async findByCustomerId(customerId: string): Promise<RideDocument[]> {
     return this.rideModel
       .find({ customerId: new Types.ObjectId(customerId) })
-      .populate(['customerId', 'driverId'])
+      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate({ path: 'customerId', populate: { path: 'userId' } })
       .sort({ createdAt: -1 });
   }
 
   async findByDriverId(driverId: string): Promise<RideDocument[]> {
     return this.rideModel
       .find({ driverId: new Types.ObjectId(driverId) })
-      .populate(['customerId', 'driverId'])
+      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate({ path: 'customerId', populate: { path: 'userId' } })
       .sort({ createdAt: -1 });
   }
 
@@ -84,7 +88,8 @@ export class RidesService {
           },
         },
       })
-      .populate(['customerId'])
+      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate({ path: 'customerId', populate: { path: 'userId' } })
       .limit(10);
   }
 

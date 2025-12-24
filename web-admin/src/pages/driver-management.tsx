@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import DriverDetailModal from '../components/DriverDetailModal';
 import Layout from '../components/Layout';
 import { apiService, type Driver as ApiDriver } from '../services/api';
 
@@ -10,10 +12,24 @@ interface Driver extends ApiDriver {
   registeredTime?: string;
   vehicleType?: 'car' | 'bike';
   revenue?: string;
+  email?: string;
+  phone?: string;
 }
 
 export default function DriverManagement() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [showDetail, setShowDetail] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+    const handleShowDetail = (driver: Driver) => {
+      setSelectedDriver(driver);
+      setShowDetail(true);
+    };
+
+    const handleCloseDetail = () => {
+      setShowDetail(false);
+      setSelectedDriver(null);
+    };
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'online' | 'offline'>('all');
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [pendingDrivers, setPendingDrivers] = useState<Driver[]>([]);
@@ -172,12 +188,6 @@ export default function DriverManagement() {
   return (
     <Layout>
       <div className="p-6">
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 rounded-xl text-red-700 dark:text-red-400">
-            <p className="font-medium">Lỗi: {error}</p>
-          </div>
-        )}
-
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="bg-white dark:bg-card-dark p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
@@ -189,7 +199,6 @@ export default function DriverManagement() {
             </div>
             <p className="text-3xl font-bold text-slate-900 dark:text-white">{stats.pending}</p>
           </div>
-
           <div className="bg-white dark:bg-card-dark p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-3 mb-3">
               <div className="size-10 rounded-full bg-green-500/10 flex items-center justify-center">
@@ -199,7 +208,6 @@ export default function DriverManagement() {
             </div>
             <p className="text-3xl font-bold text-slate-900 dark:text-white">{stats.active}</p>
           </div>
-
           <div className="bg-white dark:bg-card-dark p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-3 mb-3">
               <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -211,27 +219,8 @@ export default function DriverManagement() {
           </div>
         </div>
 
-        {/* Search and Filter */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-6">
-          {/* Search Bar */}
-          <div className="flex-1 max-w-2xl">
-            <div className="flex w-full items-center rounded-xl h-12 bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
-              <div className="pl-4 flex items-center justify-center text-slate-400">
-                <span className="material-symbols-outlined">search</span>
-              </div>
-              <input 
-                className="flex-1 bg-transparent border-none text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-0 px-3 text-base" 
-                placeholder="Tìm tên, biển số, SĐT..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <button className="pr-4 text-slate-400 hover:text-primary transition-colors">
-                <span className="material-symbols-outlined">tune</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Filter Tabs */}
+        {/* Filter + Add Button */}
+        <div className="flex flex-row items-center justify-between gap-2 mb-4 w-full">
           <div className="flex gap-2 items-center flex-wrap">
             <button 
               className={`flex h-10 items-center justify-center px-4 rounded-lg transition-all ${
@@ -275,6 +264,32 @@ export default function DriverManagement() {
               onClick={() => setFilterStatus('offline')}
             >
               <span className="text-sm font-medium">Offline</span>
+            </button>
+          </div>
+          {/* Add Driver Button */}
+          <button
+            className="h-10 px-5 rounded-lg bg-primary text-white font-semibold shadow-md hover:bg-primary-dark transition-colors"
+            onClick={() => navigate('/add-driver')}
+          >
+            <span className="material-symbols-outlined align-middle mr-2">add</span>
+            Thêm tài xế
+          </button>
+        </div>
+
+        {/* Search Bar riêng */}
+        <div className="w-full mb-6">
+          <div className="flex w-full max-w-2xl items-center rounded-xl h-12 bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+            <div className="pl-4 flex items-center justify-center text-slate-400">
+              <span className="material-symbols-outlined">search</span>
+            </div>
+            <input 
+              className="flex-1 bg-transparent border-none text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-0 px-3 text-base" 
+              placeholder="Tìm tên, biển số, SĐT..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button className="pr-4 text-slate-400 hover:text-primary transition-colors">
+              <span className="material-symbols-outlined">tune</span>
             </button>
           </div>
         </div>
@@ -327,74 +342,80 @@ export default function DriverManagement() {
           </div>
         )}
 
-        {/* Driver List */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Danh sách tài xế</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">Sắp xếp:</span>
-              <button className="text-sm font-medium text-primary flex items-center hover:underline">
-                Doanh thu 
-                <span className="material-symbols-outlined text-lg">arrow_drop_down</span>
-              </button>
-            </div>
-          </div>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin">
-                <span className="material-symbols-outlined text-3xl text-primary">autorenew</span>
-              </div>
-              <span className="ml-3 text-slate-500 dark:text-slate-400">Đang tải dữ liệu...</span>
-            </div>
-          ) : filteredDrivers.length === 0 ? (
-            <div className="bg-white dark:bg-card-dark p-12 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
-              <span className="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-700 mb-3">directions_car</span>
-              <p className="text-slate-500 dark:text-slate-400">Không tìm thấy tài xế</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3">
-              {filteredDrivers.map((driver) => (
-                <div key={driver._id || driver.id} className="bg-white dark:bg-card-dark p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4 hover:border-primary/50 dark:hover:border-primary/50 hover:shadow-md transition-all cursor-pointer">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="relative shrink-0">
-                      <img 
-                        className="size-14 rounded-full object-cover" 
+        {/* Bảng danh sách tài xế */}
+        <div className="bg-white dark:bg-card-dark rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+            <thead className="bg-slate-50 dark:bg-slate-800">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">Tên tài xế</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">Trạng thái</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">Loại xe</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">Biển số</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">Doanh thu</th>
+                <th className="px-6 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">Hành động</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-card-dark divide-y divide-slate-200 dark:divide-slate-700">
+              {filteredDrivers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">Không có tài xế nào phù hợp.</td>
+                </tr>
+              ) : (
+                filteredDrivers.map((driver) => (
+                  <tr key={driver._id || driver.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap flex items-center gap-3">
+                      <img
+                        className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
                         src={`https://i.pravatar.cc/150?u=${driver.bankAccountHolder || driver.userId}`}
                         alt={driver.displayName}
                       />
-                      <div className={`absolute bottom-0 right-0 size-4 rounded-full ${getStatusDotColor(driver.displayStatus)} border-2 border-white dark:border-card-dark`}></div>
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <h4 className="text-base font-bold text-slate-900 dark:text-white truncate">{driver.displayName}</h4>
-                      <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                        <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                          {driver.averageRating?.toFixed(1) || '0'} 
-                          <span className="material-symbols-outlined filled text-yellow-500 text-sm">star</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">{driver.displayName}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold ${
+                        driver.displayStatus === 'online' ? 'bg-green-100 text-green-600 dark:bg-green-600/20 dark:text-green-300' :
+                        driver.displayStatus === 'offline' ? 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300' :
+                        driver.displayStatus === 'blocked' ? 'bg-red-100 text-red-600 dark:bg-red-700/40 dark:text-red-300' :
+                        'bg-orange-100 text-orange-600 dark:bg-orange-700/40 dark:text-orange-300'
+                      }`}>
+                        <span className="material-symbols-outlined text-base align-middle">
+                          {driver.displayStatus === 'online' ? 'circle' :
+                            driver.displayStatus === 'offline' ? 'radio_button_unchecked' :
+                            driver.displayStatus === 'blocked' ? 'block' : 'pending'}
                         </span>
-                        <span className="truncate">{driver.vehicleModel} • {driver.vehiclePlate}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end shrink-0">
-                    <span className={`text-base font-bold ${driver.displayStatus === 'online' ? 'text-primary' : 'text-slate-900 dark:text-white'}`}>
-                      {driver.revenue} đ
-                    </span>
-                    <span className={`text-xs font-medium ${getStatusTextColor(driver.displayStatus)}`}>
-                      {driver.statusText}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {!loading && filteredDrivers.length > 0 && (
-            <div className="py-6 text-center">
-              <button className="text-sm text-slate-500 dark:text-slate-400 font-medium hover:text-primary transition-colors">
-                Tải thêm...
-              </button>
-            </div>
-          )}
+                        {driver.statusText}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 text-slate-900 dark:text-slate-100">
+                        <span className="material-symbols-outlined text-base align-middle">
+                          {driver.vehicleType === 'bike' ? 'two_wheeler' : 'directions_car'}
+                        </span>
+                        {driver.vehicleType === 'bike' ? 'Xe máy' : 'Ô tô'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-slate-900 dark:text-slate-100">{driver.vehiclePlate}</td>
+                    <td className="px-6 py-4 whitespace-nowrap font-semibold text-primary">{driver.revenue}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <button
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-100 hover:bg-primary hover:text-white dark:hover:bg-primary-dark dark:hover:text-white font-medium text-xs transition-colors"
+                        onClick={() => handleShowDetail(driver)}
+                      >
+                        <span className="material-symbols-outlined text-base align-middle">visibility</span>
+                        Xem chi tiết
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
+
+        {/* Modal chi tiết tài xế */}
+        {showDetail && selectedDriver && (
+          <DriverDetailModal driver={selectedDriver} onClose={handleCloseDetail} />
+        )}
       </div>
     </Layout>
   );
