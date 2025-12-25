@@ -75,9 +75,7 @@ export default function LoginScreen({ navigation }: any) {
         {/* Hero Banner */}
         <View style={styles.bannerContainer}>
           <ImageBackground
-            source={{
-              uri: 'https://images.unsplash.com/photo-1598922257218-f4b3a9c8dce6?w=500&h=220&fit=crop',
-            }}
+          source={require('../assets/heritage.png')}
             style={styles.banner}
           >
             <View style={styles.bannerOverlay} />
@@ -256,6 +254,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: COLORS.darkBg,
+    paddingTop: 40,
   },
   logoContainer: {
     flexDirection: 'row',

@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
-import { View, StyleSheet, Dimensions, Text } from 'react-native'
+import React, { useRef, useEffect } from 'react'
+import { View, StyleSheet } from 'react-native'
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps'
 
 interface MapViewComponentProps {
   height?: number
@@ -17,6 +18,9 @@ interface MapViewComponentProps {
     title: string
     description?: string
   }>
+  pickupCoords?: { latitude: number; longitude: number }
+  dropoffCoords?: { latitude: number; longitude: number }
+  routeCoordinates?: Array<{ latitude: number; longitude: number }>
 }
 
 const MapViewComponent = ({
@@ -29,19 +33,94 @@ const MapViewComponent = ({
   },
   onLocationSelect,
   markers = [],
+  pickupCoords,
+  dropoffCoords,
+  routeCoordinates = [],
 }: MapViewComponentProps) => {
-  const [selectedMarker, setSelectedMarker] = useState<string | null>(null)
+  const mapRef = useRef<MapView>(null)
+
+  // Tự động zoom để hiển thị cả pickup và dropoff
+  useEffect(() => {
+    if (pickupCoords && dropoffCoords && mapRef.current) {
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates([pickupCoords, dropoffCoords], {
+          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+          animated: true,
+        })
+      }, 100)
+    }
+  }, [pickupCoords, dropoffCoords])
 
   return (
     <View style={[styles.container, { height }]}>
-      <View style={styles.mapPlaceholder}>
-        <Text style={styles.placeholderText}>🗺️ Google Maps</Text>
-        <Text style={styles.infoText}>Latitude: {initialRegion.latitude.toFixed(4)}</Text>
-        <Text style={styles.infoText}>Longitude: {initialRegion.longitude.toFixed(4)}</Text>
-        {markers.length > 0 && (
-          <Text style={styles.markerCount}>📍 {markers.length} điểm đánh dấu</Text>
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        initialRegion={initialRegion}
+        onPress={(e) => {
+          const { latitude, longitude } = e.nativeEvent.coordinate
+          onLocationSelect?.({ latitude, longitude })
+        }}
+        showsUserLocation={true}
+        showsMyLocationButton={true}
+        showsCompass={true}
+        toolbarEnabled={true}
+      >
+        {/* Đường đi với outline */}
+        {routeCoordinates.length > 0 && (
+          <>
+            {/* Outline (viền ngoài) */}
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeColor="#1e293b"
+              strokeWidth={8}
+              lineJoin="round"
+              lineCap="round"
+            />
+            {/* Đường chính */}
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeColor="#8b5cf6"
+              strokeWidth={5}
+              lineJoin="round"
+              lineCap="round"
+            />
+          </>
         )}
-      </View>
+        {/* Điểm đón */}
+        {pickupCoords && (
+          <Marker
+            coordinate={pickupCoords}
+            title="Điểm đón"
+            pinColor="#FF6B00"
+            identifier="pickup"
+          />
+        )}
+
+        {/* Điểm đến */}
+        {dropoffCoords && (
+          <Marker
+            coordinate={dropoffCoords}
+            title="Điểm đến"
+            pinColor="#ef4444"
+            identifier="dropoff"
+          />
+        )}
+
+        {/* Các markers khác */}
+        {markers.map((marker) => (
+          <Marker
+            key={marker.id}
+            coordinate={{
+              latitude: marker.latitude,
+              longitude: marker.longitude,
+            }}
+            title={marker.title}
+            description={marker.description}
+          />
+        ))}
+      </MapView>
     </View>
   )
 }
@@ -51,31 +130,10 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
     marginBottom: 16,
   },
-  mapPlaceholder: {
+  map: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#e8e8e8',
-    borderColor: '#ccc',
-    borderWidth: 1,
-  },
-  placeholderText: {
-    fontSize: 24,
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 12,
-    color: '#666',
-    marginVertical: 2,
-  },
-  markerCount: {
-    fontSize: 12,
-    color: '#FF6B00',
-    marginTop: 8,
-    fontWeight: 'bold',
   },
 })
 

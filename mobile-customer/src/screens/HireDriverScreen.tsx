@@ -1,4 +1,10 @@
 import React, { useState } from 'react'
+import { useSelector } from 'react-redux'
+import { RootState } from '../redux/store'
+import { rideService } from '../services/rideService'
+import { mapsService } from '../services/mapsService'
+import { calculateFare, formatCurrency, formatDistance, formatDuration } from '../utils/pricing'
+import type { CreateRideDto } from '../types'
 import {
   View,
   Text,
@@ -7,6 +13,7 @@ import {
   TouchableOpacity,
   TextInput,
   SafeAreaView,
+  Alert,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS } from '../constants'
@@ -47,6 +54,148 @@ export default function HireDriverScreen({
   setDropoffLocation,
   setRideMode,
 }: HireDriverScreenProps) {
+  // Lấy user từ redux
+  const user = useSelector((state: RootState) => state.auth.user)
+  const [loading, setLoading] = useState(false)
+  const [calculating, setCalculating] = useState(false)
+  const [routeInfo, setRouteInfo] = useState<any>(null)
+  const [fareEstimate, setFareEstimate] = useState<any>(null)
+
+  // Tính giá cước khi có đủ thông tin
+  const calculateEstimate = async () => {
+    if (!pickupLocation.trim() || !dropoffLocation.trim()) {
+      return
+    }
+
+    setCalculating(true)
+    try {
+      console.log('[HireDriverScreen] Calculating route...')
+      const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
+      setRouteInfo(route)
+
+      const fare = calculateFare(route.distance, route.duration, carType)
+      setFareEstimate(fare)
+
+      console.log('[HireDriverScreen] Route calculated:', { route, fare })
+
+      // Thông báo nếu đang dùng mock data
+      if (route.isMockData) {
+        Alert.alert(
+          '⚠️ Chế độ Demo',
+          'Hiện đang sử dụng dữ liệu giả lập.\n\nĐể sử dụng Google Maps thật, vui lòng cấu hình API key trong file .env',
+          [{ text: 'OK' }]
+        )
+      }
+    } catch (err: any) {
+      console.error('[HireDriverScreen] Calculate error:', err)
+      Alert.alert('Lỗi', err.message || 'Không thể tính toán tuyến đường')
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  // Validation và tạo cuốc xe
+  const handleCreateRide = async () => {
+    // Kiểm tra đăng nhập
+    if (!user) {
+      Alert.alert('Yêu cầu đăng nhập', 'Bạn cần đăng nhập để đặt xe!')
+      return
+    }
+
+    // Validation các trường bắt buộc
+    if (!pickupLocation.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đón!')
+      return
+    }
+
+    if (!dropoffLocation.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đến!')
+      return
+    }
+
+    if (!licensePlate.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập biển số xe!')
+      return
+    }
+
+    // Nếu chưa tính giá, tính trước
+    if (!routeInfo || !fareEstimate) {
+      Alert.alert(
+        'Chưa tính giá',
+        'Vui lòng nhấn "Tính giá" trước khi đặt xe!',
+        [
+          {
+            text: 'Tính giá ngay',
+            onPress: calculateEstimate,
+          },
+          { text: 'Hủy', style: 'cancel' },
+        ]
+      )
+      return
+    }
+
+    setLoading(true)
+    try {
+      const rideData: CreateRideDto = {
+        pickupAddress: routeInfo.pickup.formattedAddress,
+        pickupCoordinates: [
+          routeInfo.pickup.coordinates.longitude,
+          routeInfo.pickup.coordinates.latitude,
+        ],
+        dropoffAddress: routeInfo.dropoff.formattedAddress,
+        dropoffCoordinates: [
+          routeInfo.dropoff.coordinates.longitude,
+          routeInfo.dropoff.coordinates.latitude,
+        ],
+        distance: routeInfo.distance,
+        duration: routeInfo.duration,
+        baseFare: fareEstimate.baseFare,
+        distanceFare: fareEstimate.distanceFare,
+        timeFare: fareEstimate.timeFare,
+        surgePricing: fareEstimate.surgePricing,
+        carType,
+        licensePlate,
+        transmission,
+        driverNote,
+        isScheduled,
+        scheduledTime: isScheduled ? new Date().toISOString() : undefined,
+      }
+
+      console.log('[HireDriverScreen] Creating ride with data:', rideData)
+      const result = await rideService.createRide(rideData, user.id)
+      
+      Alert.alert(
+        'Thành công!',
+        `Cuốc xe đã được tạo.\nTổng tiền: ${formatCurrency(fareEstimate.total)}\nĐang tìm tài xế phù hợp...`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // TODO: Navigate to ride tracking screen
+              console.log('[HireDriverScreen] Created ride:', result)
+            },
+          },
+        ]
+      )
+      
+      // Reset form (optional)
+      // setPickupLocation('')
+      // setDropoffLocation('')
+      // setLicensePlate('')
+      // setDriverNote('')
+      // setRouteInfo(null)
+      // setFareEstimate(null)
+    } catch (err: any) {
+      console.error('[HireDriverScreen] Create ride error:', err)
+      Alert.alert(
+        'Lỗi',
+        err.message || 'Không thể tạo cuốc xe. Vui lòng thử lại!',
+        [{ text: 'Đóng' }]
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -108,6 +257,23 @@ export default function HireDriverScreen({
             longitudeDelta: 0.0421,
           }}
           markers={[]}
+          pickupCoords={
+            routeInfo
+              ? {
+                  latitude: routeInfo.pickup.coordinates.latitude,
+                  longitude: routeInfo.pickup.coordinates.longitude,
+                }
+              : undefined
+          }
+          dropoffCoords={
+            routeInfo
+              ? {
+                  latitude: routeInfo.dropoff.coordinates.latitude,
+                  longitude: routeInfo.dropoff.coordinates.longitude,
+                }
+              : undefined
+          }
+          routeCoordinates={routeInfo?.routeCoordinates || []}
           onLocationSelect={(location) => {
             console.log('Location selected:', location)
           }}
@@ -290,17 +456,48 @@ export default function HireDriverScreen({
 
       {/* Bottom Action */}
       <View style={styles.bottomAction}>
+        {/* Hiển thị thông tin route nếu đã tính */}
+        {routeInfo && fareEstimate && (
+          <View style={styles.routeInfoContainer}>
+            <View style={styles.routeInfoRow}>
+              <Text style={styles.routeInfoLabel}>
+                {formatDistance(routeInfo.distance)} • {formatDuration(routeInfo.duration)}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.priceContainer}>
           <View style={styles.priceIcon}>
             <MaterialIcons name="payments" size={20} color="#FF6B00" />
           </View>
           <View style={styles.priceInfo}>
-            <Text style={styles.priceLabel}>Ước tính</Text>
-            <Text style={styles.priceValue}>250.000đ</Text>
+            <Text style={styles.priceLabel}>
+              {calculating ? 'Đang tính...' : 'Ước tính'}
+            </Text>
+            <Text style={styles.priceValue}>
+              {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
+            </Text>
           </View>
+          {!calculating && (
+            <TouchableOpacity
+              style={styles.calculateButton}
+              onPress={calculateEstimate}
+              disabled={!pickupLocation || !dropoffLocation}
+            >
+              <MaterialIcons name="calculate" size={20} color="#FF6B00" />
+              <Text style={styles.calculateButtonText}>Tính giá</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        <TouchableOpacity style={styles.findButton}>
-          <Text style={styles.findButtonText}>Tìm tài xế ngay</Text>
+        <TouchableOpacity
+          style={[styles.findButton, (loading || calculating) && styles.findButtonDisabled]}
+          onPress={handleCreateRide}
+          disabled={loading || calculating}
+        >
+          <Text style={styles.findButtonText}>
+            {loading ? 'Đang tạo...' : calculating ? 'Đang tính...' : 'Tìm tài xế ngay'}
+          </Text>
           <MaterialIcons
             name="arrow-forward"
             size={20}
@@ -532,6 +729,19 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
     gap: SPACING.md,
   },
+  routeInfoContainer: {
+    paddingVertical: SPACING.sm,
+  },
+  routeInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  routeInfoLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -558,6 +768,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
+  calculateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: '#FF6B00',
+  },
+  calculateButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF6B00',
+  },
   findButton: {
     height: 56,
     backgroundColor: '#FF6B00',
@@ -571,6 +797,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
+  },
+  findButtonDisabled: {
+    backgroundColor: '#64748b',
+    shadowOpacity: 0,
   },
   findButtonText: {
     fontSize: 15,

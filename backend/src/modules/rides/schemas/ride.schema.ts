@@ -17,6 +17,17 @@ export enum PaymentMethod {
   CARD = 'card',
 }
 
+export enum CarType {
+  SEDAN = 'sedan',
+  SUV = 'suv',
+  TRUCK = 'truck',
+}
+
+export enum TransmissionType {
+  AUTO = 'auto',
+  MANUAL = 'manual',
+}
+
 @Schema({ timestamps: true })
 export class Ride {
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
@@ -95,6 +106,25 @@ export class Ride {
 
   @Prop()
   notes?: string;
+
+  // Hire Driver specific fields
+  @Prop({ type: String, enum: CarType })
+  carType?: CarType;
+
+  @Prop()
+  licensePlate?: string;
+
+  @Prop({ type: String, enum: TransmissionType })
+  transmission?: TransmissionType;
+
+  @Prop()
+  driverNote?: string;
+
+  @Prop({ default: false })
+  isScheduled: boolean;
+
+  @Prop()
+  scheduledTime?: Date;
 
   // Ratings
   @Prop({ min: 1, max: 5 })

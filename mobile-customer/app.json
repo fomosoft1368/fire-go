@@ -19,12 +19,20 @@
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Allow app to access your location"
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyAai1d44WZ45BaJdj-LCldBozmjconjRos"
       }
     },
     "android": {
       "package": "com.datxe.customer",
       "versionCode": 1,
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAai1d44WZ45BaJdj-LCldBozmjconjRos"
+        }
+      }
     },
     "plugins": [
       [
