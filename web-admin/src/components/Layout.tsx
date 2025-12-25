@@ -125,6 +125,18 @@ export default function Layout({ children }: LayoutProps) {
           </button>
 
           <button
+            onClick={() => navigate('/driver-approval')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/driver-approval')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/driver-approval') ? 'filled' : ''}`}>check_circle</span>
+            <span className="font-semibold">Duyệt tài xế</span>
+          </button>
+
+          <button
             onClick={() => navigate('/rides')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
               isActive('/rides')

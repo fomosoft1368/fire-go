@@ -1,4 +1,5 @@
 import { IsOptional, IsString, IsBoolean, IsDate, IsArray, IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateCustomerDto {
   // Authentication fields (required)
@@ -18,10 +19,10 @@ export class CreateCustomerDto {
   @IsString()
   phone: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @MinLength(6)
-  password: string;
+  password?: string;
 
   @IsOptional()
   @IsString()
@@ -37,6 +38,7 @@ export class CreateCustomerDto {
 
   // Contact information (optional)
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
   dateOfBirth?: Date;
 

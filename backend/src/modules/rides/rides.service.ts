@@ -37,7 +37,7 @@ export class RidesService {
     return this.rideModel
       .find(filters || {})
       .populate({ path: 'driverId', populate: { path: 'userId' } })
-      .populate({ path: 'customerId', populate: { path: 'userId' } })
+      .populate('customerId')
       .sort({ createdAt: -1 });
   }
 
@@ -45,7 +45,7 @@ export class RidesService {
     const ride = await this.rideModel
       .findById(id)
       .populate({ path: 'driverId', populate: { path: 'userId' } })
-      .populate({ path: 'customerId', populate: { path: 'userId' } });
+      .populate('customerId');
 
     if (!ride) {
       throw new NotFoundException(`Ride with ID ${id} not found`);
@@ -58,7 +58,7 @@ export class RidesService {
     return this.rideModel
       .find({ customerId: new Types.ObjectId(customerId) })
       .populate({ path: 'driverId', populate: { path: 'userId' } })
-      .populate({ path: 'customerId', populate: { path: 'userId' } })
+      .populate('customerId')
       .sort({ createdAt: -1 });
   }
 
@@ -66,7 +66,7 @@ export class RidesService {
     return this.rideModel
       .find({ driverId: new Types.ObjectId(driverId) })
       .populate({ path: 'driverId', populate: { path: 'userId' } })
-      .populate({ path: 'customerId', populate: { path: 'userId' } })
+      .populate('customerId')
       .sort({ createdAt: -1 });
   }
 
@@ -89,7 +89,7 @@ export class RidesService {
         },
       })
       .populate({ path: 'driverId', populate: { path: 'userId' } })
-      .populate({ path: 'customerId', populate: { path: 'userId' } })
+      .populate('customerId')
       .limit(10);
   }
 

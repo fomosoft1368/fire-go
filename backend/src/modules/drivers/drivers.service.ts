@@ -9,12 +9,21 @@ export class DriversService {
   constructor(@InjectModel(Driver.name) private driverModel: Model<DriverDocument>) {}
 
   async create(userId: string, createDriverDto: CreateDriverDto): Promise<DriverDocument> {
-    const driver = await this.driverModel.create({
+    const driverData: any = {
       ...createDriverDto,
-      userId: new Types.ObjectId(userId),
       status: DriverStatus.OFFLINE,
-    });
+    };
 
+    // Only add userId if provided and valid
+    if (userId && userId.trim()) {
+      try {
+        driverData.userId = new Types.ObjectId(userId);
+      } catch (e) {
+        // Invalid userId format, skip it
+      }
+    }
+
+    const driver = await this.driverModel.create(driverData);
     return driver.populate('userId');
   }
 

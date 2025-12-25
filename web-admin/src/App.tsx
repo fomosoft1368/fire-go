@@ -5,6 +5,7 @@ import Login from './pages/login'
 import Dashboard from './pages/dashboard'
 import UserManagement from './pages/user-management'
 import DriverManagement from './pages/driver-management'
+import DriverApproval from './pages/driver-approval'
 import AddDriverPage from './pages/add-driver'
 import RideManagement from './pages/ride-management'
 import RevenueManagement from './pages/revenue-management'
@@ -23,6 +24,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/user-management" element={<UserManagement />} />
           <Route path="/drivers" element={<DriverManagement />} />
+          <Route path="/driver-approval" element={<DriverApproval />} />
           <Route path="/add-driver" element={<AddDriverPage />} />
           <Route path="/rides" element={<RideManagement />} />
           <Route path="/revenue" element={<RevenueManagement />} />

@@ -13,6 +13,25 @@ export class CustomersController {
   ) {}
 
   /**
+   * POST /api/customers
+   * Tạo khách hàng mới (Admin)
+   */
+  @Post()
+  async create(@Body() createCustomerDto: CreateCustomerDto) {
+    try {
+      const customer = await this.customersService.create(createCustomerDto);
+      
+      return {
+        success: true,
+        message: 'Customer created successfully',
+        data: customer,
+      };
+    } catch (error: any) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
    * POST /api/customers/register
    * Đăng ký tài khoản khách hàng
    */

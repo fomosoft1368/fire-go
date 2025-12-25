@@ -19,8 +19,27 @@ export enum DriverStatus {
 
 @Schema({ timestamps: true })
 export class Driver {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
-  userId: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  userId?: Types.ObjectId;
+
+  // Personal information (for admin-created drivers)
+  @Prop()
+  firstName?: string;
+
+  @Prop()
+  lastName?: string;
+
+  @Prop()
+  email?: string;
+
+  @Prop()
+  phone?: string;
+
+  @Prop()
+  dateOfBirth?: Date;
+
+  @Prop()
+  address?: string;
 
   @Prop({
     type: String,
@@ -30,14 +49,14 @@ export class Driver {
   status: DriverStatus;
 
   // Vehicle information
-  @Prop({ required: true })
-  vehicleLicense: string;
+  @Prop()
+  vehicleLicense?: string;
 
-  @Prop({ required: true })
-  vehicleModel: string;
+  @Prop()
+  vehicleModel?: string;
 
-  @Prop({ required: true })
-  vehicleColor: string;
+  @Prop()
+  vehicleColor?: string;
 
   @Prop({ required: true })
   vehiclePlate: string;
@@ -46,11 +65,11 @@ export class Driver {
   vehicleImage?: string;
 
   // Driver license
-  @Prop({ required: true })
-  licenseNumber: string;
+  @Prop()
+  licenseNumber?: string;
 
-  @Prop({ required: true })
-  licenseExpiry: Date;
+  @Prop()
+  licenseExpiry?: Date;
 
   @Prop()
   licenseImage?: string;
@@ -127,7 +146,7 @@ export class Driver {
 
   // Current location (geospatial)
   @Prop({
-    type: { type: String, enum: ['Point'], default: 'Point' },
+    type: { type: String, enum: ['Point'] },
     coordinates: [Number],
   })
   currentLocation?: {
@@ -161,7 +180,8 @@ export class Driver {
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);
 
-DriverSchema.index({ 'currentLocation': '2dsphere' });
+// Sparse index for geospatial queries - only on documents with currentLocation
+DriverSchema.index({ 'currentLocation': '2dsphere' }, { sparse: true });
 DriverSchema.index({ userId: 1 });
 DriverSchema.index({ status: 1 });
 DriverSchema.index({ licenseExpiry: 1 });

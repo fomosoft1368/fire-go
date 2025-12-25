@@ -66,7 +66,24 @@ class ApiService {
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+      let errorMessage = '';
+      
+      if (Array.isArray(error.message)) {
+        errorMessage = error.message.map((msg: any) => {
+          if (typeof msg === 'string') return msg;
+          if (msg.constraints) return Object.values(msg.constraints).join(', ');
+          return JSON.stringify(msg);
+        }).join('; ');
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.error?.message) {
+        errorMessage = error.error.message;
+      } else {
+        errorMessage = `HTTP error! status: ${response.status}`;
+      }
+      
+      console.error('API Error:', { status: response.status, error, errorMessage });
+      throw new Error(errorMessage);
     }
     const data = await response.json();
     return data.data || data;
@@ -124,6 +141,24 @@ class ApiService {
       body: JSON.stringify({ status }),
     });
     return this.handleResponse<Driver>(response);
+  }
+
+  async approveDriver(id: string, data?: any): Promise<Driver> {
+    const response = await fetch(`${API_BASE_URL}/drivers/${id}/approve`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data || {}),
+    });
+    return this.handleResponse<Driver>(response);
+  }
+
+  async rejectDriver(id: string, rejectionData: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/drivers/${id}/reject`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(rejectionData),
+    });
+    return this.handleResponse<any>(response);
   }
 
   async getDriverStats(id: string) {
