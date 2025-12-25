@@ -19,9 +19,12 @@ export class CustomersService {
       throw new BadRequestException('Customer with this email or phone already exists');
     }
 
+    // Generate password if not provided
+    const password = createCustomerDto.password || Math.random().toString(36).slice(-12);
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(createCustomerDto.password, salt);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     const customer = await this.customerModel.create({
       ...createCustomerDto,

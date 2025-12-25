@@ -10,12 +10,40 @@ import {
 import { Type } from 'class-transformer';
 
 export class CreateDriverDto {
-  @IsString({ message: 'Số GPLX phải là chuỗi ký tự' })
-  vehicleLicense: string;
+  @IsOptional()
+  @IsString({ message: 'Tên phải là chuỗi ký tự' })
+  firstName?: string;
 
+  @IsOptional()
+  @IsString({ message: 'Họ phải là chuỗi ký tự' })
+  lastName?: string;
+
+  @IsOptional()
+  @IsEmail({}, { message: 'Email không hợp lệ' })
+  email?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Số điện thoại phải là chuỗi ký tự' })
+  phone?: string;
+
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate({ message: 'Ngày sinh phải là một ngày hợp lệ' })
+  dateOfBirth?: Date;
+
+  @IsOptional()
+  @IsString({ message: 'Địa chỉ phải là chuỗi ký tự' })
+  address?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Số GPLX phải là chuỗi ký tự' })
+  vehicleLicense?: string;
+
+  @IsOptional()
   @IsString({ message: 'Model xe phải là chuỗi ký tự' })
   vehicleModel: string;
 
+  @IsOptional()
   @IsString({ message: 'Màu xe phải là chuỗi ký tự' })
   vehicleColor: string;
 
@@ -25,12 +53,14 @@ export class CreateDriverDto {
   })
   vehiclePlate: string;
 
+  @IsOptional()
   @IsString({ message: 'Số bằng lái phải là chuỗi ký tự' })
-  licenseNumber: string;
+  licenseNumber?: string;
 
+  @IsOptional()
   @Type(() => Date)
   @IsDate({ message: 'Ngày hết hạn bằng lái phải là một ngày hợp lệ' })
-  licenseExpiry: Date;
+  licenseExpiry?: Date;
 
   @IsOptional()
   @IsString()
@@ -63,4 +93,13 @@ export class CreateDriverDto {
   @IsOptional()
   @IsString()
   idImage?: string;
+
+  @IsOptional()
+  @IsString()
+  portraitImage?: string;
+
+  @IsOptional()
+  @IsString()
+  insuranceCertificate?: string;
 }
+

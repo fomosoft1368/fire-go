@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
+import CustomerDetailModal from '../components/CustomerDetailModal';
 import { apiService } from '../services/api';
 
 interface Customer {
@@ -34,6 +35,7 @@ const Customers: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
@@ -41,7 +43,9 @@ const Customers: React.FC = () => {
     email: '',
     phone: '',
     address: '',
-    dateOfBirth: ''
+    dateOfBirth: '',
+    avatar: '',
+    password: ''
   });
   const itemsPerPage = 10;
 
@@ -67,24 +71,21 @@ const Customers: React.FC = () => {
 
         // Transform API response to UI format
         const transformedCustomers = allCustomers.map((customer: any, idx: number) => {
-          // Get user info from populated userId
+          // Get name from firstName/lastName or from populated userId
           const userInfo = customer.userId || {};
-          console.log(`[CUSTOMER MAP][${idx}]`, {
-            raw: customer,
-            userInfo,
-            fullName: userInfo.fullName,
-            name: userInfo.name,
-            email: userInfo.email,
-            phone: userInfo.phone,
-            avatar: userInfo.avatar,
-            id: userInfo._id,
-          });
+          const firstName = customer.firstName || userInfo.fullName?.split(' ')[0] || userInfo.name?.split(' ')[0] || '';
+          const lastName = customer.lastName || userInfo.fullName?.split(' ').slice(1).join(' ') || '';
+          const displayName = `${firstName} ${lastName}`.trim() || 'Chưa có tên';
+          const email = customer.email || userInfo.email || 'N/A';
+          const phone = customer.phone || userInfo.phone || 'N/A';
+          const avatar = customer.avatar || `https://i.pravatar.cc/150?u=${email}`;
+          
           return {
             ...customer,
-            displayName: userInfo.fullName || userInfo.name || 'Chưa có tên',
-            email: userInfo.email || 'N/A',
-            phone: userInfo.phone || 'N/A',
-            avatar: `https://i.pravatar.cc/150?u=${userInfo._id || customer._id}`,
+            displayName,
+            email,
+            phone,
+            avatar,
             displayStatus: customer.isBlacklisted ? 'blocked' : 
                           customer.isAccountLocked ? 'inactive' : 'active',
             status: customer.isBlacklisted ? 'blocked' : 
@@ -116,14 +117,20 @@ const Customers: React.FC = () => {
     }
 
     try {
-      const newCustomer = {
+      const newCustomer: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
         address: formData.address,
-        dateOfBirth: formData.dateOfBirth
+        avatar: formData.avatar || `https://i.pravatar.cc/150?u=${formData.email}`,
+        password: formData.password
       };
+
+      // Chỉ thêm dateOfBirth nếu có dữ liệu
+      if (formData.dateOfBirth) {
+        newCustomer.dateOfBirth = formData.dateOfBirth;
+      }
 
       await apiService.createCustomer(newCustomer);
       alert('Thêm khách hàng thành công!');
@@ -134,7 +141,9 @@ const Customers: React.FC = () => {
         email: '',
         phone: '',
         address: '',
-        dateOfBirth: ''
+        dateOfBirth: '',
+        avatar: '',
+        password: ''
       });
       
       // Reload customers
@@ -170,14 +179,18 @@ const Customers: React.FC = () => {
     }
 
     try {
-      const updateData = {
+      const updateData: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
-        address: formData.address,
-        dateOfBirth: formData.dateOfBirth
+        address: formData.address
       };
+
+      // Chỉ thêm dateOfBirth nếu có dữ liệu
+      if (formData.dateOfBirth) {
+        updateData.dateOfBirth = formData.dateOfBirth;
+      }
 
       await apiService.updateCustomer(selectedCustomer._id || selectedCustomer.id || '', updateData);
       alert('Cập nhật khách hàng thành công!');
@@ -189,19 +202,28 @@ const Customers: React.FC = () => {
         email: '',
         phone: '',
         address: '',
-        dateOfBirth: ''
+        dateOfBirth: '',
+        avatar: '',
+        password: ''
       });
       
       // Reload customers
-      const allCustomers = await apiService.getCustomers();
-      const transformedCustomers = allCustomers.map((customer: any) => {
+      const allCustomers2 = await apiService.getCustomers();
+      const transformedCustomers2 = allCustomers2.map((customer: any) => {
         const userInfo = customer.userId || {};
+        const firstName = customer.firstName || userInfo.fullName?.split(' ')[0] || userInfo.name?.split(' ')[0] || '';
+        const lastName = customer.lastName || userInfo.fullName?.split(' ').slice(1).join(' ') || '';
+        const displayName = `${firstName} ${lastName}`.trim() || 'Chưa có tên';
+        const email = customer.email || userInfo.email || 'N/A';
+        const phone = customer.phone || userInfo.phone || 'N/A';
+        const avatar = customer.avatar || `https://i.pravatar.cc/150?u=${email}`;
+        
         return {
           ...customer,
-          displayName: userInfo.fullName || userInfo.name || 'Chưa có tên',
-          email: userInfo.email || 'N/A',
-          phone: userInfo.phone || 'N/A',
-          avatar: `https://i.pravatar.cc/150?u=${userInfo._id || customer._id}`,
+          displayName,
+          email,
+          phone,
+          avatar,
           displayStatus: customer.isBlacklisted ? 'blocked' : 
                         customer.isAccountLocked ? 'inactive' : 'active',
           status: customer.isBlacklisted ? 'blocked' : 
@@ -211,7 +233,7 @@ const Customers: React.FC = () => {
           lastActive: '2 giờ trước'
         };
       });
-      setCustomers(transformedCustomers);
+      setCustomers(transformedCustomers2);
     } catch (err) {
       console.error('Error updating customer:', err);
       alert('Lỗi khi cập nhật khách hàng: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -253,7 +275,9 @@ const Customers: React.FC = () => {
       email: customer.email || '',
       phone: customer.phone || '',
       address: customer.address || '',
-      dateOfBirth: customer.createdAt ? new Date(customer.createdAt).toISOString().split('T')[0] : ''
+      dateOfBirth: customer.createdAt ? new Date(customer.createdAt).toISOString().split('T')[0] : '',
+      avatar: customer.avatar || '',
+      password: ''
     });
     setShowEditModal(true);
   };
@@ -427,7 +451,9 @@ const Customers: React.FC = () => {
                   email: '',
                   phone: '',
                   address: '',
-                  dateOfBirth: ''
+                  dateOfBirth: '',
+                  avatar: '',
+                  password: ''
                 });
                 setShowAddModal(true);
               }}
@@ -544,7 +570,13 @@ const Customers: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors">
+                          <button 
+                            onClick={() => {
+                              setSelectedCustomer(customer);
+                              setShowDetailModal(true);
+                            }}
+                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
+                            title="Xem chi tiết">
                             <span className="material-symbols-outlined text-[20px]">visibility</span>
                           </button>
                           <button 
@@ -671,6 +703,17 @@ const Customers: React.FC = () => {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Mật khẩu</label>
+                <input 
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  placeholder="Nhập mật khẩu"
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Địa chỉ</label>
                 <input 
                   type="text"
@@ -689,6 +732,35 @@ const Customers: React.FC = () => {
                   onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
                   className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Avatar</label>
+                <div className="flex items-center gap-3">
+                  {formData.avatar ? (
+                    <img src={formData.avatar} alt="Avatar preview" className="w-12 h-12 rounded-full object-cover border border-slate-300 dark:border-slate-600" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400">
+                      <span className="material-symbols-outlined">person</span>
+                    </div>
+                  )}
+                  <input 
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                          setFormData({...formData, avatar: evt.target?.result as string});
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF6B00] text-sm"
+                  />
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Nếu không tải avatar sẽ tự động tạo avatar từ email</p>
               </div>
             </div>
 
@@ -787,6 +859,35 @@ const Customers: React.FC = () => {
                   className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Avatar</label>
+                <div className="flex items-center gap-3">
+                  {formData.avatar ? (
+                    <img src={formData.avatar} alt="Avatar preview" className="w-12 h-12 rounded-full object-cover border border-slate-300 dark:border-slate-600" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400">
+                      <span className="material-symbols-outlined">person</span>
+                    </div>
+                  )}
+                  <input 
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                          setFormData({...formData, avatar: evt.target?.result as string});
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF6B00] text-sm"
+                  />
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Nếu không tải avatar sẽ tự động tạo avatar từ email</p>
+              </div>
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -835,6 +936,17 @@ const Customers: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Customer Detail Modal */}
+      {showDetailModal && selectedCustomer && (
+        <CustomerDetailModal 
+          customer={selectedCustomer} 
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedCustomer(null);
+          }} 
+        />
       )}
     </Layout>
   );

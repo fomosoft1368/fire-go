@@ -1,12 +1,26 @@
 import React from 'react';
 
-interface DriverDetailModalProps {
-  driver: any;
+interface CustomerDetailModalProps {
+  customer: any;
   onClose: () => void;
 }
 
-const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ driver, onClose }) => {
-  if (!driver) return null;
+const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({ customer, onClose }) => {
+  if (!customer) return null;
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-500/20 text-green-400';
+      case 'inactive':
+        return 'bg-slate-500/20 text-slate-300';
+      case 'blocked':
+        return 'bg-red-500/20 text-red-400';
+      default:
+        return 'bg-slate-500/20 text-slate-300';
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-0 w-full max-w-4xl shadow-2xl relative border border-slate-700">
@@ -16,46 +30,49 @@ const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ driver, onClose }
         >
           <span className="material-symbols-outlined text-2xl">close</span>
         </button>
-        
+
         {/* Header Section */}
         <div className="bg-gradient-to-r from-primary/20 via-orange-400/10 to-slate-900 p-8 border-b border-slate-700">
           <div className="flex items-start gap-6">
             <img
-              src={`https://i.pravatar.cc/150?u=${driver.bankAccountHolder || driver.userId}`}
-              alt={driver.displayName}
+              src={customer.avatar || `https://i.pravatar.cc/150?u=${customer._id || customer.id}`}
+              alt={customer.displayName || customer.name}
               className="w-32 h-32 rounded-2xl border-4 border-primary shadow-lg object-cover"
             />
             <div className="flex-1">
-              <h2 className="text-4xl font-black text-white mb-2">{driver.displayName}</h2>
+              <h2 className="text-4xl font-black text-white mb-2">{customer.displayName || customer.name || 'Khách hàng'}</h2>
               <div className="flex gap-3 mb-4 flex-wrap">
-                <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm ${
-                  driver.displayStatus === 'online' ? 'bg-green-500/20 text-green-400' :
-                  driver.displayStatus === 'offline' ? 'bg-slate-500/20 text-slate-300' :
-                  driver.displayStatus === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                  'bg-red-500/20 text-red-400'
-                }`}>
+                <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm ${getStatusColor(customer.displayStatus || customer.status || 'inactive')}`}>
                   <span className="material-symbols-outlined text-base">fiber_manual_record</span>
-                  {driver.statusText || 'Chưa xác định'}
+                  {customer.displayStatus === 'active' ? 'Đang hoạt động' : 
+                   customer.displayStatus === 'inactive' ? 'Không hoạt động' : 
+                   'Bị khóa'}
                 </span>
-                {driver.isPending && (
-                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm bg-orange-500/20 text-orange-400">
-                    <span className="material-symbols-outlined text-base">schedule</span>
-                    Chờ xác nhận
+                {customer.isBlacklisted && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm bg-red-500/20 text-red-400">
+                    <span className="material-symbols-outlined text-base">block</span>
+                    Danh sách đen
+                  </span>
+                )}
+                {customer.isAccountLocked && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm bg-yellow-500/20 text-yellow-400">
+                    <span className="material-symbols-outlined text-base">lock</span>
+                    Tài khoản bị khóa
                   </span>
                 )}
               </div>
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <span className="text-slate-400">Email</span>
-                  <div className="font-semibold text-white">{driver.email || 'N/A'}</div>
+                  <div className="font-semibold text-white">{customer.email || 'N/A'}</div>
                 </div>
                 <div>
                   <span className="text-slate-400">Điện thoại</span>
-                  <div className="font-semibold text-white">{driver.phone || 'N/A'}</div>
+                  <div className="font-semibold text-white">{customer.phone || 'N/A'}</div>
                 </div>
                 <div>
-                  <span className="text-slate-400">Ngày đăng ký</span>
-                  <div className="font-semibold text-white">{driver.registeredTime || 'N/A'}</div>
+                  <span className="text-slate-400">Ngày tham gia</span>
+                  <div className="font-semibold text-white">{customer.joinedDate || 'N/A'}</div>
                 </div>
               </div>
             </div>
@@ -64,119 +81,118 @@ const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ driver, onClose }
 
         {/* Content Section */}
         <div className="p-8">
-          {/* Vehicle Info */}
+          {/* Personal Info */}
           <div className="mb-8">
             <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-2xl">directions_car</span>
-              Thông tin phương tiện
+              <span className="material-symbols-outlined text-primary text-2xl">person</span>
+              Thông tin cá nhân
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
                 <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">badge</span>
-                  Biển số
+                  <span className="material-symbols-outlined text-sm">person</span>
+                  Tên
                 </div>
-                <div className="font-bold text-white text-lg font-mono">{driver.vehiclePlate || 'N/A'}</div>
+                <div className="font-bold text-white text-lg">{customer.displayName || customer.name || 'N/A'}</div>
               </div>
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
                 <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">info</span>
-                  Model
+                  <span className="material-symbols-outlined text-sm">mail</span>
+                  Email
                 </div>
-                <div className="font-bold text-white text-lg">{driver.vehicleModel || 'N/A'}</div>
+                <div className="font-bold text-white text-sm break-all">{customer.email || 'N/A'}</div>
               </div>
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
                 <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">two_wheeler</span>
-                  Loại xe
+                  <span className="material-symbols-outlined text-sm">phone</span>
+                  Điện thoại
                 </div>
-                <div className="font-bold text-white text-lg">
-                  {driver.vehicleType === 'car' ? 'Ô tô' : driver.vehicleType === 'bike' ? 'Xe máy' : 'N/A'}
-                </div>
+                <div className="font-bold text-white text-lg font-mono">{customer.phone || 'N/A'}</div>
               </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all md:col-span-2">
                 <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">check_circle</span>
-                  Số chứng chỉ
+                  <span className="material-symbols-outlined text-sm">location_on</span>
+                  Địa chỉ
                 </div>
-                <div className="font-bold text-white text-lg">{driver.licenseNumber || 'N/A'}</div>
+                <div className="font-bold text-white">{customer.address || 'N/A'}</div>
               </div>
             </div>
           </div>
 
-          {/* Financial Info */}
+          {/* Activity Stats */}
           <div className="mb-8">
             <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-2xl">account_balance</span>
-              Tài chính
+              <span className="material-symbols-outlined text-primary text-2xl">trending_up</span>
+              Hoạt động & Thống kê
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl p-4 border border-primary/30">
                 <div className="text-xs text-slate-300 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">payments</span>
-                  Tổng doanh thu
-                </div>
-                <div className="font-bold text-primary text-lg">{(driver.totalEarnings || 0).toLocaleString('vi-VN')}₫</div>
-              </div>
-              <div className="bg-gradient-to-br from-orange-400/20 to-orange-400/5 rounded-xl p-4 border border-orange-400/30">
-                <div className="text-xs text-slate-300 mb-2 flex items-center gap-2">
                   <span className="material-symbols-outlined text-sm">history_edu</span>
                   Số chuyến
                 </div>
-                <div className="font-bold text-orange-400 text-lg">{driver.totalRides || 0}</div>
+                <div className="font-bold text-primary text-lg">{customer.totalTrips || 0}</div>
               </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
-                <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">person</span>
-                  Chủ TK
+              <div className="bg-gradient-to-br from-orange-400/20 to-orange-400/5 rounded-xl p-4 border border-orange-400/30">
+                <div className="text-xs text-slate-300 mb-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">payments</span>
+                  Tổng chi tiêu
                 </div>
-                <div className="font-bold text-white text-lg">{driver.bankAccountHolder || 'N/A'}</div>
+                <div className="font-bold text-orange-400 text-lg">{(customer.totalSpent || 0).toLocaleString('vi-VN')}₫</div>
               </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
-                <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">building</span>
-                  Ngân hàng
-                </div>
-                <div className="font-bold text-white text-lg">{driver.bankName || 'N/A'}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Rating & Stats */}
-          <div>
-            <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-2xl">star</span>
-              Đánh giá & Thống kê
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
                 <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
                   <span className="material-symbols-outlined text-sm">star</span>
                   Đánh giá
                 </div>
-                <div className="font-bold text-white text-lg">{(driver.averageRating || 0).toFixed(1)} ⭐</div>
-                <div className="text-xs text-slate-500 mt-1">({driver.totalRatings || 0} đánh giá)</div>
+                <div className="font-bold text-white text-lg">{(customer.averageRating || 0).toFixed(1)} ⭐</div>
               </div>
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
                 <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">check</span>
-                  Tỉ lệ hoàn thành
+                  <span className="material-symbols-outlined text-sm">schedule</span>
+                  Hoạt động cuối
                 </div>
-                <div className="font-bold text-white text-lg">{(driver.completionRate || 0).toFixed(1)}%</div>
+                <div className="font-bold text-white text-sm">{customer.lastActive || 'N/A'}</div>
               </div>
+            </div>
+          </div>
+
+          {/* Account Status */}
+          <div>
+            <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
+              <span className="material-symbols-outlined text-primary text-2xl">security</span>
+              Trạng thái tài khoản
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
                 <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-sm">block</span>
-                  Số lần hủy
+                  <span className="material-symbols-outlined text-sm">event</span>
+                  Ngày tham gia
                 </div>
-                <div className="font-bold text-white text-lg">{driver.cancelledRides || 0}</div>
+                <div className="font-bold text-white text-sm">{customer.joinedDate || 'N/A'}</div>
               </div>
               <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
                 <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
                   <span className="material-symbols-outlined text-sm">schedule</span>
                   Lần cập nhật cuối
                 </div>
-                <div className="font-bold text-white text-sm">{driver.lastUpdated || 'N/A'}</div>
+                <div className="font-bold text-white text-sm">{customer.lastActive || 'N/A'}</div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
+                <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">verified</span>
+                  Xác thực
+                </div>
+                <div className="font-bold text-white text-sm">
+                  {customer.isVerified ? 'Đã xác thực ✓' : 'Chưa xác thực'}
+                </div>
+              </div>
+              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 hover:border-primary/50 transition-all">
+                <div className="text-xs text-slate-400 mb-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">info</span>
+                  ID
+                </div>
+                <div className="font-bold text-white text-sm font-mono">{customer._id || customer.id || 'N/A'}</div>
               </div>
             </div>
           </div>
@@ -192,8 +208,8 @@ const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ driver, onClose }
           </button>
           <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all">
             <span className="flex items-center justify-center gap-2">
-              <span className="material-symbols-outlined">file_download</span>
-              Tải hồ sơ
+              <span className="material-symbols-outlined">message</span>
+              Gửi tin
             </span>
           </button>
         </div>
@@ -202,4 +218,4 @@ const DriverDetailModal: React.FC<DriverDetailModalProps> = ({ driver, onClose }
   );
 };
 
-export default DriverDetailModal;
+export default CustomerDetailModal;
