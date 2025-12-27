@@ -46,13 +46,27 @@ export class AuthService {
     console.log('🔐 Login attempt:', loginDto.email);
     
     // Try to find driver first (drivers are independent)
-    const driver = await this.driverModel.findOne({ email: loginDto.email });
+    // Search by email OR phone
+    const driver = await this.driverModel.findOne({ 
+      $or: [
+        { email: loginDto.email },
+        { phone: loginDto.email } // Support phone login too
+      ]
+    });
 
     console.log('🚗 Driver found:', !!driver);
     console.log('📋 Driver object keys:', driver ? Object.keys(driver.toObject?.() || driver) : 'null');
     console.log('🔑 Driver password value:', driver?.password);
+    console.log('🔒 Driver isSuspended:', driver?.isSuspended);
     
     if (driver && driver.password) {
+      // Check if driver is suspended BEFORE password validation
+      console.log('🔍 Checking isSuspended - value:', driver.isSuspended, 'type:', typeof driver.isSuspended);
+      if (driver.isSuspended === true) {
+        console.log('🛑 Driver is suspended, blocking login');
+        throw new UnauthorizedException('Tài xế tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.');
+      }
+
       console.log('🔑 Comparing password...');
       // Compare password for driver
       const isPasswordValid = await bcrypt.compare(loginDto.password, driver.password);
@@ -70,13 +84,18 @@ export class AuthService {
     console.log('❌ Driver not found or no password, trying User collection...');
     
     // Fall back to user login (for admins, customers, etc.)
-    const user = await this.userModel.findOne({ email: loginDto.email });
+    const user = await this.userModel.findOne({ 
+      $or: [
+        { email: loginDto.email },
+        { phone: loginDto.email }
+      ]
+    });
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Check if account is locked/blocked
+    // Check if account is locked/blocked BEFORE password validation
     if (user.isBlocked) {
       throw new UnauthorizedException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.');
     }
@@ -171,6 +190,37 @@ export class AuthService {
         lastName: user.lastName,
         role: user.role,
         avatar: user.avatar,
+      },
+    };
+  }
+
+  private generateTokensForDriver(driver: DriverDocument): AuthResponseDto {
+    const payload = {
+      sub: driver._id,
+      email: driver.email,
+      role: 'driver',
+    };
+
+    const accessToken = this.jwtService.sign(payload, {
+      secret: jwtConfig.secret,
+      expiresIn: jwtConfig.expiresIn as any,
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: jwtConfig.refreshSecret,
+      expiresIn: jwtConfig.refreshExpiresIn as any,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: driver._id.toString(),
+        email: driver.email,
+        firstName: driver.firstName,
+        lastName: driver.lastName,
+        role: 'driver',
+        avatar: driver.vehicleImage,
       },
     };
   }
