@@ -4,6 +4,13 @@ export const APP_VERSION = '1.0.0'
 export const ANIMATION_DURATION = 300
 export const DEBOUNCE_DELAY = 500
 
+// API Configuration
+// 🌐 Change this to your development machine IP address
+// - Android Emulator: 10.0.2.2 (special alias)
+// - iOS Simulator: 127.0.0.1 or localhost
+// - Physical Device: Your machine's IP (192.168.x.x)
+export const API_BASE_URL = 'http://10.0.2.2:3000'
+
 export const DEFAULT_FONT_FAMILY = {
   regular: 'System',
   bold: 'System',

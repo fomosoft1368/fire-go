@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Ride, RideDocument, RideStatus } from './schemas/ride.schema';
+import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
 import { CreateRideDto } from './dto';
 
 @Injectable()
@@ -15,8 +15,21 @@ export class RidesService {
       createRideDto.timeFare +
       (createRideDto.surgePricing || 0);
 
+    // Xác định loại chuyến (mặc định là SHARE nếu không được chỉ định)
+    const rideType = createRideDto.rideType || RideType.SHARE;
+
+    // Validation cho ride type HIRE
+    if (rideType === RideType.HIRE) {
+      if (!createRideDto.carType || !createRideDto.licensePlate) {
+        throw new BadRequestException(
+          'carType và licensePlate là bắt buộc cho cuốc xe lái xe hộ'
+        );
+      }
+    }
+
     const ride = await this.rideModel.create({
       ...createRideDto,
+      rideType,
       customerId: new Types.ObjectId(customerId),
       pickupLocation: {
         type: 'Point',
@@ -74,20 +87,24 @@ export class RidesService {
     longitude: number,
     latitude: number,
     maxDistance: number = 5000, // 5km in meters
+    rideType?: string, // Lọc theo loại chuyến
   ): Promise<RideDocument[]> {
-    return this.rideModel
-      .find({
-        status: RideStatus.PENDING,
-        pickupLocation: {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: [longitude, latitude],
-            },
-            $maxDistance: maxDistance,
+    const query: any = {
+      status: RideStatus.PENDING,
+      rideType: RideType.SHARE, // Mặc định chỉ tìm chuyến ghép
+      pickupLocation: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude],
           },
+          $maxDistance: maxDistance,
         },
-      })
+      },
+    };
+
+    return this.rideModel
+      .find(query)
       .populate({ path: 'driverId', populate: { path: 'userId' } })
       .populate('customerId')
       .limit(10);

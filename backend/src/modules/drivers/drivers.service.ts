@@ -202,7 +202,7 @@ export class DriversService {
 
     return {
       id: driver._id,
-      name: driver.userId['name'] || 'Driver',
+      name: `${driver.firstName} ${driver.lastName}` || 'Driver',
       status: driver.status,
       isOnline: driver.status !== DriverStatus.OFFLINE,
       averageRating: driver.averageRating,

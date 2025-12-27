@@ -7,8 +7,14 @@
  * NOTE: Nếu chưa có API key, sẽ sử dụng mock data để test
  */
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'
+import Constants from 'expo-constants'
+
+const GOOGLE_MAPS_API_KEY = Constants.expoConfig?.extra?.googleMapsApiKey || process.env.GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'
 const USE_MOCK_DATA = !GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'YOUR_API_KEY_HERE'
+
+// Log để debug
+console.log('[MapsService] API Key configured:', GOOGLE_MAPS_API_KEY ? `${GOOGLE_MAPS_API_KEY.substring(0, 10)}...` : 'NOT SET')
+console.log('[MapsService] USE_MOCK_DATA:', USE_MOCK_DATA)
 
 interface Coordinates {
   latitude: number
@@ -120,7 +126,8 @@ export const mapsService = {
   async geocodeAddress(address: string): Promise<GeocodeResult> {
     // Nếu chưa có API key, sử dụng mock data
     if (USE_MOCK_DATA) {
-      console.warn('[MapsService] Using mock data (no valid API key)')
+      console.warn('[MapsService] ⚠️ Using MOCK data for:', address)
+      console.warn('[MapsService] API Key status:', GOOGLE_MAPS_API_KEY ? 'Invalid/Disabled' : 'Not configured')
       await new Promise(resolve => setTimeout(resolve, 500)) // Simulate delay
       return generateMockGeocode(address)
     }
@@ -130,12 +137,12 @@ export const mapsService = {
         address
       )}&key=${GOOGLE_MAPS_API_KEY}`
 
-      console.log('[MapsService] Geocoding address:', address)
+      console.log('[MapsService] 🌍 Geocoding address with real API:', address)
       const response = await fetch(url)
       const data = await response.json()
 
       if (data.status === 'REQUEST_DENIED') {
-        console.error('[MapsService] API key invalid or APIs not enabled')
+        console.error('[MapsService] ❌ API key invalid or APIs not enabled')
         console.warn('[MapsService] Falling back to mock data')
         return generateMockGeocode(address)
       }
@@ -146,6 +153,8 @@ export const mapsService = {
 
       const result = data.results[0]
       const location = result.geometry.location
+
+      console.log('[MapsService] ✅ Geocoding success:', { address, location })
 
       return {
         coordinates: {
@@ -314,7 +323,7 @@ export const mapsService = {
         console.warn('[MapsService] Để sử dụng Google Maps thật, vui lòng cấu hình API key trong file .env')
       }
 
-      console.log('[MapsService] Getting route info:', { pickupAddress, dropoffAddress })
+      console.log('[MapsService] 📍 Getting route info:', { pickupAddress, dropoffAddress })
 
       // Lấy tọa độ và khoảng cách song song
       const [pickupGeocode, dropoffGeocode, distanceMatrix, routeCoordinates] = await Promise.all([
@@ -324,7 +333,7 @@ export const mapsService = {
         this.getDirections(pickupAddress, dropoffAddress),
       ])
 
-      return {
+      const result = {
         pickup: pickupGeocode,
         dropoff: dropoffGeocode,
         distance: distanceMatrix.distance / 1000, // convert to km
@@ -334,6 +343,16 @@ export const mapsService = {
         routeCoordinates, // Đường đi
         isMockData: USE_MOCK_DATA, // Đánh dấu là mock data
       }
+
+      console.log('[MapsService] ✅ Route info complete:', {
+        pickup: result.pickup.formattedAddress,
+        dropoff: result.dropoff.formattedAddress,
+        distance: result.distance,
+        duration: result.duration,
+        routePointsCount: routeCoordinates?.length || 0,
+      })
+
+      return result
     } catch (error: any) {
       console.error('[MapsService] Get route info error:', error)
       throw error

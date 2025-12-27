@@ -28,6 +28,11 @@ export enum TransmissionType {
   MANUAL = 'manual',
 }
 
+export enum RideType {
+  SHARE = 'share', // Ghép xe - tìm khách hàng khác cùng tuyến
+  HIRE = 'hire',   // Lái xe hộ - thuê tài xế riêng
+}
+
 @Schema({ timestamps: true })
 export class Ride {
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
@@ -35,6 +40,13 @@ export class Ride {
 
   @Prop({ type: Types.ObjectId, ref: 'Driver' })
   driverId?: Types.ObjectId;
+
+  @Prop({
+    type: String,
+    enum: RideType,
+    default: RideType.SHARE,
+  })
+  rideType: RideType;
 
   @Prop({
     type: String,

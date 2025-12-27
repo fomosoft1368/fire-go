@@ -1,6 +1,8 @@
-import React, { useRef, useEffect } from 'react'
-import { View, StyleSheet } from 'react-native'
+import React, { useRef, useEffect, useState } from 'react'
+import { View, StyleSheet, TouchableOpacity } from 'react-native'
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps'
+import * as Location from 'expo-location'
+import { MaterialIcons } from '@expo/vector-icons'
 
 interface MapViewComponentProps {
   height?: number
@@ -38,18 +40,73 @@ const MapViewComponent = ({
   routeCoordinates = [],
 }: MapViewComponentProps) => {
   const mapRef = useRef<MapView>(null)
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+
+  // Lấy vị trí người dùng
+  useEffect(() => {
+    const getUserLocation = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status !== 'granted') {
+          console.warn('[MapView] Location permission denied')
+          return
+        }
+
+        const location = await Location.getCurrentPositionAsync({})
+        const userCoords = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }
+        setUserLocation(userCoords)
+        console.log('[MapView] User location:', userCoords)
+      } catch (error) {
+        console.error('[MapView] Get location error:', error)
+      }
+    }
+
+    getUserLocation()
+  }, [])
 
   // Tự động zoom để hiển thị cả pickup và dropoff
   useEffect(() => {
+    console.log('[MapView] Route data:', {
+      pickupCoords,
+      dropoffCoords,
+      routeCoordinatesCount: routeCoordinates?.length || 0,
+    })
+    
     if (pickupCoords && dropoffCoords && mapRef.current) {
-      setTimeout(() => {
-        mapRef.current?.fitToCoordinates([pickupCoords, dropoffCoords], {
-          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-          animated: true,
-        })
-      }, 100)
+      // Delay để đảm bảo MapView đã render xong
+      const timer = setTimeout(() => {
+        try {
+          console.log('[MapView] 🗺️ Fitting to coordinates:', { pickupCoords, dropoffCoords })
+          mapRef.current?.fitToCoordinates([pickupCoords, dropoffCoords], {
+            edgePadding: { top: 100, right: 50, bottom: 150, left: 50 },
+            animated: true,
+          })
+        } catch (error) {
+          console.error('[MapView] fitToCoordinates error:', error)
+        }
+      }, 300)
+      
+      return () => clearTimeout(timer)
     }
-  }, [pickupCoords, dropoffCoords])
+  }, [pickupCoords, dropoffCoords, routeCoordinates])
+
+  // Hàm zoom tới vị trí hiện tại
+  const handleZoomToCurrentLocation = () => {
+    if (userLocation && mapRef.current) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        },
+        800
+      )
+    }
+  }
 
   return (
     <View style={[styles.container, { height }]}>
@@ -66,10 +123,13 @@ const MapViewComponent = ({
         showsMyLocationButton={true}
         showsCompass={true}
         toolbarEnabled={true}
+        scrollEnabled={true}
+        zoomEnabled={true}
       >
         {/* Đường đi với outline */}
         {routeCoordinates.length > 0 && (
           <>
+            {console.log('[MapView] 🛣️ Rendering route with', routeCoordinates.length, 'points')}
             {/* Outline (viền ngoài) */}
             <Polyline
               coordinates={routeCoordinates}
@@ -120,7 +180,27 @@ const MapViewComponent = ({
             description={marker.description}
           />
         ))}
+
+        {/* Vị trí người dùng hiện tại */}
+        {userLocation && (
+          <Marker
+            coordinate={userLocation}
+            title="Vị trí của bạn"
+            pinColor="#0066cc"
+            identifier="user"
+          />
+        )}
       </MapView>
+
+      {/* Button phóng to vị trí hiện tại */}
+      {userLocation && (
+        <TouchableOpacity 
+          style={styles.zoomButton}
+          onPress={handleZoomToCurrentLocation}
+        >
+          <MaterialIcons name="my-location" size={24} color="#fff" />
+        </TouchableOpacity>
+      )}
     </View>
   )
 }
@@ -128,12 +208,27 @@ const MapViewComponent = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    borderRadius: 12,
-    overflow: 'hidden',
     marginBottom: 16,
+    position: 'relative',
   },
   map: {
     flex: 1,
+  },
+  zoomButton: {
+    position: 'absolute',
+    bottom: 60,
+    right: 16,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#0066cc',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 })
 

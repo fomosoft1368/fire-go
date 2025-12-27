@@ -11,6 +11,11 @@ export enum TransmissionType {
   MANUAL = 'manual',
 }
 
+export enum RideType {
+  SHARE = 'share', // Ghép xe
+  HIRE = 'hire',   // Lái xe hộ
+}
+
 export class CreateRideDto {
   @IsString()
   pickupAddress: string;
@@ -60,7 +65,12 @@ export class CreateRideDto {
   @Min(1)
   passengers?: number;
 
-  // Fields for "Hire Driver" feature
+  // Ride type - share hoặc hire
+  @IsOptional()
+  @IsEnum(RideType)
+  rideType?: RideType;
+
+  // Fields for "Hire Driver" feature - chỉ bắt buộc khi rideType = 'hire'
   @IsOptional()
   @IsEnum(CarType)
   carType?: CarType;

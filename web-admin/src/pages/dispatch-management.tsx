@@ -62,7 +62,7 @@ const DispatchManagement: React.FC = () => {
             loading="lazy"
             allowFullScreen
             referrerPolicy="no-referrer-when-downgrade"
-            src="https://www.google.com/maps/embed/v1/view?key=AIzaSyAai1d44WZ45BaJdj-LCldBozmjconjRos&center=10.762622,106.660172&zoom=12&maptype=roadmap"
+            src="https://www.google.com/maps/embed/v1/view?key=AIzaSyBjn23DKnx1oKBUn1VmZBySUgCspVkWfm0&center=10.762622,106.660172&zoom=12&maptype=roadmap"
           ></iframe>
         </div>
 

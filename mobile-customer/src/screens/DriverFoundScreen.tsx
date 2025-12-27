@@ -1,0 +1,396 @@
+import React from 'react'
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  ScrollView,
+} from 'react-native'
+import { MaterialIcons } from '@expo/vector-icons'
+import { SPACING, BORDER_RADIUS } from '../constants'
+import MapViewComponent from '../components/MapView'
+
+interface DriverFoundScreenProps {
+  driver: {
+    id: string
+    name: string
+    avatar: string
+    rating: number
+    totalRides: number
+    carType: string
+    licensePlate: string
+    carColor: string
+    distance: number
+    eta: number
+    currentLat: number
+    currentLng: number
+  }
+  routeInfo: any
+  onChat: () => void
+  onCancel: () => void
+}
+
+export default function DriverFoundScreen({
+  driver,
+  routeInfo,
+  onChat,
+  onCancel,
+}: DriverFoundScreenProps) {
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onCancel}>
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Theo dõi chuyến đi</Text>
+        <TouchableOpacity>
+          <Text style={styles.helpText}>Trợ giúp</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView 
+        style={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+
+      {/* Map Container */}
+      <View style={styles.mapContainer}>
+        <MapViewComponent
+          height={500}
+          initialRegion={{
+            latitude: routeInfo.pickup.coordinates.latitude,
+            longitude: routeInfo.pickup.coordinates.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }}
+          markers={[]}
+          pickupCoords={{
+            latitude: routeInfo.pickup.coordinates.latitude,
+            longitude: routeInfo.pickup.coordinates.longitude,
+          }}
+          dropoffCoords={{
+            latitude: routeInfo.dropoff.coordinates.latitude,
+            longitude: routeInfo.dropoff.coordinates.longitude,
+          }}
+          routeCoordinates={routeInfo?.routeCoordinates || []}
+          onLocationSelect={() => {}}
+        />
+
+        {/* Status Badge Overlay */}
+        <View style={styles.statusBadgeOverlay}>
+          <MaterialIcons name="location-on" size={16} color="#FF6B00" />
+          <Text style={styles.statusBadgeText}>Tài xế đang đến • {driver.eta} phút</Text>
+        </View>
+      </View>
+
+      {/* Driver Info Card */}
+      <View style={styles.driverInfoCard}>
+        <View style={styles.driverCardLeft}>
+          <View style={styles.driverCardAvatar}>
+            <Text style={styles.driverCardAvatarText}>👤</Text>
+          </View>
+          <View style={styles.driverCardInfo}>
+            <Text style={styles.driverCardName}>{driver.name}</Text>
+            <Text style={styles.driverCardSubInfo}>{driver.carType} • {driver.licensePlate}</Text>
+            <View style={styles.driverCardRating}>
+              <MaterialIcons name="star" size={14} color="#FFB800" />
+              <Text style={styles.driverCardRatingValue}>{driver.rating}</Text>
+              <Text style={styles.driverCardRideCount}>• {driver.totalRides} chuyến</Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.driverCardActions}>
+          <TouchableOpacity style={styles.driverCardCallButton}>
+            <MaterialIcons name="call" size={20} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.driverCardChatButton}>
+            <MaterialIcons name="chat-bubble" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Route Info */}
+      <View style={styles.routeInfoContainer}>
+        <View style={styles.routePointItem}>
+          <View style={styles.routePointIcon}>
+            <MaterialIcons name="location-on" size={18} color="#FF6B00" />
+          </View>
+          <View style={styles.routePointText}>
+            <Text style={styles.routePointLabel}>ĐIỂM ĐÓN</Text>
+            <Text style={styles.routePointAddress}>123 Đường Lãng</Text>
+            <Text style={styles.routePointTime}>14:30</Text>
+          </View>
+        </View>
+
+        <View style={styles.routeConnector} />
+
+        <View style={styles.routePointItem}>
+          <View style={[styles.routePointIcon, { backgroundColor: '#ef4444' }]}>
+            <MaterialIcons name="location-on" size={18} color="#fff" />
+          </View>
+          <View style={styles.routePointText}>
+            <Text style={styles.routePointLabel}>ĐIỂM ĐẾN</Text>
+            <Text style={styles.routePointAddress}>456 Cầu Giấy</Text>
+            <Text style={styles.routePointTime}>15:00 (Dự kiến)</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Action Buttons */}
+      <View style={styles.actionButtons}>
+        <TouchableOpacity 
+          style={styles.chatButton}
+          onPress={onChat}
+          activeOpacity={0.6}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <MaterialIcons name="chat" size={20} color="#FF6B00" />
+          <Text style={styles.chatButtonText}>Chat</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={onCancel}
+          activeOpacity={0.6}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <MaterialIcons name="close" size={20} color="#fff" />
+          <Text style={styles.cancelButtonText}>Hủy</Text>
+        </TouchableOpacity>
+      </View>
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: '#0f172a',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    marginTop: 30,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    flex: 1,
+    textAlign: 'center',
+  },
+  helpText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF6B00',
+  },
+  mapContainer: {
+    position: 'relative',
+    height: 500,
+    backgroundColor: '#0f172a',
+  },
+  statusBadgeOverlay: {
+    position: 'absolute',
+    top: 160,
+    left: '50%',
+    marginLeft: -90,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    borderRadius: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderColor: '#FF6B00',
+  },
+  statusBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  driverInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1a202c',
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.lg,
+    padding: SPACING.lg,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  driverCardLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  driverCardAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  driverCardAvatarText: {
+    fontSize: 24,
+  },
+  driverCardInfo: {
+    flex: 1,
+  },
+  driverCardName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  driverCardSubInfo: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 4,
+  },
+  driverCardRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  driverCardRatingValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  driverCardRideCount: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  driverCardActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  driverCardCallButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  driverCardChatButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#1a202c',
+    borderWidth: 1,
+    borderColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  routeInfoContainer: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  routePointItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  routePointIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  routePointText: {
+    flex: 1,
+  },
+  routePointLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+    marginBottom: 2,
+    letterSpacing: 0.5,
+  },
+  routePointAddress: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  routePointTime: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  routeConnector: {
+    width: 2,
+    height: 30,
+    backgroundColor: 'rgba(255, 107, 0, 0.3)',
+    marginLeft: 19,
+    marginBottom: SPACING.lg,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    backgroundColor: '#0f172a',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  chatButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  chatButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF6B00',
+  },
+  cancelButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#ef4444',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+})

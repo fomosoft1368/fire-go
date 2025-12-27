@@ -24,6 +24,62 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Driver Schema
+const driverSchema = new mongoose.Schema(
+  {
+    // Authentication fields (independent drivers)
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    phone: { type: String, required: true },
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    dateOfBirth: Date,
+    address: String,
+    status: { type: String, default: 'offline', enum: ['offline', 'online', 'on_trip', 'break'] },
+    vehicleLicense: String,
+    vehicleModel: String,
+    vehicleColor: String,
+    vehiclePlate: { type: String, required: true },
+    vehicleImage: String,
+    licenseNumber: String,
+    licenseExpiry: Date,
+    licenseImage: String,
+    licenseStatus: { type: String, default: 'approved', enum: ['pending', 'approved', 'rejected', 'expired'] },
+    idNumber: String,
+    idImage: String,
+    idStatus: { type: String, default: 'approved', enum: ['pending', 'approved', 'rejected', 'expired'] },
+    profilePhoto: String,
+    profilePhotoStatus: { type: String, default: 'approved', enum: ['pending', 'approved', 'rejected', 'expired'] },
+    bankName: String,
+    bankAccount: String,
+    bankAccountHolder: String,
+    bankStatus: { type: String, default: 'verified', enum: ['pending', 'verified', 'failed'] },
+    insuranceProvider: String,
+    insurancePolicyNumber: String,
+    insuranceExpiryDate: Date,
+    currentLocation: {
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: [Number],
+    },
+    totalRides: { type: Number, default: 0 },
+    completedRides: { type: Number, default: 0 },
+    cancelledRides: { type: Number, default: 0 },
+    averageRating: { type: Number, default: 5 },
+    totalReviews: { type: Number, default: 0 },
+    totalEarnings: { type: Number, default: 0 },
+    acceptanceRate: { type: Number, default: 100 },
+    cancellationRate: { type: Number, default: 0 },
+    allowNotifications: { type: Boolean, default: true },
+    allowSMS: { type: Boolean, default: true },
+    allowEmail: { type: Boolean, default: true },
+    verificationStatus: { type: String, default: 'pending', enum: ['pending', 'verified', 'rejected'] },
+    isBlacklisted: { type: Boolean, default: false },
+    blacklistReason: String,
+    isAccountLocked: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+
 // Customer Schema (independent, not linked to User)
 const customerSchema = new mongoose.Schema(
   {
@@ -79,17 +135,32 @@ const customerSchema = new mongoose.Schema(
 async function seed() {
   try {
     const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/fire_go';
-    console.log(`🔗 Connecting to MongoDB Atlas...`);
+    console.log(`🔗 Connecting to MongoDB...`);
     
     await mongoose.connect(mongoUri);
     console.log('✅ Connected to MongoDB');
 
     const User = mongoose.model('User', userSchema);
+    const Driver = mongoose.model('Driver', driverSchema);
     const Customer = mongoose.model('Customer', customerSchema);
 
     console.log('\n🌱 Starting seed data...\n');
 
     // Drop old collections to remove old indexes
+    try {
+      await User.collection.drop();
+      console.log('🗑️  Dropped old users collection');
+    } catch (err) {
+      console.log('ℹ️  No old users collection to drop');
+    }
+
+    try {
+      await Driver.collection.drop();
+      console.log('🗑️  Dropped old drivers collection');
+    } catch (err) {
+      console.log('ℹ️  No old drivers collection to drop');
+    }
+
     try {
       await Customer.collection.drop();
       console.log('🗑️  Dropped old customers collection');
@@ -97,11 +168,133 @@ async function seed() {
       console.log('ℹ️  No old customers collection to drop');
     }
 
-    try {
-      await User.collection.drop();
-      console.log('🗑️  Dropped old users collection');
-    } catch (err) {
-      console.log('ℹ️  No old users collection to drop');
+    // Sample driver data
+    const sampleDrivers = [
+      {
+        firstName: 'Hoàng',
+        lastName: 'Anh',
+        email: 'driver1@datxe.com',
+        phone: '+84901000001',
+        password: 'Driver@123',
+        vehicleModel: 'Toyota Camry',
+        vehicleColor: 'Trắng',
+        vehiclePlate: '51A-123.45',
+        licenseNumber: 'DL12345678',
+        licenseExpiry: new Date('2026-12-31'),
+        idNumber: 'ID12345678',
+        bankName: 'Vietcombank',
+        bankAccount: '1234567890',
+        bankAccountHolder: 'Hoàng Anh',
+      },
+      {
+        firstName: 'Minh',
+        lastName: 'Tuấn',
+        email: 'driver2@datxe.com',
+        phone: '+84901000002',
+        password: 'Driver@123',
+        vehicleModel: 'Honda Civic',
+        vehicleColor: 'Đen',
+        vehiclePlate: '51B-456.78',
+        licenseNumber: 'DL87654321',
+        licenseExpiry: new Date('2026-06-30'),
+        idNumber: 'ID87654321',
+        bankName: 'Techcombank',
+        bankAccount: '0987654321',
+        bankAccountHolder: 'Minh Tuấn',
+      },
+      {
+        firstName: 'Việt',
+        lastName: 'Hùng',
+        email: 'driver3@datxe.com',
+        phone: '+84901000003',
+        password: 'Driver@123',
+        vehicleModel: 'Hyundai Accent',
+        vehicleColor: 'Bạc',
+        vehiclePlate: '51C-789.01',
+        licenseNumber: 'DL11223344',
+        licenseExpiry: new Date('2025-09-15'),
+        idNumber: 'ID11223344',
+        bankName: 'Agribank',
+        bankAccount: '1122334455',
+        bankAccountHolder: 'Việt Hùng',
+      },
+      {
+        firstName: 'Quang',
+        lastName: 'Hải',
+        email: 'driver4@datxe.com',
+        phone: '+84901000004',
+        password: 'Driver@123',
+        vehicleModel: 'Kia Morning',
+        vehicleColor: 'Đỏ',
+        vehiclePlate: '51D-234.56',
+        licenseNumber: 'DL55667788',
+        licenseExpiry: new Date('2027-03-20'),
+        idNumber: 'ID55667788',
+        bankName: 'MB Bank',
+        bankAccount: '5566778899',
+        bankAccountHolder: 'Quang Hải',
+      },
+      {
+        firstName: 'Thắng',
+        lastName: 'Sơn',
+        email: 'driver5@datxe.com',
+        phone: '+84901000005',
+        password: 'Driver@123',
+        vehicleModel: 'Ford Focus',
+        vehicleColor: 'Xám',
+        vehiclePlate: '51E-567.89',
+        licenseNumber: 'DL99887766',
+        licenseExpiry: new Date('2026-11-10'),
+        idNumber: 'ID99887766',
+        bankName: 'ACB',
+        bankAccount: '9988776655',
+        bankAccountHolder: 'Thắng Sơn',
+      },
+    ];
+
+    // Create drivers (independent accounts - no User collection needed)
+    for (const driverData of sampleDrivers) {
+      try {
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(driverData.password, salt);
+
+        // Create driver profile with authentication fields
+        const driver = await Driver.create({
+          firstName: driverData.firstName,
+          lastName: driverData.lastName,
+          email: driverData.email,
+          phone: driverData.phone,
+          password: hashedPassword,
+          vehicleModel: driverData.vehicleModel,
+          vehicleColor: driverData.vehicleColor,
+          vehiclePlate: driverData.vehiclePlate,
+          licenseNumber: driverData.licenseNumber,
+          licenseExpiry: driverData.licenseExpiry,
+          licenseStatus: 'approved',
+          idNumber: driverData.idNumber,
+          idStatus: 'approved',
+          bankName: driverData.bankName,
+          bankAccount: driverData.bankAccount,
+          bankAccountHolder: driverData.bankAccountHolder,
+          bankStatus: 'verified',
+          status: 'offline',
+          verificationStatus: 'verified',
+          currentLocation: {
+            type: 'Point',
+            coordinates: [105.8542, 21.0285], // Hà Nội
+          },
+          totalRides: Math.floor(Math.random() * 100) + 10,
+          completedRides: Math.floor(Math.random() * 90) + 5,
+          cancelledRides: Math.floor(Math.random() * 10),
+          averageRating: (Math.random() * 1 + 4.5).toFixed(1), // 4.5 - 5.5
+          totalEarnings: Math.floor(Math.random() * 50000000) + 5000000,
+        });
+
+        console.log(`✅ Created driver: ${driverData.email}`);
+      } catch (error: any) {
+        console.error(`❌ Error:`, error.message);
+      }
     }
 
     // Sample customer data
@@ -179,20 +372,30 @@ async function seed() {
           emergencyContacts: [],
         });
 
-        console.log(`✅ Created independent customer: ${customer.email}`);
+        console.log(`✅ Created customer: ${customer.email}`);
       } catch (error: any) {
         console.error(`❌ Error:`, error.message);
       }
     }
 
     console.log('\n✨ Seed data completed!');
-    console.log('\n📊 Sample Login Credentials:');
-    console.log('━'.repeat(50));
+    console.log('\n📊 Sample Driver Login Credentials:');
+    console.log('━'.repeat(60));
+    sampleDrivers.forEach(driver => {
+      console.log(`Email:    ${driver.email}`);
+      console.log(`Password: ${driver.password}`);
+      console.log(`Phone:    ${driver.phone}`);
+      console.log(`Vehicle:  ${driver.vehicleModel} (${driver.vehicleColor})`);
+      console.log(`Plate:    ${driver.vehiclePlate}`);
+      console.log('─'.repeat(60));
+    });
+
+    console.log('\n📊 Sample Customer Login Credentials:');
+    console.log('━'.repeat(60));
     sampleCustomers.forEach(customer => {
       console.log(`Email:    ${customer.email}`);
       console.log(`Password: ${customer.password}`);
-      console.log(`Phone:    ${customer.phone}`);
-      console.log('─'.repeat(50));
+      console.log('─'.repeat(60));
     });
 
   } catch (error) {

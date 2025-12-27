@@ -26,8 +26,8 @@ async function bootstrap() {
   // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
+      whitelist: false, // Cho phép tất cả các field
+      forbidNonWhitelisted: false,
       transform: true,
     }),
   );
