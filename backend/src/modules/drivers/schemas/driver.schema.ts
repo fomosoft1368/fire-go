@@ -64,6 +64,9 @@ export class Driver {
   @Prop()
   vehicleImage?: string;
 
+  @Prop()
+  vehicleRegistration?: string;
+
   // Driver license
   @Prop()
   licenseNumber?: string;
@@ -90,6 +93,9 @@ export class Driver {
 
   @Prop()
   idImage?: string;
+
+  @Prop()
+  idCardBack?: string;
 
   @Prop({
     type: String,

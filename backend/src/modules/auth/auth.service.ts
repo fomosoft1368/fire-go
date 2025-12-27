@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { User, UserDocument } from './schemas/user.schema';
 import { RegisterDto, LoginDto, AuthResponseDto } from './dto';
+import { jwtConfig } from '../../config/app.config';
 
 @Injectable()
 export class AuthService {
@@ -44,6 +45,11 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Check if account is locked/blocked
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.');
     }
 
     // Compare password
@@ -98,8 +104,8 @@ export class AuthService {
           role: user.role,
         },
         {
-          secret: process.env.JWT_SECRET || 'your-secret-key',
-          expiresIn: '24h' as any,
+          secret: jwtConfig.secret,
+          expiresIn: jwtConfig.expiresIn as any,
         },
       );
 
@@ -117,13 +123,13 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET || 'your-secret-key',
-      expiresIn: '24h' as any,
+      secret: jwtConfig.secret,
+      expiresIn: jwtConfig.expiresIn as any,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key',
-      expiresIn: '7d' as any,
+      secret: jwtConfig.refreshSecret,
+      expiresIn: jwtConfig.refreshExpiresIn as any,
     });
 
     return {
@@ -137,6 +143,68 @@ export class AuthService {
         role: user.role,
         avatar: user.avatar,
       },
+    };
+  }
+
+  async getUserProfile(userId: string): Promise<any> {
+    const user = await this.userModel.findById(userId).select('-password');
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    return {
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      avatar: user.avatar,
+    };
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const isPasswordValid = await user.comparePassword(currentPassword);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    user.password = newPassword;
+    await user.save();
+  }
+
+  async updateProfile(userId: string, updateData: any): Promise<any> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Update allowed fields
+    if (updateData.firstName) user.firstName = updateData.firstName;
+    if (updateData.lastName) user.lastName = updateData.lastName;
+    if (updateData.phone) user.phone = updateData.phone;
+    if (updateData.avatar) user.avatar = updateData.avatar;
+
+    await user.save();
+
+    return {
+      _id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      status: user.status,
+      avatar: user.avatar,
     };
   }
 }

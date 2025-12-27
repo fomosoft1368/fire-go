@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, UseGuards, Request, Query, Patch } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { SystemConfigDto } from './dto';
+import { SystemConfigDto, CreateUserDto, UpdateUserDto, UpdateUserPermissionsDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('api/admin')
@@ -13,7 +13,9 @@ export class AdminController {
     return this.adminService.getDashboardStats();
   }
 
-  // Users Management
+  // ========== USER MANAGEMENT ==========
+
+  // Get all users (all roles including customers/drivers)
   @Get('users')
   async getUsers(
     @Query('role') role?: string,
@@ -23,7 +25,7 @@ export class AdminController {
     return this.adminService.getUsers(role, status, search);
   }
 
-  // Admin and Staff Users
+  // Get admin/staff users
   @Get('staff')
   async getAdminUsers(
     @Query('role') role?: string,
@@ -33,8 +35,43 @@ export class AdminController {
     return this.adminService.getAdminUsers(role, status, search);
   }
 
-  // Admin Logs
-  @Get('logs')
+  // Get single user by ID
+  @Get('users/:id')
+  async getUserById(@Param('id') userId: string) {
+    return this.adminService.getUserById(userId);
+  }
+
+  // Create new user
+  @Post('users')
+  async createUser(@Body() createUserDto: CreateUserDto) {
+    return this.adminService.createUser(createUserDto);
+  }
+
+  // Update user
+  @Patch('users/:id')
+  async updateUser(
+    @Param('id') userId: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.adminService.updateUser(userId, updateUserDto);
+  }
+
+  // Update user permissions
+  @Patch('users/:id/permissions')
+  async updateUserPermissions(
+    @Param('id') userId: string,
+    @Body() updatePermissionsDto: UpdateUserPermissionsDto,
+  ) {
+    return this.adminService.updateUserPermissions(userId, updatePermissionsDto);
+  }
+
+  // Delete user
+  @Delete('users/:id')
+  async deleteUser(@Param('id') userId: string) {
+    return this.adminService.deleteUser(userId);
+  }
+
+  // ========== ADMIN LOGS AND CONFIG ==========
   async getAdminLogs(
     @Query('adminId') adminId?: string,
     @Query('action') action?: string,

@@ -14,6 +14,8 @@ interface Driver extends ApiDriver {
   revenue?: string;
   email?: string;
   phone?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 export default function DriverManagement() {
@@ -67,10 +69,11 @@ export default function DriverManagement() {
         
         // Transform API response to UI format
         const transformedDrivers = allDrivers.map((driver) => {
-          console.log('🔄 Transforming driver:', driver.bankAccountHolder);
+          const fullName = `${driver.lastName || ''} ${driver.firstName || ''}`.trim() || 'Chưa có tên';
+          console.log('🔄 Transforming driver:', fullName);
           return {
             ...driver,
-            displayName: driver.bankAccountHolder || 'Chưa có tên',
+            displayName: fullName,
             displayStatus: (driver.licenseStatus === 'pending' ? 'pending' : 
                             driver.status === 'online' ? 'online' : 
                             driver.isSuspended ? 'blocked' : 'offline') as 'online' | 'offline' | 'pending' | 'blocked',
@@ -158,21 +161,24 @@ export default function DriverManagement() {
       await apiService.updateDriver(driverId, { licenseStatus: 'approved' });
       // Refresh the list
       const allDrivers = await apiService.getDrivers();
-      const transformedDrivers = allDrivers.map((driver) => ({
-        ...driver,
-        displayName: driver.bankAccountHolder || 'Chưa có tên',
-        displayStatus: (driver.licenseStatus === 'pending' ? 'pending' : 
-                        driver.status === 'online' ? 'online' : 
-                        driver.isSuspended ? 'blocked' : 'offline') as 'online' | 'offline' | 'pending' | 'blocked',
-        statusText: driver.status === 'online' ? 'Online' : 
-                   driver.status === 'offline' ? 'Offline' : 
-                   driver.isSuspended ? 'Khóa TK' : 'Offline',
-        isPending: driver.licenseStatus === 'pending',
-        registeredTime: driver.createdAt ? new Date(driver.createdAt).toLocaleDateString('vi-VN') : 'N/A',
-        vehicleType: driver.vehicleModel?.toLowerCase().includes('exciter') || 
-                    driver.vehicleModel?.toLowerCase().includes('bike') ? 'bike' : 'car',
-        revenue: driver.totalEarnings ? `${(driver.totalEarnings / 1000000).toFixed(1)}M` : '0'
-      })) as Driver[];
+      const transformedDrivers = allDrivers.map((driver) => {
+        const fullName = `${driver.lastName || ''} ${driver.firstName || ''}`.trim() || 'Chưa có tên';
+        return {
+          ...driver,
+          displayName: fullName,
+          displayStatus: (driver.licenseStatus === 'pending' ? 'pending' : 
+                          driver.status === 'online' ? 'online' : 
+                          driver.isSuspended ? 'blocked' : 'offline') as 'online' | 'offline' | 'pending' | 'blocked',
+          statusText: driver.status === 'online' ? 'Online' : 
+                     driver.status === 'offline' ? 'Offline' : 
+                     driver.isSuspended ? 'Khóa TK' : 'Offline',
+          isPending: driver.licenseStatus === 'pending',
+          registeredTime: driver.createdAt ? new Date(driver.createdAt).toLocaleDateString('vi-VN') : 'N/A',
+          vehicleType: driver.vehicleModel?.toLowerCase().includes('exciter') || 
+                      driver.vehicleModel?.toLowerCase().includes('bike') ? 'bike' : 'car',
+          revenue: driver.totalEarnings ? `${(driver.totalEarnings / 1000000).toFixed(1)}M` : '0'
+        };
+      }) as Driver[];
 
       const pending = transformedDrivers.filter(d => d.licenseStatus === 'pending');
       const approved = transformedDrivers.filter(d => d.licenseStatus !== 'pending');
@@ -182,6 +188,48 @@ export default function DriverManagement() {
     } catch (err) {
       console.error('Error approving driver:', err);
       setError('Lỗi khi phê duyệt tài xế');
+    }
+  };
+
+  const handleLockDriver = async (driverId: string, currentStatus: boolean) => {
+    try {
+      const confirmMessage = currentStatus 
+        ? 'Bạn chắc chắn muốn mở khóa tài khoản này?' 
+        : 'Bạn chắc chắn muốn khóa tài khoản này?';
+      
+      if (!window.confirm(confirmMessage)) return;
+
+      await apiService.updateDriver(driverId, { isSuspended: !currentStatus });
+      
+      // Refresh the list
+      const allDrivers = await apiService.getDrivers();
+      const transformedDrivers = allDrivers.map((driver) => {
+        const fullName = `${driver.lastName || ''} ${driver.firstName || ''}`.trim() || 'Chưa có tên';
+        return {
+          ...driver,
+          displayName: fullName,
+          displayStatus: (driver.licenseStatus === 'pending' ? 'pending' : 
+                          driver.status === 'online' ? 'online' : 
+                          driver.isSuspended ? 'blocked' : 'offline') as 'online' | 'offline' | 'pending' | 'blocked',
+          statusText: driver.status === 'online' ? 'Online' : 
+                     driver.status === 'offline' ? 'Offline' : 
+                     driver.isSuspended ? 'Khóa TK' : 'Offline',
+          isPending: driver.licenseStatus === 'pending',
+          registeredTime: driver.createdAt ? new Date(driver.createdAt).toLocaleDateString('vi-VN') : 'N/A',
+          vehicleType: driver.vehicleModel?.toLowerCase().includes('exciter') || 
+                      driver.vehicleModel?.toLowerCase().includes('bike') ? 'bike' : 'car',
+          revenue: driver.totalEarnings ? `${(driver.totalEarnings / 1000000).toFixed(1)}M` : '0'
+        };
+      }) as Driver[];
+
+      const pending = transformedDrivers.filter(d => d.licenseStatus === 'pending');
+      const approved = transformedDrivers.filter(d => d.licenseStatus !== 'pending');
+
+      setPendingDrivers(pending);
+      setDrivers(approved);
+    } catch (err) {
+      console.error('Error locking driver:', err);
+      setError('Lỗi khi cập nhật trạng thái tài khoản');
     }
   };
 
@@ -308,7 +356,7 @@ export default function DriverManagement() {
                   <div className="flex items-start gap-4 mb-4">
                     <img 
                       className="size-14 rounded-full object-cover border border-slate-200 dark:border-slate-700" 
-                      src={`https://i.pravatar.cc/150?u=${driver.bankAccountHolder || driver.userId}`}
+                      src={`https://i.pravatar.cc/150?u=${driver.email || driver.userId}`}
                       alt={driver.displayName}
                     />
                     <div className="flex-1 min-w-0">
@@ -328,11 +376,13 @@ export default function DriverManagement() {
                   <div className="flex gap-3">
                     <button 
                       className="flex-1 h-10 flex items-center justify-center rounded-lg bg-primary text-white text-sm font-semibold shadow-sm hover:bg-primary-dark transition-colors"
-                      onClick={() => handleApproveDriver(driver._id || driver.id || '')}
+                      onClick={() => navigate(`/driver/${driver._id || driver.id}`)}
                     >
-                      Phê duyệt
+                      <span className="material-symbols-outlined mr-1">visibility</span>
+                      Xem chi tiết
                     </button>
                     <button className="flex-1 h-10 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-semibold border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                      <span className="material-symbols-outlined mr-1">close</span>
                       Từ chối
                     </button>
                   </div>
@@ -366,7 +416,7 @@ export default function DriverManagement() {
                     <td className="px-6 py-4 whitespace-nowrap flex items-center gap-3">
                       <img
                         className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-                        src={`https://i.pravatar.cc/150?u=${driver.bankAccountHolder || driver.userId}`}
+                        src={`https://i.pravatar.cc/150?u=${driver.email || driver.userId}`}
                         alt={driver.displayName}
                       />
                       <span className="font-medium text-slate-900 dark:text-slate-100">{driver.displayName}</span>
@@ -397,13 +447,28 @@ export default function DriverManagement() {
                     <td className="px-6 py-4 whitespace-nowrap text-slate-900 dark:text-slate-100">{driver.vehiclePlate}</td>
                     <td className="px-6 py-4 whitespace-nowrap font-semibold text-primary">{driver.revenue}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <button
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-100 hover:bg-primary hover:text-white dark:hover:bg-primary-dark dark:hover:text-white font-medium text-xs transition-colors"
-                        onClick={() => handleShowDetail(driver)}
-                      >
-                        <span className="material-symbols-outlined text-base align-middle">visibility</span>
-                        Xem chi tiết
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-100 hover:bg-primary hover:text-white dark:hover:bg-primary-dark dark:hover:text-white font-medium text-xs transition-colors"
+                          onClick={() => navigate(`/driver/${driver._id || driver.id}`)}
+                        >
+                          <span className="material-symbols-outlined text-base align-middle">visibility</span>
+                          Xem
+                        </button>
+                        <button
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded font-medium text-xs transition-colors ${
+                            driver.isSuspended
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+                              : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
+                          }`}
+                          onClick={() => handleLockDriver(driver._id || driver.id || '', driver.isSuspended || false)}
+                        >
+                          <span className="material-symbols-outlined text-base align-middle">
+                            {driver.isSuspended ? 'lock_open' : 'lock'}
+                          </span>
+                          {driver.isSuspended ? 'Mở khóa' : 'Khóa'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

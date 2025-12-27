@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 interface ApiResponse<T> {
@@ -10,12 +12,18 @@ interface Driver {
   _id?: string;
   id?: string;
   userId: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
   status: 'offline' | 'online' | 'on_trip' | 'break';
   vehicleLicense: string;
   vehicleModel: string;
   vehicleColor: string;
   vehiclePlate: string;
   vehicleImage?: string;
+  vehicleRegistration?: string;
   licenseNumber: string;
   licenseExpiry: string;
   licenseImage?: string;
@@ -52,15 +60,19 @@ interface Driver {
 
 class ApiService {
   private getAuthToken() {
-    return localStorage.getItem('token');
+    const token = localStorage.getItem('token');
+    console.log('Auth token from localStorage:', token ? 'exists' : 'missing');
+    return token;
   }
 
   private getHeaders() {
     const token = this.getAuthToken();
-    return {
+    const headers = {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
     };
+    console.log('Headers:', { hasAuth: !!token, authorization: headers.Authorization ? 'present' : 'missing' });
+    return headers;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -86,7 +98,10 @@ class ApiService {
       throw new Error(errorMessage);
     }
     const data = await response.json();
-    return data.data || data;
+    console.log('Raw response data:', data);
+    const result = data.data || data;
+    console.log('Handled response result:', result);
+    return result;
   }
 
   // Drivers API
@@ -285,6 +300,59 @@ class ApiService {
     return this.handleResponse<any[]>(response);
   }
 
+  // User Management API
+  async getUserById(userId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  async createUser(data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    password: string;
+    role: string;
+    department?: string;
+    status?: string;
+    permissions?: string[];
+  }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/users`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  async updateUser(userId: string, data: Partial<any>): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  async updateUserPermissions(userId: string, permissions: string[]): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/permissions`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ permissions }),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  async deleteUser(userId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any>(response);
+  }
+
   // Rides API
   async getRides(params?: {
     status?: string;
@@ -297,6 +365,176 @@ class ApiService {
       headers: this.getHeaders(),
     });
     return this.handleResponse<any[]>(response);
+  }
+
+  // System Config
+  async getSystemConfigs(): Promise<any[]> {
+    const url = `${API_BASE_URL}/admin/config`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any[]>(response);
+  }
+
+  async setSystemConfig(data: any): Promise<any> {
+    const url = `${API_BASE_URL}/admin/config`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getSystemConfig(key: string): Promise<any> {
+    const url = `${API_BASE_URL}/admin/config/${key}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Password Management
+  async changePassword(data: { currentPassword: string; newPassword: string }): Promise<any> {
+    const url = `${API_BASE_URL}/auth/change-password`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Admin Profile
+  async getAdminProfile(): Promise<any> {
+    const url = `${API_BASE_URL}/auth/profile`;
+    try {
+      const headers = this.getHeaders();
+      console.log('Fetching profile with URL:', url);
+      console.log('Request headers:', headers);
+      const response = await fetch(url, {
+        headers,
+      });
+      console.log('Profile response status:', response.status);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('Profile response error:', errorData);
+        return null;
+      }
+      return this.handleResponse(response);
+    } catch (err) {
+      console.log('Error fetching profile:', err);
+      return null;
+    }
+  }
+
+  async updateAdminProfile(data: any): Promise<any> {
+    const url = `${API_BASE_URL}/admin/profile`;
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        return null;
+      }
+      return this.handleResponse(response);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // Disputes Management
+  async getDisputes(status?: string): Promise<any[]> {
+    let url = `${API_BASE_URL}/admin/disputes`;
+    if (status) {
+      url += `?status=${status}`;
+    }
+    try {
+      const response = await fetch(url, {
+        headers: this.getHeaders(),
+      });
+      if (!response.ok) {
+        return []; // Return empty array for 404 or other errors, let frontend use mock data
+      }
+      return this.handleResponse<any[]>(response);
+    } catch {
+      return []; // Return empty array if fetch fails
+    }
+  }
+
+  async getDispute(id: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/disputes/${id}`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async resolveDispute(id: string, resolution: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/disputes/${id}/resolve`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(resolution),
+    });
+    return this.handleResponse(response);
+  }
+
+  async escalateDispute(id: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/disputes/${id}/escalate`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Generic HTTP methods
+  async get(endpoint: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return null;
+    return this.handleResponse(response);
+  }
+
+  async post(endpoint: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) return null;
+    return this.handleResponse(response);
+  }
+
+  async patch(endpoint: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) return null;
+    return this.handleResponse(response);
+  }
+
+  async put(endpoint: string, data: any): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) return null;
+    return this.handleResponse(response);
+  }
+
+  async delete(endpoint: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return null;
+    return this.handleResponse(response);
   }
 }
 

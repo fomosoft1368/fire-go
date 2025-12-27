@@ -1,9 +1,11 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty } from 'class-validator';
 
 export class SystemConfigDto {
   @IsString()
+  @IsNotEmpty()
   key: string;
 
+  @IsNotEmpty()
   value: any;
 
   @IsOptional()

@@ -88,11 +88,19 @@ export class CreateDriverDto {
 
   @IsOptional()
   @IsString()
+  vehicleRegistration?: string;
+
+  @IsOptional()
+  @IsString()
   licenseImage?: string;
 
   @IsOptional()
   @IsString()
   idImage?: string;
+
+  @IsOptional()
+  @IsString()
+  idCardBack?: string;
 
   @IsOptional()
   @IsString()

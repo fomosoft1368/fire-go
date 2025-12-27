@@ -22,6 +22,35 @@ export enum UserStatus {
   BANNED = 'banned',
 }
 
+export enum UserPermission {
+  // Dispatch Management
+  VIEW_DISPATCH = 'view_dispatch',
+  MANAGE_DISPATCH = 'manage_dispatch',
+  RESOLVE_DISPUTES = 'resolve_disputes',
+
+  // Driver Management
+  VIEW_DRIVERS = 'view_drivers',
+  APPROVE_DRIVERS = 'approve_drivers',
+  SUSPEND_DRIVERS = 'suspend_drivers',
+  MANAGE_DRIVERS = 'manage_drivers',
+
+  // Customer Management
+  VIEW_CUSTOMERS = 'view_customers',
+  BLOCK_CUSTOMERS = 'block_customers',
+  MANAGE_CUSTOMERS = 'manage_customers',
+
+  // Financial
+  VIEW_REVENUE = 'view_revenue',
+  MANAGE_PAYMENTS = 'manage_payments',
+  VIEW_WALLETS = 'view_wallets',
+
+  // System
+  MANAGE_USERS = 'manage_users',
+  MANAGE_PERMISSIONS = 'manage_permissions',
+  VIEW_LOGS = 'view_logs',
+  MANAGE_SETTINGS = 'manage_settings',
+}
+
 @Schema({ timestamps: true })
 export class User {
   @Prop({ required: true, unique: true })
@@ -79,6 +108,21 @@ export class User {
 
   @Prop()
   lastLogoutAt?: Date;
+
+  @Prop({ default: false })
+  isBlocked?: boolean;
+
+  @Prop()
+  blockedReason?: string;
+
+  @Prop()
+  department?: string;
+
+  @Prop({ type: [String], default: [] })
+  permissions?: string[];
+
+  @Prop()
+  lastActivityAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

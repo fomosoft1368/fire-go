@@ -13,6 +13,7 @@ interface StepProps {
 function StepUploadDocuments({ next, prev, data, setData }: StepProps) {
   const docs = [
     { key: 'vehicleDocument', label: 'Giấy tờ xe' },
+    { key: 'vehicleRegistration', label: 'Giấy đăng kí xe' },
     { key: 'insuranceDocument', label: 'Bảo hiểm xe' },
     { key: 'licenseDocument', label: 'Bằng lái xe' },
   ];
@@ -423,6 +424,7 @@ export default function AddDriverPage() {
         
         // Documents
         vehicleImage: data.vehicleImage,
+        vehicleRegistration: data.vehicleRegistration,
         licenseImage: data.licenseDocument,
         idImage: data.idCardFront,
         portraitImage: data.portraitImage,

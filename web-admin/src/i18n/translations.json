@@ -1,0 +1,128 @@
+{
+  "vi": {
+    "sidebar": {
+      "dashboard": "Bảng điều khiển",
+      "rideManagement": "Quản lý chuyến đi",
+      "userManagement": "Quản lý người dùng",
+      "driverManagement": "Quản lý tài xế",
+      "driverApproval": "Duyệt tài xế",
+      "customerManagement": "Quản lý khách hàng",
+      "dispatchManagement": "Điều phối & tranh chấp",
+      "revenueManagement": "Quản lý doanh thu",
+      "reportsAnalytics": "Báo cáo & Phân tích",
+      "settings": "Cài đặt",
+      "logout": "Đăng xuất"
+    },
+    "settings": {
+      "profile": "Thông tin cá nhân",
+      "security": "Bảo mật",
+      "notifications": "Thông báo",
+      "appearance": "Giao diện",
+      "system": "Hệ thống",
+      "about": "Về ứng dụng",
+      "theme": "Chủ đề",
+      "light": "Sáng",
+      "dark": "Tối",
+      "auto": "Tự động",
+      "language": "Ngôn ngữ",
+      "displaySettings": "Cài đặt hiển thị",
+      "animations": "Hiệu ứng chuyển động",
+      "animationsDesc": "Bật hiệu ứng animation",
+      "sidebar": "Hiển thị sidebar",
+      "sidebarDesc": "Luôn hiển thị thanh điều hướng"
+    }
+  },
+  "en": {
+    "sidebar": {
+      "dashboard": "Dashboard",
+      "rideManagement": "Ride Management",
+      "driverManagement": "Driver Management",
+      "customerManagement": "Customer Management",
+      "dispatchManagement": "Dispatch Management",
+      "revenueManagement": "Revenue Management",
+      "reportsAnalytics": "Reports & Analytics",
+      "settings": "Settings",
+      "logout": "Logout"
+    },
+    "settings": {
+      "profile": "Profile",
+      "security": "Security",
+      "notifications": "Notifications",
+      "appearance": "Appearance",
+      "system": "System",
+      "about": "About",
+      "theme": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "auto": "Auto",
+      "language": "Language",
+      "displaySettings": "Display Settings",
+      "animations": "Motion Effects",
+      "animationsDesc": "Enable animation effects",
+      "sidebar": "Show Sidebar",
+      "sidebarDesc": "Always show navigation bar"
+    }
+  },
+  "ko": {
+    "sidebar": {
+      "dashboard": "대시보드",
+      "rideManagement": "라이드 관리",
+      "driverManagement": "운전자 관리",
+      "customerManagement": "고객 관리",
+      "dispatchManagement": "배송 관리",
+      "revenueManagement": "수익 관리",
+      "reportsAnalytics": "보고서 및 분석",
+      "settings": "설정",
+      "logout": "로그아웃"
+    },
+    "settings": {
+      "profile": "프로필",
+      "security": "보안",
+      "notifications": "알림",
+      "appearance": "모양",
+      "system": "시스템",
+      "about": "정보",
+      "theme": "테마",
+      "light": "밝음",
+      "dark": "어두움",
+      "auto": "자동",
+      "language": "언어",
+      "displaySettings": "표시 설정",
+      "animations": "동작 효과",
+      "animationsDesc": "애니메이션 효과 활성화",
+      "sidebar": "사이드바 표시",
+      "sidebarDesc": "항상 탐색 표시줄 표시"
+    }
+  },
+  "ja": {
+    "sidebar": {
+      "dashboard": "ダッシュボード",
+      "rideManagement": "ライド管理",
+      "driverManagement": "ドライバー管理",
+      "customerManagement": "顧客管理",
+      "dispatchManagement": "ディスパッチ管理",
+      "revenueManagement": "収益管理",
+      "reportsAnalytics": "レポートと分析",
+      "settings": "設定",
+      "logout": "ログアウト"
+    },
+    "settings": {
+      "profile": "プロフィール",
+      "security": "セキュリティ",
+      "notifications": "通知",
+      "appearance": "外観",
+      "system": "システム",
+      "about": "について",
+      "theme": "テーマ",
+      "light": "ライト",
+      "dark": "ダーク",
+      "auto": "自動",
+      "language": "言語",
+      "displaySettings": "表示設定",
+      "animations": "モーション効果",
+      "animationsDesc": "アニメーション効果を有効にする",
+      "sidebar": "サイドバーを表示",
+      "sidebarDesc": "常にナビゲーションバーを表示"
+    }
+  }
+}

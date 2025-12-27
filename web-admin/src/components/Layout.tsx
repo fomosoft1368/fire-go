@@ -1,5 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
 
 interface LayoutProps {
   children: ReactNode;
@@ -8,6 +9,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguage();
   const [darkMode, setDarkMode] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
 
@@ -41,13 +43,52 @@ export default function Layout({ children }: LayoutProps) {
       });
     }
 
-    // Load dark mode preference
-    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
-    setDarkMode(savedDarkMode);
-    if (savedDarkMode) {
-      document.documentElement.classList.add('dark');
+    // Load theme preference (prioritize settings theme, fallback to old darkMode setting)
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    applyThemeOnLayout(savedTheme);
+    
+    // For backward compatibility, also check old darkMode setting
+    if (!localStorage.getItem('theme')) {
+      const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+      if (savedDarkMode) {
+        setDarkMode(true);
+        applyThemeOnLayout('dark');
+      }
     }
   }, [navigate]);
+
+  const applyThemeOnLayout = (themeValue: string) => {
+    const html = document.documentElement;
+    
+    if (themeValue === 'dark') {
+      html.classList.add('dark');
+      setDarkMode(true);
+    } else if (themeValue === 'light') {
+      html.classList.remove('dark');
+      setDarkMode(false);
+    } else if (themeValue === 'auto') {
+      // Auto theme based on system preference
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        html.classList.add('dark');
+        setDarkMode(true);
+      } else {
+        html.classList.remove('dark');
+        setDarkMode(false);
+      }
+    }
+  };
+
+  // Listen for storage changes (when settings are saved from another tab)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'theme' && e.newValue) {
+        applyThemeOnLayout(e.newValue);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -97,7 +138,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/') ? 'filled' : ''}`}>dashboard</span>
-            <span className="font-semibold">Tổng quan</span>
+            <span className="font-semibold">{t('sidebar.dashboard', 'Dashboard')}</span>
           </button>
 
           <button
@@ -109,7 +150,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/user-management') ? 'filled' : ''}`}>group</span>
-            <span className="font-semibold">Người dùng</span>
+            <span className="font-semibold">{t('sidebar.userManagement', 'User Management')}</span>
           </button>
 
           <button
@@ -121,7 +162,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/drivers') ? 'filled' : ''}`}>local_taxi</span>
-            <span className="font-semibold">Tài xế</span>
+            <span className="font-semibold">{t('sidebar.driverManagement', 'Driver Management')}</span>
           </button>
 
           <button
@@ -133,7 +174,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/driver-approval') ? 'filled' : ''}`}>check_circle</span>
-            <span className="font-semibold">Duyệt tài xế</span>
+            <span className="font-semibold">{t('sidebar.driverApproval', 'Driver Approval')}</span>
           </button>
 
           <button
@@ -145,7 +186,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/rides') ? 'filled' : ''}`}>route</span>
-            <span className="font-semibold">Cuốc xe</span>
+            <span className="font-semibold">{t('sidebar.rideManagement', 'Ride Management')}</span>
           </button>
 
           <button
@@ -157,7 +198,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/customers') ? 'filled' : ''}`}>person</span>
-            <span className="font-semibold">Khách hàng</span>
+            <span className="font-semibold">{t('sidebar.customerManagement', 'Customer Management')}</span>
           </button>
 
           <button
@@ -169,7 +210,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/revenue') ? 'filled' : ''}`}>payments</span>
-            <span className="font-semibold">Doanh thu</span>
+            <span className="font-semibold">{t('sidebar.revenueManagement', 'Revenue Management')}</span>
           </button>
 
           <button
@@ -181,7 +222,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/dispatch') ? 'filled' : ''}`}>assignment_late</span>
-            <span className="font-semibold whitespace-nowrap">Điều phối & Tranh chấp</span>
+            <span className="font-semibold whitespace-nowrap">{t('sidebar.dispatchManagement', 'Dispatch Management')}</span>
           </button>
 
           <button
@@ -193,7 +234,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/reports') ? 'filled' : ''}`}>analytics</span>
-            <span className="font-semibold whitespace-nowrap">Báo cáo & Thống kê</span>
+            <span className="font-semibold whitespace-nowrap">{t('sidebar.reportsAnalytics', 'Reports & Analytics')}</span>
           </button>
 
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 mt-4">
@@ -206,7 +247,7 @@ export default function Layout({ children }: LayoutProps) {
               }`}
             >
               <span className={`material-symbols-outlined ${isActive('/settings') ? 'filled' : ''}`}>settings</span>
-              <span className="font-semibold">Cài đặt</span>
+              <span className="font-semibold">{t('sidebar.settings', 'Settings')}</span>
             </button>
           </div>
         </nav>

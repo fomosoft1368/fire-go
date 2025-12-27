@@ -265,6 +265,31 @@ const Customers: React.FC = () => {
     }
   };
 
+  const handleLockCustomer = async (customerId: string, currentStatus: boolean) => {
+    try {
+      const confirmMessage = currentStatus 
+        ? 'Bạn chắc chắn muốn mở khóa tài khoản khách hàng này?' 
+        : 'Bạn chắc chắn muốn khóa tài khoản khách hàng này?';
+      
+      if (!window.confirm(confirmMessage)) return;
+
+      await apiService.updateCustomer(customerId, { isAccountLocked: !currentStatus });
+      
+      // Refresh the list
+      const allCustomers = await apiService.getCustomers();
+      const transformedCustomers = allCustomers.map((customer: any) => ({
+        ...customer,
+        displayName: customer.name || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Chưa có tên',
+        displayStatus: customer.isAccountLocked ? 'blocked' : (customer.status || 'active')
+      })) as Customer[];
+      
+      setCustomers(transformedCustomers);
+    } catch (err) {
+      console.error('Error locking customer:', err);
+      alert('Lỗi khi cập nhật trạng thái tài khoản: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    }
+  };
+
   const openEditModal = (customer: Customer) => {
     const userInfo = customer.userId || {};
     const [firstName, ...lastNameParts] = ((userInfo as any).fullName || (userInfo as any).name || '').split(' ');
@@ -581,15 +606,29 @@ const Customers: React.FC = () => {
                           </button>
                           <button 
                             onClick={() => openEditModal(customer)}
-                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors">
+                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
+                            title="Chỉnh sửa">
                             <span className="material-symbols-outlined text-[20px]">edit</span>
+                          </button>
+                          <button 
+                            onClick={() => handleLockCustomer(customer._id || customer.id || '', customer.isAccountLocked || false)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              customer.isAccountLocked
+                                ? 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400'
+                                : 'hover:bg-orange-50 dark:hover:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                            }`}
+                            title={customer.isAccountLocked ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}>
+                            <span className="material-symbols-outlined text-[20px]">
+                              {customer.isAccountLocked ? 'lock_open' : 'lock'}
+                            </span>
                           </button>
                           <button 
                             onClick={() => {
                               setSelectedCustomer(customer);
                               setShowDeleteConfirm(true);
                             }}
-                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors">
+                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors"
+                            title="Xóa">
                             <span className="material-symbols-outlined text-[20px]">delete</span>
                           </button>
                         </div>
