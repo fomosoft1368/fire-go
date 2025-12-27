@@ -24,11 +24,11 @@ export class DriversService {
     }
 
     const driver = await this.driverModel.create(driverData);
-    return driver.populate('userId');
+    return driver;
   }
 
   async findById(id: string): Promise<DriverDocument> {
-    const driver = await this.driverModel.findById(id).populate('userId');
+    const driver = await this.driverModel.findById(id);
 
     if (!driver) {
       throw new NotFoundException(`Driver with ID ${id} not found`);
@@ -39,8 +39,7 @@ export class DriversService {
 
   async findByUserId(userId: string): Promise<DriverDocument> {
     const driver = await this.driverModel
-      .findOne({ userId: new Types.ObjectId(userId) })
-      .populate('userId');
+      .findOne({ userId: new Types.ObjectId(userId) });
 
     if (!driver) {
       throw new NotFoundException(`Driver with user ID ${userId} not found`);
@@ -72,7 +71,6 @@ export class DriversService {
 
     return this.driverModel
       .find(query)
-      .populate('userId')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);

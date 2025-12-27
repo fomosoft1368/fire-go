@@ -49,7 +49,7 @@ export class RidesService {
   async findAll(filters?: any): Promise<RideDocument[]> {
     return this.rideModel
       .find(filters || {})
-      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate('driverId')
       .populate('customerId')
       .sort({ createdAt: -1 });
   }
@@ -57,7 +57,7 @@ export class RidesService {
   async findById(id: string): Promise<RideDocument> {
     const ride = await this.rideModel
       .findById(id)
-      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate('driverId')
       .populate('customerId');
 
     if (!ride) {
@@ -70,7 +70,7 @@ export class RidesService {
   async findByCustomerId(customerId: string): Promise<RideDocument[]> {
     return this.rideModel
       .find({ customerId: new Types.ObjectId(customerId) })
-      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate('driverId')
       .populate('customerId')
       .sort({ createdAt: -1 });
   }
@@ -78,7 +78,7 @@ export class RidesService {
   async findByDriverId(driverId: string): Promise<RideDocument[]> {
     return this.rideModel
       .find({ driverId: new Types.ObjectId(driverId) })
-      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate('driverId')
       .populate('customerId')
       .sort({ createdAt: -1 });
   }
@@ -105,7 +105,7 @@ export class RidesService {
 
     return this.rideModel
       .find(query)
-      .populate({ path: 'driverId', populate: { path: 'userId' } })
+      .populate('driverId')
       .populate('customerId')
       .limit(10);
   }
