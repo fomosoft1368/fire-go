@@ -207,7 +207,8 @@ export default function WalletScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#0f172a',
+    paddingTop: SPACING.xl,
   },
   header: {
     paddingHorizontal: SPACING.lg,
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.text,
+    color: '#fff',
   },
   balanceCard: {
     margin: SPACING.lg,

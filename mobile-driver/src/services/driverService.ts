@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../constants/config';
 
 interface DriverInfo {
   id: string;
@@ -42,7 +43,12 @@ export class DriverService {
   private api: AxiosInstance;
   private baseURL: string;
 
-  constructor(baseURL: string = 'http://localhost:3000') {
+  constructor(baseURL: string = API_BASE_URL) {
+    // For Expo:
+    // - Android Emulator: use 10.0.2.2 (special alias to host machine)
+    // - iOS Simulator: use localhost or 127.0.0.1
+    // - Physical Device: use your machine's IP address (e.g., 192.168.x.x)
+    // Change API_BASE_URL in constants/config.ts
     this.baseURL = baseURL;
     this.api = axios.create({
       baseURL: `${baseURL}/drivers`,
@@ -210,6 +216,97 @@ export class DriverService {
     } catch (error) {
       console.error('Error updating driver profile:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách cuốc có sẵn (chưa được tài xế nào nhận và chưa hoàn thành)
+   */
+  async getAvailableRides(rideType?: 'share' | 'hire'): Promise<any[]> {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      console.log('🔐 Token:', token ? 'Có token' : 'Không có token');
+      console.log('🌐 Base URL:', this.baseURL);
+      console.log('📍 Calling: GET', `${this.baseURL}/api/rides`);
+      
+      const params: any = {
+        status: 'pending',
+      };
+      if (rideType) {
+        params.rideType = rideType;
+      }
+
+      const response = await axios.get(`${this.baseURL}/api/rides`, {
+        params,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 10000,
+      });
+      
+      console.log('✅ API Response:', response.data);
+      return response.data || [];
+    } catch (error: any) {
+      console.error('❌ Error fetching available rides:');
+      console.error('   Error Message:', error.message);
+      console.error('   Error Code:', error.code);
+      console.error('   Error Status:', error.response?.status);
+      console.error('   Error Data:', error.response?.data);
+      console.error('   Full Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Nhận một cuốc (chấp nhận cuốc)
+   */
+  async acceptRide(rideId: string, driverId: string): Promise<any> {
+    try {
+      const response = await axios.patch(
+        `${this.baseURL}/api/rides/${rideId}/accept`,
+        { driverId },
+        {
+          headers: {
+            Authorization: `Bearer ${await AsyncStorage.getItem('authToken')}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error accepting ride:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách chuyến đi đã hoàn thành/đã hủy của tài xế (TripsScreen)
+   */
+  async getCompletedTrips(status?: 'completed' | 'cancelled'): Promise<any[]> {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      console.log('🚗 Fetching completed trips with status:', status || 'all');
+      
+      const params: any = {};
+      if (status) {
+        params.status = status;
+      }
+
+      const response = await axios.get(`${this.baseURL}/api/rides`, {
+        params,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 10000,
+      });
+      
+      const result = Array.isArray(response.data) ? response.data : [];
+      console.log(`✅ Completed trips (${status || 'all'}) fetched:`, result.length);
+      return result;
+    } catch (error: any) {
+      console.error(`❌ Error fetching ${status || 'all'} trips:`, error.message);
+      return [];
     }
   }
 }

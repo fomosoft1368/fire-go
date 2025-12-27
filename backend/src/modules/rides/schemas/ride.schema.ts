@@ -17,6 +17,22 @@ export enum PaymentMethod {
   CARD = 'card',
 }
 
+export enum CarType {
+  SEDAN = 'sedan',
+  SUV = 'suv',
+  TRUCK = 'truck',
+}
+
+export enum TransmissionType {
+  AUTO = 'auto',
+  MANUAL = 'manual',
+}
+
+export enum RideType {
+  SHARE = 'share', // Ghép xe - tìm khách hàng khác cùng tuyến
+  HIRE = 'hire',   // Lái xe hộ - thuê tài xế riêng
+}
+
 @Schema({ timestamps: true })
 export class Ride {
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
@@ -24,6 +40,13 @@ export class Ride {
 
   @Prop({ type: Types.ObjectId, ref: 'Driver' })
   driverId?: Types.ObjectId;
+
+  @Prop({
+    type: String,
+    enum: RideType,
+    default: RideType.SHARE,
+  })
+  rideType: RideType;
 
   @Prop({
     type: String,
@@ -95,6 +118,25 @@ export class Ride {
 
   @Prop()
   notes?: string;
+
+  // Hire Driver specific fields
+  @Prop({ type: String, enum: CarType })
+  carType?: CarType;
+
+  @Prop()
+  licensePlate?: string;
+
+  @Prop({ type: String, enum: TransmissionType })
+  transmission?: TransmissionType;
+
+  @Prop()
+  driverNote?: string;
+
+  @Prop({ default: false })
+  isScheduled: boolean;
+
+  @Prop()
+  scheduledTime?: Date;
 
   // Ratings
   @Prop({ min: 1, max: 5 })

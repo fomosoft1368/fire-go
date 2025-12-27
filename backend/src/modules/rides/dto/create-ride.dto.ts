@@ -1,4 +1,20 @@
-import { IsString, IsNumber, IsArray, IsOptional, Min, Max } from 'class-validator';
+import { IsString, IsNumber, IsArray, IsOptional, Min, Max, IsEnum, IsBoolean, IsDateString } from 'class-validator';
+
+export enum CarType {
+  SEDAN = 'sedan',
+  SUV = 'suv',
+  TRUCK = 'truck',
+}
+
+export enum TransmissionType {
+  AUTO = 'auto',
+  MANUAL = 'manual',
+}
+
+export enum RideType {
+  SHARE = 'share', // Ghép xe
+  HIRE = 'hire',   // Lái xe hộ
+}
 
 export class CreateRideDto {
   @IsString()
@@ -48,4 +64,34 @@ export class CreateRideDto {
   @IsNumber()
   @Min(1)
   passengers?: number;
+
+  // Ride type - share hoặc hire
+  @IsOptional()
+  @IsEnum(RideType)
+  rideType?: RideType;
+
+  // Fields for "Hire Driver" feature - chỉ bắt buộc khi rideType = 'hire'
+  @IsOptional()
+  @IsEnum(CarType)
+  carType?: CarType;
+
+  @IsOptional()
+  @IsString()
+  licensePlate?: string;
+
+  @IsOptional()
+  @IsEnum(TransmissionType)
+  transmission?: TransmissionType;
+
+  @IsOptional()
+  @IsString()
+  driverNote?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isScheduled?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  scheduledTime?: string;
 }

@@ -12,8 +12,10 @@ export class RidesController {
   }
 
   @Get()
-  async findAll(@Query('status') status?: string) {
-    const filters = status ? { status } : {};
+  async findAll(@Query('status') status?: string, @Query('rideType') rideType?: string) {
+    const filters: any = {};
+    if (status) filters.status = status;
+    if (rideType) filters.rideType = rideType; // Lọc theo loại chuyến
     return this.ridesService.findAll(filters);
   }
 
@@ -22,8 +24,9 @@ export class RidesController {
     @Query('longitude') longitude: number,
     @Query('latitude') latitude: number,
     @Query('maxDistance') maxDistance?: number,
+    @Query('rideType') rideType?: string, // Lọc theo loại chuyến
   ) {
-    return this.ridesService.findNearbyRides(longitude, latitude, maxDistance);
+    return this.ridesService.findNearbyRides(longitude, latitude, maxDistance, rideType);
   }
 
   @Get('customer/:customerId')

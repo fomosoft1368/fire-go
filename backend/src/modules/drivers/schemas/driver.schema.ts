@@ -19,21 +19,22 @@ export enum DriverStatus {
 
 @Schema({ timestamps: true })
 export class Driver {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
-  userId?: Types.ObjectId;
+  // Authentication fields (drivers have their own credentials, independent from User collection)
+  @Prop({ required: true, unique: true })
+  email: string;
 
-  // Personal information (for admin-created drivers)
-  @Prop()
-  firstName?: string;
+  @Prop({ required: true })
+  password: string;
 
-  @Prop()
-  lastName?: string;
+  @Prop({ required: true })
+  phone: string;
 
-  @Prop()
-  email?: string;
+  // Personal information
+  @Prop({ required: true })
+  firstName: string;
 
-  @Prop()
-  phone?: string;
+  @Prop({ required: true })
+  lastName: string;
 
   @Prop()
   dateOfBirth?: Date;
@@ -188,7 +189,7 @@ export const DriverSchema = SchemaFactory.createForClass(Driver);
 
 // Sparse index for geospatial queries - only on documents with currentLocation
 DriverSchema.index({ 'currentLocation': '2dsphere' }, { sparse: true });
-DriverSchema.index({ userId: 1 });
+DriverSchema.index({ email: 1 });
 DriverSchema.index({ status: 1 });
 DriverSchema.index({ licenseExpiry: 1 });
 DriverSchema.index({ isSuspended: 1 });

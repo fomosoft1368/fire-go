@@ -110,41 +110,40 @@ export default function BookingsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Filter Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-        contentContainerStyle={styles.filterContent}
-      >
-        {filterOptions.map((option, index) => (
-          <TouchableOpacity
-            key={option.key}
-            style={[
-              styles.filterTab,
-              activeFilter === option.key && styles.filterTabActive,
-              index === 0 && styles.filterTabFirst,
-            ]}
-            onPress={() => setActiveFilter(option.key)}
-          >
-            <Text
-              style={[
-                styles.filterTabText,
-                activeFilter === option.key && styles.filterTabTextActive,
-              ]}
-            >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Bookings List */}
       <ScrollView
         style={styles.listContainer}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
+      {/* Filter Tabs */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterContainer}
+          contentContainerStyle={styles.filterContent}
+        >
+          {filterOptions.map((option, index) => (
+            <TouchableOpacity
+              key={option.key}
+              style={[
+                styles.filterTab,
+                activeFilter === option.key && styles.filterTabActive,
+                index === 0 && styles.filterTabFirst,
+              ]}
+              onPress={() => setActiveFilter(option.key)}
+            >
+              <Text
+                style={[
+                  styles.filterTabText,
+                  activeFilter === option.key && styles.filterTabTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      {/* Bookings List */}
         {filteredBookings.map((booking) => {
           const badge = getStatusBadge(booking.status)
           const isCompleted = booking.status === 'completed'
@@ -337,12 +336,14 @@ const styles = StyleSheet.create({
   filterContainer: {
     backgroundColor: '#0f172a',
     borderBottomWidth: 1,
+    paddingBottom: 4,
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   filterContent: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     gap: SPACING.md,
+
   },
   filterTab: {
     paddingVertical: SPACING.sm,

@@ -9,6 +9,8 @@ import {
   SafeAreaView,
   Switch,
   Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
@@ -16,15 +18,20 @@ import type { RootState } from '../redux/store'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
+import FindingRideModal from '../components/FindingRideModal'
+import { rideService } from '../services/rideService'
 
 const { width, height } = Dimensions.get('window')
 
 export default function HomeScreen() {
   const [rideMode, setRideMode] = useState<'share' | 'hire'>('share')
-  const [pickupLocation, setPickupLocation] = useState('123 Nguyễn Trãi, Thanh Xuân')
+  const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
+  const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.8542, 21.0285])
+  const [dropoffCoordinates, setDropoffCoordinates] = useState<[number, number]>([105.8542, 21.0285])
   const [isImmediately, setIsImmediately] = useState(true)
   const [passengerCount, setPassengerCount] = useState(1)
+  const [isLoading, setIsLoading] = useState(false)
   
   // Hire driver mode states
   const [carType, setCarType] = useState<'sedan' | 'suv' | 'truck'>('sedan')
@@ -35,12 +42,85 @@ export default function HomeScreen() {
   
   const user = useSelector((state: RootState) => state.auth.user)
 
+  const handleFindRide = async () => {
+    try {
+      // Validation
+      if (!pickupLocation.trim()) {
+        Alert.alert('Lỗi', 'Vui lòng nhập điểm đón')
+        return
+      }
+      
+      if (!dropoffLocation.trim()) {
+        Alert.alert('Lỗi', 'Vui lòng nhập điểm đến')
+        return
+      }
+
+      if (!user?.id) {
+        Alert.alert('Lỗi', 'Vui lòng đăng nhập trước')
+        return
+      }
+
+      setIsLoading(true)
+
+      // Tạo dữ liệu cuốc xe ghép - KHÔNG cần thông tin xe
+      const rideData = {
+        rideType: 'share' as const,
+        pickupAddress: pickupLocation,
+        pickupCoordinates: pickupCoordinates,
+        dropoffAddress: dropoffLocation,
+        dropoffCoordinates: dropoffCoordinates,
+        distance: 5, // TODO: Tính từ API Maps
+        duration: 15, // TODO: Tính từ API Maps
+        baseFare: 10000,
+        distanceFare: 5000,
+        timeFare: 2000,
+        passengers: passengerCount,
+        // Không gửi carType, licensePlate, transmission, driverNote
+      }
+
+      const result = await rideService.createRide(rideData, user.id)
+      
+      // Keep modal showing for 2 seconds, then show success alert
+      setTimeout(() => {
+        setIsLoading(false)
+        Alert.alert('Thành công', 'Cuốc xe ghép đã được tạo. Đang tìm khách hàng khác...', [
+          { text: 'OK', onPress: () => {
+            setPickupLocation('')
+            setDropoffLocation('')
+            setPassengerCount(1)
+            console.log('Ride created:', result)
+          } },
+        ])
+      }, 2000)
+
+      console.log('Ride created:', result)
+    } catch (error: any) {
+      setIsLoading(false)
+      Alert.alert('Lỗi', error.message || 'Không thể tạo cuốc xe')
+      console.error('Error:', error)
+    }
+  }
+
+  const handleCancelFinding = () => {
+    setIsLoading(false)
+  }
+
   if (rideMode === 'hire') {
     return <HireDriverScreen {...{ isScheduled, setIsScheduled, carType, setCarType, licensePlate, setLicensePlate, transmission, setTransmission, driverNote, setDriverNote, pickupLocation, setPickupLocation, dropoffLocation, setDropoffLocation, setRideMode }} />
   }
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Finding Ride Modal */}
+      <FindingRideModal
+        visible={isLoading}
+        pickupLocation={pickupLocation}
+        dropoffLocation={dropoffLocation}
+        price="45.000đ"
+        duration="~15 phút"
+        onCancel={handleCancelFinding}
+      />
+
       {/* Header with Map */}
       <View style={styles.headerSection}>
         <View style={styles.headerTop}>
@@ -117,18 +197,19 @@ export default function HomeScreen() {
         {/* Locations Section */}
         <View style={styles.locationsSection}>
           <Text style={styles.sectionLabel}>ĐIỂM ĐÓN</Text>
-          <View style={styles.locationItem}>
+          <View style={styles.inputLocationWrapper}>
             <MaterialIcons
               name="radio-button-checked"
               size={20}
               color="#FF6B00"
             />
-            <View style={styles.locationContent}>
-              <Text style={styles.locationText}>{pickupLocation}</Text>
-            </View>
-            <TouchableOpacity>
-              <MaterialIcons name="close" size={20} color="#64748b" />
-            </TouchableOpacity>
+            <TextInput
+              style={styles.inputLocation}
+              placeholder="Nhập điểm đón..."
+              placeholderTextColor="#64748b"
+              value={pickupLocation}
+              onChangeText={setPickupLocation}
+            />
           </View>
 
           <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>
@@ -196,14 +277,24 @@ export default function HomeScreen() {
         </View>
 
         {/* Find Ride Button */}
-        <TouchableOpacity style={styles.findButton}>
-          <Text style={styles.findButtonText}>Tìm chuyến xe</Text>
-          <MaterialIcons
-            name="arrow-forward"
-            size={20}
-            color="#fff"
-            style={styles.findButtonIcon}
-          />
+        <TouchableOpacity 
+          style={styles.findButton}
+          onPress={handleFindRide}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Text style={styles.findButtonText}>Tìm chuyến xe</Text>
+              <MaterialIcons
+                name="arrow-forward"
+                size={20}
+                color="#fff"
+                style={styles.findButtonIcon}
+              />
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

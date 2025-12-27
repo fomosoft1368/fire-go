@@ -19,12 +19,20 @@
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Allow app to access your location"
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyBjn23DKnx1oKBUn1VmZBySUgCspVkWfm0"
       }
     },
     "android": {
       "package": "com.datxe.customer",
       "versionCode": 1,
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBjn23DKnx1oKBUn1VmZBySUgCspVkWfm0"
+        }
+      }
     },
     "plugins": [
       [
@@ -33,6 +41,9 @@
           "fonts": ["node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf"]
         }
       ],
-    ]
+    ],
+    "extra": {
+      "googleMapsApiKey": "AIzaSyBjn23DKnx1oKBUn1VmZBySUgCspVkWfm0"
+    }
   }
 }

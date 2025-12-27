@@ -9,10 +9,12 @@ import { store, RootState } from './src/redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS } from './src/constants'
 import LoginScreen from './src/screens/LoginScreen'
+import RegisterScreen from './src/screens/RegisterScreen'
 import HomeScreen from './src/screens/HomeScreen'
 import TripsScreen from './src/screens/TripsScreen'
 import EarningsScreen from './src/screens/EarningsScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
+import RideDetailScreen from './src/screens/RideDetailScreen'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -24,7 +26,7 @@ const MainNavigator = () => (
       tabBarIcon: ({ color, size }) => {
         let iconName: any
 
-        if (route.name === 'Home') {
+        if (route.name === 'HomeTab') {
           iconName = 'home'
         } else if (route.name === 'Trips') {
           iconName = 'local-taxi'
@@ -51,7 +53,7 @@ const MainNavigator = () => (
     })}
   >
     <Tab.Screen
-      name="Home"
+      name="HomeTab"
       component={HomeScreen}
       options={{
         tabBarLabel: 'Trang chủ',
@@ -61,7 +63,7 @@ const MainNavigator = () => (
       name="Trips"
       component={TripsScreen}
       options={{
-        tabBarLabel: 'Chuyến đi',
+        tabBarLabel: 'Hoạt động',
       }}
     />
     <Tab.Screen
@@ -81,6 +83,19 @@ const MainNavigator = () => (
   </Tab.Navigator>
 )
 
+const HomeStackNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="HomeScreen" component={MainNavigator} />
+      <Stack.Screen
+        name="RideDetail"
+        component={RideDetailScreen}
+        options={{ animationEnabled: true }}
+      />
+    </Stack.Navigator>
+  )
+}
+
 const RootNavigator = () => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth)
 
@@ -89,15 +104,22 @@ const RootNavigator = () => {
       {isAuthenticated ? (
         <Stack.Screen
           name="Main"
-          component={MainNavigator}
+          component={HomeStackNavigator}
           options={{ animationEnabled: false }}
         />
       ) : (
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ animationEnabled: false }}
-        />
+        <>
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ animationEnabled: false }}
+          />
+          <Stack.Screen
+            name="Register"
+            component={RegisterScreen}
+            options={{ animationEnabled: false }}
+          />
+        </>
       )}
     </Stack.Navigator>
   )

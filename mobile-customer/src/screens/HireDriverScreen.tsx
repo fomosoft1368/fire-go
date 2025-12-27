@@ -1,4 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSelector } from 'react-redux'
+import { RootState } from '../redux/store'
+import { rideService } from '../services/rideService'
+import { mapsService } from '../services/mapsService'
+import { calculateFare, formatCurrency, formatDistance, formatDuration } from '../utils/pricing'
+import type { CreateRideDto } from '../types'
 import {
   View,
   Text,
@@ -7,10 +13,14 @@ import {
   TouchableOpacity,
   TextInput,
   SafeAreaView,
+  Alert,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
+import ScheduleDateTimeModal from '../components/ScheduleDateTimeModal'
+import ChatScreen from './ChatScreen'
+import DriverFoundScreen from './DriverFoundScreen'
 
 interface HireDriverScreenProps {
   isScheduled: boolean
@@ -47,8 +57,298 @@ export default function HireDriverScreen({
   setDropoffLocation,
   setRideMode,
 }: HireDriverScreenProps) {
+  // Lấy user từ redux
+  const user = useSelector((state: RootState) => state.auth.user)
+  const [loading, setLoading] = useState(false)
+  const [calculating, setCalculating] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const [driverFound, setDriverFound] = useState(false)
+  const [routeInfo, setRouteInfo] = useState<any>(null)
+  const [fareEstimate, setFareEstimate] = useState<any>(null)
+  const [driver, setDriver] = useState<any>(null)
+  const [driverLocation, setDriverLocation] = useState<any>(null)
+  const [showChat, setShowChat] = useState(false)
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [scheduledDateTime, setScheduledDateTime] = useState<Date>(new Date())
+
+  // Reset ride state khi cancel
+  const resetRideState = () => {
+    setIsSearching(false)
+    setDriverFound(false)
+    setDriver(null)
+    setDriverLocation(null)
+    setRouteInfo(null)
+    setFareEstimate(null)
+    setShowChat(false)
+  }
+
+  const handleScheduleDateTime = (dateTime: Date) => {
+    setScheduledDateTime(dateTime)
+    setShowScheduleModal(false)
+  }
+
+  // Simulate driver found after 3 seconds
+  useEffect(() => {
+    if (isSearching) {
+      const timer = setTimeout(() => {
+        setDriver({
+          id: 'driver_1',
+          name: 'Nguyễn Văn A',
+          avatar: 'https://i.pravatar.cc/150?img=1',
+          rating: 4.8,
+          totalRides: 1245,
+          carType: 'Sedan',
+          licensePlate: '30A-12345',
+          carColor: 'Bạc',
+          distance: 1.2,
+          eta: 3,
+          currentLat: 21.028,
+          currentLng: 105.855,
+        })
+        setDriverLocation({
+          latitude: 21.028,
+          longitude: 105.855,
+        })
+        setDriverFound(true)
+        setIsSearching(false)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [isSearching])
+
+  useEffect(() => {
+    // Không tính lại nếu đang tìm tài xế hoặc tài xế đã được tìm thấy
+    if (isSearching || driverFound) {
+      return
+    }
+
+    if (!pickupLocation.trim() || !dropoffLocation.trim()) {
+      setRouteInfo(null)
+      setFareEstimate(null)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      calculateEstimate()
+    }, 1000) // Debounce 1 giây
+
+    return () => clearTimeout(timer)
+  }, [pickupLocation, dropoffLocation, carType, isSearching, driverFound])
+
+  // Tính giá cước khi có đủ thông tin
+  const calculateEstimate = async () => {
+    if (!pickupLocation.trim() || !dropoffLocation.trim()) {
+      return
+    }
+
+    setCalculating(true)
+    try {
+      console.log('[HireDriverScreen] Calculating route...')
+      const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
+      setRouteInfo(route)
+
+      const fare = calculateFare(route.distance, route.duration, carType)
+      setFareEstimate(fare)
+
+      console.log('[HireDriverScreen] Route calculated:', { route, fare })
+
+      // Thông báo nếu đang dùng mock data
+      if (route.isMockData) {
+        Alert.alert(
+          '⚠️ Chế độ Demo',
+          'Hiện đang sử dụng dữ liệu giả lập.\n\nĐể sử dụng Google Maps thật, vui lòng cấu hình API key trong file .env',
+          [{ text: 'OK' }]
+        )
+      }
+    } catch (err: any) {
+      console.error('[HireDriverScreen] Calculate error:', err)
+      Alert.alert('Lỗi', err.message || 'Không thể tính toán tuyến đường')
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  // Validation và tạo cuốc xe
+  const handleCreateRide = async () => {
+    // Kiểm tra đăng nhập
+    if (!user) {
+      Alert.alert('Yêu cầu đăng nhập', 'Bạn cần đăng nhập để đặt xe!')
+      return
+    }
+
+    // Validation các trường bắt buộc
+    if (!pickupLocation.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đón!')
+      return
+    }
+
+    if (!dropoffLocation.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đến!')
+      return
+    }
+
+    if (!licensePlate.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập biển số xe!')
+      return
+    }
+
+    // Nếu chưa tính giá, tính trước
+    if (!routeInfo || !fareEstimate) {
+      Alert.alert(
+        'Chưa tính giá',
+        'Vui lòng nhấn "Tính giá" trước khi đặt xe!',
+        [
+          {
+            text: 'Tính giá ngay',
+            onPress: calculateEstimate,
+          },
+          { text: 'Hủy', style: 'cancel' },
+        ]
+      )
+      return
+    }
+
+    setLoading(true)
+    try {
+      const rideData: CreateRideDto = {
+        rideType: 'hire', // Loại lái xe hộ
+        pickupAddress: routeInfo.pickup.formattedAddress,
+        pickupCoordinates: [
+          routeInfo.pickup.coordinates.longitude,
+          routeInfo.pickup.coordinates.latitude,
+        ],
+        dropoffAddress: routeInfo.dropoff.formattedAddress,
+        dropoffCoordinates: [
+          routeInfo.dropoff.coordinates.longitude,
+          routeInfo.dropoff.coordinates.latitude,
+        ],
+        distance: routeInfo.distance,
+        duration: routeInfo.duration,
+        baseFare: fareEstimate.baseFare,
+        distanceFare: fareEstimate.distanceFare,
+        timeFare: fareEstimate.timeFare,
+        surgePricing: fareEstimate.surgePricing,
+        carType,
+        licensePlate,
+        transmission,
+        driverNote,
+        isScheduled,
+        scheduledTime: isScheduled ? scheduledDateTime.toISOString() : undefined,
+      }
+
+      console.log('[HireDriverScreen] Creating ride with data:', rideData)
+      const result = await rideService.createRide(rideData, user.id)
+      
+      Alert.alert('Thành công', 'Cuốc xe đã được tạo. Đang tìm tài xế...', [
+        { text: 'OK' }
+      ])
+      
+      // Set searching state to show finding driver screen
+      setIsSearching(true)
+    } catch (err: any) {
+      console.error('[HireDriverScreen] Create ride error:', err)
+      Alert.alert(
+        'Lỗi',
+        err.message || 'Không thể tạo cuốc xe. Vui lòng thử lại!',
+        [{ text: 'Đóng' }]
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Show chat screen (CHECK BEFORE driver found)
+  if (showChat && driverFound && driver) {
+    return <ChatScreen driver={driver} onClose={() => setShowChat(false)} />
+  }
+
+  // Show driver found screen
+  if (driverFound && routeInfo && driver && driverLocation) {
+    return (
+      <DriverFoundScreen
+        driver={driver}
+        routeInfo={routeInfo}
+        onChat={() => setShowChat(true)}
+        onCancel={resetRideState}
+      />
+    )
+  }
+
+  // Show finding driver screen
+  if (isSearching && routeInfo) {
+    return (
+      <View style={styles.findingContainer}>
+        {/* Full Screen Map */}
+        <MapViewComponent
+          height={null}
+          initialRegion={{
+            latitude: routeInfo.pickup.coordinates.latitude,
+            longitude: routeInfo.pickup.coordinates.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }}
+          markers={[]}
+          pickupCoords={{
+            latitude: routeInfo.pickup.coordinates.latitude,
+            longitude: routeInfo.pickup.coordinates.longitude,
+          }}
+          dropoffCoords={{
+            latitude: routeInfo.dropoff.coordinates.latitude,
+            longitude: routeInfo.dropoff.coordinates.longitude,
+          }}
+          routeCoordinates={routeInfo?.routeCoordinates || []}
+          onLocationSelect={() => {}}
+        />
+
+        {/* Radar Animation Overlay */}
+        <View style={styles.radarContainer}>
+          {[0, 1, 2].map((index) => (
+            <View
+              key={index}
+              style={[
+                styles.radarPulse,
+                {
+                  width: 60 + index * 40,
+                  height: 60 + index * 40,
+                  opacity: Math.max(0, 1 - index * 0.3),
+                  borderColor: `rgba(255, 107, 0, ${0.6 - index * 0.2})`,
+                },
+              ]}
+            />
+          ))}
+          <View style={styles.radarCenter} />
+        </View>
+
+        {/* Status Card */}
+        <View style={styles.statusCard}>
+          <View style={styles.statusContent}>
+            <Text style={styles.statusIcon}>🔍</Text>
+            <Text style={styles.statusText}>Đang tìm tài xế gần bạn…</Text>
+          </View>
+
+          {/* Cancel Button */}
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={resetRideState}
+          >
+            <MaterialIcons name="close" size={20} color="#fff" />
+            <Text style={styles.cancelButtonText}>Hủy chuyến</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Schedule DateTime Modal */}
+      <ScheduleDateTimeModal
+        visible={showScheduleModal}
+        onConfirm={handleScheduleDateTime}
+        onCancel={() => setShowScheduleModal(false)}
+        minDateTime={new Date()}
+      />
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -77,6 +377,7 @@ export default function HireDriverScreen({
                 onChangeText={setPickupLocation}
                 placeholder="Nhập điểm đón"
                 placeholderTextColor="#64748b"
+                editable={!isSearching && !driverFound}
               />
             </View>
           </View>
@@ -93,6 +394,7 @@ export default function HireDriverScreen({
                 onChangeText={setDropoffLocation}
                 placeholder="Bạn muốn đến đâu?"
                 placeholderTextColor="#64748b"
+                editable={!isSearching && !driverFound}
               />
             </View>
           </View>
@@ -108,6 +410,23 @@ export default function HireDriverScreen({
             longitudeDelta: 0.0421,
           }}
           markers={[]}
+          pickupCoords={
+            routeInfo
+              ? {
+                  latitude: routeInfo.pickup.coordinates.latitude,
+                  longitude: routeInfo.pickup.coordinates.longitude,
+                }
+              : undefined
+          }
+          dropoffCoords={
+            routeInfo
+              ? {
+                  latitude: routeInfo.dropoff.coordinates.latitude,
+                  longitude: routeInfo.dropoff.coordinates.longitude,
+                }
+              : undefined
+          }
+          routeCoordinates={routeInfo?.routeCoordinates || []}
           onLocationSelect={(location) => {
             console.log('Location selected:', location)
           }}
@@ -141,7 +460,10 @@ export default function HireDriverScreen({
               styles.timeButton,
               isScheduled && styles.timeButtonActive,
             ]}
-            onPress={() => setIsScheduled(true)}
+            onPress={() => {
+              setIsScheduled(true)
+              setShowScheduleModal(true)
+            }}
           >
             <MaterialIcons
               name="schedule"
@@ -290,17 +612,48 @@ export default function HireDriverScreen({
 
       {/* Bottom Action */}
       <View style={styles.bottomAction}>
+        {/* Hiển thị thông tin route nếu đã tính */}
+        {routeInfo && fareEstimate && (
+          <View style={styles.routeInfoContainer}>
+            <View style={styles.routeInfoRow}>
+              <Text style={styles.routeInfoLabel}>
+                {formatDistance(routeInfo.distance)} • {formatDuration(routeInfo.duration)}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.priceContainer}>
           <View style={styles.priceIcon}>
             <MaterialIcons name="payments" size={20} color="#FF6B00" />
           </View>
           <View style={styles.priceInfo}>
-            <Text style={styles.priceLabel}>Ước tính</Text>
-            <Text style={styles.priceValue}>250.000đ</Text>
+            <Text style={styles.priceLabel}>
+              {calculating ? 'Đang tính...' : 'Ước tính'}
+            </Text>
+            <Text style={styles.priceValue}>
+              {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
+            </Text>
           </View>
+          {!calculating && (
+            <TouchableOpacity
+              style={styles.calculateButton}
+              onPress={calculateEstimate}
+              disabled={!pickupLocation || !dropoffLocation}
+            >
+              <MaterialIcons name="calculate" size={20} color="#FF6B00" />
+              <Text style={styles.calculateButtonText}>Tính giá</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        <TouchableOpacity style={styles.findButton}>
-          <Text style={styles.findButtonText}>Tìm tài xế ngay</Text>
+        <TouchableOpacity
+          style={[styles.findButton, (loading || calculating) && styles.findButtonDisabled]}
+          onPress={handleCreateRide}
+          disabled={loading || calculating}
+        >
+          <Text style={styles.findButtonText}>
+            {loading ? 'Đang tạo...' : calculating ? 'Đang tính...' : 'Tìm tài xế ngay'}
+          </Text>
           <MaterialIcons
             name="arrow-forward"
             size={20}
@@ -314,6 +667,236 @@ export default function HireDriverScreen({
 }
 
 const styles = StyleSheet.create({
+  driverMarker: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  driverMarkerIcon: {
+    fontSize: 24,
+  },
+  driverSheet: {
+    backgroundColor: '#1a202c',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    gap: SPACING.lg,
+  },
+  driverHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  driverAvatarSection: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  driverAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarIcon: {
+    fontSize: 28,
+  },
+  driverBasicInfo: {
+    flex: 1,
+  },
+  driverName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  callButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  driverDetails: {
+    gap: SPACING.md,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  detailIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailContent: {
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginBottom: 2,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  chatButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: '#FF6B00',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  chatButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF6B00',
+  },
+  cancelDriverButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#ef4444',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cancelDriverButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  findingContainer: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+    justifyContent: 'flex-end',
+    paddingBottom: 0,
+  },
+  radarContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -50,
+    marginTop: -50,
+    width: 100,
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radarPulse: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderRadius: 999,
+  },
+  radarCenter: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  statusCard: {
+    backgroundColor: '#1a202c',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.xl,
+    gap: SPACING.lg,
+  },
+  statusContent: {
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  statusIcon: {
+    fontSize: 40,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  cancelButton: {
+    height: 56,
+    backgroundColor: '#ef4444',
+    borderRadius: BORDER_RADIUS.lg,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
   container: {
     flex: 1,
     backgroundColor: '#0f172a',
@@ -532,6 +1115,19 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
     gap: SPACING.md,
   },
+  routeInfoContainer: {
+    paddingVertical: SPACING.sm,
+  },
+  routeInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  routeInfoLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -558,6 +1154,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
+  calculateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: '#FF6B00',
+  },
+  calculateButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FF6B00',
+  },
   findButton: {
     height: 56,
     backgroundColor: '#FF6B00',
@@ -571,6 +1183,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
+  },
+  findButtonDisabled: {
+    backgroundColor: '#64748b',
+    shadowOpacity: 0,
   },
   findButtonText: {
     fontSize: 15,

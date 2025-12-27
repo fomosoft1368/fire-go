@@ -3,7 +3,7 @@
     "name": "dat-xe-driver-app",
     "slug": "dat-xe-driver",
     "version": "1.0.0",
-    "sdkVersion": "51.0.0",
+    "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [

@@ -59,3 +59,26 @@ export interface LoginResponse {
   token: string
   user: User
 }
+
+// Ride Types
+export interface CreateRideDto {
+  pickupAddress: string
+  pickupCoordinates: [number, number]
+  dropoffAddress: string
+  dropoffCoordinates: [number, number]
+  distance: number
+  duration: number
+  baseFare: number
+  distanceFare: number
+  timeFare: number
+  surgePricing?: number
+  notes?: string
+  passengers?: number
+  // Hire Driver specific fields
+  carType?: 'sedan' | 'suv' | 'truck'
+  licensePlate?: string
+  transmission?: 'auto' | 'manual'
+  driverNote?: string
+  isScheduled?: boolean
+  scheduledTime?: string
+}

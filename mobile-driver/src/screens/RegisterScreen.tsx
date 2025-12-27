@@ -457,6 +457,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: COLORS.text,
+    paddingTop: 60,
   },
   stepIndicator: {
     backgroundColor: COLORS.darkCard,

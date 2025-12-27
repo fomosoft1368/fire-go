@@ -153,6 +153,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.darkBg,
     paddingHorizontal: SPACING.lg,
+    paddingTop: 45,
   },
   profileHeader: {
     flexDirection: 'row',

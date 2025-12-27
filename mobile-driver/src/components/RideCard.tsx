@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import type { RideItem } from '../types'
 import { Badge } from './Badge'
+import { useNavigation } from '@react-navigation/native'
 
 interface RideCardProps {
   ride: RideItem
@@ -11,6 +12,12 @@ interface RideCardProps {
 }
 
 export const RideCard: React.FC<RideCardProps> = ({ ride, onAccept }) => {
+  const navigation = useNavigation()
+
+  const handleAccept = () => {
+    onAccept(ride.id)
+    navigation.navigate('RideDetail' as never)
+  }
   return (
     <View style={styles.card}>
       {/* Badge Row */}
@@ -50,7 +57,7 @@ export const RideCard: React.FC<RideCardProps> = ({ ride, onAccept }) => {
       {/* Accept Button */}
       <TouchableOpacity
         style={styles.acceptButton}
-        onPress={() => onAccept(ride.id)}
+        onPress={handleAccept}
         activeOpacity={0.8}
       >
         <Text style={styles.acceptButtonText}>Nhận cuốc</Text>

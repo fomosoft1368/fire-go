@@ -1,13 +1,16 @@
 import React from 'react'
 import 'react-native-gesture-handler'
+import { useEffect } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import { Provider, useSelector } from 'react-redux'
+import { Provider, useSelector, useDispatch } from 'react-redux'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen } from './screens'
 import { COLORS } from './constants'
+import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
 import type { RootStackParamList } from './types'
 
@@ -82,6 +85,28 @@ const MainNavigator = () => (
 
 const RootNavigator = () => {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated)
+  const dispatch = useDispatch()
+
+  useEffect(() => {
+    const restoreAuthFromStorage = async () => {
+      try {
+        const token = await AsyncStorage.getItem('authToken')
+        const userStr = await AsyncStorage.getItem('user')
+
+        if (token && userStr) {
+          const user = JSON.parse(userStr)
+          dispatch(restoreAuth({ token, user }))
+        } else {
+          dispatch(restoreAuth(null))
+        }
+      } catch (error) {
+        console.error('[App] Restore auth error:', error)
+        dispatch(restoreAuth(null))
+      }
+    }
+
+    restoreAuthFromStorage()
+  }, [dispatch])
 
   return (
     <Stack.Navigator
