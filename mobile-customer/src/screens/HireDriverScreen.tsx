@@ -239,9 +239,13 @@ export default function HireDriverScreen({
       console.log('[HireDriverScreen] Creating ride with data:', rideData)
       const result = await rideService.createRide(rideData, user.id)
       
-      Alert.alert('Thành công', 'Cuốc xe đã được tạo. Đang tìm tài xế...', [
-        { text: 'OK' }
-      ])
+      Alert.alert(
+        'Thành công',
+        '✓ Cuốc xe đã được tạo!\n\nHệ thống đang tìm tài xế phù hợp cho bạn...',
+        [
+          { text: 'OK' }
+        ]
+      )
       
       // Set searching state to show finding driver screen
       setIsSearching(true)

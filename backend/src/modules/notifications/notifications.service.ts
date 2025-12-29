@@ -29,24 +29,46 @@ export class NotificationsService {
   }
 
   async findByUserId(userId: string, limit: number = 20, skip: number = 0): Promise<NotificationDocument[]> {
+    const userObjectId = new Types.ObjectId(userId);
+    const broadcastId = new Types.ObjectId('000000000000000000000000');
+    
     return this.notificationModel
-      .find({ userId: new Types.ObjectId(userId), isActive: true })
+      .find({
+        $or: [
+          { userId: userObjectId },
+          { userId: broadcastId }, // Broadcast to all admins
+        ],
+        isActive: true,
+      })
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip);
   }
 
   async findUnread(userId: string): Promise<NotificationDocument[]> {
+    // Admins see both personal notifications AND broadcast notifications (000000000000000000000000)
+    const userObjectId = new Types.ObjectId(userId);
+    const broadcastId = new Types.ObjectId('000000000000000000000000');
+    
     return this.notificationModel.find({
-      userId: new Types.ObjectId(userId),
+      $or: [
+        { userId: userObjectId },
+        { userId: broadcastId }, // Broadcast to all admins
+      ],
       isRead: false,
       isActive: true,
-    });
+    }).sort({ createdAt: -1 });
   }
 
   async getUnreadCount(userId: string): Promise<number> {
+    const userObjectId = new Types.ObjectId(userId);
+    const broadcastId = new Types.ObjectId('000000000000000000000000');
+    
     return this.notificationModel.countDocuments({
-      userId: new Types.ObjectId(userId),
+      $or: [
+        { userId: userObjectId },
+        { userId: broadcastId }, // Broadcast to all admins
+      ],
       isRead: false,
       isActive: true,
     });

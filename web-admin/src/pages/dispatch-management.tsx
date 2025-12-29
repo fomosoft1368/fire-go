@@ -1,915 +1,1243 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Layout from '../components/Layout';
-import RideMap from '../components/RideMap';
 import { apiService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
+
+interface Driver {
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string;
+  status?: 'online' | 'offline' | 'on_ride' | 'on_trip' | 'break';
+  currentLocation?: {
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+  vehicleModel?: string;
+  licensePlate?: string;
+  totalRides?: number;
+  averageRating?: number;
+}
 
 interface Ride {
   _id: string;
   customerId: any;
-  driverId?: any;
-  status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
+  driverId?: string;
   pickupAddress: string;
   dropoffAddress: string;
-  pickupLocation?: { coordinates: [number, number] };
-  dropoffLocation?: { coordinates: [number, number] };
+  pickupLocation?: {
+    type: string;
+    coordinates: [number, number];
+  };
+  dropoffLocation?: {
+    type: string;
+    coordinates: [number, number];
+  };
+  status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
   totalFare: number;
   distance: number;
   duration: number;
   createdAt: string;
-  rating?: number;
-  paymentMethod?: string;
-  isPaid?: boolean;
-  driver?: {
-    name: string;
-    phone?: string;
-    rating?: number;
-  };
   customer?: {
-    name: string;
+    _id: string;
+    firstName?: string;
+    lastName?: string;
     phone?: string;
   };
 }
 
+interface NearbyDriver extends Driver {
+  distance: number; // km
+}
+
 interface Dispute {
-  id: string;
+  _id: string;
   rideId: string;
-  type: 'urgent' | 'payment' | 'standard';
-  title: string;
-  description?: string;
-  customerName: string;
-  driverName: string;
-  status: 'pending' | 'resolved' | 'escalated';
+  customerId: any;
+  driverId: any;
+  reason: 'fare_dispute' | 'route_complaint' | 'behavior_complaint' | 'vehicle_issue' | 'safety_concern' | 'payment_issue' | 'other';
+  description: string;
+  status: 'open' | 'under_review' | 'resolved' | 'rejected' | 'appealed';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  initiatedBy: 'customer' | 'driver';
+  evidence: string[];
+  resolution?: {
+    type: 'refund' | 'credit' | 'adjustment' | 'warning' | 'suspension' | 'dismissal';
+    amount?: number;
+    notes: string;
+    resolvedBy: string;
+    resolvedAt: string;
+  };
+  ride?: {
+    pickupAddress: string;
+    dropoffAddress: string;
+    totalFare: number;
+    distance: number;
+    duration: number;
+    completedAt: string;
+  };
+  customer?: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    averageRating: number;
+  };
+  driver?: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    averageRating: number;
+    licensePlate: string;
+  };
   createdAt: string;
+  updatedAt: string;
+}
+
+interface DisputeStats {
+  total: number;
+  open: number;
+  underReview: number;
+  resolved: number;
+  rejected: number;
+  appealed: number;
 }
 
 const DispatchManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dispatch' | 'disputes'>('dispatch');
-  const [rides, setRides] = useState<Ride[]>([]);
-  const [disputes, setDisputes] = useState<Dispute[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
-  const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
+  // Dispatch states
+  const [pendingRides, setPendingRides] = useState<Ride[]>([]);
+  const [availableDrivers, setAvailableDrivers] = useState<Driver[]>([]);
+  const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
+  const [nearbyDrivers, setNearbyDrivers] = useState<NearbyDriver[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const mapRef = useRef<any>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const { addNotification } = useNotification();
+
+  // Disputes states
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [filteredDisputes, setFilteredDisputes] = useState<Dispute[]>([]);
+  const [disputeStats, setDisputeStats] = useState<DisputeStats>({
+    total: 0,
+    open: 0,
+    underReview: 0,
+    resolved: 0,
+    rejected: 0,
+    appealed: 0,
+  });
+  const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'under_review' | 'resolved' | 'rejected' | 'appealed'>('all');
+  const [filterSeverity, setFilterSeverity] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [resolvingDispute, setResolvingDispute] = useState(false);
+  const [resolutionType, setResolutionType] = useState<'refund' | 'credit' | 'adjustment' | 'warning' | 'suspension' | 'dismissal'>('dismissal');
+  const [resolutionAmount, setResolutionAmount] = useState('0');
+  const [resolutionNotes, setResolutionNotes] = useState('');
+
+  // Load rides and drivers
   useEffect(() => {
     loadData();
+    const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
   }, []);
+
+  // Load disputes
+  useEffect(() => {
+    loadDisputes();
+    const interval = setInterval(loadDisputes, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Apply dispute filters
+  useEffect(() => {
+    let filtered = disputes;
+
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(d => d.status === filterStatus);
+    }
+
+    if (filterSeverity !== 'all') {
+      filtered = filtered.filter(d => d.severity === filterSeverity);
+    }
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(d =>
+        d._id.toLowerCase().includes(query) ||
+        d.rideId.toLowerCase().includes(query) ||
+        d.description.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredDisputes(filtered);
+  }, [disputes, filterStatus, filterSeverity, searchQuery]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const ridesData = await apiService.getRides();
-      const mappedRides = (ridesData || []).map((ride: any) => {
-        let driverName = 'Tài xế';
-        if (ride.driverId && typeof ride.driverId === 'object') {
-          const driver = ride.driverId;
-          const userId = driver.userId || driver;
-          if (userId?.firstName && userId?.lastName) {
-            driverName = `${userId.firstName} ${userId.lastName}`.trim();
-          } else if (userId?.firstName) {
-            driverName = userId.firstName;
-          }
-        }
+      const [ridesRes, driversRes] = await Promise.all([
+        apiService.getRides({ status: 'pending' }),
+        apiService.getDrivers()
+      ]);
 
-        let customerName = 'Khách hàng';
-        if (ride.customerId && typeof ride.customerId === 'object') {
-          const customer = ride.customerId;
-          const userId = customer.userId || customer;
-          if (userId?.firstName && userId?.lastName) {
-            customerName = `${userId.firstName} ${userId.lastName}`.trim();
-          } else if (userId?.firstName) {
-            customerName = userId.firstName;
-          }
-        }
+      // Filter rides - should already be pending from API, but double check
+      const pending = Array.isArray(ridesRes)
+        ? ridesRes.filter((r: any) => r.status === 'pending')
+        : [];
 
-        return {
-          ...ride,
-          driver: ride.driverId && typeof ride.driverId === 'object' ? {
-            name: driverName,
-            phone: ride.driverId?.phone,
-            rating: ride.driverId?.averageRating,
-          } : undefined,
-          customer: ride.customerId && typeof ride.customerId === 'object' ? {
-            name: customerName,
-            phone: ride.customerId?.phone,
-          } : undefined,
-        };
-      });
-      setRides(mappedRides);
+      // Filter only available drivers (not on ride/trip, online or offline)
+      const available = Array.isArray(driversRes)
+        ? driversRes.filter((d: any) => d.status !== 'on_ride' && d.status !== 'on_trip')
+        : [];
 
-      // Load disputes - for now using mock data until backend API is ready
-      try {
-        const disputesData = await apiService.getDisputes();
-        setDisputes(disputesData && disputesData.length > 0 ? disputesData : getMockDisputes());
-      } catch {
-        setDisputes(getMockDisputes());
-      }
-    } catch (err) {
-      console.error('Error loading rides:', err);
+      console.log('📍 Loaded pending rides:', pending.length);
+      console.log('👥 Loaded available drivers:', available.length);
+      
+      setPendingRides(pending);
+      setAvailableDrivers(available);
+    } catch (error) {
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getMockDisputes = (): Dispute[] => [
-    {
-      id: '1',
-      rideId: 'ride123',
-      type: 'payment',
-      title: 'Khách hàng không thanh toán đầy đủ',
-      description: 'Khách hàng nói chi tiết quá ước tính ban đầu',
-      customerName: 'Nguyễn Văn A',
-      driverName: 'Trần Văn B',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      rideId: 'ride124',
-      type: 'urgent',
-      title: 'Tài xế bỏ cuốc xe',
-      description: 'Tài xế chấp nhận rồi hủy sau 5 phút',
-      customerName: 'Lê Thị C',
-      driverName: 'Phạm Văn D',
-      status: 'escalated',
-      createdAt: new Date(Date.now() - 86400000).toISOString(),
-    },
-    {
-      id: '3',
-      rideId: 'ride125',
-      type: 'standard',
-      title: 'Khách hàng khiếu nại chất lượng xe',
-      description: 'Xe bẩn, không đạt tiêu chuẩn',
-      customerName: 'Hoàng Văn E',
-      driverName: 'Vũ Văn F',
-      status: 'resolved',
-      createdAt: new Date(Date.now() - 172800000).toISOString(),
-    },
-  ];
+  // Calculate distance between two coordinates (Haversine formula)
+  const calculateDistance = (
+    coord1: [number, number],
+    coord2: [number, number]
+  ): number => {
+    const [lon1, lat1] = coord1;
+    const [lon2, lat2] = coord2;
+    const R = 6371; // Earth radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
-  const filteredRides = rides.filter(ride => {
-    const matchStatus = filterStatus === 'all' || ride.status === filterStatus;
-    const matchSearch = searchQuery === '' || 
-      ride.pickupAddress?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.dropoffAddress?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.driver?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  // Find nearby drivers when ride is selected
+  useEffect(() => {
+    if (!selectedRide || !selectedRide.pickupLocation) {
+      setNearbyDrivers([]);
+      return;
+    }
 
-  const filteredDisputes = disputes.filter(dispute => {
-    const matchStatus = filterStatus === 'all' || dispute.status === filterStatus;
-    const matchSearch = searchQuery === '' ||
-      dispute.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dispute.driverName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dispute.customerName?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+    const pickupCoords = selectedRide.pickupLocation.coordinates;
+    const MAX_DISTANCE = 5; // 5 km radius
 
-  const totalPages = Math.ceil(filteredRides.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const paginatedRides = filteredRides.slice(startIndex, startIndex + pageSize);
+    const nearby = availableDrivers
+      .map(driver => ({
+        ...driver,
+        distance: driver.currentLocation
+          ? calculateDistance(driver.currentLocation.coordinates, pickupCoords)
+          : 999
+      }))
+      .filter(d => d.distance <= MAX_DISTANCE)
+      .sort((a, b) => a.distance - b.distance);
 
-  const getStatusBadge = (status: string) => {
-    const badges: Record<string, { bg: string; text: string; label: string }> = {
-      pending: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', label: 'Chờ tài xế' },
-      accepted: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', label: 'Đã chấp nhận' },
-      in_progress: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', label: 'Đang chạy' },
-      completed: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-300', label: 'Hoàn thành' },
-      cancelled: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', label: 'Đã hủy' },
+    setNearbyDrivers(nearby);
+  }, [selectedRide, availableDrivers]);
+
+  // Initialize map
+  useEffect(() => {
+    if ((window as any).google?.maps && mapRef.current && !mapInstanceRef.current) {
+      try {
+        mapInstanceRef.current = new (window as any).google.maps.Map(mapRef.current, {
+          zoom: 13,
+          center: { lat: 10.762622, lng: 106.660172 },
+          mapTypeId: 'roadmap'
+        });
+      } catch (error) {
+        console.error('Error initializing map:', error);
+      }
+    }
+  }, []);
+
+  // Update map when ride is selected
+  useEffect(() => {
+    if (!selectedRide || !mapInstanceRef.current) return;
+
+    try {
+      const mapInstance = mapInstanceRef.current;
+      
+      // Clear existing markers
+      mapInstance.markers?.forEach((m: any) => m.setMap(null));
+      mapInstance.polylines?.forEach((p: any) => p.setMap(null));
+      mapInstance.markers = [];
+      mapInstance.polylines = [];
+
+      const pickupCoords = selectedRide.pickupLocation?.coordinates || [106.6309, 10.7895];
+      const dropoffCoords = selectedRide.dropoffLocation?.coordinates || [106.6654, 10.8123];
+
+      // Pickup marker (green)
+      const pickupMarker = new (window as any).google.maps.Marker({
+        position: { lat: pickupCoords[1], lng: pickupCoords[0] },
+        map: mapInstance,
+        title: 'Điểm đón',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 12,
+          fillColor: '#10b981',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2
+        }
+      });
+
+      // Dropoff marker (red)
+      const dropoffMarker = new (window as any).google.maps.Marker({
+        position: { lat: dropoffCoords[1], lng: dropoffCoords[0] },
+        map: mapInstance,
+        title: 'Điểm trả',
+        icon: {
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#ef4444',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2
+        }
+      });
+
+      // Add nearby drivers
+      nearbyDrivers.forEach(driver => {
+        if (!driver.currentLocation) return;
+        
+        const driverMarker = new (window as any).google.maps.Marker({
+          position: { lat: driver.currentLocation.coordinates[1], lng: driver.currentLocation.coordinates[0] },
+          map: mapInstance,
+          title: `${driver.firstName} ${driver.lastName}`,
+          icon: {
+            path: (window as any).google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#3b82f6',
+            fillOpacity: 0.7,
+            strokeColor: '#fff',
+            strokeWeight: 1
+          }
+        });
+
+        mapInstance.markers.push(driverMarker);
+      });
+
+      mapInstance.markers.push(pickupMarker, dropoffMarker);
+
+      // Fit bounds
+      const bounds = new (window as any).google.maps.LatLngBounds();
+      bounds.extend({ lat: pickupCoords[1], lng: pickupCoords[0] });
+      bounds.extend({ lat: dropoffCoords[1], lng: dropoffCoords[0] });
+      nearbyDrivers.forEach(d => {
+        if (d.currentLocation) {
+          bounds.extend({ lat: d.currentLocation.coordinates[1], lng: d.currentLocation.coordinates[0] });
+        }
+      });
+      mapInstance.fitBounds(bounds);
+    } catch (error) {
+      console.error('Error updating map:', error);
+    }
+  }, [selectedRide, nearbyDrivers]);
+
+  // Auto-assign closest available driver
+  const handleAutoAssign = async () => {
+    if (!selectedRide || nearbyDrivers.length === 0) return;
+
+    const closestDriver = nearbyDrivers[0]; // Already sorted by distance
+    if (closestDriver._id) {
+      await assignDriver(closestDriver._id);
+    }
+  };
+
+  // Random assign from nearby drivers
+  const handleRandomAssign = async () => {
+    if (!selectedRide || nearbyDrivers.length === 0) return;
+
+    const randomDriver = nearbyDrivers[Math.floor(Math.random() * nearbyDrivers.length)];
+    if (randomDriver._id) {
+      await assignDriver(randomDriver._id);
+    }
+  };
+
+  // Assign driver to ride
+  const assignDriver = async (driverId: string) => {
+    if (!selectedRide) return;
+
+    setAssigning(true);
+    try {
+      // Call API to assign driver
+      await apiService.assignDriver(selectedRide._id, driverId);
+
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Tài xế được giao thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+      
+      setSelectedRide(null);
+      loadData();
+    } catch (error: any) {
+      console.error('Error assigning driver:', error);
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: `Lỗi: ${error.message}`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // Load disputes
+  const loadDisputes = async () => {
+    try {
+      // TODO: Replace with actual API call
+      const mockDisputes: Dispute[] = [
+        {
+          _id: '1',
+          rideId: 'ride-001',
+          customerId: 'customer-1',
+          driverId: 'driver-1',
+          reason: 'fare_dispute',
+          description: 'Tài xế tính giá cao hơn mức quy định',
+          status: 'open',
+          severity: 'medium',
+          initiatedBy: 'customer',
+          evidence: [],
+          ride: {
+            pickupAddress: '123 Đường Nguyễn Huệ, HCM',
+            dropoffAddress: '456 Đường Tôn Đức Thắng, HCM',
+            totalFare: 150000,
+            distance: 5.2,
+            duration: 15,
+            completedAt: new Date().toISOString(),
+          },
+          customer: {
+            firstName: 'Nguyễn',
+            lastName: 'Văn A',
+            phone: '0901234567',
+            email: 'customer@example.com',
+            averageRating: 4.5,
+          },
+          driver: {
+            firstName: 'Trần',
+            lastName: 'Văn B',
+            phone: '0909876543',
+            email: 'driver@example.com',
+            averageRating: 3.8,
+            licensePlate: '79-A1-123456',
+          },
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          _id: '2',
+          rideId: 'ride-002',
+          customerId: 'customer-2',
+          driverId: 'driver-2',
+          reason: 'behavior_complaint',
+          description: 'Tài xế có thái độ bất lịch sự',
+          status: 'under_review',
+          severity: 'high',
+          initiatedBy: 'customer',
+          evidence: [],
+          ride: {
+            pickupAddress: '789 Đường Lê Lợi, HCM',
+            dropoffAddress: '321 Đường Nguyễn Hữu Cảnh, HCM',
+            totalFare: 200000,
+            distance: 8.5,
+            duration: 22,
+            completedAt: new Date(Date.now() - 172800000).toISOString(),
+          },
+          customer: {
+            firstName: 'Phạm',
+            lastName: 'Thị C',
+            phone: '0912345678',
+            email: 'customer2@example.com',
+            averageRating: 4.8,
+          },
+          driver: {
+            firstName: 'Lê',
+            lastName: 'Văn D',
+            phone: '0987654321',
+            email: 'driver2@example.com',
+            averageRating: 2.9,
+            licensePlate: '79-A2-789012',
+          },
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+
+      setDisputes(mockDisputes);
+
+      // Calculate stats
+      const newStats = {
+        total: mockDisputes.length,
+        open: mockDisputes.filter(d => d.status === 'open').length,
+        underReview: mockDisputes.filter(d => d.status === 'under_review').length,
+        resolved: mockDisputes.filter(d => d.status === 'resolved').length,
+        rejected: mockDisputes.filter(d => d.status === 'rejected').length,
+        appealed: mockDisputes.filter(d => d.status === 'appealed').length,
+      };
+      setDisputeStats(newStats);
+    } catch (error) {
+      console.error('Error loading disputes:', error);
+    }
+  };
+
+  const handleResolveDispute = async () => {
+    if (!selectedDispute) return;
+
+    setResolvingDispute(true);
+    try {
+      // TODO: Call API to resolve dispute
+      const updatedDispute: Dispute = {
+        ...selectedDispute,
+        status: 'resolved',
+        resolution: {
+          type: resolutionType,
+          amount: resolutionType !== 'warning' && resolutionType !== 'dismissal' ? parseInt(resolutionAmount) : undefined,
+          notes: resolutionNotes,
+          resolvedBy: 'admin',
+          resolvedAt: new Date().toISOString(),
+        },
+      };
+
+      // Update local state
+      setDisputes(disputes.map(d => (d._id === selectedDispute._id ? updatedDispute : d)));
+      setSelectedDispute(null);
+      setResolutionNotes('');
+      setResolutionAmount('0');
+      setResolutionType('dismissal');
+
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Tranh chấp đã được xử lý thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+    } catch (error) {
+      console.error('Error resolving dispute:', error);
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi xử lý tranh chấp',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
+    } finally {
+      setResolvingDispute(false);
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical':
+        return 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400';
+      case 'high':
+        return 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400';
+      case 'medium':
+        return 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400';
+      case 'low':
+        return 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400';
+      default:
+        return 'bg-slate-100 dark:bg-slate-500/20 text-slate-700 dark:text-slate-400';
+    }
+  };
+
+  const getSeverityLabel = (severity: string) => {
+    const labels: { [key: string]: string } = {
+      critical: '🔴 Rất nghiêm trọng',
+      high: '🟠 Nghiêm trọng',
+      medium: '🟡 Bình thường',
+      low: '🔵 Nhẹ',
     };
-    const badge = badges[status] || badges.pending;
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`}>
-        {badge.label}
-      </span>
-    );
+    return labels[severity] || severity;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open':
+        return 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30';
+      case 'under_review':
+        return 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-200 dark:border-yellow-500/30';
+      case 'resolved':
+        return 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30';
+      case 'rejected':
+        return 'bg-slate-50 dark:bg-slate-500/10 border-slate-200 dark:border-slate-500/30';
+      case 'appealed':
+        return 'bg-purple-50 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30';
+      default:
+        return 'bg-slate-50 dark:bg-slate-500/10 border-slate-200 dark:border-slate-500/30';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: { [key: string]: string } = {
+      open: '🔴 Mới',
+      under_review: '🟡 Đang xem xét',
+      resolved: '✅ Đã xử lý',
+      rejected: '❌ Từ chối',
+      appealed: '🔄 Phúc thẩm',
+    };
+    return labels[status] || status;
+  };
+
+  const getReasonLabel = (reason: string) => {
+    const labels: { [key: string]: string } = {
+      fare_dispute: '💰 Tranh chấp giá cước',
+      route_complaint: '🗺️ Phàn nàn lộ trình',
+      behavior_complaint: '😠 Phàn nàn hành vi',
+      vehicle_issue: '🚗 Vấn đề xe',
+      safety_concern: '⚠️ Vấn đề an toàn',
+      payment_issue: '💳 Vấn đề thanh toán',
+      other: '📝 Khác',
+    };
+    return labels[reason] || reason;
+  };
+
+  const getResolutionTypeLabel = (type: string) => {
+    const labels: { [key: string]: string } = {
+      refund: '💵 Hoàn tiền',
+      credit: '🎁 Tín dụng',
+      adjustment: '⚙️ Điều chỉnh',
+      warning: '⚠️ Cảnh báo',
+      suspension: '🚫 Tạm ngừng',
+      dismissal: '✓ Từ chối',
+    };
+    return labels[type] || type;
   };
 
   return (
     <Layout>
-      <div className="p-6">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Điều phối & Tranh chấp</h1>
-          <p className="text-slate-600 dark:text-slate-400">Quản lý cuốc xe và xử lý tranh chấp</p>
+      <div className="p-6 space-y-6">
+        {/* Header with Tabs */}
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Quản Lý Điều Phối & Tranh Chấp</h1>
+          <button
+            onClick={() => activeTab === 'dispatch' ? loadData() : loadDisputes()}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined">refresh</span>
+            Cập nhật
+          </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
           <button
             onClick={() => setActiveTab('dispatch')}
-            className={`px-4 py-3 font-semibold border-b-2 transition-all ${
+            className={`flex-1 py-3 px-4 rounded-lg font-bold transition-all ${
               activeTab === 'dispatch'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
           >
-            <span className="flex items-center gap-2">
-              <span className="material-symbols-outlined">local_taxi</span>
-              Điều phối ({rides.length})
-            </span>
+            <span className="material-symbols-outlined text-[20px] inline mr-2 align-text-bottom">assignment_late</span>
+            Điều Phối Tài Xế
           </button>
           <button
             onClick={() => setActiveTab('disputes')}
-            className={`px-4 py-3 font-semibold border-b-2 transition-all ${
+            className={`flex-1 py-3 px-4 rounded-lg font-bold transition-all ${
               activeTab === 'disputes'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
             }`}
           >
-            <span className="flex items-center gap-2">
-              <span className="material-symbols-outlined">gavel</span>
-              Tranh chấp ({disputes.length})
-            </span>
+            <span className="material-symbols-outlined text-[20px] inline mr-2 align-text-bottom">gavel</span>
+            Quản Lý Tranh Chấp
           </button>
         </div>
 
-        {/* Dispatch Tab */}
+        {/* Dispatch Tab Content */}
         {activeTab === 'dispatch' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Map */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-20 space-y-4">
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Bản đồ điều phối</h3>
-                  {selectedRide && selectedRide.pickupLocation?.coordinates && selectedRide.dropoffLocation?.coordinates ? (
-                    <RideMap
-                      pickupCoords={selectedRide.pickupLocation.coordinates}
-                      dropoffCoords={selectedRide.dropoffLocation.coordinates}
-                      pickupAddress={selectedRide.pickupAddress}
-                      dropoffAddress={selectedRide.dropoffAddress}
-                    />
-                  ) : (
-                    <div className="h-96 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 text-center">
-                      <div>
-                        <p className="text-sm font-semibold mb-1">Chọn cuốc xe để xem bản đồ</p>
-                        <p className="text-xs">Click vào cuốc xe trong danh sách</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Selected Ride Info */}
-                {selectedRide && (
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
-                    <div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Cuốc xe</p>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">#{selectedRide._id.slice(-6).toUpperCase()}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <p className="text-slate-600 dark:text-slate-400">Tài xế</p>
-                        <p className="font-semibold text-slate-900 dark:text-white">{selectedRide.driver?.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-600 dark:text-slate-400">Khách hàng</p>
-                        <p className="font-semibold text-slate-900 dark:text-white">{selectedRide.customer?.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-600 dark:text-slate-400">Khoảng cách</p>
-                        <p className="font-semibold text-slate-900 dark:text-white">{selectedRide.distance?.toFixed(1)} km</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-600 dark:text-slate-400">Giá tiền</p>
-                        <p className="font-semibold text-slate-900 dark:text-white">{(selectedRide.totalFare || 0).toLocaleString('vi-VN')}đ</p>
-                      </div>
-                    </div>
-                    {getStatusBadge(selectedRide.status)}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: Rides List */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Filters */}
-              <div className="flex flex-col lg:flex-row gap-4">
-              {/* Search */}
-              <div className="flex-1">
-                <div className="flex w-full items-center rounded-lg h-10 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary">
-                  <span className="material-symbols-outlined pl-3 text-slate-400">search</span>
-                  <input
-                    className="flex-1 bg-transparent border-none text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-0 px-3"
-                    placeholder="Tìm kiếm..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Status Filter */}
-              <div className="flex gap-2 overflow-x-auto">
-                {(['all', 'pending', 'accepted', 'in_progress', 'completed', 'cancelled'] as const).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => {
-                      setFilterStatus(status);
-                      setCurrentPage(1);
-                    }}
-                    className={`px-4 py-2 rounded-lg whitespace-nowrap text-sm font-semibold transition-all ${
-                      filterStatus === status
-                        ? 'bg-primary text-white'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    {status === 'all' ? 'Tất cả' : status === 'pending' ? 'Chờ' : status === 'in_progress' ? 'Đang chạy' : status}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+          <div className="space-y-6">
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Tổng cuốc xe</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{rides.length}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Chờ giao tài xế</p>
+                <p className="text-2xl font-bold text-yellow-600">{pendingRides.length}</p>
               </div>
-              <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Đang chạy</p>
-                <p className="text-2xl font-bold text-green-600">{rides.filter(r => r.status === 'in_progress').length}</p>
-              </div>
-              <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Hoàn thành</p>
-                <p className="text-2xl font-bold text-purple-600">{rides.filter(r => r.status === 'completed').length}</p>
-              </div>
-              <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Doanh thu</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {(rides.reduce((sum, r) => sum + (r.totalFare || 0), 0) / 1000000).toFixed(1)}M
-                </p>
+              <div className="p-3 bg-yellow-100 dark:bg-yellow-500/20 rounded-lg">
+                <span className="material-symbols-outlined text-yellow-600">pending_actions</span>
               </div>
             </div>
+          </div>
 
-            {/* Table */}
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin">
-                  <span className="material-symbols-outlined text-3xl text-primary">autorenew</span>
-                </div>
-                <span className="ml-3 text-slate-500 dark:text-slate-400">Đang tải...</span>
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tài xế có sẵn</p>
+                <p className="text-2xl font-bold text-green-600">{availableDrivers.length}</p>
               </div>
-            ) : rides.length === 0 ? (
-              <div className="text-center py-12">
-                <span className="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-700 mb-3">local_taxi</span>
-                <p className="text-slate-500 dark:text-slate-400">Không có cuốc xe</p>
+              <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-lg">
+                <span className="material-symbols-outlined text-green-600">verified_driver</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tài xế gần đó</p>
+                <p className="text-2xl font-bold text-blue-600">{nearbyDrivers.length}</p>
+              </div>
+              <div className="p-3 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
+                <span className="material-symbols-outlined text-blue-600">location_on</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Map */}
+          <div className="lg:col-span-2">
+            <div
+              ref={mapRef}
+              className="w-full h-[500px] rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800"
+            />
+          </div>
+
+          {/* Right Panel */}
+          <div className="space-y-4">
+            {/* Selected Ride Info */}
+            {selectedRide ? (
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-slate-900 dark:text-white">Chuyến đi</h3>
+                  <button
+                    onClick={() => setSelectedRide(null)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 text-sm mb-4">
+                  <div>
+                    <p className="text-xs text-slate-500">Khách:</p>
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      {selectedRide.customer?.firstName} {selectedRide.customer?.lastName || ''}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Từ:</p>
+                    <p className="font-bold text-slate-900 dark:text-white">{selectedRide.pickupAddress}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Đến:</p>
+                    <p className="font-bold text-slate-900 dark:text-white">{selectedRide.dropoffAddress}</p>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <span className="text-slate-500">{selectedRide.distance?.toFixed(1) || 0} km</span>
+                    <span className="font-bold text-emerald-600">{(selectedRide.totalFare || 0).toLocaleString()}đ</span>
+                  </div>
+                </div>
+
+                {/* Nearby Drivers */}
+                <div className="mb-4">
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    Tài xế gần đó ({nearbyDrivers.length})
+                  </h4>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {nearbyDrivers.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic">Không có tài xế gần đó</p>
+                    ) : (
+                      nearbyDrivers.map(driver => (
+                        <button
+                          key={driver._id || 'unknown'}
+                          onClick={() => driver._id && assignDriver(driver._id)}
+                          disabled={assigning || !driver._id}
+                          className="w-full text-left p-2 rounded-lg bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 disabled:opacity-50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                {driver.firstName} {driver.lastName}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                ⭐ {driver.averageRating || 0} ({driver.totalRides || 0} cuốc)
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs font-bold text-blue-600">{driver.distance.toFixed(1)}km</p>
+                              <p className="text-xs text-slate-500">{driver.licensePlate || 'N/A'}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Auto/Random Assign */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAutoAssign}
+                    disabled={nearbyDrivers.length === 0 || assigning}
+                    className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px] mr-1 inline">check_circle</span>
+                    Auto
+                  </button>
+                  <button
+                    onClick={handleRandomAssign}
+                    disabled={nearbyDrivers.length === 0 || assigning}
+                    className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px] mr-1 inline">shuffle</span>
+                    Random
+                  </button>
+                </div>
               </div>
             ) : (
-              <>
-                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                  <table className="w-full">
-                    <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">ID</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Tuyến đường</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Tài xế</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Khách hàng</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Khoảng cách</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Giá tiền</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Trạng thái</th>
-                        <th className="px-6 py-4 text-center text-xs font-bold text-slate-900 dark:text-white">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                      {paginatedRides.map((ride) => (
-                        <tr 
-                          key={ride._id} 
-                          onClick={() => setSelectedRide(ride)}
-                          className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer ${
-                            selectedRide?._id === ride._id ? 'bg-primary/10' : ''
-                          }`}
-                        >
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">#{ride._id.slice(-6).toUpperCase()}</p>
-                          </td>
-                          <td className="px-6 py-4 max-w-xs">
-                            <div className="flex flex-col gap-1">
-                              <p className="text-xs text-slate-600 dark:text-slate-400 truncate" title={ride.pickupAddress}>📍 {ride.pickupAddress}</p>
-                              <p className="text-xs text-slate-600 dark:text-slate-400 truncate" title={ride.dropoffAddress}>📍 {ride.dropoffAddress}</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white">{ride.driver?.name || 'N/A'}</p>
-                            {ride.driver?.rating && (
-                              <p className="text-xs text-yellow-500">⭐ {ride.driver.rating.toFixed(1)}</p>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white">{ride.customer?.name || 'N/A'}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm text-slate-900 dark:text-white">{ride.distance?.toFixed(1) || '0'} km</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-bold text-slate-900 dark:text-white">{(ride.totalFare || 0).toLocaleString('vi-VN')}đ</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            {getStatusBadge(ride.status)}
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <button
-                              onClick={() => {
-                                setSelectedRide(ride);
-                                setShowDetailModal(true);
-                              }}
-                              className="px-3 py-1 rounded-lg text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                            >
-                              Chi tiết
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination */}
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-600 dark:text-slate-400">
-                      Hiển thị <strong>{startIndex + 1}-{Math.min(startIndex + pageSize, filteredRides.length)}</strong> của <strong>{filteredRides.length}</strong>
-                    </span>
-                    <select
-                      value={pageSize}
-                      onChange={(e) => {
-                        setPageSize(Number(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                      className="ml-4 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white"
-                    >
-                      <option value={10}>10 / trang</option>
-                      <option value={20}>20 / trang</option>
-                      <option value={50}>50 / trang</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
-                      className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white disabled:opacity-50 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                    >
-                      Trước
-                    </button>
-
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            currentPage === pageNum
-                              ? 'bg-primary text-white'
-                              : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-600'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-
-                    <button
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      disabled={currentPage === totalPages}
-                      className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white disabled:opacity-50 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                    >
-                      Sau
-                    </button>
-                  </div>
-                </div>
-              </>
+              <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700 text-center">
+                <span className="material-symbols-outlined text-slate-300 dark:text-slate-600 text-4xl mb-2">info</span>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Chọn một chuyến đi để giao tài xế</p>
+              </div>
             )}
+          </div>
+        </div>
+
+        {/* Pending Rides List */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
+            Chuyến đi chờ giao ({pendingRides.length})
+          </h2>
+
+          {loading ? (
+            <div className="text-center py-8 text-slate-500">
+              <span className="material-symbols-outlined animate-spin">refresh</span>
+              <p className="mt-2 text-xs">Đang tải...</p>
+            </div>
+          ) : pendingRides.length === 0 ? (
+            <div className="text-center py-8 text-slate-500">
+              <span className="material-symbols-outlined text-4xl mb-2">check_circle</span>
+              <p className="text-sm">Không có chuyến đi chờ</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pendingRides.map(ride => (
+                <button
+                  key={ride._id}
+                  onClick={() => setSelectedRide(ride)}
+                  className={`text-left p-4 rounded-lg border-2 transition-all ${
+                    selectedRide?._id === ride._id
+                      ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500'
+                      : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 hover:border-blue-400'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">
+                        {ride.customer?.firstName} {ride.customer?.lastName || ''}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        📞 {ride.customer?.phone || 'N/A'}
+                      </p>
+                    </div>
+                    <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded">
+                      Chờ
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <p className="text-slate-600 dark:text-slate-300 line-clamp-1">
+                      📍 {ride.pickupAddress}
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300 line-clamp-1">
+                      📌 {ride.dropoffAddress}
+                    </p>
+                    <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-600">
+                      <span className="text-slate-500">{ride.distance?.toFixed(1) || 0}km</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        {(ride.totalFare || 0).toLocaleString()}đ
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          </div>
+        </div>
+          )}
+
+          {/* Disputes Tab Content */}
+          {activeTab === 'disputes' && (
+          <div className="space-y-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tổng cộng</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{disputeStats.total}</p>
+                </div>
+                <div className="p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                  <span className="material-symbols-outlined text-slate-600 dark:text-slate-300">description</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Mới</p>
+                  <p className="text-2xl font-bold text-red-600">{disputeStats.open}</p>
+                </div>
+                <div className="p-3 bg-red-100 dark:bg-red-500/20 rounded-lg">
+                  <span className="material-symbols-outlined text-red-600">new_inbox</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Đang xem xét</p>
+                  <p className="text-2xl font-bold text-yellow-600">{disputeStats.underReview}</p>
+                </div>
+                <div className="p-3 bg-yellow-100 dark:bg-yellow-500/20 rounded-lg">
+                  <span className="material-symbols-outlined text-yellow-600">schedule</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Đã xử lý</p>
+                  <p className="text-2xl font-bold text-green-600">{disputeStats.resolved}</p>
+                </div>
+                <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-lg">
+                  <span className="material-symbols-outlined text-green-600">check_circle</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Từ chối</p>
+                  <p className="text-2xl font-bold text-slate-600">{disputeStats.rejected}</p>
+                </div>
+                <div className="p-3 bg-slate-100 dark:bg-slate-700 rounded-lg">
+                  <span className="material-symbols-outlined text-slate-600">cancel</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Phúc thẩm</p>
+                  <p className="text-2xl font-bold text-purple-600">{disputeStats.appealed}</p>
+                </div>
+                <div className="p-3 bg-purple-100 dark:bg-purple-500/20 rounded-lg">
+                  <span className="material-symbols-outlined text-purple-600">gavel</span>
+                </div>
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Disputes Tab */}
-        {activeTab === 'disputes' && (
+          {/* Filters */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">Tìm kiếm</label>
+                <input
+                  type="text"
+                  placeholder="Tìm theo ID, mô tả..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">Trạng thái</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="all">Tất cả</option>
+                  <option value="open">Mới</option>
+                  <option value="under_review">Đang xem xét</option>
+                  <option value="resolved">Đã xử lý</option>
+                  <option value="rejected">Từ chối</option>
+                  <option value="appealed">Phúc thẩm</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">Mức độ</label>
+                <select
+                  value={filterSeverity}
+                  onChange={(e) => setFilterSeverity(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="all">Tất cả</option>
+                  <option value="critical">Rất nghiêm trọng</option>
+                  <option value="high">Nghiêm trọng</option>
+                  <option value="medium">Bình thường</option>
+                  <option value="low">Nhẹ</option>
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setFilterStatus('all');
+                    setFilterSeverity('all');
+                  }}
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  Xóa bộ lọc
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Disputes List and Details */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Map */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-20 space-y-4">
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Bản đồ tranh chấp</h3>
-                  {selectedDispute ? (
-                    <div className="h-96 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 text-center">
-                      <div>
-                        <p className="text-sm font-semibold mb-1">Chi tiết tranh chấp</p>
-                        <p className="text-xs">ID: {selectedDispute.rideId}</p>
-                      </div>
+            {/* Disputes List */}
+            <div className="lg:col-span-2">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
+                  Danh sách tranh chấp ({filteredDisputes.length})
+                </h2>
+
+                {filteredDisputes.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <span className="material-symbols-outlined text-4xl mb-2">inbox</span>
+                    <p>Không có tranh chấp nào</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredDisputes.map(dispute => (
+                      <button
+                        key={dispute._id}
+                        onClick={() => setSelectedDispute(dispute)}
+                        className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                          selectedDispute?._id === dispute._id
+                            ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500'
+                            : getStatusColor(dispute.status)
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                {getReasonLabel(dispute.reason)}
+                              </p>
+                              <span className={`text-xs font-bold px-2 py-1 rounded ${getSeverityColor(dispute.severity)}`}>
+                                {getSeverityLabel(dispute.severity)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                              ID: {dispute._id}
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold px-2 py-1 rounded bg-slate-100 dark:bg-slate-700">
+                            {getStatusLabel(dispute.status)}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-2 line-clamp-2">
+                          {dispute.description}
+                        </p>
+
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <div>
+                            <p>👤 {dispute.customer?.firstName} {dispute.customer?.lastName} vs {dispute.driver?.firstName} {dispute.driver?.lastName}</p>
+                          </div>
+                          <p>{new Date(dispute.createdAt).toLocaleDateString('vi-VN')}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Dispute Details */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700 h-fit sticky top-6">
+              {!selectedDispute ? (
+                <div className="text-center py-12 text-slate-500">
+                  <span className="material-symbols-outlined text-4xl mb-2">description</span>
+                  <p className="text-sm">Chọn một tranh chấp để xem chi tiết</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
+                    <div>
+                      <h3 className="font-bold text-slate-900 dark:text-white mb-1">
+                        {getReasonLabel(selectedDispute.reason)}
+                      </h3>
+                      <p className="text-xs text-slate-500">{getStatusLabel(selectedDispute.status)}</p>
                     </div>
-                  ) : (
-                    <div className="h-96 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 text-center">
+                    <button
+                      onClick={() => setSelectedDispute(null)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    >
+                      <span className="material-symbols-outlined">close</span>
+                    </button>
+                  </div>
+
+                  {/* Info */}
+                  <div className="space-y-3 text-sm">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Mô tả</p>
+                      <p className="text-slate-900 dark:text-slate-100">{selectedDispute.description}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Khách hàng</p>
+                      <p className="text-slate-900 dark:text-slate-100">
+                        {selectedDispute.customer?.firstName} {selectedDispute.customer?.lastName}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        📞 {selectedDispute.customer?.phone} | ⭐ {selectedDispute.customer?.averageRating}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Tài xế</p>
+                      <p className="text-slate-900 dark:text-slate-100">
+                        {selectedDispute.driver?.firstName} {selectedDispute.driver?.lastName}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        📞 {selectedDispute.driver?.phone} | ⭐ {selectedDispute.driver?.averageRating}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        🚗 {selectedDispute.driver?.licensePlate}
+                      </p>
+                    </div>
+
+                    {selectedDispute.ride && (
                       <div>
-                        <p className="text-sm font-semibold mb-1">Chọn tranh chấp để xem chi tiết</p>
-                        <p className="text-xs">Click vào tranh chấp trong danh sách</p>
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Chi tiết chuyến</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                          📍 {selectedDispute.ride.pickupAddress}
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mb-1">
+                          📌 {selectedDispute.ride.dropoffAddress}
+                        </p>
+                        <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
+                          <span>{selectedDispute.ride.distance}km</span>
+                          <span>{selectedDispute.ride.duration} phút</span>
+                          <span className="font-bold text-emerald-600">{selectedDispute.ride.totalFare.toLocaleString()}đ</span>
+                        </div>
                       </div>
+                    )}
+
+                    {selectedDispute.resolution && (
+                      <div className="bg-green-50 dark:bg-green-500/10 p-3 rounded-lg">
+                        <p className="text-xs font-bold text-green-700 dark:text-green-400 mb-1">✅ Đã xử lý</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                          {getResolutionTypeLabel(selectedDispute.resolution.type)}
+                          {selectedDispute.resolution.amount && ` - ${selectedDispute.resolution.amount.toLocaleString()}đ`}
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                          {selectedDispute.resolution.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Resolution Form */}
+                  {selectedDispute.status !== 'resolved' && selectedDispute.status !== 'rejected' && (
+                    <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">
+                          Cách xử lý
+                        </label>
+                        <select
+                          value={resolutionType}
+                          onChange={(e) => setResolutionType(e.target.value as any)}
+                          className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <option value="refund">💵 Hoàn tiền</option>
+                          <option value="credit">🎁 Tín dụng</option>
+                          <option value="adjustment">⚙️ Điều chỉnh</option>
+                          <option value="warning">⚠️ Cảnh báo</option>
+                          <option value="suspension">🚫 Tạm ngừng</option>
+                          <option value="dismissal">✓ Từ chối</option>
+                        </select>
+                      </div>
+
+                      {resolutionType !== 'warning' && resolutionType !== 'dismissal' && (
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">
+                            Số tiền (đ)
+                          </label>
+                          <input
+                            type="number"
+                            value={resolutionAmount}
+                            onChange={(e) => setResolutionAmount(e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">
+                          Ghi chú
+                        </label>
+                        <textarea
+                          value={resolutionNotes}
+                          onChange={(e) => setResolutionNotes(e.target.value)}
+                          placeholder="Lý do xử lý..."
+                          rows={3}
+                          className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleResolveDispute}
+                        disabled={resolvingDispute || !resolutionNotes}
+                        className="w-full px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-bold"
+                      >
+                        {resolvingDispute ? 'Đang xử lý...' : '✓ Xác nhận xử lý'}
+                      </button>
                     </div>
                   )}
                 </div>
-                
-                {/* Selected Dispute Info */}
-                {selectedDispute && (
-                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
-                    <div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Tranh chấp</p>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">#{selectedDispute.id.slice(-6).toUpperCase()}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <p className="text-slate-600 dark:text-slate-400">Loại</p>
-                        <p className="font-semibold text-slate-900 dark:text-white capitalize">{selectedDispute.type}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-600 dark:text-slate-400">Trạng thái</p>
-                        <p className="font-semibold text-slate-900 dark:text-white capitalize">{selectedDispute.status}</p>
-                      </div>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-slate-700/50 p-2 rounded text-xs">
-                      <p className="font-semibold text-slate-900 dark:text-white mb-1">{selectedDispute.title}</p>
-                      {selectedDispute.description && (
-                        <p className="text-slate-600 dark:text-slate-400 text-xs line-clamp-2">{selectedDispute.description}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: Disputes List */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Filters */}
-              <div className="flex flex-col lg:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="flex w-full items-center rounded-lg h-10 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary">
-                    <span className="material-symbols-outlined pl-3 text-slate-400">search</span>
-                    <input
-                      className="flex-1 bg-transparent border-none text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-0 px-3"
-                      placeholder="Tìm kiếm..."
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Status Filter */}
-                <div className="flex gap-2 overflow-x-auto">
-                  {(['all', 'pending', 'resolved', 'escalated'] as const).map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => {
-                        setFilterStatus(status === 'all' ? 'all' : (status as any));
-                        setCurrentPage(1);
-                      }}
-                      className={`px-4 py-2 rounded-lg whitespace-nowrap text-sm font-semibold transition-all ${
-                        (filterStatus === 'all' && status === 'all') || 
-                        (filterStatus === status && status !== 'all')
-                          ? 'bg-primary text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {status === 'all' ? 'Tất cả' : status === 'pending' ? 'Chờ xử lý' : status === 'resolved' ? 'Đã giải quyết' : 'Nâng cấp'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Tổng tranh chấp</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{disputes.length}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Chờ xử lý</p>
-                  <p className="text-2xl font-bold text-orange-600">{disputes.filter(d => d.status === 'pending').length}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Đã giải quyết</p>
-                  <p className="text-2xl font-bold text-green-600">{disputes.filter(d => d.status === 'resolved').length}</p>
-                </div>
-              </div>
-
-              {/* Table */}
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin">
-                    <span className="material-symbols-outlined text-3xl text-primary">autorenew</span>
-                  </div>
-                  <span className="ml-3 text-slate-500 dark:text-slate-400">Đang tải...</span>
-                </div>
-              ) : disputes.length === 0 ? (
-                <div className="text-center py-12">
-                  <span className="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-700 mb-3">gavel</span>
-                  <p className="text-slate-500 dark:text-slate-400">Không có tranh chấp</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                  <table className="w-full">
-                    <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">ID</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Tiêu đề</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Loại</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Tài xế</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Khách hàng</th>
-                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Trạng thái</th>
-                        <th className="px-6 py-4 text-center text-xs font-bold text-slate-900 dark:text-white">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                      {filteredDisputes.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((dispute) => (
-                        <tr 
-                          key={dispute.id}
-                          onClick={() => setSelectedDispute(dispute)}
-                          className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer ${
-                            selectedDispute?.id === dispute.id ? 'bg-primary/10' : ''
-                          }`}
-                        >
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">#{dispute.id.slice(-6).toUpperCase()}</p>
-                          </td>
-                          <td className="px-6 py-4 max-w-xs">
-                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{dispute.title}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              dispute.type === 'urgent'
-                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                                : dispute.type === 'payment'
-                                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                            }`}>
-                              {dispute.type === 'urgent' ? 'Khẩn' : dispute.type === 'payment' ? 'Thanh toán' : 'Thường'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm text-slate-900 dark:text-white">{dispute.driverName}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm text-slate-900 dark:text-white">{dispute.customerName}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              dispute.status === 'pending'
-                                ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
-                                : dispute.status === 'resolved'
-                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                            }`}>
-                              {dispute.status === 'pending' ? 'Chờ' : dispute.status === 'resolved' ? 'Giải quyết' : 'Nâng cấp'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedDispute(dispute);
-                              }}
-                              className="text-primary hover:text-primary/80 font-medium text-sm"
-                            >
-                              Chi tiết
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Pagination */}
-              {filteredDisputes.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Hiển thị {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, filteredDisputes.length)} của {filteredDisputes.length}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={pageSize}
-                      onChange={(e) => {
-                        setPageSize(parseInt(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                      className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                      <option value={50}>50</option>
-                    </select>
-                    <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
-                      className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white disabled:opacity-50 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                    >
-                      Trước
-                    </button>
-                    {Array.from({ length: Math.min(5, Math.ceil(disputes.length / pageSize)) }, (_, i) => {
-                      const totalPages = Math.ceil(disputes.length / pageSize);
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            currentPage === pageNum
-                              ? 'bg-primary text-white'
-                              : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-600'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                      disabled={currentPage >= Math.ceil(filteredDisputes.length / pageSize)}
-                      className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white disabled:opacity-50 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                    >
-                      Sau
-                    </button>
-                  </div>
-                </div>
               )}
             </div>
           </div>
-        )}
-
-        {/* Detail Modal */}
-        {showDetailModal && selectedRide && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-6 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Chi tiết cuốc xe</h2>
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                >
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-              </div>
-
-              <div className="p-6 space-y-6">
-                {/* Header Info */}
-                <div className="flex justify-between items-start pb-6 border-b border-slate-200 dark:border-slate-700">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">ID Cuốc xe</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">#{selectedRide._id.slice(-8).toUpperCase()}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Giá tiền</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{(selectedRide.totalFare || 0).toLocaleString('vi-VN')}đ</p>
-                  </div>
-                </div>
-
-                {/* Status */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600 dark:text-slate-400">Trạng thái</span>
-                  {getStatusBadge(selectedRide.status)}
-                </div>
-
-                {/* Route */}
-                <div className="space-y-3 pb-6 border-b border-slate-200 dark:border-slate-700">
-                  <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">route</span>
-                    Tuyến đường & Bản đồ
-                  </h3>
-                  <RideMap
-                    pickupCoords={selectedRide.pickupLocation?.coordinates || [106.6309, 10.7895]}
-                    dropoffCoords={selectedRide.dropoffLocation?.coordinates || [106.6654, 10.8123]}
-                    pickupAddress={selectedRide.pickupAddress}
-                    dropoffAddress={selectedRide.dropoffAddress}
-                  />
-                  <div className="space-y-2 ml-0">
-                    <div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">Điểm đón</p>
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedRide.pickupAddress}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">Điểm trả</p>
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedRide.dropoffAddress}</p>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4 pt-2">
-                      <div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Khoảng cách</p>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedRide.distance?.toFixed(1) || '0'} km</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Thời gian</p>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedRide.duration} phút</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Driver & Customer */}
-                <div className="grid grid-cols-2 gap-6 pb-6 border-b border-slate-200 dark:border-slate-700">
-                  {/* Driver */}
-                  <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary">local_taxi</span>
-                      Tài xế
-                    </h3>
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Tên</p>
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedRide.driver?.name || 'N/A'}</p>
-                      </div>
-                      {selectedRide.driver?.phone && (
-                        <div>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">Điện thoại</p>
-                          <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedRide.driver.phone}</p>
-                        </div>
-                      )}
-                      {selectedRide.driver?.rating && (
-                        <div>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">Xếp hạng</p>
-                          <p className="text-sm font-semibold text-yellow-500">⭐ {selectedRide.driver.rating.toFixed(1)}/5.0</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Customer */}
-                  <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-primary">person</span>
-                      Khách hàng
-                    </h3>
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Tên</p>
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedRide.customer?.name || 'N/A'}</p>
-                      </div>
-                      {selectedRide.customer?.phone && (
-                        <div>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">Điện thoại</p>
-                          <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedRide.customer.phone}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Info */}
-                {(selectedRide.paymentMethod || selectedRide.rating) && (
-                  <div className="space-y-2">
-                    {selectedRide.paymentMethod && (
-                      <div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Phương thức thanh toán</p>
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedRide.paymentMethod}</p>
-                      </div>
-                    )}
-                    {selectedRide.rating && (
-                      <div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Đánh giá cuốc xe</p>
-                        <p className="text-sm font-semibold text-yellow-500">⭐ {selectedRide.rating.toFixed(1)}/5.0</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t border-slate-200 dark:border-slate-700 p-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="px-6 py-2.5 rounded-lg bg-primary text-white hover:bg-primary-dark transition-all"
-                >
-                  Đóng
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
+          )}
       </div>
     </Layout>
   );

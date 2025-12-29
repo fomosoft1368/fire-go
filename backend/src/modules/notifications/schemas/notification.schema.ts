@@ -4,6 +4,9 @@ import { Document, Types } from 'mongoose';
 export type NotificationDocument = Notification & Document;
 
 export enum NotificationType {
+  DRIVER_REGISTERED = 'driver_registered',
+  CUSTOMER_REGISTERED = 'customer_registered',
+  RIDE_CREATED = 'ride_created',
   RIDE_REQUEST = 'ride_request',
   RIDE_ACCEPTED = 'ride_accepted',
   RIDE_STARTED = 'ride_started',

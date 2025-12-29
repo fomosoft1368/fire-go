@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Layout from '../components/Layout';
 import CustomerDetailModal from '../components/CustomerDetailModal';
 import { apiService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 
 interface Customer {
   _id?: string;
@@ -26,6 +28,8 @@ interface Customer {
 }
 
 const Customers: React.FC = () => {
+  const location = useLocation();
+  const { addNotification } = useNotification();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,6 +39,8 @@ const Customers: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showLockConfirm, setShowLockConfirm] = useState(false);
+  const [lockConfirmAction, setLockConfirmAction] = useState<'lock' | 'unlock' | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
@@ -50,69 +56,88 @@ const Customers: React.FC = () => {
   const itemsPerPage = 10;
 
   // Fetch customers data
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        console.log('🚀 Fetching customers from API...');
-        const allCustomers = await apiService.getCustomers();
+      console.log('🚀 Fetching customers from API...');
+      const allCustomers = await apiService.getCustomers();
 
-        console.log('📦 API Response:', allCustomers);
-        console.log('📊 Number of customers:', allCustomers?.length || 0);
+      console.log('📦 API Response:', allCustomers);
+      console.log('📊 Number of customers:', allCustomers?.length || 0);
 
-        if (!allCustomers || allCustomers.length === 0) {
-          console.warn('⚠️ No customers found in response');
-          setCustomers([]);
-          setLoading(false);
-          return;
-        }
-
-        // Transform API response to UI format
-        const transformedCustomers = allCustomers.map((customer: any, idx: number) => {
-          // Get name from firstName/lastName or from populated userId
-          const userInfo = customer.userId || {};
-          const firstName = customer.firstName || userInfo.fullName?.split(' ')[0] || userInfo.name?.split(' ')[0] || '';
-          const lastName = customer.lastName || userInfo.fullName?.split(' ').slice(1).join(' ') || '';
-          const displayName = `${firstName} ${lastName}`.trim() || 'Chưa có tên';
-          const email = customer.email || userInfo.email || 'N/A';
-          const phone = customer.phone || userInfo.phone || 'N/A';
-          const avatar = customer.avatar || `https://i.pravatar.cc/150?u=${email}`;
-          
-          return {
-            ...customer,
-            displayName,
-            email,
-            phone,
-            avatar,
-            displayStatus: customer.isBlacklisted ? 'blocked' : 
-                          customer.isAccountLocked ? 'inactive' : 'active',
-            status: customer.isBlacklisted ? 'blocked' : 
-                   customer.isAccountLocked ? 'inactive' : 'active',
-            joinedDate: customer.createdAt ? 
-              new Date(customer.createdAt).toLocaleDateString('vi-VN') : 'N/A',
-            lastActive: '2 giờ trước' // Placeholder - need to track in backend
-          };
-        });
-
-        console.log('✅ Transformed customers:', transformedCustomers.length, transformedCustomers);
-        setCustomers(transformedCustomers);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Lỗi tải dữ liệu khách hàng';
-        console.error('❌ Error fetching customers:', err);
-        setError(errorMsg);
-      } finally {
+      if (!allCustomers || allCustomers.length === 0) {
+        console.warn('⚠️ No customers found in response');
+        setCustomers([]);
         setLoading(false);
+        return;
+      }
+
+      // Transform API response to UI format
+      const transformedCustomers = allCustomers.map((customer: any) => {
+        // Get name from firstName/lastName or from populated userId
+        const userInfo = customer.userId || {};
+        const firstName = customer.firstName || userInfo.fullName?.split(' ')[0] || userInfo.name?.split(' ')[0] || '';
+        const lastName = customer.lastName || userInfo.fullName?.split(' ').slice(1).join(' ') || '';
+        const displayName = `${firstName} ${lastName}`.trim() || 'Chưa có tên';
+        const email = customer.email || userInfo.email || 'N/A';
+        const phone = customer.phone || userInfo.phone || 'N/A';
+        const avatar = customer.avatar || `https://i.pravatar.cc/150?u=${email}`;
+        
+        return {
+          ...customer,
+          displayName,
+          email,
+          phone,
+          avatar,
+          displayStatus: customer.isBlacklisted ? 'blocked' : 
+                        customer.isAccountLocked ? 'inactive' : 'active',
+          status: customer.isBlacklisted ? 'blocked' : 
+                 customer.isAccountLocked ? 'inactive' : 'active',
+          joinedDate: customer.createdAt ? 
+            new Date(customer.createdAt).toLocaleDateString('vi-VN') : 'N/A',
+          lastActive: '2 giờ trước' // Placeholder - need to track in backend
+        };
+      });
+
+      console.log('✅ Transformed customers:', transformedCustomers.length, transformedCustomers);
+      setCustomers(transformedCustomers);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Lỗi tải dữ liệu khách hàng';
+      console.error('❌ Error fetching customers:', err);
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+
+    // Refetch when page becomes visible (user switches back to this tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('📍 Page became visible, refetching customers...');
+        fetchCustomers();
       }
     };
 
-    fetchCustomers();
-  }, []);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [location.pathname]);
 
   const handleAddCustomer = async () => {
     if (!formData.firstName || !formData.email || !formData.phone) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Vui lòng điền đầy đủ thông tin',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
       return;
     }
 
@@ -133,7 +158,29 @@ const Customers: React.FC = () => {
       }
 
       await apiService.createCustomer(newCustomer);
-      alert('Thêm khách hàng thành công!');
+      
+      // Show notification immediately
+      addNotification({
+        id: `customer-${Date.now()}`,
+        type: 'customer_registered',
+        title: 'Khách hàng mới',
+        message: `${formData.firstName} ${formData.lastName} (${formData.email}) vừa được thêm`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+      
+      // Show success notification
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Thêm khách hàng thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+      
       setShowAddModal(false);
       setFormData({
         firstName: '',
@@ -147,34 +194,32 @@ const Customers: React.FC = () => {
       });
       
       // Reload customers
-      const allCustomers = await apiService.getCustomers();
-      const transformedCustomers = allCustomers.map((customer: any) => {
-        const userInfo = customer.userId || {};
-        return {
-          ...customer,
-          displayName: userInfo.fullName || userInfo.name || 'Chưa có tên',
-          email: userInfo.email || 'N/A',
-          phone: userInfo.phone || 'N/A',
-          avatar: `https://i.pravatar.cc/150?u=${userInfo._id || customer._id}`,
-          displayStatus: customer.isBlacklisted ? 'blocked' : 
-                        customer.isAccountLocked ? 'inactive' : 'active',
-          status: customer.isBlacklisted ? 'blocked' : 
-                 customer.isAccountLocked ? 'inactive' : 'active',
-          joinedDate: customer.createdAt ? 
-            new Date(customer.createdAt).toLocaleDateString('vi-VN') : 'N/A',
-          lastActive: '2 giờ trước'
-        };
-      });
-      setCustomers(transformedCustomers);
+      fetchCustomers();
     } catch (err) {
       console.error('Error adding customer:', err);
-      alert('Lỗi khi thêm khách hàng: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi thêm khách hàng: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 
   const handleEditCustomer = async () => {
     if (!selectedCustomer || !formData.firstName || !formData.email || !formData.phone) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Vui lòng điền đầy đủ thông tin',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
       return;
     }
 
@@ -193,7 +238,15 @@ const Customers: React.FC = () => {
       }
 
       await apiService.updateCustomer(selectedCustomer._id || selectedCustomer.id || '', updateData);
-      alert('Cập nhật khách hàng thành công!');
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Cập nhật khách hàng thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
       setShowEditModal(false);
       setSelectedCustomer(null);
       setFormData({
@@ -236,7 +289,15 @@ const Customers: React.FC = () => {
       setCustomers(transformedCustomers2);
     } catch (err) {
       console.error('Error updating customer:', err);
-      alert('Lỗi khi cập nhật khách hàng: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi cập nhật khách hàng: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 
@@ -246,7 +307,15 @@ const Customers: React.FC = () => {
     try {
       const customerId = selectedCustomer._id || selectedCustomer.id;
       if (!customerId) {
-        alert('Không tìm thấy ID khách hàng');
+        addNotification({
+          id: `error-${Date.now()}`,
+          type: 'other',
+          title: 'Lỗi',
+          message: 'Không tìm thấy ID khách hàng',
+          timestamp: new Date().toISOString(),
+          read: false,
+          priority: 'high',
+        });
         return;
       }
 
@@ -254,26 +323,59 @@ const Customers: React.FC = () => {
       const response = await apiService.deleteCustomer(customerId);
       console.log('✅ Delete response:', response);
       
-      alert('Xóa khách hàng thành công!');
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Xóa khách hàng thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+      
       setShowDeleteConfirm(false);
       setSelectedCustomer(null);
       // Remove from state
-      setCustomers(customers.filter(c => c._id !== selectedCustomer._id && c.id !== selectedCustomer.id));
+      const updatedCustomers = customers.filter(c => c._id !== selectedCustomer._id && c.id !== selectedCustomer.id);
+      setCustomers(updatedCustomers);
+      
+      // Reset to page 1 if current page is out of bounds
+      const newTotalPages = Math.ceil(updatedCustomers.length / itemsPerPage);
+      if (currentPage > newTotalPages && newTotalPages > 0) {
+        setCurrentPage(1);
+      }
     } catch (err) {
       console.error('❌ Error deleting customer:', err);
-      alert('Lỗi khi xóa khách hàng: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi xóa khách hàng: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 
   const handleLockCustomer = async (customerId: string, currentStatus: boolean) => {
-    try {
-      const confirmMessage = currentStatus 
-        ? 'Bạn chắc chắn muốn mở khóa tài khoản khách hàng này?' 
-        : 'Bạn chắc chắn muốn khóa tài khoản khách hàng này?';
-      
-      if (!window.confirm(confirmMessage)) return;
+    // Set selected customer and show confirm modal
+    const customer = customers.find(c => c._id === customerId || c.id === customerId);
+    if (customer) {
+      setSelectedCustomer(customer);
+      setLockConfirmAction(currentStatus ? 'unlock' : 'lock');
+      setShowLockConfirm(true);
+    }
+  };
 
-      await apiService.updateCustomer(customerId, { isAccountLocked: !currentStatus });
+  const confirmLockAction = async () => {
+    if (!selectedCustomer || !lockConfirmAction) return;
+
+    try {
+      const isUnlock = lockConfirmAction === 'unlock';
+      await apiService.updateCustomer(selectedCustomer._id || selectedCustomer.id!, { 
+        isAccountLocked: !isUnlock 
+      });
       
       // Refresh the list
       const allCustomers = await apiService.getCustomers();
@@ -284,9 +386,30 @@ const Customers: React.FC = () => {
       })) as Customer[];
       
       setCustomers(transformedCustomers);
+      setShowLockConfirm(false);
+      setLockConfirmAction(null);
+      
+      const actionText = lockConfirmAction === 'lock' ? 'khóa' : 'mở khóa';
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: `${actionText} tài khoản thành công!`,
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
     } catch (err) {
       console.error('Error locking customer:', err);
-      alert('Lỗi khi cập nhật trạng thái tài khoản: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi cập nhật trạng thái tài khoản: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 
@@ -939,6 +1062,50 @@ const Customers: React.FC = () => {
                 onClick={handleEditCustomer}
                 className="flex-1 px-4 py-2 bg-[#FF6B00] text-white font-medium rounded-lg hover:bg-[#e56200] transition-colors">
                 Cập nhật
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lock/Unlock Confirmation Modal */}
+      {showLockConfirm && selectedCustomer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#1E252B] rounded-xl shadow-lg max-w-sm w-full p-6">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-orange-100 dark:bg-orange-900/30 rounded-full mb-4">
+              <span className="material-symbols-outlined text-orange-600 dark:text-orange-400">
+                {lockConfirmAction === 'lock' ? 'lock' : 'lock_open'}
+              </span>
+            </div>
+            
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white text-center mb-2">
+              {lockConfirmAction === 'lock' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+            </h3>
+            
+            <p className="text-slate-600 dark:text-slate-400 text-center mb-6">
+              {lockConfirmAction === 'lock' 
+                ? `Bạn có chắc chắn muốn khóa tài khoản của ${selectedCustomer.displayName}?`
+                : `Bạn có chắc chắn muốn mở khóa tài khoản của ${selectedCustomer.displayName}?`
+              }
+            </p>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => {
+                  setShowLockConfirm(false);
+                  setLockConfirmAction(null);
+                }}
+                className="flex-1 px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                Hủy
+              </button>
+              <button 
+                onClick={confirmLockAction}
+                className={`flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors ${
+                  lockConfirmAction === 'lock'
+                    ? 'bg-orange-600 hover:bg-orange-700'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}>
+                {lockConfirmAction === 'lock' ? 'Khóa' : 'Mở khóa'}
               </button>
             </div>
           </div>

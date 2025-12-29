@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './modules/auth/auth.module';
 import { DriversModule } from './modules/drivers/drivers.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -19,6 +20,7 @@ import { AdminModule } from './modules/admin/admin.module';
     MongooseModule.forRoot(
       process.env.MONGODB_URI || 'mongodb://localhost:27017/dat_xe',
     ),
+    EventEmitterModule.forRoot(),
     AuthModule,
     DriversModule,
     CustomersModule,

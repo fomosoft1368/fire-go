@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import DriverApprovalModal from '../components/DriverApprovalModal';
 import { apiService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 
 interface PendingDriver {
   _id?: string;
@@ -37,6 +38,7 @@ const DriverApproval: React.FC = () => {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
+  const { addNotification } = useNotification();
 
   // Fetch pending drivers
   useEffect(() => {
@@ -80,10 +82,27 @@ const DriverApproval: React.FC = () => {
       setPendingDrivers(pendingDrivers.filter((d) => (d._id || d.id) !== driverId));
       setShowApprovalModal(false);
       setSelectedDriver(null);
-      alert('Duyệt tài xế thành công!');
+      
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Duyệt tài xế thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
     } catch (err) {
       console.error('❌ Error approving driver:', err);
-      alert('Lỗi khi duyệt tài xế: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi duyệt tài xế: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 
@@ -97,10 +116,27 @@ const DriverApproval: React.FC = () => {
       setPendingDrivers(pendingDrivers.filter((d) => (d._id || d.id) !== driverId));
       setShowApprovalModal(false);
       setSelectedDriver(null);
-      alert('Từ chối tài xế thành công! Tài xế sẽ nhận được thông báo.');
+      
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Từ chối tài xế thành công! Tài xế sẽ nhận được thông báo.',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
     } catch (err) {
       console.error('❌ Error rejecting driver:', err);
-      alert('Lỗi khi từ chối tài xế: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi từ chối tài xế: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 

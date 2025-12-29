@@ -93,22 +93,79 @@ const Settings: React.FC = () => {
 
   const loadAdminProfile = async () => {
     try {
+      // First try to get profile from localStorage (cached from login)
+      const cachedProfile = localStorage.getItem('userProfile');
+      console.log('Cached userProfile from localStorage:', cachedProfile);
+      
+      if (cachedProfile) {
+        try {
+          const profile = JSON.parse(cachedProfile);
+          console.log('✅ Profile loaded from localStorage:', profile);
+          setProfileData({
+            firstName: profile.firstName || '',
+            lastName: profile.lastName || '',
+            email: profile.email || '',
+            phone: profile.phone || ''
+          });
+          return; // Stop here - we have the data
+        } catch (e) {
+          console.log('Could not parse cached profile:', e);
+        }
+      }
+
+      console.log('No cached profile found, trying API...');
+      
+      // If not in cache, try API
       const profile = await apiService.getAdminProfile();
-      console.log('Raw profile response:', JSON.stringify(profile, null, 2));
+      console.log('Raw profile response from API:', JSON.stringify(profile, null, 2));
+      
       if (profile && profile.email) {
         const firstName = profile.firstName || profile.first_name || '';
         const lastName = profile.lastName || profile.last_name || '';
         const phone = profile.phone || '';
-        console.log('Extracted values:', { firstName, lastName, phone, email: profile.email });
-        setProfileData({
+        console.log('✅ Profile loaded from API:', { firstName, lastName, phone, email: profile.email });
+        
+        const newProfileData = {
           firstName,
           lastName,
           email: profile.email || '',
           phone
-        });
-      } else {
-        console.log('Profile is null or missing email');
+        };
+        setProfileData(newProfileData);
+        // Cache it
+        localStorage.setItem('userProfile', JSON.stringify(newProfileData));
+        return;
       }
+
+      // Fallback: extract from JWT token
+      console.log('API profile is null, falling back to JWT token');
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const decoded = JSON.parse(atob(token.split('.')[1]));
+          console.log('Decoded JWT token:', decoded);
+          const fallbackProfile = {
+            firstName: decoded.firstName || decoded.first_name || '',
+            lastName: decoded.lastName || decoded.last_name || '',
+            email: decoded.email || 'admin@firego.com',
+            phone: decoded.phone || ''
+          };
+          console.log('✅ Profile loaded from JWT token:', fallbackProfile);
+          setProfileData(fallbackProfile);
+          return;
+        } catch (e) {
+          console.log('Could not decode JWT token:', e);
+        }
+      }
+      
+      // Last resort
+      console.log('⚠️ Could not load profile from any source');
+      setProfileData({
+        firstName: '',
+        lastName: '',
+        email: 'admin@firego.com',
+        phone: ''
+      });
     } catch (err) {
       console.log('Error loading profile:', err);
     }
@@ -143,6 +200,13 @@ const Settings: React.FC = () => {
       };
       const result = await apiService.patch('/auth/profile', updateData);
       if (result) {
+        // Cache the updated profile
+        localStorage.setItem('userProfile', JSON.stringify({
+          firstName: profileData.firstName,
+          lastName: profileData.lastName,
+          email: profileData.email,
+          phone: profileData.phone
+        }));
         setMessage({ type: 'success', text: 'Cập nhật thông tin cá nhân thành công!' });
       } else {
         setMessage({ type: 'error', text: 'Lỗi cập nhật thông tin cá nhân' });

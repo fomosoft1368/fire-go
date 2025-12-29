@@ -24,7 +24,7 @@ import { rideService } from '../services/rideService'
 const { width, height } = Dimensions.get('window')
 
 export default function HomeScreen() {
-  const [rideMode, setRideMode] = useState<'share' | 'hire'>('share')
+  const [rideMode, setRideMode] = useState<'share' | 'hire'>('share' as const)
   const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
   const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.8542, 21.0285])
@@ -83,14 +83,21 @@ export default function HomeScreen() {
       // Keep modal showing for 2 seconds, then show success alert
       setTimeout(() => {
         setIsLoading(false)
-        Alert.alert('Thành công', 'Cuốc xe ghép đã được tạo. Đang tìm khách hàng khác...', [
-          { text: 'OK', onPress: () => {
-            setPickupLocation('')
-            setDropoffLocation('')
-            setPassengerCount(1)
-            console.log('Ride created:', result)
-          } },
-        ])
+        Alert.alert(
+          'Thành công',
+          '✓ Cuốc xe ghép đã được tạo!\n\nHệ thống đang tìm khách hàng khác để ghép xe với bạn...',
+          [
+            { 
+              text: 'OK', 
+              onPress: () => {
+                setPickupLocation('')
+                setDropoffLocation('')
+                setPassengerCount(1)
+                console.log('Shared ride created:', result)
+              } 
+            },
+          ]
+        )
       }, 2000)
 
       console.log('Ride created:', result)
@@ -179,14 +186,14 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={[
               styles.rideTypeButton,
-              rideMode === 'hire' && styles.rideTypeButtonActive,
+              ...(( rideMode as string) === 'hire' ? [styles.rideTypeButtonActive] : []),
             ]}
             onPress={() => setRideMode('hire')}
           >
             <Text
               style={[
                 styles.rideTypeText,
-                rideMode === 'hire' && styles.rideTypeTextActive,
+                ...((rideMode as string) === 'hire' ? [styles.rideTypeTextActive] : []),
               ]}
             >
               Lái xe hộ
@@ -351,8 +358,8 @@ const styles = StyleSheet.create({
   mapPlaceholder: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#374151',
-    backgroundImage: 'linear-gradient(45deg, #4b5563 25%, #374151 25%, #374151 50%, #4b5563 50%, #4b5563 75%, #374151 75%, #374151)',
-  },
+  //   backgroundImage: 'linear-gradient(45deg, #4b5563 25%, #374151 25%, #374151 50%, #4b5563 50%, #4b5563 75%, #374151 75%, #374151)',
+   },
   routeInfo: {
     position: 'absolute',
     bottom: SPACING.lg,
