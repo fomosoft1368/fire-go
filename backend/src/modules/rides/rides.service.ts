@@ -125,7 +125,7 @@ export class RidesService {
         acceptedAt: new Date(),
       },
       { new: true },
-    );
+    ).populate('driverId').populate('customerId');
   }
 
   async startRide(rideId: string): Promise<RideDocument> {

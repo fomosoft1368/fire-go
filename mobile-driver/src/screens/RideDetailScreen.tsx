@@ -13,8 +13,11 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import MapView, { Marker } from 'react-native-maps'
+import { useSelector } from 'react-redux'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { COLORS } from '../constants'
 import { driverService } from '../services/driverService'
+import type { RootState } from '../redux/store'
 
 interface RideDetailScreenProps {
   navigation: any
@@ -25,6 +28,8 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const [acceptedStatus, setAcceptedStatus] = useState('pending') // pending, accepted, arrived, completed
   const [ride, setRide] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [updating, setUpdating] = useState(false)
+  const { user } = useSelector((state: RootState) => state.auth)
   const scaleAnim = useRef(new Animated.Value(1)).current
   const fadeAnim = useRef(new Animated.Value(1)).current
   const statusFadeAnim = useRef(new Animated.Value(0)).current
@@ -34,39 +39,57 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
 
   // Fetch ride detail từ API
   useEffect(() => {
+    console.log('🚗 RideDetailScreen - rideId:', rideId)
     if (rideId) {
       fetchRideDetail()
+    } else {
+      console.warn('⚠️ No rideId provided in route params')
+      setLoading(false)
     }
   }, [rideId])
 
   const fetchRideDetail = async () => {
     setLoading(true)
     try {
-      console.log('🚗 Fetching ride detail:', rideId)
-      const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}`)
+      console.log('🚗 Fetching ride detail from:', `http://10.0.2.2:3000/api/rides/${rideId}`)
+      const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      console.log('📡 Response status:', response.status)
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('✅ Ride detail:', data)
+      console.log('✅ Ride detail response:', data)
+      console.log('🔍 Raw status field from API:', data.status)
+      console.log('🔍 Raw driverId field from API:', data.driverId)
+
+      if (!data || !data._id) {
+        throw new Error('Invalid ride data received')
+      }
 
       // Format dữ liệu từ API
       const formattedRide = {
         id: data._id,
+        driverId: data.driverId,
         passengerName: data.customerName || 'Khách hàng',
         rating: data.customerRating || 4.8,
         reviews: data.reviews || 0,
         status: data.rideType === 'share' ? 'Khách ghép' : 'Lái xe hộ',
         price: data.totalFare || 0,
         estimatedTime: data.duration ? `${data.duration} phút` : '0 phút',
-        pickupAddress: data.pickupAddress,
-        pickupDistrict: data.pickupAddress, // TODO: Extract district
-        dropoffAddress: data.dropoffAddress,
-        dropoffDistrict: data.dropoffAddress, // TODO: Extract district
+        pickupAddress: data.pickupAddress || 'Không rõ',
+        pickupDistrict: data.pickupAddress || 'Không rõ',
+        dropoffAddress: data.dropoffAddress || 'Không rõ',
+        dropoffDistrict: data.dropoffAddress || 'Không rõ',
         distance: data.distance ? `${data.distance.toFixed(1)}km` : '0km',
-        paymentMethod: data.paymentMethod === 'cash' ? 'Tiền mặt' : data.paymentMethod,
+        paymentMethod: data.paymentMethod === 'cash' ? 'Tiền mặt' : data.paymentMethod || 'Chưa xác định',
         pickupCoords: {
           latitude: data.pickupLocation?.coordinates?.[1] || 21.0285,
           longitude: data.pickupLocation?.coordinates?.[0] || 105.8542,
@@ -76,32 +99,150 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           longitude: data.dropoffLocation?.coordinates?.[0] || 105.8436,
         },
         rideType: data.rideType,
-        status: data.status,
+        rideStatus: data.status,
       }
 
       setRide(formattedRide)
-      console.log('📦 Formatted ride:', formattedRide)
-    } catch (error) {
-      console.error('❌ Error fetching ride detail:', error)
-      Alert.alert('Lỗi', 'Không thể tải chi tiết chuyến đi')
+      
+      // Set initial button state based on ride status and driverId
+      if (data.driverId) {
+        // Ride đã được nhận
+        setAcceptedStatus('accepted')
+      } else if (data.status === 'pending') {
+        // Ride chưa được nhận
+        setAcceptedStatus('pending')
+      } else {
+        // Ride đã hủy hoặc hoàn thành
+        setAcceptedStatus('completed')
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching ride detail:', error.message)
+      console.error('❌ Error details:', error)
+      Alert.alert('Lỗi', `Không thể tải chi tiết chuyến đi: ${error.message}`)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleAcceptRide = () => {
-    animateStatusChange()
-    setTimeout(() => setAcceptedStatus('accepted'), 300)
+  const handleAcceptRide = async () => {
+    if (updating || !user?.id) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID tài xế')
+      return
+    }
+
+    // Check trước nếu ride đã có driverId
+    if (ride?.driverId) {
+      Alert.alert('Thông báo', 'Chuyến đi này đã được nhận. Không thể nhận lại.')
+      return
+    }
+
+    setUpdating(true)
+    try {
+      // Refresh ride data trước khi nhận để đảm bảo có dữ liệu mới nhất
+      console.log('🔄 Refreshing ride data before accept...')
+      await fetchRideDetail()
+
+      // Check ride status sau khi refresh
+      if (ride?.rideStatus !== 'pending') {
+        Alert.alert('Lỗi', `Chuyến đi không còn available. Trạng thái hiện tại: ${ride?.rideStatus}`)
+        setUpdating(false)
+        return
+      }
+
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+
+      const payload = { driverId: user.id }
+      console.log('📤 Accepting ride:', rideId)
+      console.log('📤 Ride status after refresh:', ride?.rideStatus)
+      console.log('📤 Driver ID:', user.id)
+      console.log('📤 Payload:', JSON.stringify(payload))
+      
+      const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}/accept`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const responseText = await response.text()
+      console.log('📡 Response status:', response.status)
+      console.log('📡 Response body:', responseText)
+
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${responseText}`)
+      }
+
+      const result = JSON.parse(responseText)
+      console.log('✅ Ride accepted:', result)
+      animateStatusChange()
+      setTimeout(() => setAcceptedStatus('accepted'), 300)
+    } catch (error: any) {
+      console.error('❌ Error accepting ride:', error)
+      Alert.alert('Lỗi', `Không thể nhận cuốc: ${error.message}`)
+    } finally {
+      setUpdating(false)
+    }
   }
 
-  const handleArrivedAtPickup = () => {
-    animateStatusChange()
-    setTimeout(() => setAcceptedStatus('arrived'), 300)
+  const handleArrivedAtPickup = async () => {
+    if (updating) return
+    setUpdating(true)
+    try {
+      console.log('📤 Arrived at pickup:', rideId)
+      const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}/start`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to update ride: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Ride status updated to arrived:', result)
+      animateStatusChange()
+      setTimeout(() => setAcceptedStatus('arrived'), 300)
+    } catch (error: any) {
+      console.error('❌ Error updating ride:', error)
+      Alert.alert('Lỗi', `Không thể cập nhật: ${error.message}`)
+    } finally {
+      setUpdating(false)
+    }
   }
 
-  const handleStartRide = () => {
-    animateStatusChange()
-    setTimeout(() => setAcceptedStatus('completed'), 300)
+  const handleStartRide = async () => {
+    if (updating) return
+    setUpdating(true)
+    try {
+      console.log('📤 Starting ride:', rideId)
+      const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}/complete`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to complete ride: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Ride completed:', result)
+      animateStatusChange()
+      setTimeout(() => setAcceptedStatus('completed'), 300)
+    } catch (error: any) {
+      console.error('❌ Error completing ride:', error)
+      Alert.alert('Lỗi', `Không thể hoàn thành chuyến: ${error.message}`)
+    } finally {
+      setUpdating(false)
+    }
   }
 
   const handleCompleted = () => {
@@ -109,6 +250,19 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   }
 
   const handleActionButton = () => {
+    // Nếu ride đã có driverId, không cho nhấn lại
+    if (ride?.driverId) {
+      Alert.alert('Thông báo', 'Chuyến đi này đã được nhận. Không thể nhận lại.')
+      setAcceptedStatus('accepted')
+      return
+    }
+
+    // Double check ride status từ API
+    if (acceptedStatus === 'pending' && ride?.rideStatus !== 'pending') {
+      Alert.alert('Lỗi', `Chuyến đi không còn available (Status: ${ride?.rideStatus})`)
+      return
+    }
+
     if (acceptedStatus === 'pending') {
       handleAcceptRide()
     } else if (acceptedStatus === 'accepted') {
@@ -308,8 +462,10 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
                   acceptedStatus === 'accepted' && styles.arrivedButton,
                   acceptedStatus === 'arrived' && styles.completeButton,
                   acceptedStatus === 'completed' && styles.completedButton,
+                  (acceptedStatus === 'pending' && ride?.driverId) && styles.disabledButton,
                 ]}
                 onPress={handleActionButton}
+                disabled={updating || (acceptedStatus === 'pending' && !!ride?.driverId)}
                 activeOpacity={0.8}
               >
                 <Animated.Text
@@ -337,7 +493,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
                   <MaterialIcons
                     name={acceptedStatus === 'completed' ? 'check-circle' : 'arrow-forward'}
                     size={20}
-                    color={COLORS.white}
+                    color={COLORS.text}
                   />
                 </Animated.View>
               </TouchableOpacity>
@@ -392,7 +548,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontWeight: '600',
   },
   mapContainer: {
@@ -438,7 +594,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sosText: {
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -647,10 +803,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success,
     opacity: 0.7,
   },
+  disabledButton: {
+    opacity: 0.5,
+  },
   actionButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.white,
+    color: COLORS.text,
   },
   additionalInfo: {
     backgroundColor: `${COLORS.primary}15`,

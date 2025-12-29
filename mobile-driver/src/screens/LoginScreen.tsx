@@ -46,9 +46,12 @@ export default function LoginScreen({ navigation }: any) {
 
     dispatch(loginStart())
     try {
+      console.log('🔓 LoginScreen - Calling loginAPI with:', phoneEmail)
       const response = await loginAPI(phoneEmail, password)
+      console.log('🔓 LoginScreen - Got response:', response)
       dispatch(loginSuccess({ token: response.accessToken, user: response.user }))
     } catch (err: any) {
+      console.log('🔓 LoginScreen - Error caught:', err.response?.data?.message || err.message)
       const errorMessage = err.response?.data?.message || 'Đăng nhập thất bại'
       dispatch(loginFailure(errorMessage))
       Alert.alert('Lỗi', errorMessage)

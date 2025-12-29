@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import { useNavigation } from '@react-navigation/native'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { driverService } from '../services/driverService'
 
@@ -23,6 +24,7 @@ interface Trip {
 }
 
 export default function TripsScreen() {
+  const navigation = useNavigation()
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -117,8 +119,19 @@ export default function TripsScreen() {
 
     const config = statusConfig[trip.status]
 
+    const handleViewDetails = () => {
+      console.log('📍 View trip details:', trip.id || trip._id)
+      // @ts-ignore - Navigation types not fully defined
+      navigation.navigate('TripDetail', { tripId: trip.id || trip._id, trip })
+    }
+
     return (
-      <View key={trip.id || trip._id} style={styles.tripCard}>
+      <TouchableOpacity 
+        key={trip.id || trip._id} 
+        style={styles.tripCard}
+        onPress={handleViewDetails}
+        activeOpacity={0.7}
+      >
         <View style={styles.tripHeader}>
           <View style={styles.tripLocation}>
             <View style={styles.locationDot} />
@@ -151,7 +164,7 @@ export default function TripsScreen() {
             <Text style={styles.ratingValue}>{trip.rating} sao</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     )
   }
 
@@ -307,7 +320,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
   },
   retryButtonText: {
-    color: COLORS.white,
+    color: '#fff',
     fontWeight: '600',
   },
   emptyContainer: {
