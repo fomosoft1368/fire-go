@@ -21,7 +21,7 @@ import MapViewComponent from '../components/MapView'
 import ScheduleDateTimeModal from '../components/ScheduleDateTimeModal'
 import ChatScreen from './ChatScreen'
 import DriverFoundScreen from './DriverFoundScreen'
-
+import FindingDriverOverlay from '../components/FindingDriverOverlay'
 interface HireDriverScreenProps {
   isScheduled: boolean
   setIsScheduled: (value: boolean) => void
@@ -102,15 +102,31 @@ export default function HireDriverScreen({
       try {
         const rideData = await rideService.getRideById(rideId)
         console.log('[HireDriverScreen] Ride data:', rideData)
+        console.log('[HireDriverScreen] Ride data type:', typeof rideData)
+        console.log('[HireDriverScreen] Has driverId:', rideData?.driverId)
+
+        // Kiểm tra rideData hợp lệ trước
+        if (!rideData || typeof rideData !== 'object') {
+          console.warn('[HireDriverScreen] Invalid rideData:', rideData)
+          return
+        }
 
         // Nếu tài xế đã nhận cuốc (có driverId)
         if (rideData.driverId) {
           const driverData = rideData.driverId
           
+          // Kiểm tra driverData hợp lệ
+          if (!driverData || !driverData._id) {
+            console.warn('[HireDriverScreen] Invalid driver data:', driverData)
+            return
+          }
+
+          console.log('[HireDriverScreen] Driver found:', driverData._id)
+          
           // Map dữ liệu từ API sang format UI
           setDriver({
             id: driverData._id,
-            name: `${driverData.firstName} ${driverData.lastName}`,
+            name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim(),
             avatar: `https://i.pravatar.cc/150?u=${driverData._id}`,
             rating: driverData.rating || 4.8, // Default nếu API chưa có
             totalRides: driverData.totalRides || 0,
@@ -119,12 +135,12 @@ export default function HireDriverScreen({
             carColor: driverData.vehicleInfo?.color || 'Trắng',
             distance: 1.2, // Sẽ tính từ Google Maps sau
             eta: 3, // Tính từ distance
-            phone: driverData.phone,
-            email: driverData.email,
+            phone: driverData.phone || '',
+            email: driverData.email || '',
           })
 
           // Lấy vị trí tài xế nếu có
-          if (driverData.currentLocation) {
+          if (driverData.currentLocation && driverData.currentLocation.coordinates) {
             setDriverLocation({
               latitude: driverData.currentLocation.coordinates[1],
               longitude: driverData.currentLocation.coordinates[0],
@@ -140,9 +156,12 @@ export default function HireDriverScreen({
           setDriverFound(true)
           setIsSearching(false)
           clearInterval(pollInterval)
+        } else {
+          console.log('[HireDriverScreen] Waiting for driver to accept... driverId:', rideData.driverId)
         }
       } catch (error) {
         console.error('[HireDriverScreen] Polling error:', error)
+        console.error('[HireDriverScreen] Error details:', (error as any).message || error)
         // Tiếp tục polling nếu lỗi
       }
     }, 2000) // 2 giây
@@ -322,45 +341,27 @@ export default function HireDriverScreen({
       <View style={styles.findingContainer}>
         {/* Full Screen Map */}
         <MapViewComponent
-          height={null}
-          initialRegion={{
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          }}
-          markers={[]}
-          pickupCoords={{
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
-          }}
-          dropoffCoords={{
-            latitude: routeInfo.dropoff.coordinates.latitude,
-            longitude: routeInfo.dropoff.coordinates.longitude,
-          }}
-          routeCoordinates={routeInfo?.routeCoordinates || []}
-          onLocationSelect={() => {}}
-        />
-
-        {/* Radar Animation Overlay */}
-        <View style={styles.radarContainer}>
-          {[0, 1, 2].map((index) => (
-            <View
-              key={index}
-              style={[
-                styles.radarPulse,
-                {
-                  width: 60 + index * 40,
-                  height: 60 + index * 40,
-                  opacity: Math.max(0, 1 - index * 0.3),
-                  borderColor: `rgba(255, 107, 0, ${0.6 - index * 0.2})`,
-                },
-              ]}
-            />
-          ))}
-          <View style={styles.radarCenter} />
-        </View>
-
+        height={null}
+        initialRegion={{
+          latitude: routeInfo.pickup.coordinates.latitude,
+          longitude: routeInfo.pickup.coordinates.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+        markers={[]}
+        pickupCoords={{
+          latitude: routeInfo.pickup.coordinates.latitude,
+          longitude: routeInfo.pickup.coordinates.longitude,
+        }}
+        dropoffCoords={{
+          latitude: routeInfo.dropoff.coordinates.latitude,
+          longitude: routeInfo.dropoff.coordinates.longitude,
+        }}
+        routeCoordinates={routeInfo.routeCoordinates || []}
+        onLocationSelect={() => {}}
+      />
+      <FindingDriverOverlay onCancel={resetRideState} />
+      
         {/* Status Card */}
         <View style={styles.statusCard}>
           <View style={styles.statusContent}>

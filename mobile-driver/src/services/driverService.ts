@@ -227,7 +227,7 @@ export class DriverService {
       const token = await AsyncStorage.getItem('authToken');
       console.log('🔐 Token:', token ? 'Có token' : 'Không có token');
       console.log('🌐 Base URL:', this.baseURL);
-      console.log('📍 Calling: GET', `${this.baseURL}/api/rides`);
+      console.log('📍 Calling: GET', `${this.baseURL}/rides`);
       
       const params: any = {
         status: 'pending',
@@ -236,7 +236,7 @@ export class DriverService {
         params.rideType = rideType;
       }
 
-      const response = await axios.get(`${this.baseURL}/api/rides`, {
+      const response = await axios.get(`${this.baseURL}/rides`, {
         params,
         headers: {
           'Content-Type': 'application/json',
@@ -264,7 +264,7 @@ export class DriverService {
   async acceptRide(rideId: string, driverId: string): Promise<any> {
     try {
       const response = await axios.patch(
-        `${this.baseURL}/api/rides/${rideId}/accept`,
+        `${this.baseURL}/rides/${rideId}/accept`,
         { driverId },
         {
           headers: {
@@ -292,7 +292,7 @@ export class DriverService {
         params.status = status;
       }
 
-      const response = await axios.get(`${this.baseURL}/api/rides`, {
+      const response = await axios.get(`${this.baseURL}/rides`, {
         params,
         headers: {
           'Content-Type': 'application/json',

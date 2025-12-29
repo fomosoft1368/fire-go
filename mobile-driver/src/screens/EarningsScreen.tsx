@@ -108,6 +108,13 @@ export default function EarningsScreen({ navigation }: any) {
           </Text>
 
           <View style={styles.balanceActions}>
+            <TouchableOpacity 
+              style={styles.withdrawBtn}
+              onPress={() => navigation?.navigate('Topup')}
+            >
+              <MaterialIcons name="add-circle-outline" size={18} color={COLORS.text} />
+              <Text style={styles.withdrawBtnText}>Nạp tiền</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.withdrawBtn}>
               <MaterialIcons name="wallet" size={18} color={COLORS.text} />
               <Text style={styles.withdrawBtnText}>Rút tiền</Text>

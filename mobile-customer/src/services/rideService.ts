@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../constants'
 import type { CreateRideDto } from '../types'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export const rideService = {
   /**
@@ -42,31 +43,6 @@ export const rideService = {
       return result
     } catch (error: any) {
       console.error('[RideService] Error:', error)
-      throw error
-    }
-  },
-
-  /**
-   * Lấy thông tin cuốc xe theo ID
-   */
-  async getRideById(rideId: string) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to get ride')
-      }
-
-      return result
-    } catch (error: any) {
-      console.error('[RideService] Get ride error:', error)
       throw error
     }
   },
@@ -274,24 +250,35 @@ export const rideService = {
         headers.Authorization = `Bearer ${token}`
       }
 
-      const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
+      const url = `${API_BASE_URL}/rides/${rideId}`
+      console.log('[RideService] Fetch URL:', url)
+
+      const response = await fetch(url, {
         method: 'GET',
         headers,
       })
 
+      console.log('[RideService] Response status:', response.status, response.statusText)
+
       if (!response.ok) {
+        console.error('[RideService] Response not ok, status:', response.status)
         throw new Error(`Failed to fetch ride: ${response.status}`)
       }
 
       const result = await response.json()
+      console.log('[RideService] Response data:', result)
 
+      // Backend trả về ride object trực tiếp, không wrapped trong .data
+      const rideData = result.data || result
+      
       console.log('[RideService] Ride data received:', {
         rideId,
-        status: result.data?.status,
-        driverName: result.data?.driverId?.firstName,
+        status: rideData?.status,
+        driverName: rideData?.driverId?.firstName,
+        hasDriverId: !!rideData?.driverId,
       })
 
-      return result.data
+      return rideData
     } catch (error: any) {
       console.error('[RideService] Get ride error:', {
         message: error.message,
@@ -346,6 +333,95 @@ export const rideService = {
         customerId,
       })
       throw error
+    }
+  },
+
+  /**
+   * Lấy lịch sử chuyến đi của khách hàng
+   */
+  async getRideHistory(customerId: string, status?: string) {
+    try {
+      if (!customerId) {
+        throw new Error('Customer ID is required')
+      }
+
+      console.log('[RideService] Fetching ride history for customer:', customerId, 'status:', status)
+
+      const token = await AsyncStorage.getItem('authToken')
+      console.log('[RideService] Auth token exists:', !!token)
+      
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      let url = `${API_BASE_URL}/rides/customer/${customerId}`
+      if (status) {
+        url += `?status=${status}`
+      }
+
+      console.log('[RideService] Calling URL:', url)
+      console.log('[RideService] Headers:', { Authorization: headers.Authorization ? 'Bearer ...' : 'none' })
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      })
+
+      console.log('[RideService] Response status:', response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[RideService] Failed to fetch ride history:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        })
+        return []
+      }
+
+      const result = await response.json()
+      console.log('[RideService] Raw response:', JSON.stringify(result).substring(0, 500))
+      
+      const rides = Array.isArray(result) ? result : (result.data || [])
+      
+      console.log('[RideService] Fetched', rides.length, 'rides')
+      
+      if (rides.length > 0) {
+        console.log('[RideService] First ride sample:', rides[0])
+      }
+
+      // Transform API data to match UI expectations
+      return rides.map((ride: any) => ({
+        id: ride._id,
+        status: ride.status?.toLowerCase() || 'pending',
+        pickupLocation: ride.pickupAddress || ride.pickupLocation || '',
+        pickupDistrict: ride.pickupDistrict || '',
+        dropoffLocation: ride.dropoffAddress || ride.dropoffLocation || '',
+        dropoffDistrict: ride.dropoffDistrict || '',
+        distance: ride.distance ? `${ride.distance.toFixed(1)} km` : ride.estimatedDistance ? `${ride.estimatedDistance.toFixed(1)} km` : '0 km',
+        estimatedTime: ride.duration ? `${Math.round(ride.duration / 60)} phút` : '0 phút',
+        estimatedFare: ride.totalFare || ride.actualFare || ride.fare || ride.estimatedFare || 0,
+        actualFare: ride.totalFare || ride.actualFare || ride.fare || 0,
+        rideType: ride.rideType || 'share',
+        driverName: ride.driverName || 'N/A',
+        driverRating: ride.driverRating || 0,
+        carPlate: ride.carPlate || '',
+        bookingTime: ride.createdAt ? new Date(ride.createdAt).toLocaleString('vi-VN') : '',
+        startTime: ride.pickupTime || ride.createdAt,
+        endTime: ride.dropoffTime || ride.updatedAt,
+        rating: ride.rating || null,
+      }))
+    } catch (error: any) {
+      console.error('[RideService] Error fetching ride history:', {
+        message: error.message,
+        customerId,
+        stack: error.stack,
+      })
+      return []
     }
   },
 }

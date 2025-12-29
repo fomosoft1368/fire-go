@@ -15,6 +15,8 @@ import TripsScreen from './src/screens/TripsScreen'
 import EarningsScreen from './src/screens/EarningsScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
 import RideDetailScreen from './src/screens/RideDetailScreen'
+import TopupScreen from './src/screens/TopupScreen'
+import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -41,14 +43,12 @@ const MainNavigator = () => (
       tabBarActiveTintColor: COLORS.primary,
       tabBarInactiveTintColor: COLORS.textSecondary,
       tabBarStyle: {
-        backgroundColor: COLORS.darkCard,
-        borderTopColor: COLORS.darkBorder,
-        paddingBottom: 8,
-        height: 60,
+        backgroundColor: '#101922',
       },
       tabBarLabelStyle: {
         fontSize: 11,
         fontWeight: '600',
+        marginTop: -8,
       },
     })}
   >
@@ -90,6 +90,16 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="RideDetail"
         component={RideDetailScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="Topup"
+        component={TopupScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="PaymentWebView"
+        component={PaymentWebViewScreen}
         options={{ animationEnabled: true }}
       />
     </Stack.Navigator>

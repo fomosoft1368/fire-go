@@ -1,4 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSelector } from 'react-redux'
+import { RootState } from '../redux/store'
+import { rideService } from '../services/rideService'
 import {
   View,
   Text,
@@ -6,67 +9,32 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS } from '../constants'
 import type { RideBooking } from '../types'
 
-const mockBookings: RideBooking[] = [
-  {
-    id: 'booking_1',
-    status: 'completed',
-    pickupLocation: '123 Đường Láng',
-    pickupDistrict: 'Đống Đa, Hà Nội',
-    dropoffLocation: '456 Nguyễn Trãi',
-    dropoffDistrict: 'Thanh Xuân, Hà Nội',
-    distance: '12.5 km',
-    estimatedTime: '28 phút',
-    estimatedFare: 50000,
-    actualFare: 50000,
-    rideType: 'share',
-    driverName: 'Nguyễn Văn B',
-    driverRating: 5,
-    carPlate: '51H-12345',
-    bookingTime: '14:30 • 20/10/2023',
-    startTime: '2024-12-14 14:35',
-    endTime: '2024-12-14 14:58',
-  },
-  {
-    id: 'booking_2',
-    status: 'completed',
-    pickupLocation: 'Nhà hàng Sen Tây Hồ',
-    pickupDistrict: '614 Lạc Long Quân, Tây Hồ',
-    dropoffLocation: 'KĐT Ciputra',
-    dropoffDistrict: 'Nam Thăng Long, Hà Nội',
-    distance: '18 km',
-    estimatedTime: '35 phút',
-    estimatedFare: 200000,
-    actualFare: 200000,
-    rideType: 'hire',
-    driverName: 'Trần Thị C',
-    driverRating: 5,
-    carPlate: '51H-67890',
-    bookingTime: '22:00 • 19/10/2023',
-    startTime: '2024-12-13 09:15',
-    endTime: '2024-12-13 09:50',
-  },
-  {
-    id: 'booking_3',
-    status: 'cancelled',
-    pickupLocation: 'Aeon Mall Long Biên',
-    pickupDistrict: '',
-    dropoffLocation: 'Royal City',
-    dropoffDistrict: '',
-    distance: '8 km',
-    estimatedTime: '20 phút',
-    estimatedFare: 0,
-    rideType: 'share',
-    bookingTime: '08:15 • 15/10/2023',
-  },
-]
+
+const mockBookings: RideBooking[] = []
 
 export default function BookingsScreen() {
+  const user = useSelector((state: RootState) => state.auth.user)
   const [activeFilter, setActiveFilter] = useState('all')
+  const [bookings, setBookings] = useState<RideBooking[]>([])
+  const [loading, setLoading] = useState(true)
+  
+  // Rating modal state
+  const [isRatingModalVisible, setIsRatingModalVisible] = useState(false)
+  const [selectedRide, setSelectedRide] = useState<RideBooking | null>(null)
+  const [rating, setRating] = useState(5)
+  const [reviewText, setReviewText] = useState('')
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false)
 
   const filterOptions = [
     { key: 'all', label: 'Tất cả' },
@@ -74,7 +42,104 @@ export default function BookingsScreen() {
     { key: 'hire', label: 'Lái xe hộ' },
   ]
 
-  const filteredBookings = mockBookings.filter((booking) => {
+  // Fetch ride history on component mount and when user changes
+  useEffect(() => {
+    console.log('[BookingsScreen] useEffect triggered, user:', user)
+    
+    if (!user) {
+      console.log('[BookingsScreen] User not yet loaded, waiting...')
+      setLoading(false)
+      return
+    }
+    
+    fetchRideHistory()
+  }, [user])
+
+  const fetchRideHistory = async () => {
+    if (!user) {
+      console.warn('[BookingsScreen] User not available')
+      setLoading(false)
+      return
+    }
+
+    const userId = user._id || user.id
+    console.log('[BookingsScreen] fetchRideHistory called with userId:', userId)
+    console.log('[BookingsScreen] Full user object:', user)
+    
+    if (!userId) {
+      console.warn('[BookingsScreen] User ID not available')
+      console.warn('[BookingsScreen] Available user keys:', Object.keys(user || {}))
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    try {
+      console.log('[BookingsScreen] Starting fetch for user:', userId)
+      
+      const rideHistory = await rideService.getRideHistory(userId)
+      
+      console.log('[BookingsScreen] Fetch completed, got', rideHistory.length, 'rides')
+      if (rideHistory.length > 0) {
+        console.log('[BookingsScreen] First ride:', JSON.stringify(rideHistory[0], null, 2))
+      } else {
+        console.log('[BookingsScreen] No rides returned from API')
+        // Show alert to user
+        Alert.alert('Thông báo', `Không có chuyến đi nào. User ID: ${userId}`)
+      }
+      
+      setBookings(rideHistory)
+    } catch (error: any) {
+      console.error('[BookingsScreen] Error fetching rides:', {
+        message: error.message,
+        stack: error.stack
+      })
+      Alert.alert('Lỗi', 'Lỗi: ' + error.message)
+      setBookings([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const openRatingModal = (ride: RideBooking) => {
+    setSelectedRide(ride)
+    setRating(5)
+    setReviewText('')
+    setIsRatingModalVisible(true)
+  }
+
+  const closeRatingModal = () => {
+    setIsRatingModalVisible(false)
+    setSelectedRide(null)
+    setRating(5)
+    setReviewText('')
+  }
+
+  const submitRating = async () => {
+    if (!selectedRide) return
+
+    setIsSubmittingRating(true)
+    try {
+      console.log('[BookingsScreen] Submitting rating:', {
+        rideId: selectedRide.id,
+        rating,
+        reviewText,
+      })
+
+      // TODO: Call API to submit rating
+      // await rideService.submitRating(selectedRide.id, { rating, review: reviewText })
+      
+      Alert.alert('Thành công', 'Cảm ơn bạn đã đánh giá!')
+      closeRatingModal()
+    } catch (error: any) {
+      console.error('[BookingsScreen] Error submitting rating:', error)
+      Alert.alert('Lỗi', 'Không thể gửi đánh giá. Vui lòng thử lại!')
+    } finally {
+      setIsSubmittingRating(false)
+    }
+  }
+
+  const filteredBookings = bookings.filter((booking) => {
     if (activeFilter === 'all') return true
     return booking.rideType === activeFilter
   })
@@ -105,8 +170,8 @@ export default function BookingsScreen() {
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Lịch sử chuyến đi</Text>
-        <TouchableOpacity style={styles.calendarButton}>
-          <MaterialIcons name="calendar-month" size={24} color="#fff" />
+        <TouchableOpacity style={styles.calendarButton} onPress={fetchRideHistory}>
+          <MaterialIcons name="refresh" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -115,6 +180,19 @@ export default function BookingsScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Loading State */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#FF6B00" />
+            <Text style={styles.loadingText}>Đang tải lịch sử chuyến đi...</Text>
+          </View>
+        ) : filteredBookings.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="history" size={48} color="#64748b" />
+            <Text style={styles.emptyText}>Không có chuyến đi nào</Text>
+          </View>
+        ) : (
+          <>
       {/* Filter Tabs */}
         <ScrollView
           horizontal
@@ -277,7 +355,10 @@ export default function BookingsScreen() {
                 </View>
               )}
               {isCompleted && booking.rideType === 'hire' && (
-                <TouchableOpacity style={styles.rateButton}>
+                <TouchableOpacity 
+                  style={styles.rateButton}
+                  onPress={() => openRatingModal(booking)}
+                >
                   <MaterialIcons
                     name="star-rate"
                     size={18}
@@ -292,7 +373,102 @@ export default function BookingsScreen() {
         })}
 
         <View style={{ height: SPACING.xxl }} />
+          </>
+        )}
       </ScrollView>
+
+      {/* Rating Modal */}
+      <Modal
+        visible={isRatingModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeRatingModal}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardAvoidingView}
+          >
+            <View style={styles.modalContent}>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Đánh giá tài xế</Text>
+                <TouchableOpacity onPress={closeRatingModal}>
+                  <MaterialIcons name="close" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Driver Info */}
+              {selectedRide && (
+                <View style={styles.driverInfo}>
+                  <Text style={styles.driverName}>{selectedRide.driverName}</Text>
+                  <Text style={styles.driverPlate}>{selectedRide.carPlate}</Text>
+                </View>
+              )}
+
+              {/* Star Rating */}
+              <View style={styles.ratingSection}>
+                <Text style={styles.ratingLabel}>Mức độ hài lòng</Text>
+                <View style={styles.starsRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity
+                      key={star}
+                      onPress={() => setRating(star)}
+                      style={styles.starButton}
+                    >
+                      <MaterialIcons
+                        name={star <= rating ? 'star' : 'star-outline'}
+                        size={40}
+                        color={star <= rating ? '#fbbf24' : '#64748b'}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Review Text */}
+              <View style={styles.reviewSection}>
+                <Text style={styles.reviewLabel}>Bình luận (tùy chọn)</Text>
+                <TextInput
+                  style={styles.reviewInput}
+                  placeholder="Chia sẻ trải nghiệm của bạn..."
+                  placeholderTextColor="#64748b"
+                  value={reviewText}
+                  onChangeText={setReviewText}
+                  multiline
+                  numberOfLines={4}
+                  maxLength={500}
+                />
+                <Text style={styles.charCount}>
+                  {reviewText.length}/500
+                </Text>
+              </View>
+
+              {/* Buttons */}
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={closeRatingModal}
+                  disabled={isSubmittingRating}
+                >
+                  <Text style={styles.cancelButtonText}>Hủy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.submitButton}
+                  onPress={submitRating}
+                  disabled={isSubmittingRating}
+                >
+                  {isSubmittingRating ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>Gửi đánh giá</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -383,6 +559,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
     paddingBottom: SPACING.xxl,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 300,
+    gap: SPACING.lg,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#94a3b8',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 300,
+    gap: SPACING.lg,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#94a3b8',
   },
   bookingCard: {
     backgroundColor: '#1a202c',
@@ -558,5 +756,135 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#1a202c',
+    borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  driverInfo: {
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF6B00',
+  },
+  driverName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: SPACING.xs,
+  },
+  driverPlate: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  ratingSection: {
+    marginBottom: SPACING.xl,
+  },
+  ratingLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: SPACING.lg,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: SPACING.md,
+  },
+  starButton: {
+    padding: SPACING.sm,
+  },
+  reviewSection: {
+    marginBottom: SPACING.lg,
+  },
+  reviewLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: SPACING.md,
+  },
+  reviewInput: {
+    backgroundColor: '#0f172a',
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    color: '#fff',
+    fontSize: 13,
+    textAlignVertical: 'top',
+    minHeight: 100,
+  },
+  charCount: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: SPACING.xs,
+    textAlign: 'right',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.lg,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
+  submitButton: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
   },
 })

@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#1a202c',
     marginHorizontal: SPACING.lg,
     marginVertical: SPACING.lg,
     borderRadius: BORDER_RADIUS.lg,
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.lightBorder,
   },
   section: {
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#1a202c',
     marginHorizontal: SPACING.lg,
     marginVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   },
   menuLabel: {
     fontSize: 14,
-    color: COLORS.text,
+    color: '#fff',
     fontWeight: '500',
   },
   menuLabelDanger: {

@@ -153,7 +153,8 @@ export const messageService = {
       const token = await AsyncStorage.getItem('authToken')
 
       if (!token) {
-        throw new Error('No auth token found. Please login again.')
+        console.warn('[MessageService] No auth token found')
+        return []
       }
 
       if (!rideId) {
@@ -172,19 +173,27 @@ export const messageService = {
 
       console.log('[MessageService] Retrieved new messages:', {
         rideId,
-        count: response.data.data?.count || 0,
+        count: response.data.data?.messages?.length || 0,
         status: response.status,
       })
 
       return response.data.data?.messages || []
     } catch (error: any) {
+      // Handle 401 Unauthorized gracefully - just return empty array and continue
+      if (error.response?.status === 401) {
+        console.warn('[MessageService] Unauthorized (401), returning empty messages')
+        return []
+      }
+
       console.error('[MessageService] Get new messages error:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
         rideId,
       })
-      throw error
+      
+      // Return empty array instead of throwing for other errors too
+      return []
     }
   },
 

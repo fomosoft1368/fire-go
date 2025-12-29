@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useSelector } from 'react-redux'
-import { RootState } from '../redux/store'
-import { messageService } from '../services/messageService'
 import {
   View,
   Text,
@@ -14,6 +11,9 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS } from '../constants'
+import axios from 'axios'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { API_BASE_URL } from '../constants/config'
 
 interface Message {
   _id: string
@@ -24,19 +24,9 @@ interface Message {
 }
 
 interface ChatScreenProps {
-  driver: {
+  customer: {
     id: string
     name: string
-    avatar: string
-    rating: number
-    totalRides: number
-    carType: string
-    licensePlate: string
-    carColor: string
-    distance: number
-    eta: number
-    currentLat?: number
-    currentLng?: number
     phone?: string
     email?: string
   }
@@ -44,8 +34,7 @@ interface ChatScreenProps {
   onClose: () => void
 }
 
-export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps) {
-  const user = useSelector((state: RootState) => state.auth.user)
+export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProps) {
   const [chatMessages, setChatMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -81,7 +70,26 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
     try {
       console.log('[ChatScreen] Loading messages for rideId:', rideId)
       
-      const data = await messageService.getMessagesByRide(rideId, 50, 0)
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        Alert.alert('Lỗi', 'Bạn cần đăng nhập để xem tin nhắn')
+        return
+      }
+
+      const response = await axios.get(
+        `${API_BASE_URL}/messages/ride/${rideId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          params: {
+            limit: 50,
+            skip: 0,
+          },
+        }
+      )
+
+      const data = response.data?.data
       
       if (!data || !data.messages) {
         console.warn('[ChatScreen] No data returned from API')
@@ -104,7 +112,16 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
 
       // Đánh dấu tin nhắn là đã đọc
       try {
-        await messageService.markAsRead(rideId)
+        const markToken = await AsyncStorage.getItem('token')
+        await axios.post(
+          `${API_BASE_URL}/messages/ride/${rideId}/mark-as-read`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${markToken}`,
+            },
+          }
+        )
       } catch (markError) {
         console.warn('[ChatScreen] Mark as read failed:', markError)
       }
@@ -127,10 +144,22 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
     if (!rideId) return
 
     try {
-      const newMessages = await messageService.getNewMessages(
-        rideId,
-        lastPollTime
+      const token = await AsyncStorage.getItem('token')
+      if (!token) return
+
+      const response = await axios.get(
+        `${API_BASE_URL}/messages/ride/${rideId}/new`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          params: {
+            since: lastPollTime,
+          },
+        }
       )
+
+      const newMessages = response.data?.data?.messages || []
 
       if (newMessages && newMessages.length > 0) {
         console.log('[ChatScreen] Polling received:', newMessages.length, 'new messages')
@@ -156,25 +185,36 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
 
         // Đánh dấu tin nhắn mới là đã đọc
         try {
-          await messageService.markAsRead(rideId)
+          const markToken = await AsyncStorage.getItem('token')
+          await axios.post(
+            `${API_BASE_URL}/messages/ride/${rideId}/mark-as-read`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${markToken}`,
+              },
+            }
+          )
         } catch (markError) {
           console.warn('[ChatScreen] Mark as read failed:', markError)
         }
       }
     } catch (error: any) {
-      console.warn('[ChatScreen] Poll error:', {
-        message: error.message,
-        rideId,
-        status: error.response?.status,
-      })
-      // Tiếp tục polling ngay cả khi lỗi, không throw
+      // Handle 401 gracefully
+      if (error.response?.status !== 401) {
+        console.warn('[ChatScreen] Poll error:', {
+          message: error.message,
+          rideId,
+          status: error.response?.status,
+        })
+      }
     }
   }
 
   // Gửi tin nhắn
   const sendMessage = useCallback(async () => {
     // Prevent multiple sends
-    if (sendingRef.current || !messageInput.trim() || !rideId || !user) {
+    if (sendingRef.current || !messageInput.trim() || !rideId) {
       return
     }
 
@@ -184,16 +224,35 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
     try {
       console.log('[ChatScreen] Sending message:', messageInput)
       
-      const message = await messageService.sendMessage(
-        rideId,
-        messageInput,
-        'customer'
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        Alert.alert('Lỗi', 'Bạn cần đăng nhập để gửi tin nhắn')
+        sendingRef.current = false
+        setSending(false)
+        return
+      }
+
+      const response = await axios.post(
+        `${API_BASE_URL}/messages`,
+        {
+          rideId,
+          text: messageInput,
+          senderType: 'driver',
+          type: 'text',
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       )
+
+      const message = response.data?.data
 
       const newMessage: Message = {
         _id: message._id,
         text: message.text,
-        sender: 'user',
+        sender: 'driver',
         timestamp: new Date(message.createdAt).getTime(),
         createdAt: message.createdAt,
       }
@@ -216,7 +275,7 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
       sendingRef.current = false
       setSending(false)
     }
-  }, [messageInput, rideId, user])
+  }, [messageInput, rideId])
 
   return (
     <View style={styles.chatContainer}>
@@ -226,8 +285,8 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.chatHeaderInfo}>
-          <Text style={styles.chatHeaderName}>{driver.name}</Text>
-          <Text style={styles.chatHeaderStatus}>Đang hoạt động</Text>
+          <Text style={styles.chatHeaderName}>{customer.name}</Text>
+          <Text style={styles.chatHeaderStatus}>Khách hàng</Text>
         </View>
         <View style={{ width: 24 }} />
       </View>
@@ -253,7 +312,7 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
                 key={msg._id}
                 style={[
                   styles.messageBubble,
-                  msg.sender === 'user'
+                  msg.sender === 'driver'
                     ? styles.userMessage
                     : styles.driverMessage,
                 ]}
