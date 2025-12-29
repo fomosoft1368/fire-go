@@ -8,15 +8,14 @@ import { useNavigation } from '@react-navigation/native'
 
 interface RideCardProps {
   ride: RideItem
-  onAccept: (rideId: string) => void
 }
 
-export const RideCard: React.FC<RideCardProps> = ({ ride, onAccept }) => {
+export const RideCard: React.FC<RideCardProps> = ({ ride }) => {
   const navigation = useNavigation()
 
   const handleAccept = () => {
-    onAccept(ride.id)
-    navigation.navigate('RideDetail' as never)
+    // @ts-ignore - Navigation types not fully defined
+    navigation.navigate('RideDetail', { rideId: ride.id })
   }
   return (
     <View style={styles.card}>
@@ -54,13 +53,13 @@ export const RideCard: React.FC<RideCardProps> = ({ ride, onAccept }) => {
         </View>
       </View>
 
-      {/* Accept Button */}
+      {/* View Details Button */}
       <TouchableOpacity
         style={styles.acceptButton}
         onPress={handleAccept}
         activeOpacity={0.8}
       >
-        <Text style={styles.acceptButtonText}>Nhận cuốc</Text>
+        <Text style={styles.acceptButtonText}>Xem chi tiết</Text>
       </TouchableOpacity>
     </View>
   )

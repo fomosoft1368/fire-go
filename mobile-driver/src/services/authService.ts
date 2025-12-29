@@ -5,17 +5,24 @@ const API_URL = 'http://192.168.1.19:3000/api'
 
 const login = async (email: string, password: string) => {
   try {
+    console.log('📱 Mobile - Login attempt with:', email)
     const response = await axios.post(`${API_URL}/auth/login`, {
       email,
       password,
     })
+
+    console.log('📱 Mobile - Login response:', response.data)
+    console.log('📱 Mobile - Access token:', response.data.accessToken)
 
     if (response.data.accessToken) {
       await AsyncStorage.setItem('token', response.data.accessToken)
     }
 
     return response.data
-  } catch (error) {
+  } catch (error: any) {
+    console.log('📱 Mobile - Login error status:', error.response?.status)
+    console.log('📱 Mobile - Login error data:', error.response?.data)
+    console.log('📱 Mobile - Login error message:', error.message)
     throw error
   }
 }

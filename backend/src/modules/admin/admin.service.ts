@@ -89,13 +89,11 @@ export class AdminService {
     // Fetch customers
     const customers = await this.customerModel
       .find()
-      .populate('userId')
       .lean();
 
     // Fetch drivers
     const drivers = await this.driverModel
       .find()
-      .populate('userId')
       .lean();
 
     // Map to unified format
