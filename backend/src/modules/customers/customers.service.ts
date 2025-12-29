@@ -1,13 +1,17 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Customer, CustomerDocument } from './schemas/customer.schema';
 import { CreateCustomerDto, UpdateCustomerDto, SavedAddressDto } from './dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class CustomersService {
-  constructor(@InjectModel(Customer.name) private customerModel: Model<CustomerDocument>) {}
+  constructor(
+    @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   async create(createCustomerDto: CreateCustomerDto): Promise<CustomerDocument> {
     // Check if customer with this email or phone already exists
@@ -31,6 +35,14 @@ export class CustomersService {
       password: hashedPassword,
       savedAddresses: [],
       emergencyContacts: [],
+    });
+
+    // Emit event for new customer registration
+    this.eventEmitter.emit('customer.registered', {
+      customerId: customer._id.toString(),
+      firstName: createCustomerDto.firstName,
+      lastName: createCustomerDto.lastName,
+      email: createCustomerDto.email,
     });
 
     return customer;

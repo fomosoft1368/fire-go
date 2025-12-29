@@ -35,6 +35,38 @@ export default function Login() {
         localStorage.setItem('token', token);
         console.log('💾 Token saved to localStorage');
         
+        // Always store at least the email from login form
+        const profileData = {
+          firstName: response.user?.firstName || response.data?.user?.firstName || '',
+          lastName: response.user?.lastName || response.data?.user?.lastName || '',
+          email: response.user?.email || response.data?.user?.email || email,
+          phone: response.user?.phone || response.data?.user?.phone || '',
+          role: response.user?.role || response.data?.user?.role || 'admin'
+        };
+        
+        localStorage.setItem('userProfile', JSON.stringify(profileData));
+        console.log('💾 User profile saved to localStorage:', profileData);
+        
+        // Try to fetch full profile with phone number if API endpoint is ready
+        try {
+          setTimeout(async () => {
+            const fullProfile = await apiService.getAdminProfile();
+            if (fullProfile && fullProfile.email) {
+              console.log('📞 Full profile fetched, updating with phone:', fullProfile.phone);
+              const updatedProfile = {
+                ...profileData,
+                firstName: fullProfile.firstName || fullProfile.first_name || profileData.firstName,
+                lastName: fullProfile.lastName || fullProfile.last_name || profileData.lastName,
+                phone: fullProfile.phone || profileData.phone
+              };
+              localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+              console.log('💾 Profile updated with full data:', updatedProfile);
+            }
+          }, 1000); // Delay to avoid blocking
+        } catch (err) {
+          console.log('Could not fetch full profile (this is ok if API is not ready)');
+        }
+        
         // Redirect to dashboard
         navigate('/');
       } else {

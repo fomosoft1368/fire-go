@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { apiService, type Driver } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 
 export default function DriverDetail() {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +12,7 @@ export default function DriverDetail() {
   const [activeTab, setActiveTab] = useState<'info' | 'documents' | 'feedback'>('info');
   const [feedback, setFeedback] = useState<Record<string, { status: string; comment: string }>>({});
   const [saving, setSaving] = useState(false);
+  const { addNotification } = useNotification();
 
   useEffect(() => {
     const fetchDriver = async () => {
@@ -55,10 +57,27 @@ export default function DriverDetail() {
           licenseStatus: feedback.license.status as any,
           idStatus: feedback.id.status as any,
         });
-        alert('Đã cập nhật trạng thái tài xế');
+        
+        addNotification({
+          id: `success-${Date.now()}`,
+          type: 'other',
+          title: 'Thành công',
+          message: 'Đã cập nhật trạng thái tài xế',
+          timestamp: new Date().toISOString(),
+          read: false,
+          priority: 'normal',
+        });
       }
     } catch (err) {
-      alert('Lỗi: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     } finally {
       setSaving(false);
     }

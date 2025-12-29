@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Driver, DriverDocument, DriverStatus } from './schemas/driver.schema';
 import { CreateDriverDto, UpdateDriverDto, UpdateLocationDto } from './dto';
 
 @Injectable()
 export class DriversService {
-  constructor(@InjectModel(Driver.name) private driverModel: Model<DriverDocument>) {}
+  constructor(
+    @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   async create(userId: string, createDriverDto: CreateDriverDto): Promise<DriverDocument> {
     const driverData: any = {
@@ -24,6 +28,15 @@ export class DriversService {
     }
 
     const driver = await this.driverModel.create(driverData);
+
+    // Emit event for new driver registration
+    this.eventEmitter.emit('driver.registered', {
+      driverId: driver._id.toString(),
+      firstName: createDriverDto.firstName,
+      lastName: createDriverDto.lastName,
+      phone: createDriverDto.phone,
+    });
+
     return driver;
   }
 

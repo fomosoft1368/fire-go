@@ -3,6 +3,7 @@ import { ConfigProvider } from 'antd'
 import viVN from 'antd/locale/vi_VN'
 import { useEffect } from 'react'
 import { LanguageProvider } from './context/LanguageContext'
+import { NotificationProvider } from './context/NotificationContext'
 import Login from './pages/login'
 import Dashboard from './pages/dashboard'
 import UserManagement from './pages/user-management'
@@ -48,27 +49,29 @@ function App() {
   }, []);
 
   return (
-    <LanguageProvider>
-      <ConfigProvider locale={viVN}>
-        <Router>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/user-management" element={<UserManagement />} />
-            <Route path="/drivers" element={<DriverManagement />} />
-            <Route path="/driver/:id" element={<DriverDetail />} />
-            <Route path="/driver-approval" element={<DriverApproval />} />
-            <Route path="/add-driver" element={<AddDriverPage />} />
-            <Route path="/rides" element={<RideManagement />} />
-            <Route path="/revenue" element={<RevenueManagement />} />
-            <Route path="/dispatch" element={<DispatchManagement />} />
-            <Route path="/reports" element={<ReportsAnalytics />} />
-            <Route path="/customers" element={<Customers />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </Router>
-      </ConfigProvider>
-    </LanguageProvider>
+    <NotificationProvider>
+      <LanguageProvider>
+        <ConfigProvider locale={viVN}>
+          <Router>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/user-management" element={<UserManagement />} />
+              <Route path="/drivers" element={<DriverManagement />} />
+              <Route path="/driver/:id" element={<DriverDetail />} />
+              <Route path="/driver-approval" element={<DriverApproval />} />
+              <Route path="/add-driver" element={<AddDriverPage />} />
+              <Route path="/rides" element={<RideManagement />} />
+              <Route path="/revenue" element={<RevenueManagement />} />
+              <Route path="/dispatch" element={<DispatchManagement />} />
+              <Route path="/reports" element={<ReportsAnalytics />} />
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </Router>
+        </ConfigProvider>
+      </LanguageProvider>
+    </NotificationProvider>
   )
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DriverDetailModal from '../components/DriverDetailModal';
 import Layout from '../components/Layout';
 import { apiService, type Driver as ApiDriver } from '../services/api';
@@ -20,6 +20,7 @@ interface Driver extends ApiDriver {
 
 export default function DriverManagement() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [showDetail, setShowDetail] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
@@ -44,84 +45,95 @@ export default function DriverManagement() {
   });
 
   // Fetch drivers data
-  useEffect(() => {
-    const fetchDrivers = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const fetchDrivers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        console.log('🚀 Fetching drivers from API...');
-        
-        // Fetch all drivers
-        const allDrivers = await apiService.getDrivers();
-        
-        console.log('📦 API Response:', allDrivers);
-        console.log('📊 Number of drivers:', allDrivers?.length || 0);
-        
-        if (!allDrivers || allDrivers.length === 0) {
-          console.warn('⚠️ No drivers found in response');
-          setPendingDrivers([]);
-          setDrivers([]);
-          setStats({ pending: 0, active: 0, revenue: '0' });
-          setLoading(false);
-          return;
-        }
-        
-        // Transform API response to UI format
-        const transformedDrivers = allDrivers.map((driver) => {
-          const fullName = `${driver.lastName || ''} ${driver.firstName || ''}`.trim() || 'Chưa có tên';
-          console.log('🔄 Transforming driver:', fullName);
-          return {
-            ...driver,
-            displayName: fullName,
-            displayStatus: (driver.licenseStatus === 'pending' ? 'pending' : 
-                            driver.status === 'online' ? 'online' : 
-                            driver.isSuspended ? 'blocked' : 'offline') as 'online' | 'offline' | 'pending' | 'blocked',
-            statusText: driver.status === 'online' ? 'Online' : 
-                       driver.status === 'offline' ? 'Offline' : 
-                       driver.isSuspended ? 'Khóa TK' : 'Offline',
-            isPending: driver.licenseStatus === 'pending',
-            registeredTime: driver.createdAt ? new Date(driver.createdAt).toLocaleDateString('vi-VN') : 'N/A',
-            vehicleType: driver.vehicleModel?.toLowerCase().includes('exciter') || 
-                        driver.vehicleModel?.toLowerCase().includes('bike') ? 'bike' : 'car',
-            revenue: driver.totalEarnings ? `${(driver.totalEarnings / 1000000).toFixed(1)}M` : '0'
-          }
-        }) as Driver[];
-
-        console.log('✅ Transformed drivers:', transformedDrivers.length);
-
-        // Separate pending and approved drivers
-        const pending = transformedDrivers.filter(d => d.licenseStatus === 'pending');
-        const approved = transformedDrivers.filter(d => d.licenseStatus !== 'pending');
-
-        console.log('📝 Pending drivers:', pending.length);
-        console.log('✔️ Approved drivers:', approved.length);
-
-        setPendingDrivers(pending);
-        setDrivers(approved);
-
-        // Calculate stats
-        const activeCount = approved.filter(d => d.status === 'online').length;
-        const totalRevenue = approved.reduce((sum, d) => sum + (d.totalEarnings || 0), 0);
-
-        console.log('📊 Stats - Pending:', pending.length, 'Active:', activeCount, 'Revenue:', totalRevenue);
-
-        setStats({
-          pending: pending.length,
-          active: activeCount,
-          revenue: totalRevenue > 0 ? `${(totalRevenue / 1000000).toFixed(1)}M` : '0'
-        });
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Lỗi tải dữ liệu tài xế';
-        console.error('❌ Error fetching drivers:', err);
-        setError(errorMsg);
-      } finally {
+      console.log('🚀 Fetching drivers from API...');
+      
+      // Fetch all drivers
+      const allDrivers = await apiService.getDrivers();
+      
+      console.log('📦 API Response:', allDrivers);
+      console.log('📊 Number of drivers:', allDrivers?.length || 0);
+      
+      if (!allDrivers || allDrivers.length === 0) {
+        console.warn('⚠️ No drivers found in response');
+        setPendingDrivers([]);
+        setDrivers([]);
+        setStats({ pending: 0, active: 0, revenue: '0' });
         setLoading(false);
+        return;
+      }
+      
+      // Transform API response to UI format
+      const transformedDrivers = allDrivers.map((driver) => {
+        const fullName = `${driver.lastName || ''} ${driver.firstName || ''}`.trim() || 'Chưa có tên';
+        console.log('🔄 Transforming driver:', fullName);
+        return {
+          ...driver,
+          displayName: fullName,
+          displayStatus: (driver.licenseStatus === 'pending' ? 'pending' : 
+                          driver.status === 'online' ? 'online' : 
+                          driver.isSuspended ? 'blocked' : 'offline') as 'online' | 'offline' | 'pending' | 'blocked',
+          statusText: driver.status === 'online' ? 'Online' : 
+                     driver.status === 'offline' ? 'Offline' : 
+                     driver.isSuspended ? 'Khóa TK' : 'Offline',
+          isPending: driver.licenseStatus === 'pending',
+          registeredTime: driver.createdAt ? new Date(driver.createdAt).toLocaleDateString('vi-VN') : 'N/A',
+          vehicleType: driver.vehicleModel?.toLowerCase().includes('exciter') || 
+                      driver.vehicleModel?.toLowerCase().includes('bike') ? 'bike' : 'car',
+          revenue: driver.totalEarnings ? `${(driver.totalEarnings / 1000000).toFixed(1)}M` : '0'
+        }
+      }) as Driver[];
+
+      console.log('✅ Transformed drivers:', transformedDrivers.length);
+
+      // Separate pending and approved drivers
+      const pending = transformedDrivers.filter(d => d.licenseStatus === 'pending');
+      const approved = transformedDrivers.filter(d => d.licenseStatus !== 'pending');
+
+      console.log('📝 Pending drivers:', pending.length);
+      console.log('✔️ Approved drivers:', approved.length);
+
+      setPendingDrivers(pending);
+      setDrivers(approved);
+
+      // Calculate stats
+      const activeCount = approved.filter(d => d.status === 'online').length;
+      const totalRevenue = approved.reduce((sum, d) => sum + (d.totalEarnings || 0), 0);
+
+      console.log('📊 Stats - Pending:', pending.length, 'Active:', activeCount, 'Revenue:', totalRevenue);
+
+      setStats({
+        pending: pending.length,
+        active: activeCount,
+        revenue: totalRevenue > 0 ? `${(totalRevenue / 1000000).toFixed(1)}M` : '0'
+      });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Lỗi tải dữ liệu tài xế';
+      console.error('❌ Error fetching drivers:', err);
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDrivers();
+
+    // Refetch when page becomes visible (user switches back to this tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('📍 Driver page became visible, refetching drivers...');
+        fetchDrivers();
       }
     };
 
-    fetchDrivers();
-  }, []);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [location.pathname]);
 
   const getStatusDotColor = (status: string) => {
     switch (status) {

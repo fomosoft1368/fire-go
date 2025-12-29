@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Layout from '../components/Layout';
 import { apiService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 
 interface StepProps {
   next?: () => void;
@@ -397,6 +398,7 @@ export default function AddDriverPage() {
   const [step, setStep] = useState(1);
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(false);
+  const { addNotification } = useNotification();
 
   const handleSubmit = async () => {
     try {
@@ -434,7 +436,16 @@ export default function AddDriverPage() {
       console.log('Submitting driver data:', driverData);
       await apiService.createDriver(driverData);
       
-      alert('Đã gửi đơn đăng ký tài xế thành công!');
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Đã gửi đơn đăng ký tài xế thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+      
       setStep(1);
       setData({});
       
@@ -444,7 +455,15 @@ export default function AddDriverPage() {
       }, 2000);
     } catch (err) {
       console.error('Error submitting driver:', err);
-      alert('Lỗi khi đăng ký tài xế: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi đăng ký tài xế: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     } finally {
       setLoading(false);
     }

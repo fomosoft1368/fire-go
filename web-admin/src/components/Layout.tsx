@@ -1,6 +1,10 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { useNotification } from '../context/NotificationContext';
+import NotificationDropdown from './NotificationDropdown';
+import NotificationToast from './NotificationToast';
+import { apiService } from '../services/api';
 
 interface LayoutProps {
   children: ReactNode;
@@ -8,10 +12,12 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
   const location = useLocation();
   const { t } = useLanguage();
   const [darkMode, setDarkMode] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
+  const addedNotificationIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     // Get user info from localStorage or API
@@ -55,7 +61,45 @@ export default function Layout({ children }: LayoutProps) {
         applyThemeOnLayout('dark');
       }
     }
-  }, [navigate]);
+
+    // Setup notification polling
+    const pollNotifications = async () => {
+      try {
+        const notifications = await apiService.getUnreadNotifications();
+        
+        if (Array.isArray(notifications) && notifications.length > 0) {
+          notifications.forEach((notif: any) => {
+            // Only add if we haven't already added this notification ID
+            if (!addedNotificationIds.current.has(notif._id) && !notif.read) {
+              addedNotificationIds.current.add(notif._id);
+              addNotification({
+                id: notif._id,
+                type: notif.type,
+                title: notif.title,
+                message: notif.message,
+                timestamp: notif.createdAt,
+                read: notif.read,
+                priority: notif.priority || 'normal',
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.log('Notification polling error (expected if API not ready):', error);
+      }
+    };
+
+    // Poll every 10 seconds
+    const notificationInterval = setInterval(pollNotifications, 10000);
+    // Also poll immediately on first load
+    pollNotifications();
+    
+    return () => {
+      clearInterval(notificationInterval);
+      // Clear deduplication set when component unmounts or location changes
+      addedNotificationIds.current.clear();
+    };
+  }, [navigate, addNotification, location.pathname]);
 
   const applyThemeOnLayout = (themeValue: string) => {
     const html = document.documentElement;
@@ -222,7 +266,7 @@ export default function Layout({ children }: LayoutProps) {
             }`}
           >
             <span className={`material-symbols-outlined ${isActive('/dispatch') ? 'filled' : ''}`}>assignment_late</span>
-            <span className="font-semibold whitespace-nowrap">{t('sidebar.dispatchManagement', 'Dispatch Management')}</span>
+            <span className="font-semibold whitespace-nowrap">{t('sidebar.dispatchManagement', 'Dispatch & Disputes')}</span>
           </button>
 
           <button
@@ -296,11 +340,8 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Notifications */}
-            <button className="relative h-10 w-10 flex items-center justify-center rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-card-dark"></span>
-            </button>
+            {/* Notifications Dropdown */}
+            <NotificationDropdown />
 
             {/* Dark Mode Toggle */}
             <button 
@@ -316,6 +357,9 @@ export default function Layout({ children }: LayoutProps) {
         <main className="flex-1 overflow-auto">
           {children}
         </main>
+
+        {/* Notification Toast */}
+        <NotificationToast />
       </div>
     </div>
   );

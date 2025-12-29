@@ -28,6 +28,7 @@ const DriverApprovalModal: React.FC<DriverApprovalModalProps> = ({
   const [globalReason, setGlobalReason] = useState('');
   const [approvalNotes, setApprovalNotes] = useState('');
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
+  const [validationError, setValidationError] = useState('');
 
   if (!driver) return null;
 
@@ -55,10 +56,11 @@ const DriverApprovalModal: React.FC<DriverApprovalModalProps> = ({
 
   const handleSubmitRejection = () => {
     if (selectedDocuments.size === 0 && !globalReason) {
-      alert('Vui lòng chọn ít nhất một tài liệu cần chỉnh sửa hoặc nhập lý do từ chối chung');
+      setValidationError('Vui lòng chọn ít nhất một tài liệu cần chỉnh sửa hoặc nhập lý do từ chối chung');
       return;
     }
 
+    setValidationError('');
     const rejectionDetails = {
       rejectedDocuments: Array.from(selectedDocuments),
       reasons: rejectionReasons,
@@ -362,6 +364,12 @@ const DriverApprovalModal: React.FC<DriverApprovalModalProps> = ({
                   rows={3}
                 />
               </div>
+
+              {validationError && (
+                <div className="p-4 bg-red-500/10 border border-red-500 rounded-xl text-red-400 text-sm">
+                  {validationError}
+                </div>
+              )}
 
               <div className="flex gap-4">
                 <button

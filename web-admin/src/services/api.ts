@@ -98,9 +98,7 @@ class ApiService {
       throw new Error(errorMessage);
     }
     const data = await response.json();
-    console.log('Raw response data:', data);
     const result = data.data || data;
-    console.log('Handled response result:', result);
     return result;
   }
 
@@ -367,13 +365,59 @@ class ApiService {
     return this.handleResponse<any[]>(response);
   }
 
-  // System Config
-  async getSystemConfigs(): Promise<any[]> {
-    const url = `${API_BASE_URL}/admin/config`;
+  async assignDriver(rideId: string, driverId: string): Promise<any> {
+    const url = `${API_BASE_URL}/rides/${rideId}/assign`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ driverId }),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  // Notifications
+  async getNotifications(): Promise<any[]> {
+    const url = `${API_BASE_URL}/notifications`;
     const response = await fetch(url, {
       headers: this.getHeaders(),
     });
     return this.handleResponse<any[]>(response);
+  }
+
+  async getUnreadNotifications(): Promise<any[]> {
+    const url = `${API_BASE_URL}/notifications/unread`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any[]>(response);
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<any> {
+    const url = `${API_BASE_URL}/notifications/${notificationId}/read`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  // System Config
+  async getSystemConfigs(): Promise<any[]> {
+    try {
+      const url = `${API_BASE_URL}/admin/config`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+      if (!response.ok) {
+        console.log('getSystemConfigs failed with status:', response.status);
+        return [];
+      }
+      return this.handleResponse<any[]>(response);
+    } catch (err) {
+      console.log('Error fetching system configs:', err);
+      return [];
+    }
   }
 
   async setSystemConfig(data: any): Promise<any> {
@@ -407,21 +451,32 @@ class ApiService {
 
   // Admin Profile
   async getAdminProfile(): Promise<any> {
-    const url = `${API_BASE_URL}/auth/profile`;
     try {
+      const token = this.getAuthToken();
+      if (!token) {
+        console.log('No auth token found, cannot fetch profile');
+        return null;
+      }
+      
+      const url = `${API_BASE_URL}/auth/profile`;
       const headers = this.getHeaders();
       console.log('Fetching profile with URL:', url);
-      console.log('Request headers:', headers);
+      console.log('Auth token exists:', !!token);
+      
       const response = await fetch(url, {
+        method: 'GET',
         headers,
       });
+      
       console.log('Profile response status:', response.status);
       if (!response.ok) {
         const errorData = await response.json();
         console.log('Profile response error:', errorData);
         return null;
       }
-      return this.handleResponse(response);
+      const data = await response.json();
+      console.log('Profile data:', data);
+      return data.data || data;
     } catch (err) {
       console.log('Error fetching profile:', err);
       return null;

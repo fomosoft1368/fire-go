@@ -57,6 +57,11 @@ export class RidesController {
     return this.ridesService.acceptRide(id, driverId);
   }
 
+  @Patch(':id/assign')
+  async assignDriver(@Param('id') id: string, @Body('driverId') driverId: string) {
+    return this.ridesService.assignDriver(id, driverId);
+  }
+
   @Patch(':id/start')
   async startRide(@Param('id') id: string) {
     return this.ridesService.startRide(id);

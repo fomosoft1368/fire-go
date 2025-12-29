@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { apiService } from '../services/api';
+import { useNotification } from '../context/NotificationContext';
 
 interface User {
   _id?: string;
@@ -66,6 +67,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { addNotification } = useNotification();
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -167,7 +169,15 @@ export default function UserManagement() {
 
   const handleAddUser = async () => {
     if (!formData.firstName || !formData.email || !formData.phone || !formData.password) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Vui lòng điền đầy đủ thông tin',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
       return;
     }
 
@@ -187,7 +197,17 @@ export default function UserManagement() {
       console.log('📤 Creating user:', newUser);
       await apiService.createUser(newUser);
       console.log('✅ User created successfully');
-      alert('Thêm người dùng thành công!');
+      
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Thêm người dùng thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+      
       setShowAddModal(false);
       setFormData({
         firstName: '',
@@ -212,13 +232,29 @@ export default function UserManagement() {
       setUsers(transformedUsers);
     } catch (err) {
       console.error('❌ Error adding user:', err);
-      alert('Lỗi khi thêm người dùng: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi thêm người dùng: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 
   const handleEditUser = async () => {
     if (!selectedUser || !formData.firstName || !formData.email || !formData.phone) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Vui lòng điền đầy đủ thông tin',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
       return;
     }
 
@@ -237,7 +273,17 @@ export default function UserManagement() {
       console.log('📝 Updating user:', updateData);
       await apiService.updateUser(selectedUser._id || selectedUser.id || '', updateData);
       console.log('✅ User updated successfully');
-      alert('Cập nhật người dùng thành công!');
+      
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Cập nhật người dùng thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+      
       setShowEditModal(false);
       setSelectedUser(null);
       setFormData({
@@ -263,7 +309,15 @@ export default function UserManagement() {
       setUsers(transformedUsers);
     } catch (err) {
       console.error('❌ Error updating user:', err);
-      alert('Lỗi khi cập nhật người dùng: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi cập nhật người dùng: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 
@@ -273,19 +327,45 @@ export default function UserManagement() {
     try {
       const userId = selectedUser._id || selectedUser.id;
       if (!userId) {
-        alert('Không tìm thấy ID người dùng');
+        addNotification({
+          id: `error-${Date.now()}`,
+          type: 'other',
+          title: 'Lỗi',
+          message: 'Không tìm thấy ID người dùng',
+          timestamp: new Date().toISOString(),
+          read: false,
+          priority: 'high',
+        });
         return;
       }
       console.log('🗑️ Deleting user:', userId);
       await apiService.deleteUser(userId as string);
       console.log('✅ User deleted successfully');
-      alert('Xóa người dùng thành công!');
+      
+      addNotification({
+        id: `success-${Date.now()}`,
+        type: 'other',
+        title: 'Thành công',
+        message: 'Xóa người dùng thành công!',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'normal',
+      });
+      
       setShowDeleteConfirm(false);
       setSelectedUser(null);
       setUsers(users.filter(u => u._id !== selectedUser._id && u.id !== selectedUser.id));
     } catch (err) {
       console.error('❌ Error deleting user:', err);
-      alert('Lỗi khi xóa người dùng: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Lỗi khi xóa người dùng: ' + (err instanceof Error ? err.message : 'Unknown error'),
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     }
   };
 
@@ -896,13 +976,29 @@ export default function UserManagement() {
                   console.log('💾 Saving permissions:', formData.permissions);
                   apiService.updateUserPermissions(selectedUser._id || selectedUser.id || '', formData.permissions)
                     .then(() => {
-                      alert('Cập nhật quyền thành công!');
+                      addNotification({
+                        id: `success-${Date.now()}`,
+                        type: 'other',
+                        title: 'Thành công',
+                        message: 'Cập nhật quyền thành công!',
+                        timestamp: new Date().toISOString(),
+                        read: false,
+                        priority: 'normal',
+                      });
                       setShowPermissionsModal(false);
                       setSelectedUser(null);
                     })
                     .catch((err) => {
                       console.error('❌ Error updating permissions:', err);
-                      alert('Lỗi khi cập nhật quyền: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                      addNotification({
+                        id: `error-${Date.now()}`,
+                        type: 'other',
+                        title: 'Lỗi',
+                        message: 'Lỗi khi cập nhật quyền: ' + (err instanceof Error ? err.message : 'Unknown error'),
+                        timestamp: new Date().toISOString(),
+                        read: false,
+                        priority: 'high',
+                      });
                     });
                 }} className="px-6 py-2 rounded-lg bg-primary text-white hover:bg-primary-dark transition-all">
                   Lưu quyền

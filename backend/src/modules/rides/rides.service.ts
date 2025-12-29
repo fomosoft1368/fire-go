@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
 import { CreateRideDto } from './dto';
 
 @Injectable()
 export class RidesService {
-  constructor(@InjectModel(Ride.name) private rideModel: Model<RideDocument>) {}
+  constructor(
+    @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   async create(createRideDto: CreateRideDto, customerId: string): Promise<RideDocument> {
     const totalFare =
@@ -43,7 +47,23 @@ export class RidesService {
       status: RideStatus.PENDING,
     });
 
-    return ride.populate(['customerId', 'driverId']);
+    const populatedRide = await ride.populate(['customerId', 'driverId']);
+
+    // Emit ride.created event
+    const extractedCustomerId = ride.customerId && typeof ride.customerId === 'object' 
+      ? (ride.customerId as any)._id.toString() 
+      : ride.customerId.toString();
+    
+    this.eventEmitter.emit('ride.created', {
+      rideId: ride._id.toString(),
+      customerId: extractedCustomerId,
+      pickupAddress: createRideDto.pickupAddress,
+      dropoffAddress: createRideDto.dropoffAddress,
+      totalFare: totalFare,
+      rideType: rideType,
+    });
+
+    return populatedRide;
   }
 
   async findAll(filters?: any): Promise<RideDocument[]> {
@@ -117,20 +137,47 @@ export class RidesService {
       throw new BadRequestException('Ride is not available for acceptance');
     }
 
-    const updatedRide = await this.rideModel
-      .findByIdAndUpdate(
-        rideId,
-        {
-          driverId: new Types.ObjectId(driverId),
-          status: RideStatus.ACCEPTED,
-          acceptedAt: new Date(),
-        },
-        { new: true },
-      )
-      .populate('driverId')
-      .populate('customerId');
+    const updatedRide = await this.rideModel.findByIdAndUpdate(
+      rideId,
+      {
+        driverId: new Types.ObjectId(driverId),
+        status: RideStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      },
+      { new: true },
+    ).populate('driverId').populate('customerId');
+
+    // Emit ride.accepted event
+    const extractedCustomerId = ride.customerId && typeof ride.customerId === 'object' 
+      ? (ride.customerId as any)._id.toString() 
+      : ride.customerId.toString();
+    
+    this.eventEmitter.emit('ride.accepted', {
+      rideId: rideId,
+      driverId: driverId,
+      customerId: extractedCustomerId,
+      driverName: (updatedRide.driverId as any)?.name || 'Driver',
+    });
 
     return updatedRide;
+  }
+
+  async assignDriver(rideId: string, driverId: string): Promise<RideDocument> {
+    const ride = await this.findById(rideId);
+
+    if (ride.status !== RideStatus.PENDING) {
+      throw new BadRequestException('Ride is not available for assignment');
+    }
+
+    return this.rideModel.findByIdAndUpdate(
+      rideId,
+      {
+        driverId: new Types.ObjectId(driverId),
+        status: RideStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      },
+      { new: true },
+    ).populate('driverId').populate('customerId');
   }
 
   async startRide(rideId: string): Promise<RideDocument> {
@@ -157,7 +204,7 @@ export class RidesService {
       throw new BadRequestException('Ride must be in progress to complete');
     }
 
-    return this.rideModel.findByIdAndUpdate(
+    const updatedRide = await this.rideModel.findByIdAndUpdate(
       rideId,
       {
         status: RideStatus.COMPLETED,
@@ -167,6 +214,20 @@ export class RidesService {
       },
       { new: true },
     );
+
+    // Emit ride.completed event
+    const extractedCustomerId = ride.customerId && typeof ride.customerId === 'object' 
+      ? (ride.customerId as any)._id.toString() 
+      : ride.customerId.toString();
+    
+    this.eventEmitter.emit('ride.completed', {
+      rideId: rideId,
+      customerId: extractedCustomerId,
+      driverId: ride.driverId?.toString(),
+      totalFare: ride.totalFare,
+    });
+
+    return updatedRide;
   }
 
   async cancelRide(
