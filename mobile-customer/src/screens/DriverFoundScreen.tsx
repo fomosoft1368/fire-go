@@ -6,13 +6,18 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from 'react-native'
+import { useSelector } from 'react-redux'
+import { RootState } from '../redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
+import { rideService } from '../services/rideService'
 
 interface DriverFoundScreenProps {
-  driver: {
+  driver?: {
     id: string
     name: string
     avatar: string
@@ -25,18 +30,106 @@ interface DriverFoundScreenProps {
     eta: number
     currentLat: number
     currentLng: number
+    phone?: string
   }
-  routeInfo: any
+  rideId?: string
+  routeInfo?: any
   onChat: () => void
   onCancel: () => void
 }
 
 export default function DriverFoundScreen({
-  driver,
-  routeInfo,
+  driver: initialDriver,
+  rideId,
+  routeInfo: initialRouteInfo,
   onChat,
   onCancel,
 }: DriverFoundScreenProps) {
+  const authUser = useSelector((state: RootState) => state.auth.user)
+  const [driver, setDriver] = React.useState(initialDriver)
+  const [routeInfo, setRouteInfo] = React.useState(initialRouteInfo)
+  const [loading, setLoading] = React.useState(!driver)
+
+  // Lấy dữ liệu thực từ API khi component mount
+  React.useEffect(() => {
+    if (rideId && !driver) {
+      loadRideData()
+    }
+  }, [rideId])
+
+  const loadRideData = async () => {
+    if (!rideId) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
+      return
+    }
+
+    setLoading(true)
+    try {
+      console.log('[DriverFoundScreen] Loading ride data:', rideId)
+
+      const rideData = await rideService.getRideById(rideId)
+
+      console.log('[DriverFoundScreen] Ride data loaded:', {
+        driverId: rideData?.driverId?._id,
+        status: rideData?.status,
+      })
+
+      if (!rideData || !rideData.driverId) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin tài xế')
+        return
+      }
+
+      const driverInfo = rideData.driverId
+      const driverData = {
+        id: driverInfo._id,
+        name: `${driverInfo.firstName} ${driverInfo.lastName}`,
+        avatar: driverInfo.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${driverInfo.email}`,
+        rating: driverInfo.rating || 5,
+        totalRides: driverInfo.totalRides || 0,
+        carType: driverInfo.carType || 'Xe tiêu chuẩn',
+        licensePlate: driverInfo.licensePlate || 'N/A',
+        carColor: driverInfo.carColor || 'Trắng',
+        distance: 2.5, // TODO: Tính từ current location
+        eta: 5, // TODO: Tính từ routing
+        currentLat: driverInfo.currentLocation?.coordinates[1] || 21.0285,
+        currentLng: driverInfo.currentLocation?.coordinates[0] || 105.8542,
+        phone: driverInfo.phone,
+      }
+
+      setDriver(driverData)
+
+      // Chuẩn bị route info từ pickup/dropoff
+      const routeData = {
+        pickup: {
+          address: rideData.pickupAddress,
+          coordinates: {
+            latitude: rideData.pickupLocation?.coordinates[1] || 21.0285,
+            longitude: rideData.pickupLocation?.coordinates[0] || 105.8542,
+          },
+        },
+        dropoff: {
+          address: rideData.dropoffAddress,
+          coordinates: {
+            latitude: rideData.dropoffLocation?.coordinates[1] || 21.0410,
+            longitude: rideData.dropoffLocation?.coordinates[0] || 105.8704,
+          },
+        },
+        routeCoordinates: rideData.routeCoordinates || [],
+      }
+
+      setRouteInfo(routeData)
+
+      console.log('[DriverFoundScreen] Ride data loaded successfully')
+    } catch (error: any) {
+      console.error('[DriverFoundScreen] Load ride error:', {
+        message: error.message,
+        rideId,
+      })
+      Alert.alert('Lỗi', 'Không thể tải thông tin cuốc xe')
+    } finally {
+      setLoading(false)
+    }
+  }
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -50,10 +143,16 @@ export default function DriverFoundScreen({
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      {loading || !driver || !routeInfo ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF6B00" />
+          <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+        </View>
+      ) : (
+        <ScrollView 
+          style={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
 
       {/* Map Container */}
       <View style={styles.mapContainer}>
@@ -102,10 +201,14 @@ export default function DriverFoundScreen({
           </View>
         </View>
         <View style={styles.driverCardActions}>
-          <TouchableOpacity style={styles.driverCardCallButton}>
+          <TouchableOpacity 
+            style={styles.driverCardCallButton}>
             <MaterialIcons name="call" size={20} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.driverCardChatButton}>
+          <TouchableOpacity 
+            style={styles.driverCardChatButton}
+            onPress={onChat}
+          >
             <MaterialIcons name="chat-bubble" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -119,8 +222,8 @@ export default function DriverFoundScreen({
           </View>
           <View style={styles.routePointText}>
             <Text style={styles.routePointLabel}>ĐIỂM ĐÓN</Text>
-            <Text style={styles.routePointAddress}>123 Đường Lãng</Text>
-            <Text style={styles.routePointTime}>14:30</Text>
+            <Text style={styles.routePointAddress}>{routeInfo.pickup.address}</Text>
+            <Text style={styles.routePointTime}>Ngay</Text>
           </View>
         </View>
 
@@ -132,23 +235,14 @@ export default function DriverFoundScreen({
           </View>
           <View style={styles.routePointText}>
             <Text style={styles.routePointLabel}>ĐIỂM ĐẾN</Text>
-            <Text style={styles.routePointAddress}>456 Cầu Giấy</Text>
-            <Text style={styles.routePointTime}>15:00 (Dự kiến)</Text>
+            <Text style={styles.routePointAddress}>{routeInfo.dropoff.address}</Text>
+            <Text style={styles.routePointTime}>{driver.eta} phút (Dự kiến)</Text>
           </View>
         </View>
       </View>
 
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
-        <TouchableOpacity 
-          style={styles.chatButton}
-          onPress={onChat}
-          activeOpacity={0.6}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <MaterialIcons name="chat" size={20} color="#FF6B00" />
-          <Text style={styles.chatButtonText}>Chat</Text>
-        </TouchableOpacity>
         <TouchableOpacity
           style={styles.cancelButton}
           onPress={onCancel}
@@ -160,6 +254,7 @@ export default function DriverFoundScreen({
         </TouchableOpacity>
       </View>
       </ScrollView>
+      )}
     </SafeAreaView>
   )
 }
@@ -171,6 +266,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.lg,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: SPACING.md,
   },
   header: {
     flexDirection: 'row',

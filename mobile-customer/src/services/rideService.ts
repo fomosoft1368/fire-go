@@ -258,4 +258,94 @@ export const rideService = {
       throw error
     }
   },
+
+  /**
+   * Lấy thông tin chi tiết của một cuốc xe
+   */
+  async getRideById(rideId: string, token?: string) {
+    try {
+      console.log('[RideService] Fetching ride details:', rideId)
+
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
+        method: 'GET',
+        headers,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ride: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      console.log('[RideService] Ride data received:', {
+        rideId,
+        status: result.data?.status,
+        driverName: result.data?.driverId?.firstName,
+      })
+
+      return result.data
+    } catch (error: any) {
+      console.error('[RideService] Get ride error:', {
+        message: error.message,
+        rideId,
+      })
+      throw error
+    }
+  },
+
+  /**
+   * Lấy cuốc xe hiện tại (đang diễn ra)
+   */
+  async getCurrentRide(customerId: string, token?: string) {
+    try {
+      console.log('[RideService] Fetching current ride for customer:', customerId)
+
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const response = await fetch(`${API_BASE_URL}/rides/customer/${customerId}`, {
+        method: 'GET',
+        headers,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch rides: ${response.status}`)
+      }
+
+      const result = await response.json()
+      const rides = result.data || []
+
+      // Lọc cuốc xe đang hoạt động (ACCEPTED, IN_PROGRESS, STARTED)
+      const currentRide = rides.find((ride: any) =>
+        ['ACCEPTED', 'IN_PROGRESS', 'STARTED'].includes(ride.status)
+      )
+
+      console.log('[RideService] Current ride:', {
+        customerId,
+        found: !!currentRide,
+        status: currentRide?.status,
+      })
+
+      return currentRide || null
+    } catch (error: any) {
+      console.error('[RideService] Get current ride error:', {
+        message: error.message,
+        customerId,
+      })
+      throw error
+    }
+  },
 }

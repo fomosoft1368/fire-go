@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react'
+import { useSelector } from 'react-redux'
+import { RootState } from '../redux/store'
+import { messageService } from '../services/messageService'
 import {
   View,
   Text,
@@ -6,15 +9,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  Alert,
+  ActivityIndicator,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS } from '../constants'
 
 interface Message {
-  id: string
+  _id: string
   text: string
   sender: 'user' | 'driver'
   timestamp: number
+  createdAt?: string
 }
 
 interface ChatScreenProps {
@@ -29,47 +35,171 @@ interface ChatScreenProps {
     carColor: string
     distance: number
     eta: number
-    currentLat: number
-    currentLng: number
+    currentLat?: number
+    currentLng?: number
+    phone?: string
+    email?: string
   }
+  rideId?: string
   onClose: () => void
 }
 
-export default function ChatScreen({ driver, onClose }: ChatScreenProps) {
-  const [chatMessages, setChatMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Xin chào, tôi đang trên đường đến bạn',
-      sender: 'driver',
-      timestamp: Date.now() - 5000,
-    },
-  ])
+export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps) {
+  const user = useSelector((state: RootState) => state.auth.user)
+  const [chatMessages, setChatMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [lastPollTime, setLastPollTime] = useState(Date.now())
 
-  // Send message
-  const sendMessage = () => {
-    if (!messageInput.trim()) return
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: messageInput,
-      sender: 'user',
-      timestamp: Date.now(),
+  // Load messages khi component mount
+  useEffect(() => {
+    if (!rideId) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
+      return
     }
 
-    setChatMessages([...chatMessages, newMessage])
-    setMessageInput('')
+    loadMessages()
 
-    // Simulate driver reply after 1 second
-    setTimeout(() => {
-      const driverReply: Message = {
-        id: (Date.now() + 1).toString(),
-        text: 'OK, tôi sẽ đến sớm hơn!',
-        sender: 'driver',
-        timestamp: Date.now(),
+    // Poll tin nhắn mới mỗi 2 giây
+    const pollInterval = setInterval(() => {
+      pollNewMessages()
+    }, 2000)
+
+    return () => clearInterval(pollInterval)
+  }, [rideId])
+
+  // Tải tin nhắn ban đầu
+  const loadMessages = async () => {
+    if (!rideId) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
+      return
+    }
+
+    setLoading(true)
+    try {
+      console.log('[ChatScreen] Loading messages for rideId:', rideId)
+      
+      const data = await messageService.getMessagesByRide(rideId, 50, 0)
+      
+      if (!data || !data.messages) {
+        console.warn('[ChatScreen] No data returned from API')
+        setChatMessages([])
+        setLastPollTime(Date.now())
+        return
       }
-      setChatMessages((prev) => [...prev, driverReply])
-    }, 1000)
+
+      const messages = data.messages.map((msg: any) => ({
+        _id: msg._id,
+        text: msg.text,
+        sender: msg.senderType === 'customer' ? 'user' : 'driver',
+        timestamp: new Date(msg.createdAt).getTime(),
+        createdAt: msg.createdAt,
+      }))
+
+      console.log('[ChatScreen] Loaded messages:', messages.length)
+      setChatMessages(messages)
+      setLastPollTime(Date.now())
+
+      // Đánh dấu tin nhắn là đã đọc
+      try {
+        await messageService.markAsRead(rideId)
+      } catch (markError) {
+        console.warn('[ChatScreen] Mark as read failed:', markError)
+      }
+    } catch (error: any) {
+      console.error('[ChatScreen] Load messages error:', {
+        message: error.message,
+        response: error.response?.data,
+      })
+      Alert.alert(
+        'Lỗi',
+        error.response?.data?.message || error.message || 'Không thể tải tin nhắn'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Poll tin nhắn mới
+  const pollNewMessages = async () => {
+    if (!rideId) return
+
+    try {
+      const newMessages = await messageService.getNewMessages(
+        rideId,
+        lastPollTime
+      )
+
+      if (newMessages && newMessages.length > 0) {
+        console.log('[ChatScreen] Polling received:', newMessages.length, 'new messages')
+        const formattedMessages = newMessages.map((msg: any) => ({
+          _id: msg._id,
+          text: msg.text,
+          sender: msg.senderType === 'customer' ? 'user' : 'driver',
+          timestamp: new Date(msg.createdAt).getTime(),
+          createdAt: msg.createdAt,
+        }))
+
+        setChatMessages((prev) => [...prev, ...formattedMessages])
+        setLastPollTime(Date.now())
+
+        // Đánh dấu tin nhắn mới là đã đọc
+        try {
+          await messageService.markAsRead(rideId)
+        } catch (markError) {
+          console.warn('[ChatScreen] Mark as read failed:', markError)
+        }
+      }
+    } catch (error: any) {
+      console.error('[ChatScreen] Poll error:', {
+        message: error.message,
+        rideId,
+      })
+    }
+  }
+
+  // Gửi tin nhắn
+  const sendMessage = async () => {
+    if (!messageInput.trim() || !rideId || !user) {
+      return
+    }
+
+    setSending(true)
+    try {
+      console.log('[ChatScreen] Sending message:', messageInput)
+      
+      const message = await messageService.sendMessage(
+        rideId,
+        messageInput,
+        'customer'
+      )
+
+      const newMessage: Message = {
+        _id: message._id,
+        text: message.text,
+        sender: 'user',
+        timestamp: new Date(message.createdAt).getTime(),
+        createdAt: message.createdAt,
+      }
+
+      setChatMessages([...chatMessages, newMessage])
+      setMessageInput('')
+
+      console.log('[ChatScreen] Message sent successfully:', message._id)
+    } catch (error: any) {
+      console.error('[ChatScreen] Send message error:', {
+        message: error.message,
+        response: error.response?.data,
+        rideId,
+      })
+      Alert.alert(
+        'Lỗi',
+        error.response?.data?.message || error.message || 'Không thể gửi tin nhắn'
+      )
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -81,28 +211,49 @@ export default function ChatScreen({ driver, onClose }: ChatScreenProps) {
         </TouchableOpacity>
         <View style={styles.chatHeaderInfo}>
           <Text style={styles.chatHeaderName}>{driver.name}</Text>
-          <Text style={styles.chatHeaderStatus}>Đang giao dịch</Text>
+          <Text style={styles.chatHeaderStatus}>Đang hoạt động</Text>
         </View>
         <View style={{ width: 24 }} />
       </View>
 
       {/* Messages */}
-      <ScrollView 
-        style={styles.messagesContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {chatMessages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.messageBubble,
-              msg.sender === 'user' ? styles.userMessage : styles.driverMessage,
-            ]}
-          >
-            <Text style={styles.messageText}>{msg.text}</Text>
-          </View>
-        ))}
-      </ScrollView>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF6B00" />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.messagesContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {chatMessages.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="chat-bubble-outline" size={48} color="#64748b" />
+              <Text style={styles.emptyText}>Bắt đầu cuộc trò chuyện</Text>
+            </View>
+          ) : (
+            chatMessages.map((msg) => (
+              <View
+                key={msg._id}
+                style={[
+                  styles.messageBubble,
+                  msg.sender === 'user'
+                    ? styles.userMessage
+                    : styles.driverMessage,
+                ]}
+              >
+                <Text style={styles.messageText}>{msg.text}</Text>
+                <Text style={styles.messageTime}>
+                  {new Date(msg.timestamp).toLocaleTimeString('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
 
       {/* Message Input */}
       <View style={styles.chatInputContainer}>
@@ -114,13 +265,21 @@ export default function ChatScreen({ driver, onClose }: ChatScreenProps) {
           onChangeText={setMessageInput}
           multiline
           maxLength={500}
+          editable={!sending}
         />
         <TouchableOpacity
-          style={styles.sendButton}
+          style={[
+            styles.sendButton,
+            (sending || !messageInput.trim()) && styles.sendButtonDisabled,
+          ]}
           onPress={sendMessage}
-          disabled={!messageInput.trim()}
+          disabled={sending || !messageInput.trim()}
         >
-          <MaterialIcons name="send" size={20} color="#fff" />
+          {sending ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <MaterialIcons name="send" size={20} color="#fff" />
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -155,10 +314,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   messagesContainer: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#94a3b8',
   },
   messageBubble: {
     maxWidth: '80%',
@@ -179,6 +353,11 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 14,
     color: '#fff',
+    marginBottom: 4,
+  },
+  messageTime: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   chatInputContainer: {
     flexDirection: 'row',
@@ -214,5 +393,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 3,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#64748b',
+    shadowOpacity: 0,
   },
 })

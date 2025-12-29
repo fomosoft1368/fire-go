@@ -117,15 +117,20 @@ export class RidesService {
       throw new BadRequestException('Ride is not available for acceptance');
     }
 
-    return this.rideModel.findByIdAndUpdate(
-      rideId,
-      {
-        driverId: new Types.ObjectId(driverId),
-        status: RideStatus.ACCEPTED,
-        acceptedAt: new Date(),
-      },
-      { new: true },
-    );
+    const updatedRide = await this.rideModel
+      .findByIdAndUpdate(
+        rideId,
+        {
+          driverId: new Types.ObjectId(driverId),
+          status: RideStatus.ACCEPTED,
+          acceptedAt: new Date(),
+        },
+        { new: true },
+      )
+      .populate('driverId')
+      .populate('customerId');
+
+    return updatedRide;
   }
 
   async startRide(rideId: string): Promise<RideDocument> {

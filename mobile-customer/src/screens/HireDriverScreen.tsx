@@ -70,6 +70,7 @@ export default function HireDriverScreen({
   const [showChat, setShowChat] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [scheduledDateTime, setScheduledDateTime] = useState<Date>(new Date())
+  const [rideId, setRideId] = useState<string | null>(null)
 
   // Reset ride state khi cancel
   const resetRideState = () => {
@@ -80,6 +81,7 @@ export default function HireDriverScreen({
     setRouteInfo(null)
     setFareEstimate(null)
     setShowChat(false)
+    setRideId(null)
   }
 
   const handleScheduleDateTime = (dateTime: Date) => {
@@ -87,34 +89,67 @@ export default function HireDriverScreen({
     setShowScheduleModal(false)
   }
 
-  // Simulate driver found after 3 seconds
+  // Polling để lấy thông tin tài xế khi có tài xế nhận cuốc
   useEffect(() => {
-    if (isSearching) {
-      const timer = setTimeout(() => {
-        setDriver({
-          id: 'driver_1',
-          name: 'Nguyễn Văn A',
-          avatar: 'https://i.pravatar.cc/150?img=1',
-          rating: 4.8,
-          totalRides: 1245,
-          carType: 'Sedan',
-          licensePlate: '30A-12345',
-          carColor: 'Bạc',
-          distance: 1.2,
-          eta: 3,
-          currentLat: 21.028,
-          currentLng: 105.855,
-        })
-        setDriverLocation({
-          latitude: 21.028,
-          longitude: 105.855,
-        })
-        setDriverFound(true)
-        setIsSearching(false)
-      }, 3000)
-      return () => clearTimeout(timer)
+    if (!isSearching || !rideId) {
+      return
     }
-  }, [isSearching])
+
+    console.log('[HireDriverScreen] Polling ride data for rideId:', rideId)
+    
+    // Lấy thông tin cuốc xe mỗi 2 giây
+    const pollInterval = setInterval(async () => {
+      try {
+        const rideData = await rideService.getRideById(rideId)
+        console.log('[HireDriverScreen] Ride data:', rideData)
+
+        // Nếu tài xế đã nhận cuốc (có driverId)
+        if (rideData.driverId) {
+          const driverData = rideData.driverId
+          
+          // Map dữ liệu từ API sang format UI
+          setDriver({
+            id: driverData._id,
+            name: `${driverData.firstName} ${driverData.lastName}`,
+            avatar: `https://i.pravatar.cc/150?u=${driverData._id}`,
+            rating: driverData.rating || 4.8, // Default nếu API chưa có
+            totalRides: driverData.totalRides || 0,
+            carType: 'Sedan',
+            licensePlate: driverData.vehicleInfo?.licensePlate || driverData.vehiclePlate || '---',
+            carColor: driverData.vehicleInfo?.color || 'Trắng',
+            distance: 1.2, // Sẽ tính từ Google Maps sau
+            eta: 3, // Tính từ distance
+            phone: driverData.phone,
+            email: driverData.email,
+          })
+
+          // Lấy vị trí tài xế nếu có
+          if (driverData.currentLocation) {
+            setDriverLocation({
+              latitude: driverData.currentLocation.coordinates[1],
+              longitude: driverData.currentLocation.coordinates[0],
+            })
+          } else {
+            // Default vị trí Hà Nội
+            setDriverLocation({
+              latitude: 21.0285,
+              longitude: 105.8542,
+            })
+          }
+
+          setDriverFound(true)
+          setIsSearching(false)
+          clearInterval(pollInterval)
+        }
+      } catch (error) {
+        console.error('[HireDriverScreen] Polling error:', error)
+        // Tiếp tục polling nếu lỗi
+      }
+    }, 2000) // 2 giây
+
+    // Cleanup khi component unmount hoặc stop searching
+    return () => clearInterval(pollInterval)
+  }, [isSearching, rideId])
 
   useEffect(() => {
     // Không tính lại nếu đang tìm tài xế hoặc tài xế đã được tìm thấy
@@ -239,6 +274,13 @@ export default function HireDriverScreen({
       console.log('[HireDriverScreen] Creating ride with data:', rideData)
       const result = await rideService.createRide(rideData, user.id)
       
+      console.log('[HireDriverScreen] Ride created:', result)
+      
+      // Lưu rideId để polling
+      if (result._id || result.id) {
+        setRideId(result._id || result.id)
+      }
+      
       Alert.alert('Thành công', 'Cuốc xe đã được tạo. Đang tìm tài xế...', [
         { text: 'OK' }
       ])
@@ -259,7 +301,7 @@ export default function HireDriverScreen({
 
   // Show chat screen (CHECK BEFORE driver found)
   if (showChat && driverFound && driver) {
-    return <ChatScreen driver={driver} onClose={() => setShowChat(false)} />
+    return <ChatScreen driver={driver} rideId={rideId || undefined} onClose={() => setShowChat(false)} />
   }
 
   // Show driver found screen

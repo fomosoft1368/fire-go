@@ -9,6 +9,7 @@ import { WalletsModule } from './modules/wallets/wallets.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { MessagesModule } from './modules/messages/messages.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AdminModule } from './modules/admin/admin.module';
     ReviewsModule,
     NotificationsModule,
     AdminModule,
+    MessagesModule,
   ],
   controllers: [],
   providers: [],
