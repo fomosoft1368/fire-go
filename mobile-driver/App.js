@@ -17,9 +17,35 @@ import ProfileScreen from './src/screens/ProfileScreen'
 import RideDetailScreen from './src/screens/RideDetailScreen'
 import TopupScreen from './src/screens/TopupScreen'
 import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
+import MapScreen from './src/screens/MapScreen'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
+
+const HomeTabStackNavigator = () => {
+  return (
+    <Stack.Navigator 
+      screenOptions={{ headerShown: false }}
+      navigationOptions={{ tabBarVisible: false }}
+    >
+      <Stack.Screen 
+        name="HomeScreenMain" 
+        component={HomeScreen}
+        options={{
+          tabBarVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="MapScreen"
+        component={MapScreen}
+        options={{ 
+          animationEnabled: true,
+          tabBarVisible: false,
+        }}
+      />
+    </Stack.Navigator>
+  )
+}
 
 const MainNavigator = () => (
   <Tab.Navigator
@@ -29,7 +55,7 @@ const MainNavigator = () => (
         let iconName: any
 
         if (route.name === 'HomeTab') {
-          iconName = 'home'
+          iconName = 'route'
         } else if (route.name === 'Trips') {
           iconName = 'local-taxi'
         } else if (route.name === 'Earnings') {
@@ -54,9 +80,9 @@ const MainNavigator = () => (
   >
     <Tab.Screen
       name="HomeTab"
-      component={HomeScreen}
+      component={HomeTabStackNavigator}
       options={{
-        tabBarLabel: 'Trang chủ',
+        tabBarLabel: 'Cuốc xe',
       }}
     />
     <Tab.Screen

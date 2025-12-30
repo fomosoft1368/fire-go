@@ -1,10 +1,14 @@
 import { Controller, Get, Post, Body, Param, Patch, Query } from '@nestjs/common';
 import { RidesService } from './rides.service';
+import { AutoAssignService } from './services/auto-assign.service';
 import { CreateRideDto } from './dto';
 
 @Controller('api/rides')
 export class RidesController {
-  constructor(private readonly ridesService: RidesService) {}
+  constructor(
+    private readonly ridesService: RidesService,
+    private readonly autoAssignService: AutoAssignService,
+  ) {}
 
   @Post()
   async create(@Body() createRideDto: CreateRideDto, @Query('customerId') customerId: string) {
@@ -60,6 +64,11 @@ export class RidesController {
   @Patch(':id/assign')
   async assignDriver(@Param('id') id: string, @Body('driverId') driverId: string) {
     return this.ridesService.assignDriver(id, driverId);
+  }
+
+  @Post(':id/auto-assign')
+  async autoAssignDriver(@Param('id') id: string) {
+    return this.autoAssignService.autoAssignDriver(id);
   }
 
   @Patch(':id/start')

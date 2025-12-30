@@ -48,6 +48,35 @@ export const rideService = {
   },
 
   /**
+   * Tự động chỉ định tài xế cho cuốc xe
+   */
+  async autoAssignDriver(rideId: string) {
+    try {
+      console.log('[RideService] Auto-assigning driver for ride:', rideId)
+
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}/auto-assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Auto-assign failed:', result)
+        throw new Error(result.message || 'Failed to auto-assign driver')
+      }
+
+      console.log('[RideService] Auto-assign success:', result)
+      return result
+    } catch (error: any) {
+      console.error('[RideService] Auto-assign error:', error)
+      throw error
+    }
+  },
+
+  /**
    * Lấy danh sách cuốc xe của customer
    */
   async getCustomerRides(customerId: string) {
