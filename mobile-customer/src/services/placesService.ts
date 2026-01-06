@@ -1,0 +1,132 @@
+/**
+ * Places Search Service - Tối ưu hóa Google Maps API
+ * 
+ * Strategy:
+ * 1. Debounce frontend input (500ms)
+ * 2. Check cache trước (memory cache 5 phút)
+ * 3. Check database
+ * 4. Gọi Google Places chỉ nếu không có cache/DB
+ */
+
+import { API_BASE_URL } from '../constants'
+
+interface PlaceResult {
+  placeId: string
+  name: string
+  address: string
+  lat: number
+  lng: number
+  description?: string
+}
+
+interface PlacesSearchResponse {
+  results: PlaceResult[]
+  cached?: boolean
+  source?: 'cache' | 'database' | 'google' | 'api'
+}
+
+// Memory cache - key: keyword, value: { results, timestamp }
+const placeCache = new Map<string, { results: PlaceResult[]; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Search places từ backend endpoint
+ * Backend sẽ handle: cache check, DB lookup, Google Places API
+ */
+export const placesService = {
+  /**
+   * Search places với debounce tối ưu
+   * @param keyword - Từ khóa tìm kiếm
+   * @returns Array địa điểm + metadata về nguồn
+   */
+  async searchPlaces(keyword: string): Promise<PlacesSearchResponse> {
+    // Validate input
+    if (!keyword || keyword.trim().length < 3) {
+      return { results: [], source: 'cache' };
+    }
+
+    const trimmedKeyword = keyword.trim().toLowerCase();
+
+    // 1️⃣ Check memory cache (frontend)
+    const cached = placeCache.get(trimmedKeyword);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log('✅ [PlacesService] Memory cache hit:', trimmedKeyword, `(${cached.results.length} places)`);
+      return { results: cached.results, cached: true, source: 'cache' };
+    }
+
+    try {
+      // 2️⃣ Call backend endpoint
+      console.log('📡 [PlacesService] Fetching from backend:', trimmedKeyword);
+      // Backend sẽ check: Redis cache → Database → Google Places API
+      const res = await fetch(
+        `${API_BASE_URL}/places/search?keyword=${encodeURIComponent(trimmedKeyword)}`
+      );
+      
+      if (!res.ok) {
+        console.error(`[PlacesService] API error: ${res.status}`);
+        throw new Error(`API error: ${res.status}`);
+      }
+      
+      const response = await res.json() as PlacesSearchResponse;
+
+      // 3️⃣ Cache result ở frontend
+      placeCache.set(trimmedKeyword, {
+        results: response.results,
+        timestamp: Date.now(),
+      });
+
+      console.log(
+        '📍 [PlacesService] Got results from',
+        response.source || 'backend',
+        `(${response.results.length} places)`
+      );
+
+      return response;
+    } catch (error) {
+      console.error('[PlacesService] Search error:', error);
+      return { results: [], source: 'api' };
+    }
+  },
+
+  /**
+   * Get detailed place information
+   * Chỉ gọi khi user chọn địa điểm cuối cùng
+   * @param placeId - Google Place ID
+   */
+  async getPlaceDetails(placeId: string): Promise<PlaceResult> {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/places/details/${encodeURIComponent(placeId)}`
+      );
+      
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+      
+      const response = await res.json() as PlaceResult;
+      console.log('✅ [PlacesService] Got place details:', response);
+      return response;
+    } catch (error) {
+      console.error('[PlacesService] Details error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Clear cache (dùng cho debug hoặc refresh)
+   */
+  clearCache() {
+    placeCache.clear();
+    console.log('🗑️ [PlacesService] Cache cleared');
+  },
+
+  /**
+   * Get cache stats (cho debug)
+   */
+  getCacheStats() {
+    return {
+      size: placeCache.size,
+      keys: Array.from(placeCache.keys()),
+    };
+  },
+};

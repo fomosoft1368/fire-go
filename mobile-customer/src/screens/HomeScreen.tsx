@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  FlatList,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
@@ -20,6 +21,8 @@ import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
 import FindingRideModal from '../components/FindingRideModal'
 import { rideService } from '../services/rideService'
+import { useDebounce } from '../hooks'
+import { placesService } from '../services/placesService'
 
 const { width, height } = Dimensions.get('window')
 
@@ -33,6 +36,16 @@ export default function HomeScreen() {
   const [passengerCount, setPassengerCount] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   
+  // Places autocomplete states
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
+  const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
+  const [isSearchingPickup, setIsSearchingPickup] = useState(false)
+  const [isSearchingDropoff, setIsSearchingDropoff] = useState(false)
+  
+  // Debounce inputs - chỉ gọi API sau khi user dừng gõ 500ms
+  const debouncedPickupLocation = useDebounce(pickupLocation, 500)
+  const debouncedDropoffLocation = useDebounce(dropoffLocation, 500)
+  
   // Hire driver mode states
   const [carType, setCarType] = useState<'sedan' | 'suv' | 'truck'>('sedan')
   const [licensePlate, setLicensePlate] = useState('')
@@ -41,6 +54,110 @@ export default function HomeScreen() {
   const [isScheduled, setIsScheduled] = useState(false)
   
   const user = useSelector((state: RootState) => state.auth.user)
+
+  // 🔍 Search pickup location when debounced value changes
+  useEffect(() => {
+    console.log('🔄 [HomeScreen] Debounced pickup changed:', debouncedPickupLocation);
+    if (debouncedPickupLocation && debouncedPickupLocation.length >= 3) {
+      console.log('🔍 [HomeScreen] Searching pickup:', debouncedPickupLocation);
+      searchPickupPlaces(debouncedPickupLocation);
+    } else {
+      console.log('⏭️ [HomeScreen] Skipping search - keyword too short:', debouncedPickupLocation?.length || 0);
+      setPickupSuggestions([]);
+    }
+  }, [debouncedPickupLocation]);
+
+  // 🔍 Search dropoff location when debounced value changes
+  useEffect(() => {
+    console.log('🔄 [HomeScreen] Debounced dropoff changed:', debouncedDropoffLocation);
+    if (debouncedDropoffLocation && debouncedDropoffLocation.length >= 3) {
+      console.log('🔍 [HomeScreen] Searching dropoff:', debouncedDropoffLocation);
+      searchDropoffPlaces(debouncedDropoffLocation);
+    } else {
+      console.log('⏭️ [HomeScreen] Skipping search - keyword too short:', debouncedDropoffLocation?.length || 0);
+      setDropoffSuggestions([]);
+    }
+  }, [debouncedDropoffLocation]);
+
+  // Search pickup places
+  const searchPickupPlaces = async (keyword: string) => {
+    try {
+      setIsSearchingPickup(true);
+      const response = await placesService.searchPlaces(keyword);
+      console.log(
+        `📍 Pickup search (${response.source}):`,
+        response.results.length,
+        'results'
+      );
+      setPickupSuggestions(response.results);
+    } catch (error) {
+      console.error('Error searching pickup places:', error);
+      setPickupSuggestions([]);
+    } finally {
+      setIsSearchingPickup(false);
+    }
+  };
+
+  // Search dropoff places
+  const searchDropoffPlaces = async (keyword: string) => {
+    try {
+      setIsSearchingDropoff(true);
+      const response = await placesService.searchPlaces(keyword);
+      console.log(
+        `📍 Dropoff search (${response.source}):`,
+        response.results.length,
+        'results'
+      );
+      setDropoffSuggestions(response.results);
+    } catch (error) {
+      console.error('Error searching dropoff places:', error);
+      setDropoffSuggestions([]);
+    } finally {
+      setIsSearchingDropoff(false);
+    }
+  };
+
+  // Select pickup place
+  const selectPickupPlace = (place: any) => {
+    console.log('🎯 [HomeScreen] Selecting pickup place:', place);
+    if (!place) {
+      console.error('❌ Invalid place data:', place);
+      return;
+    }
+    const placeName = place.name || place.address;
+    if (!placeName) {
+      console.error('❌ Place has no name or address:', place);
+      return;
+    }
+    setPickupLocation(placeName);
+    setPickupCoordinates([place.lng, place.lat]);
+    setPickupSuggestions([]);
+    console.log('✅ Pickup place selected:', placeName, [place.lng, place.lat]);
+  };
+
+  // Select dropoff place
+  const selectDropoffPlace = (place: any) => {
+    console.log('🎯 [HomeScreen] Selecting dropoff place:', place);
+    if (!place) {
+      console.error('❌ Invalid place data:', place);
+      return;
+    }
+    const placeName = place.name || place.address;
+    if (!placeName) {
+      console.error('❌ Place has no name or address:', place);
+      return;
+    }
+    setDropoffLocation(placeName);
+    setDropoffCoordinates([place.lng, place.lat]);
+    setDropoffSuggestions([]);
+    console.log('✅ Dropoff place selected:', placeName, [place.lng, place.lat]);
+  };
+
+  // Clear cache for debugging
+  const clearSearchCache = () => {
+    placesService.clearCache();
+    Alert.alert('Cache Cleared', 'Places cache cleared successfully');
+  };
 
   const handleFindRide = async () => {
     try {
@@ -215,9 +332,41 @@ export default function HomeScreen() {
               placeholder="Nhập điểm đón..."
               placeholderTextColor="#64748b"
               value={pickupLocation}
-              onChangeText={setPickupLocation}
+              onChangeText={(text) => {
+                setPickupLocation(text);
+                // Clear old suggestions immediately when user starts typing
+                if (debouncedPickupLocation && text.length < debouncedPickupLocation.length) {
+                  setPickupSuggestions([]);
+                }
+              }}
             />
+            {isSearchingPickup && (
+              <ActivityIndicator size="small" color="#FF6B00" style={{ marginLeft: SPACING.sm }} />
+            )}
           </View>
+
+          {/* Pickup Suggestions */}
+          {pickupSuggestions.length > 0 && (
+            <View style={styles.suggestionsContainer}>
+              <FlatList
+                data={pickupSuggestions}
+                scrollEnabled={false}
+                keyExtractor={(item, index) => item.placeId + index}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.suggestionItem}
+                    onPress={() => selectPickupPlace(item)}
+                  >
+                    <MaterialIcons name="location-on" size={18} color="#94a3b8" />
+                    <View style={{ flex: 1, marginLeft: SPACING.md }}>
+                      <Text style={styles.suggestionName}>{item.name}</Text>
+                      <Text style={styles.suggestionAddress}>{item.address}</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
 
           <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>
             ĐIỂM ĐẾN
@@ -229,9 +378,41 @@ export default function HomeScreen() {
               placeholder="Nhập điểm đến..."
               placeholderTextColor="#64748b"
               value={dropoffLocation}
-              onChangeText={setDropoffLocation}
+              onChangeText={(text) => {
+                setDropoffLocation(text);
+                // Clear old suggestions immediately when user starts typing
+                if (debouncedDropoffLocation && text.length < debouncedDropoffLocation.length) {
+                  setDropoffSuggestions([]);
+                }
+              }}
             />
+            {isSearchingDropoff && (
+              <ActivityIndicator size="small" color="#ef4444" style={{ marginLeft: SPACING.sm }} />
+            )}
           </View>
+
+          {/* Dropoff Suggestions */}
+          {dropoffSuggestions.length > 0 && (
+            <View style={styles.suggestionsContainer}>
+              <FlatList
+                data={dropoffSuggestions}
+                scrollEnabled={false}
+                keyExtractor={(item, index) => item.placeId + index}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.suggestionItem}
+                    onPress={() => selectDropoffPlace(item)}
+                  >
+                    <MaterialIcons name="location-on" size={18} color="#94a3b8" />
+                    <View style={{ flex: 1, marginLeft: SPACING.md }}>
+                      <Text style={styles.suggestionName}>{item.name}</Text>
+                      <Text style={styles.suggestionAddress}>{item.address}</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
         </View>
 
         {/* Time & Passenger Section */}
@@ -580,5 +761,33 @@ const styles = StyleSheet.create({
   },
   findButtonIcon: {
     marginLeft: SPACING.sm,
+  },
+  suggestionsContainer: {
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.lg,
+    backgroundColor: '#1a202c',
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: '#374151',
+    overflow: 'hidden',
+    maxHeight: 300,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  suggestionName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: SPACING.xs,
+  },
+  suggestionAddress: {
+    fontSize: 11,
+    color: '#64748b',
   },
 })

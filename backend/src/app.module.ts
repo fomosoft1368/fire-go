@@ -11,6 +11,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { PlacesModule } from './modules/places/places.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { MessagesModule } from './modules/messages/messages.module';
     NotificationsModule,
     AdminModule,
     MessagesModule,
+    PlacesModule,
   ],
   controllers: [],
   providers: [],
