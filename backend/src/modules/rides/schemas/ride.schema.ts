@@ -59,7 +59,10 @@ export class Ride {
   @Prop({ required: true })
   pickupAddress: string;
 
-  @Prop({ type: { type: String, enum: ['Point'], default: 'Point' }, coordinates: [Number] })
+  @Prop({
+    type: Object,
+    default: { type: 'Point', coordinates: [] }
+  })
   pickupLocation: {
     type: string;
     coordinates: [number, number]; // [longitude, latitude]
@@ -69,7 +72,10 @@ export class Ride {
   @Prop({ required: true })
   dropoffAddress: string;
 
-  @Prop({ type: { type: String, enum: ['Point'], default: 'Point' }, coordinates: [Number] })
+  @Prop({
+    type: Object,
+    default: { type: 'Point', coordinates: [] }
+  })
   dropoffLocation: {
     type: string;
     coordinates: [number, number];

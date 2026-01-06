@@ -23,6 +23,25 @@ const RideMap: React.FC<RideMapProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Debug: Log coordinates được truyền vào
+  useEffect(() => {
+    const isDefaultPickup = pickupCoords[0] === 106.6309 && pickupCoords[1] === 10.7895;
+    const isDefaultDropoff = dropoffCoords[0] === 106.6654 && dropoffCoords[1] === 10.8123;
+    
+    console.log('🗺️ RideMap Props:', {
+      pickupCoords,
+      dropoffCoords,
+      pickupAddress,
+      dropoffAddress,
+      isUsingDefaultPickup: isDefaultPickup,
+      isUsingDefaultDropoff: isDefaultDropoff,
+    });
+
+    if (isDefaultPickup || isDefaultDropoff) {
+      console.warn('⚠️ WARNING: Using default coordinates! Component parent may not be passing coords correctly');
+    }
+  }, [pickupCoords, dropoffCoords, pickupAddress, dropoffAddress]);
+
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -41,7 +60,7 @@ const RideMap: React.FC<RideMapProps> = ({
     }
 
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=maps,geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=maps,marker,geometry`;
     script.async = true;
     script.defer = true;
     script.onload = initMap;
@@ -69,14 +88,51 @@ const RideMap: React.FC<RideMapProps> = ({
     try {
       const { google } = window;
 
+      // Validate coordinates
+      const isValidCoord = (coords: [number, number]) => {
+        if (!coords || coords.length !== 2) return false;
+        if (isNaN(coords[0]) || isNaN(coords[1])) return false;
+        // Longitude: -180 to 180, Latitude: -90 to 90
+        if (coords[0] < -180 || coords[0] > 180) {
+          console.warn(`❌ Longitude ${coords[0]} out of range [-180, 180]`);
+          return false;
+        }
+        if (coords[1] < -90 || coords[1] > 90) {
+          console.warn(`❌ Latitude ${coords[1]} out of range [-90, 90]`);
+          return false;
+        }
+        return true;
+      };
+
+      if (!isValidCoord(pickupCoords) || !isValidCoord(dropoffCoords)) {
+        console.warn('❌ Invalid coordinates:', { pickupCoords, dropoffCoords });
+        setError('Tọa độ không hợp lệ. Kiểm tra dữ liệu từ server.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('✅ Valid coordinates, initializing map...');
+      console.log('📍 Pickup coords:', {
+        lng: pickupCoords[0],
+        lat: pickupCoords[1],
+        geoJSON: pickupCoords,
+      });
+      console.log('📍 Dropoff coords:', {
+        lng: dropoffCoords[0],
+        lat: dropoffCoords[1],
+        geoJSON: dropoffCoords,
+      });
+
       // Tạo map centered giữa pickup & dropoff
       const center = {
         lat: (pickupCoords[1] + dropoffCoords[1]) / 2,
         lng: (pickupCoords[0] + dropoffCoords[0]) / 2,
       };
 
+      console.log('📍 Map center:', center);
+
       const mapInstance = new google.maps.Map(mapRef.current!, {
-        zoom: 13,
+        zoom: 12,
         center,
         mapTypeControl: true,
         fullscreenControl: true,
@@ -89,20 +145,64 @@ const RideMap: React.FC<RideMapProps> = ({
         ],
       });
 
-      // Markers
-      new google.maps.Marker({
-        position: { lat: pickupCoords[1], lng: pickupCoords[0] },
-        map: mapInstance,
-        title: pickupAddress,
-        icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
-      });
+      // Zoom to fit both markers
+      const bounds = new google.maps.LatLngBounds();
+      bounds.extend({ lat: pickupCoords[1], lng: pickupCoords[0] });
+      bounds.extend({ lat: dropoffCoords[1], lng: dropoffCoords[0] });
+      
+      // Add some padding
+      mapInstance.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
 
-      new google.maps.Marker({
-        position: { lat: dropoffCoords[1], lng: dropoffCoords[0] },
-        map: mapInstance,
-        title: dropoffAddress,
-        icon: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-      });
+      // Markers - sử dụng AdvancedMarkerElement
+      const pickupLatLng = { lat: pickupCoords[1], lng: pickupCoords[0] };
+      const dropoffLatLng = { lat: dropoffCoords[1], lng: dropoffCoords[0] };
+
+      console.log('🔧 Creating markers:', { pickup: pickupLatLng, dropoff: dropoffLatLng });
+
+      try {
+        // Pickup marker
+        const pickupPin = new google.maps.marker.PinElement({
+          background: '#22c55e',
+          glyph: '📍',
+        });
+        new google.maps.marker.AdvancedMarkerElement({
+          position: pickupLatLng,
+          map: mapInstance,
+          title: pickupAddress,
+          content: pickupPin.element,
+        });
+        console.log('✅ Pickup marker created');
+
+        // Dropoff marker
+        const dropoffPin = new google.maps.marker.PinElement({
+          background: '#ef4444',
+          glyph: '📍',
+        });
+        new google.maps.marker.AdvancedMarkerElement({
+          position: dropoffLatLng,
+          map: mapInstance,
+          title: dropoffAddress,
+          content: dropoffPin.element,
+        });
+        console.log('✅ Dropoff marker created');
+      } catch (err) {
+        // Fallback to old Marker API nếu AdvancedMarkerElement không hoạt động
+        console.warn('⚠️ AdvancedMarkerElement not available, using legacy Marker API', err);
+        new google.maps.Marker({
+          position: pickupLatLng,
+          map: mapInstance,
+          title: pickupAddress,
+          icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+        });
+
+        new google.maps.Marker({
+          position: dropoffLatLng,
+          map: mapInstance,
+          title: dropoffAddress,
+          icon: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+        });
+        console.log('✅ Legacy markers created as fallback');
+      }
 
       // Directions Service để lấy routing
       const directionsService = new google.maps.DirectionsService();
@@ -115,34 +215,96 @@ const RideMap: React.FC<RideMapProps> = ({
         },
       });
 
-      directionsService.route(
-        {
-          origin: { lat: pickupCoords[1], lng: pickupCoords[0] },
-          destination: { lat: dropoffCoords[1], lng: dropoffCoords[0] },
-          travelMode: google.maps.TravelMode.DRIVING,
-        },
-        (result: any, status: any) => {
-          if (status === google.maps.DirectionsStatus.OK) {
-            directionsRenderer.setDirections(result);
-          } else {
-            console.warn('Directions request failed:', status);
-            // Nếu không lấy được routing, vẽ đường thẳng
-            new google.maps.Polyline({
-              path: [
-                { lat: pickupCoords[1], lng: pickupCoords[0] },
-                { lat: dropoffCoords[1], lng: dropoffCoords[0] },
-              ],
+      const originLat = pickupCoords[1];
+      const originLng = pickupCoords[0];
+      const destLat = dropoffCoords[1];
+      const destLng = dropoffCoords[0];
+
+      const originObj = { lat: originLat, lng: originLng };
+      const destObj = { lat: destLat, lng: destLng };
+
+      console.log('🔍 Directions request details:');
+      console.log('   Origin:', originObj, `(${pickupAddress})`);
+      console.log('   Destination:', destObj, `(${dropoffAddress})`);
+      console.log('   Distance:', Math.sqrt(Math.pow(destLat - originLat, 2) + Math.pow(destLng - originLng, 2)) * 111, 'km approx');
+
+      // Use OpenRouteService for actual routing via backend proxy (avoids CORS)
+      const fetchRoute = async () => {
+        try {
+          console.log('🔍 Fetching route from backend (ORS proxy)...');
+          
+          const response = await fetch(
+            `http://localhost:3000/api/rides/directions?startLng=${originLng}&startLat=${originLat}&endLng=${destLng}&endLat=${destLat}`
+          );
+          
+          if (!response.ok) {
+            throw new Error(`Backend error: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          console.log('✅ Route data received from backend:', data);
+          
+          if (data.features && data.features.length > 0) {
+            const route = data.features[0];
+            const coords = route.geometry.coordinates;
+            
+            // Draw polyline from ORS route
+            const polylinePath = coords.map((coord: [number, number]) => ({
+              lat: coord[1],
+              lng: coord[0]
+            }));
+            
+            const routePolyline = new google.maps.Polyline({
+              path: polylinePath,
               geodesic: true,
               strokeColor: '#FF6B00',
               strokeOpacity: 0.8,
               strokeWeight: 4,
               map: mapInstance,
             });
+            
+            console.log('✅ Route polyline drawn from ORS!');
+            if (route.properties?.summary) {
+              console.log('   Distance:', (route.properties.summary.distance / 1000).toFixed(2), 'km');
+              console.log('   Duration:', Math.round(route.properties.summary.duration / 60), 'minutes');
+            }
+            
+            setLoading(false);
+          } else {
+            console.warn('⚠️ No route found in response');
+            drawStraightLine();
           }
+        } catch (err) {
+          console.warn('⚠️ Route fetch failed:', err);
+          console.log('Falling back to straight line...');
+          drawStraightLine();
         }
-      );
+      };
 
-      setLoading(false);
+      const drawStraightLine = () => {
+        const straightLine = new google.maps.Polyline({
+          path: [
+            { lat: originLat, lng: originLng },
+            { lat: destLat, lng: destLng },
+          ],
+          geodesic: true,
+          strokeColor: '#FF6B00',
+          strokeOpacity: 0.8,
+          strokeWeight: 4,
+          map: mapInstance,
+        });
+        
+        console.log('✅ Straight line drawn:', {
+          from: { lat: originLat, lng: originLng },
+          to: { lat: destLat, lng: destLng }
+        });
+        
+        setLoading(false);
+      };
+
+      // Start fetching route
+      fetchRoute();
+
       setError(null);
     } catch (err) {
       console.error('Map initialization error:', err);

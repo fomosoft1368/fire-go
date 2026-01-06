@@ -239,8 +239,8 @@ const DispatchManagement: React.FC = () => {
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Bản đồ điều phối</h3>
                   {selectedRide && selectedRide.pickupLocation?.coordinates && selectedRide.dropoffLocation?.coordinates ? (
                     <RideMap
-                      pickupCoords={selectedRide.pickupLocation.coordinates}
-                      dropoffCoords={selectedRide.dropoffLocation.coordinates}
+                      pickupCoords={[selectedRide.pickupLocation.coordinates[0], selectedRide.pickupLocation.coordinates[1]]}
+                      dropoffCoords={[selectedRide.dropoffLocation.coordinates[0], selectedRide.dropoffLocation.coordinates[1]]}
                       pickupAddress={selectedRide.pickupAddress}
                       dropoffAddress={selectedRide.dropoffAddress}
                     />

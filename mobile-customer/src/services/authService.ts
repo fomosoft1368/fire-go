@@ -61,12 +61,18 @@ export const authService = {
       
       const user: User = {
         id: data.user.id,
-        name: `${data.user.firstName} ${data.user.lastName}`,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
         email: data.user.email,
         phone: data.user.phone || '',
         role: data.user.role,
         avatar: data.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
-        rating: data.user.rating || 5,
+        completedRides: data.user.completedRides || 0,
+        averageRating: data.user.averageRating || 5,
+        totalSpent: data.user.totalSpent || 0,
+        savedAddresses: data.user.savedAddresses || [],
+        dateOfBirth: data.user.dateOfBirth,
+        preferredDriverGender: data.user.preferredDriverGender,
       }
       
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
@@ -144,12 +150,18 @@ export const authService = {
 
       const user: User = {
         id: data.user.id,
-        name: `${data.user.firstName} ${data.user.lastName}`,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
         email: data.user.email,
         phone: data.user.phone || '',
         role: data.user.role,
         avatar: data.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
-        rating: data.user.rating || 5,
+        completedRides: data.user.completedRides || 0,
+        averageRating: data.user.averageRating || 5,
+        totalSpent: data.user.totalSpent || 0,
+        savedAddresses: data.user.savedAddresses || [],
+        dateOfBirth: data.user.dateOfBirth,
+        preferredDriverGender: data.user.preferredDriverGender,
       }
 
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
@@ -177,9 +189,16 @@ export const authService = {
   // Logout
   async logout(): Promise<void> {
     try {
+      console.log('[Auth] Logging out, clearing storage...')
       await AsyncStorage.removeItem(TOKEN_KEY)
-      await AsyncStorage.removeItem('user')
+      await AsyncStorage.removeItem(REFRESH_TOKEN_KEY)
+      await AsyncStorage.removeItem(USER_KEY)
+      // Clear all storage to be safe
+      const keys = await AsyncStorage.getAllKeys()
+      await AsyncStorage.multiRemove(keys.filter(k => k.includes('auth') || k.includes('user') || k.includes('token')))
+      console.log('[Auth] Storage cleared completely')
     } catch (error) {
+      console.error('[Auth] Logout error:', error)
       throw error
     }
   },
@@ -190,6 +209,66 @@ export const authService = {
       return await AsyncStorage.getItem(TOKEN_KEY)
     } catch (error) {
       return null
+    }
+  },
+
+  // Update profile
+  async updateProfile(userId: string, updateData: any): Promise<User> {
+    try {
+      console.log('[Auth] Update profile attempt:', { userId, updateData: { ...updateData, password: undefined } })
+      
+      const token = await this.getToken()
+      if (!token) {
+        throw new Error('No auth token found')
+      }
+
+      const response = await fetch(`${API_BASE_URL}/customers/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(updateData),
+      })
+
+      console.log('[Auth] Update profile response status:', response.status)
+
+      if (!response.ok) {
+        let errorData: any
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = { message: `HTTP ${response.status}` }
+        }
+        console.error('[Auth] Update profile error:', errorData)
+        throw new Error(errorData.message || 'Cập nhật hồ sơ thất bại')
+      }
+
+      const data = await response.json()
+      console.log('[Auth] Update profile success')
+
+      // Update stored user info
+      const user: User = {
+        id: data._id || userId,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone || '',
+        role: data.role || 'customer',
+        avatar: data.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.email}`,
+        completedRides: data.completedRides || 0,
+        averageRating: data.averageRating || 5,
+        totalSpent: data.totalSpent || 0,
+        savedAddresses: data.savedAddresses || [],
+        dateOfBirth: data.dateOfBirth,
+        preferredDriverGender: data.preferredDriverGender,
+      }
+
+      // Store updated user info in Redux will be handled by the component
+      return user
+    } catch (error: any) {
+      console.error('[Auth] Update profile failed:', error.message || error)
+      throw error
     }
   },
 }

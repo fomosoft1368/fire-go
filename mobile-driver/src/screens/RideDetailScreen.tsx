@@ -17,7 +17,6 @@ import { useSelector } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { COLORS } from '../constants'
 import { driverService } from '../services/driverService'
-import ChatScreen from './ChatScreen'
 import type { RootState } from '../redux/store'
 
 interface RideDetailScreenProps {
@@ -30,7 +29,6 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const [ride, setRide] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
-  const [showChat, setShowChat] = useState(false)
   const { user } = useSelector((state: RootState) => state.auth)
   const scaleAnim = useRef(new Animated.Value(1)).current
   const fadeAnim = useRef(new Animated.Value(1)).current
@@ -80,9 +78,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
       const formattedRide = {
         id: data._id,
         driverId: data.driverId,
-        passengerName: data.customerId?.firstName || data.customerName || 'Khách hàng',
-        customerPhone: data.customerId?.phone,
-        customerEmail: data.customerId?.email,
+        passengerName: data.customerName || 'Khách hàng',
         rating: data.customerRating || 4.8,
         reviews: data.reviews || 0,
         status: data.rideType === 'share' ? 'Khách ghép' : 'Lái xe hộ',
@@ -138,6 +134,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     if (ride?.driverId) {
       Alert.alert('Thông báo', 'Chuyến đi này đã được nhận. Không thể nhận lại.')
       return
+      
     }
 
     setUpdating(true)
@@ -323,19 +320,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Show ChatScreen if toggled */}
-      {showChat && ride ? (
-        <ChatScreen
-          customer={{
-            id: ride.id,
-            name: ride.passengerName,
-            phone: ride.customerPhone,
-            email: ride.customerEmail,
-          }}
-          rideId={rideId}
-          onClose={() => setShowChat(false)}
-        />
-      ) : loading ? (
+      {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Đang tải chi tiết chuyến đi...</Text>
@@ -426,10 +411,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
                 <Text style={styles.status}>{ride.status}</Text>
               </View>
               <View style={styles.actionIcons}>
-                <TouchableOpacity 
-                  style={styles.messageIcon}
-                  onPress={() => setShowChat(true)}
-                >
+                <TouchableOpacity style={styles.messageIcon}>
                   <MaterialIcons name="message" size={20} color={COLORS.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.phoneIcon}>

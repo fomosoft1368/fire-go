@@ -22,15 +22,15 @@ const NotificationDropdown: React.FC = () => {
 
   const getTypeLabel = (type: string) => {
     const labels: { [key: string]: string } = {
-      driver_registered: '👤 Tài xế mới',
-      customer_registered: '👥 Khách hàng mới',
-      ride_created: '🚗 Chuyến đi mới',
-      dispute_created: '⚖️ Tranh chấp',
-      payment_received: '💰 Thanh toán',
-      ride_completed: '✅ Hoàn thành',
-      driver_blocked: '🚫 Tài xế bị khóa',
-      maintenance_alert: '🔧 Cảnh báo',
-      other: '📢 Thông báo',
+      driver_registered: 'Tài xế mới',
+      customer_registered: 'Khách hàng mới',
+      ride_created: 'Chuyến đi mới',
+      dispute_created: 'Tranh chấp',
+      payment_received: 'Thanh toán',
+      ride_completed: 'Hoàn thành',
+      driver_blocked: 'Tài xế bị khóa',
+      maintenance_alert: 'Cảnh báo',
+      other: 'Thông báo',
     };
     return labels[type] || 'Thông báo';
   };

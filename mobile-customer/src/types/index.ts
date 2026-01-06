@@ -1,12 +1,20 @@
 // Auth Types
 export interface User {
   id: string
-  name: string
+  firstName?: string
+  lastName?: string
+  name?: string
   email: string
   phone: string
   role: 'customer' | 'admin'
   avatar?: string
   rating?: number
+  completedRides?: number
+  averageRating?: number
+  totalSpent?: number
+  savedAddresses?: Array<{ address: string; label: string }>
+  dateOfBirth?: string
+  preferredDriverGender?: string
 }
 
 export interface AuthState {

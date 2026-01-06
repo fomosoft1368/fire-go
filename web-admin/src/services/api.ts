@@ -543,6 +543,76 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  // Revenue Analytics API
+  async getRevenueStats(startDate?: string, endDate?: string): Promise<any> {
+    let url = `${API_BASE_URL}/rides/analytics/revenue`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return null;
+    return this.handleResponse(response);
+  }
+
+  async getDailyRevenue(days: number = 7): Promise<any[]> {
+    const url = `${API_BASE_URL}/rides/analytics/daily-revenue?days=${days}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getRevenueByType(startDate?: string, endDate?: string): Promise<any[]> {
+    let url = `${API_BASE_URL}/rides/analytics/revenue-by-type`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getWeeklyRevenue(): Promise<any[]> {
+    const url = `${API_BASE_URL}/rides/analytics/weekly-revenue`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getPeakHours(startDate?: string, endDate?: string): Promise<any[]> {
+    let url = `${API_BASE_URL}/rides/analytics/peak-hours`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getTopDrivers(limit: number = 10): Promise<any[]> {
+    const url = `${API_BASE_URL}/rides/analytics/top-drivers?limit=${limit}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
   // Generic HTTP methods
   async get(endpoint: string): Promise<any> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {

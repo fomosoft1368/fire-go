@@ -16,9 +16,9 @@ export const mongooseConfig = (): MongooseModuleOptions => ({
  */
 export const jwtConfig = {
   secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
-  expiresIn: process.env.JWT_EXPIRATION || '24h',
+  expiresIn: process.env.JWT_EXPIRATION || '7d', // Tăng từ 24h thành 7 ngày
   refreshSecret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key',
-  refreshExpiresIn: '7d',
+  refreshExpiresIn: '30d',
 };
 
 /**

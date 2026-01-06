@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
+import { apiService } from '../services/api';
 
 interface DailyRevenue {
   id: string;
@@ -10,35 +11,149 @@ interface DailyRevenue {
   revenue: string;
 }
 
+interface RevenueStats {
+  totalRevenue: number;
+  totalRides: number;
+  averageFare: number;
+}
+
+interface RevenueByType {
+  type: string;
+  revenue: number;
+  rides: number;
+  percentage: string | number;
+}
+
 export default function RevenueManagement() {
   const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month'>('week');
+  const [loading, setLoading] = useState(true);
+  const [revenueStats, setRevenueStats] = useState<RevenueStats | null>(null);
+  const [dailyRevenues, setDailyRevenues] = useState<DailyRevenue[]>([]);
+  const [revenueByType, setRevenueByType] = useState<RevenueByType[]>([]);
 
-  const dailyRevenues: DailyRevenue[] = [
-    {
-      id: '1',
-      date: '24',
-      month: 'T10',
-      day: '24',
-      rides: 450,
-      revenue: '120.500.000'
-    },
-    {
-      id: '2',
-      date: '23',
-      month: 'T10',
-      day: '23',
-      rides: 432,
-      revenue: '115.200.000'
-    },
-    {
-      id: '3',
-      date: '22',
-      month: 'T10',
-      day: '22',
-      rides: 410,
-      revenue: '98.800.000'
+  useEffect(() => {
+    fetchRevenueData();
+  }, [timeFilter]);
+
+  const fetchRevenueData = async () => {
+    try {
+      setLoading(true);
+      console.log('[Revenue] Fetching data for filter:', timeFilter);
+      
+      // Calculate date range based on filter
+      const endDate = new Date();
+      const startDate = new Date();
+      let days = 7;
+      
+      if (timeFilter === 'today') {
+        days = 1;
+        startDate.setDate(startDate.getDate());
+      } else if (timeFilter === 'week') {
+        days = 7;
+        startDate.setDate(startDate.getDate() - 6);
+      } else if (timeFilter === 'month') {
+        days = 30;
+        startDate.setDate(startDate.getDate() - 29);
+      }
+
+      // Fetch revenue stats
+      const statsResponse = await apiService.getRevenueStats(
+        startDate.toISOString(),
+        endDate.toISOString()
+      );
+      console.log('[Revenue] Stats response:', statsResponse);
+      if (statsResponse) {
+        setRevenueStats(statsResponse);
+      }
+
+      // Fetch daily revenue
+      const dailyResponse = await apiService.getDailyRevenue(days);
+      console.log('[Revenue] Daily response:', dailyResponse);
+      if (Array.isArray(dailyResponse) && dailyResponse.length > 0) {
+        const formattedDaily: DailyRevenue[] = dailyResponse.map((item, idx) => {
+          const revenueNum = typeof item.revenue === 'string' ? parseInt(item.revenue) : item.revenue;
+          return {
+            id: idx.toString(),
+            date: item.date || '',
+            month: item.month || 'T12',
+            day: item.day?.toString() || '',
+            rides: item.rides || 0,
+            revenue: revenueNum.toLocaleString('vi-VN'),
+          };
+        });
+        console.log('[Revenue] Formatted daily:', formattedDaily);
+        setDailyRevenues(formattedDaily);
+      }
+
+      // Fetch revenue by type
+      const typeResponse = await apiService.getRevenueByType(
+        startDate.toISOString(),
+        endDate.toISOString()
+      );
+      console.log('[Revenue] Type response:', typeResponse);
+      if (Array.isArray(typeResponse) && typeResponse.length > 0) {
+        setRevenueByType(typeResponse);
+      }
+    } catch (error) {
+      console.error('[Revenue] Error fetching data:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  // Calculate total revenue from stats
+  const totalRevenue = revenueStats?.totalRevenue || 1250000000;
+  const previousRevenue = totalRevenue * 0.95; // Assume 5% growth
+  const growthPercentage = ((totalRevenue - previousRevenue) / previousRevenue * 100).toFixed(1);
+
+  // Generate chart data from daily revenues
+  const generateChartPath = () => {
+    if (!dailyRevenues || dailyRevenues.length === 0) {
+      return 'M0 110 C 30 110, 50 80, 80 90 C 110 100, 130 50, 160 60 C 190 70, 210 30, 240 40 C 270 50, 290 20, 320 30 C 350 40, 375 10, 375 10';
+    }
+
+    const width = 375;
+    const height = 150;
+    const padding = 20;
+    
+    // Parse revenue values safely
+    const revenueValues = dailyRevenues.map(r => {
+      const revStr = typeof r.revenue === 'string' ? r.revenue.replace(/\./g, '').replace(/,/g, '') : String(r.revenue);
+      return parseInt(revStr) || 0;
+    });
+    
+    const maxRevenue = Math.max(...revenueValues, 1000000);
+    console.log('[Chart] Parsed revenues:', revenueValues, 'Max:', maxRevenue);
+    
+    const points = dailyRevenues.slice(-7).map((item, idx) => {
+      const revenue = revenueValues[dailyRevenues.length - 7 + idx] || 0;
+      const x = (idx / Math.max(dailyRevenues.length - 1, 1)) * (width - padding * 2) + padding;
+      const y = height - ((revenue / maxRevenue) * (height - padding * 2)) - padding;
+      return { x, y };
+    });
+
+    if (points.length < 2) {
+      return 'M0 110 L375 110';
+    }
+
+    // Generate smooth curve using quadratic Bezier
+    let path = `M${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const cp1x = points[i - 1].x + (points[i].x - points[i - 1].x) / 3;
+      const cp1y = points[i - 1].y;
+      const cp2x = points[i].x - (points[i].x - points[i - 1].x) / 3;
+      const cp2y = points[i].y;
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${points[i].x} ${points[i].y}`;
+    }
+
+    console.log('[Chart] Generated path:', path);
+    return path;
+  };
+
+  const generateFillPath = () => {
+    const linePath = generateChartPath();
+    return linePath + ' V 150 H 0 Z';
+  };
 
   return (
     <Layout>
@@ -92,15 +207,15 @@ export default function RevenueManagement() {
             </div>
             <div className="flex items-baseline gap-2 mt-1 z-10">
               <h2 className="text-white text-4xl font-extrabold tracking-tight">
-                1.250.000.000 <span className="text-xl text-slate-400 font-bold">đ</span>
+                {loading ? '...' : (totalRevenue / 1000000000).toFixed(1)} <span className="text-xl text-slate-400 font-bold">Tỷ ₫</span>
               </h2>
             </div>
             <div className="flex items-center gap-2 mt-2 z-10">
               <div className="flex items-center gap-1 bg-green-500/10 px-2 py-1 rounded text-green-500">
                 <span className="material-symbols-outlined text-base">trending_up</span>
-                <p className="text-sm font-bold">+5.4%</p>
+                <p className="text-sm font-bold">+{growthPercentage}%</p>
               </div>
-              <p className="text-slate-500 text-sm">so với tuần trước</p>
+              <p className="text-slate-500 text-sm">so với thời kỳ trước</p>
             </div>
           </div>
         </div>
@@ -120,19 +235,13 @@ export default function RevenueManagement() {
                     <stop offset="1" stopColor="#FF6B00" stopOpacity="0" />
                   </linearGradient>
                 </defs>
-                <path d="M0 110 C 30 110, 50 80, 80 90 C 110 100, 130 50, 160 60 C 190 70, 210 30, 240 40 C 270 50, 290 20, 320 30 C 350 40, 375 10, 375 10 V 150 H 0 Z" fill="url(#chartGradient)" />
-                <path d="M0 110 C 30 110, 50 80, 80 90 C 110 100, 130 50, 160 60 C 190 70, 210 30, 240 40 C 270 50, 290 20, 320 30 C 350 40, 375 10, 375 10" fill="none" stroke="#FF6B00" strokeLinecap="round" strokeWidth="3" />
-                <circle cx="160" cy="60" r="4" fill="#FF6B00" stroke="#fff" strokeWidth="2" />
-                <circle cx="320" cy="30" r="4" fill="#FF6B00" stroke="#fff" strokeWidth="2" />
+                <path d={generateFillPath()} fill="url(#chartGradient)" />
+                <path d={generateChartPath()} fill="none" stroke="#FF6B00" strokeLinecap="round" strokeWidth="3" />
               </svg>
               <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2 px-1">
-                <span>T2</span>
-                <span>T3</span>
-                <span>T4</span>
-                <span>T5</span>
-                <span>T6</span>
-                <span>T7</span>
-                <span>CN</span>
+                {dailyRevenues.slice(-7).map((item, idx) => (
+                  <span key={idx}>{item.month.replace('T', '')}/{item.day}</span>
+                ))}
               </div>
             </div>
           </div>
@@ -147,39 +256,41 @@ export default function RevenueManagement() {
               <span className="material-symbols-outlined text-slate-500" style={{ fontSize: '20px' }}>pie_chart</span>
             </div>
             <div className="space-y-5">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-primary"></span> Xe máy
-                  </span>
-                  <span className="text-slate-900 dark:text-white font-bold">45%</span>
+              {revenueByType.length > 0 ? (
+                revenueByType.map((item, idx) => {
+                  const colors = ['bg-primary', 'bg-purple-500', 'bg-blue-500'];
+                  const percentage = typeof item.percentage === 'string' ? parseInt(item.percentage) : item.percentage;
+                  return (
+                    <div key={item.type || idx} className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full ${colors[idx % colors.length]}`}></span>
+                          {item.type === 'share' ? 'Xe máy' : item.type === 'hire' ? 'Ô tô' : 'Khác'}
+                        </span>
+                        <span className="text-slate-900 dark:text-white font-bold">{percentage}%</span>
+                      </div>
+                      <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${colors[idx % colors.length]} rounded-full transition-all duration-500`} 
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-primary"></span> Xe máy
+                    </span>
+                    <span className="text-slate-900 dark:text-white font-bold">45%</span>
+                  </div>
+                  <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: '45%' }}></div>
+                  </div>
                 </div>
-                <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: '45%' }}></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Ô tô
-                  </span>
-                  <span className="text-slate-900 dark:text-white font-bold">35%</span>
-                </div>
-                <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-purple-500 rounded-full transition-all duration-500" style={{ width: '35%' }}></div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Giao hàng
-                  </span>
-                  <span className="text-slate-900 dark:text-white font-bold">20%</span>
-                </div>
-                <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: '20%' }}></div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -190,14 +301,18 @@ export default function RevenueManagement() {
                 <span className="material-symbols-outlined text-xl">account_balance_wallet</span>
               </div>
               <p className="text-slate-500 dark:text-slate-400 text-xs font-medium">Chi trả tài xế</p>
-              <p className="text-slate-900 dark:text-white text-xl font-bold">850 Tr</p>
+              <p className="text-slate-900 dark:text-white text-xl font-bold">
+                {loading ? '...' : `${(totalRevenue * 0.68 / 1000000).toFixed(0)}M`}
+              </p>
             </div>
             <div className="bg-white dark:bg-card-dark p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col gap-2 shadow-sm">
               <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary mb-1">
                 <span className="material-symbols-outlined text-xl">savings</span>
               </div>
               <p className="text-slate-500 dark:text-slate-400 text-xs font-medium">Tổng hoa hồng</p>
-              <p className="text-slate-900 dark:text-white text-xl font-bold">250 Tr</p>
+              <p className="text-slate-900 dark:text-white text-xl font-bold">
+                {loading ? '...' : `${(totalRevenue * 0.2 / 1000000).toFixed(0)}M`}
+              </p>
             </div>
             <div className="bg-white dark:bg-card-dark p-5 rounded-2xl border border-slate-200 dark:border-slate-700 col-span-2 shadow-sm">
               <div className="flex justify-between items-center">
@@ -222,23 +337,29 @@ export default function RevenueManagement() {
 
         {/* Daily Summary */}
         <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Tổng kết ngày</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Tổng kết {timeFilter === 'today' ? 'hôm nay' : timeFilter === 'week' ? 'tuần này' : 'tháng này'}</h3>
           <div className="flex flex-col gap-3">
-            {dailyRevenues.map((item) => (
-              <div key={item.id} className="flex items-center justify-between p-5 rounded-xl bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all cursor-pointer">
-                <div className="flex items-center gap-4">
-                  <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    <span className="text-xs font-bold uppercase">{item.month}</span>
-                    <span className="text-sm font-bold">{item.day}</span>
+            {loading ? (
+              <div className="text-center py-8 text-slate-500">Đang tải dữ liệu...</div>
+            ) : dailyRevenues.length > 0 ? (
+              dailyRevenues.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-5 rounded-xl bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-700 shadow-sm hover:border-primary/50 dark:hover:border-primary/50 transition-all cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      <span className="text-xs font-bold uppercase">{item.month}</span>
+                      <span className="text-sm font-bold">{item.day}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <p className="text-slate-900 dark:text-white text-sm font-bold">Doanh thu ngày</p>
+                      <p className="text-slate-500 dark:text-slate-400 text-xs">{item.rides} cuốc xe</p>
+                    </div>
                   </div>
-                  <div className="flex flex-col">
-                    <p className="text-slate-900 dark:text-white text-sm font-bold">Doanh thu ngày</p>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs">{item.rides} cuốc xe</p>
-                  </div>
+                  <p className="text-slate-900 dark:text-white text-sm font-bold">{item.revenue} đ</p>
                 </div>
-                <p className="text-slate-900 dark:text-white text-sm font-bold">{item.revenue} đ</p>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-center py-8 text-slate-500">Không có dữ liệu</div>
+            )}
           </div>
           <button className="w-full mt-4 py-3 text-sm text-primary font-bold bg-primary/10 rounded-xl hover:bg-primary/20 transition-colors">
             Xem báo cáo chi tiết

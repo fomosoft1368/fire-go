@@ -8,7 +8,7 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen } from './screens'
+import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen } from './screens'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
@@ -92,11 +92,25 @@ const RootNavigator = () => {
       try {
         const token = await AsyncStorage.getItem('authToken')
         const userStr = await AsyncStorage.getItem('user')
+        
+        console.log('[App] Restoring auth...')
+        console.log('[App] Token exists:', !!token)
+        console.log('[App] User exists:', !!userStr)
 
         if (token && userStr) {
-          const user = JSON.parse(userStr)
-          dispatch(restoreAuth({ token, user }))
+          try {
+            const user = JSON.parse(userStr)
+            console.log('[App] Restored user:', { id: user.id, role: user.role, email: user.email })
+            dispatch(restoreAuth({ token, user }))
+          } catch (parseError) {
+            console.error('[App] User JSON parse error:', parseError)
+            // Clear corrupted data
+            await AsyncStorage.removeItem('authToken')
+            await AsyncStorage.removeItem('user')
+            dispatch(restoreAuth(null))
+          }
         } else {
+          console.log('[App] No auth data in storage')
           dispatch(restoreAuth(null))
         }
       } catch (error) {
@@ -115,7 +129,17 @@ const RootNavigator = () => {
       }}
     >
       {isAuthenticated ? (
-        <Stack.Screen name="Main" component={MainNavigator} />
+        <>
+          <Stack.Screen name="Main" component={MainNavigator} />
+          <Stack.Group
+            screenOptions={{
+              presentation: 'card',
+            }}
+          >
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+          </Stack.Group>
+        </>
       ) : (
         <Stack.Screen name="Login" component={LoginScreen} />
       )}

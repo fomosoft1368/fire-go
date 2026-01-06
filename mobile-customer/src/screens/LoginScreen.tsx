@@ -72,9 +72,15 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     dispatch(loginStart())
     try {
+      // Logout first to clear old token/user data
+      await authService.logout()
+      console.log('[LoginScreen] Logged out, cleared old token')
+      
       // Pass identifier (email or phone) to login
       const response = await authService.login(loginIdentifier, loginPassword)
+      console.log('[LoginScreen] Login success, dispatching loginSuccess')
       dispatch(loginSuccess({ token: response.token, user: response.user }))
+      console.log('[LoginScreen] Redux state updated with new token')
     } catch (err: any) {
       const errorMessage = err.message || 'Đăng nhập thất bại'
       dispatch(loginFailure(errorMessage))
@@ -117,6 +123,9 @@ export default function LoginScreen() {
   const handleRegister = async () => {
     dispatch(loginStart())
     try {
+      // Logout first to clear old token/user data
+      await authService.logout()
+      
       const response = await authService.register(
         regName,
         regEmail,

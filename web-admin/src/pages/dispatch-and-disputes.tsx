@@ -288,6 +288,37 @@ const DispatchAndDisputesPage: React.FC = () => {
 
       mapInstance.markers.push(pickupMarker, dropoffMarker);
 
+      // Draw actual route from Directions API
+      const directionsService = new (window as any).google.maps.DirectionsService();
+      const directionsRenderer = new (window as any).google.maps.DirectionsRenderer({
+        map: mapInstance,
+        suppressMarkers: true,
+        polylineOptions: {
+          strokeColor: '#3b82f6',
+          strokeOpacity: 0.8,
+          strokeWeight: 3,
+          geodesic: true
+        }
+      });
+
+      directionsService.route(
+        {
+          origin: { lat: pickupCoords[1], lng: pickupCoords[0] },
+          destination: { lat: dropoffCoords[1], lng: dropoffCoords[0] },
+          travelMode: (window as any).google.maps.TravelMode.DRIVING
+        },
+        (result: any, status: any) => {
+          if (status === (window as any).google.maps.DirectionsStatus.OK) {
+            directionsRenderer.setDirections(result);
+            if (mapInstance.polylines) {
+              mapInstance.polylines.push(directionsRenderer);
+            }
+          } else {
+            console.error('Directions request failed:', status);
+          }
+        }
+      );
+
       const bounds = new (window as any).google.maps.LatLngBounds();
       bounds.extend({ lat: pickupCoords[1], lng: pickupCoords[0] });
       bounds.extend({ lat: dropoffCoords[1], lng: dropoffCoords[0] });

@@ -48,7 +48,7 @@ export class CustomersController {
           role: 'customer',
         },
         {
-          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
           expiresIn: '24h',
         }
       );
@@ -89,11 +89,19 @@ export class CustomersController {
   @Post('login')
   async login(@Body() loginDto: { identifier: string; password: string }) {
     try {
+      console.log('[Customers Login] Identifier:', loginDto.identifier)
+      
       if (!loginDto.identifier || !loginDto.password) {
         throw new UnauthorizedException('Email/Phone and password are required');
       }
 
       const customer = await this.customersService.findByEmailOrPhone(loginDto.identifier);
+      console.log('[Customers Login] Customer found:', {
+        id: customer._id,
+        email: customer.email,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+      })
       
       if (!customer) {
         throw new UnauthorizedException('Invalid email or password');
@@ -114,7 +122,7 @@ export class CustomersController {
           role: 'customer',
         },
         {
-          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
           expiresIn: '24h',
         }
       );
@@ -166,6 +174,36 @@ export class CustomersController {
   @Get(':id')
   async findById(@Param('id') id: string) {
     return this.customersService.findById(id);
+  }
+
+  @Patch('change-password')
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @Request() req: any,
+    @Body() body: { currentPassword: string; newPassword: string }
+  ) {
+    console.log('[ChangePassword] Request user:', {
+      sub: req.user?.sub,
+      id: req.user?.id,
+      email: req.user?.email,
+      role: req.user?.role,
+    })
+    
+    // Validate that this is a customer token, not a user/staff token
+    if (req.user?.role !== 'customer') {
+      throw new UnauthorizedException('This endpoint is only for customers. Current role: ' + req.user?.role);
+    }
+    
+    console.log('[ChangePassword] Body:', {
+      currentPassword: body.currentPassword ? '***' : 'missing',
+      newPassword: body.newPassword ? '***' : 'missing',
+    })
+    
+    return this.customersService.changePassword(
+      req.user.sub,
+      body.currentPassword,
+      body.newPassword
+    );
   }
 
   @Patch(':id')

@@ -52,15 +52,15 @@ const NotificationToast: React.FC = () => {
 
   const getTitle = (type: string) => {
     const titles: { [key: string]: string } = {
-      driver_registered: '👤 Tài xế mới đăng ký',
-      customer_registered: '👥 Khách hàng mới',
-      ride_created: '🚗 Chuyến đi mới',
-      dispute_created: '⚖️ Tranh chấp mới',
-      payment_received: '💰 Thanh toán nhận được',
-      ride_completed: '✅ Chuyến đi hoàn thành',
-      driver_blocked: '🚫 Tài xế bị khóa',
-      maintenance_alert: '🔧 Cảnh báo bảo trì',
-      other: '📢 Thông báo',
+      driver_registered: 'Tài xế mới đăng ký',
+      customer_registered: 'Khách hàng mới',
+      ride_created: 'Chuyến đi mới',
+      dispute_created: 'Tranh chấp mới',
+      payment_received: 'Thanh toán nhận được',
+      ride_completed: 'Chuyến đi hoàn thành',
+      driver_blocked: 'Tài xế bị khóa',
+      maintenance_alert: 'Cảnh báo bảo trì',
+      other: 'Thông báo',
     };
     return titles[type] || 'Thông báo';
   };

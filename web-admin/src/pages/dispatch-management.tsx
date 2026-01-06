@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Layout from '../components/Layout';
 import { apiService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
+import RideMap from '../components/RideMap';
 
 interface Driver {
   _id?: string;
@@ -114,8 +115,6 @@ const DispatchManagement: React.FC = () => {
   const [nearbyDrivers, setNearbyDrivers] = useState<NearbyDriver[]>([]);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
-  const mapRef = useRef<any>(null);
-  const mapInstanceRef = useRef<any>(null);
   const { addNotification } = useNotification();
 
   // Disputes states
@@ -248,105 +247,6 @@ const DispatchManagement: React.FC = () => {
 
     setNearbyDrivers(nearby);
   }, [selectedRide, availableDrivers]);
-
-  // Initialize map
-  useEffect(() => {
-    if ((window as any).google?.maps && mapRef.current && !mapInstanceRef.current) {
-      try {
-        mapInstanceRef.current = new (window as any).google.maps.Map(mapRef.current, {
-          zoom: 13,
-          center: { lat: 10.762622, lng: 106.660172 },
-          mapTypeId: 'roadmap'
-        });
-      } catch (error) {
-        console.error('Error initializing map:', error);
-      }
-    }
-  }, []);
-
-  // Update map when ride is selected
-  useEffect(() => {
-    if (!selectedRide || !mapInstanceRef.current) return;
-
-    try {
-      const mapInstance = mapInstanceRef.current;
-      
-      // Clear existing markers
-      mapInstance.markers?.forEach((m: any) => m.setMap(null));
-      mapInstance.polylines?.forEach((p: any) => p.setMap(null));
-      mapInstance.markers = [];
-      mapInstance.polylines = [];
-
-      const pickupCoords = selectedRide.pickupLocation?.coordinates || [106.6309, 10.7895];
-      const dropoffCoords = selectedRide.dropoffLocation?.coordinates || [106.6654, 10.8123];
-
-      // Pickup marker (green)
-      const pickupMarker = new (window as any).google.maps.Marker({
-        position: { lat: pickupCoords[1], lng: pickupCoords[0] },
-        map: mapInstance,
-        title: 'Điểm đón',
-        icon: {
-          path: (window as any).google.maps.SymbolPath.CIRCLE,
-          scale: 12,
-          fillColor: '#10b981',
-          fillOpacity: 1,
-          strokeColor: '#fff',
-          strokeWeight: 2
-        }
-      });
-
-      // Dropoff marker (red)
-      const dropoffMarker = new (window as any).google.maps.Marker({
-        position: { lat: dropoffCoords[1], lng: dropoffCoords[0] },
-        map: mapInstance,
-        title: 'Điểm trả',
-        icon: {
-          path: (window as any).google.maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: '#ef4444',
-          fillOpacity: 1,
-          strokeColor: '#fff',
-          strokeWeight: 2
-        }
-      });
-
-      // Add nearby drivers
-      nearbyDrivers.forEach(driver => {
-        if (!driver.currentLocation) return;
-        
-        const driverMarker = new (window as any).google.maps.Marker({
-          position: { lat: driver.currentLocation.coordinates[1], lng: driver.currentLocation.coordinates[0] },
-          map: mapInstance,
-          title: `${driver.firstName} ${driver.lastName}`,
-          icon: {
-            path: (window as any).google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: '#3b82f6',
-            fillOpacity: 0.7,
-            strokeColor: '#fff',
-            strokeWeight: 1
-          }
-        });
-
-        mapInstance.markers.push(driverMarker);
-      });
-
-      mapInstance.markers.push(pickupMarker, dropoffMarker);
-
-      // Fit bounds
-      const bounds = new (window as any).google.maps.LatLngBounds();
-      bounds.extend({ lat: pickupCoords[1], lng: pickupCoords[0] });
-      bounds.extend({ lat: dropoffCoords[1], lng: dropoffCoords[0] });
-      nearbyDrivers.forEach(d => {
-        if (d.currentLocation) {
-          bounds.extend({ lat: d.currentLocation.coordinates[1], lng: d.currentLocation.coordinates[0] });
-        }
-      });
-      mapInstance.fitBounds(bounds);
-    } catch (error) {
-      console.error('Error updating map:', error);
-    }
-  }, [selectedRide, nearbyDrivers]);
 
   // Auto-assign closest available driver
   const handleAutoAssign = async () => {
@@ -718,10 +618,23 @@ const DispatchManagement: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Map */}
           <div className="lg:col-span-2">
-            <div
-              ref={mapRef}
-              className="w-full h-[500px] rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800"
-            />
+            {selectedRide && selectedRide.pickupLocation?.coordinates && selectedRide.dropoffLocation?.coordinates ? (
+              <RideMap
+                pickupCoords={[selectedRide.pickupLocation.coordinates[0], selectedRide.pickupLocation.coordinates[1]]}
+                dropoffCoords={[selectedRide.dropoffLocation.coordinates[0], selectedRide.dropoffLocation.coordinates[1]]}
+                pickupAddress={selectedRide.pickupAddress}
+                dropoffAddress={selectedRide.dropoffAddress}
+              />
+            ) : (
+              <div
+                className="w-full h-[400px] rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
+              >
+                <div className="text-center text-slate-500 dark:text-slate-400">
+                  <p className="text-sm font-semibold mb-1">Chọn cuốc xe để xem bản đồ</p>
+                  <p className="text-xs">Click vào cuốc xe trong danh sách bên trái</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Panel */}

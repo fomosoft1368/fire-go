@@ -23,9 +23,15 @@ interface MenuItem {
   isDanger?: boolean
 }
 
-export default function ProfileScreen() {
+interface ProfileScreenProps {
+  navigation: any
+}
+
+export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const dispatch = useDispatch()
   const user = useSelector((state: RootState) => state.auth.user)
+
+  console.log('User data in ProfileScreen:', user)
 
   const handleLogout = async () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất?', [
@@ -73,7 +79,7 @@ export default function ProfileScreen() {
             </Text>
           </View>
           {item.value && (
-            <Text style={styles.menuValue}>{item.value}</Text>
+            <Text style={styles.menuValue} numberOfLines={1} ellipsizeMode="tail">{item.value}</Text>
           )}
           <MaterialIcons
             name="chevron-right"
@@ -89,21 +95,24 @@ export default function ProfileScreen() {
     {
       icon: 'person-outline',
       label: 'Thông tin cá nhân',
-      value: user?.name,
+      value: user?.firstName && user?.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user?.name || 'N/A',
     },
     {
       icon: 'phone',
       label: 'Số điện thoại',
-      value: user?.phone,
+      value: user?.phone || 'N/A',
     },
     {
       icon: 'email',
       label: 'Email',
-      value: user?.email,
+      value: user?.email || 'N/A',
     },
     {
       icon: 'lock-outline',
       label: 'Đổi mật khẩu',
+      onPress: () => navigation.navigate('ChangePassword'),
     },
     {
       icon: 'payment',
@@ -158,9 +167,16 @@ export default function ProfileScreen() {
         <View style={styles.avatarContainer}>
           <MaterialIcons name="person" size={48} color={COLORS.primary} />
         </View>
-        <Text style={styles.profileName}>{user?.name}</Text>
+        <Text style={styles.profileName} numberOfLines={1} ellipsizeMode="tail">
+          {user?.firstName && user?.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user?.name || 'Khách hàng'}
+        </Text>
         <Text style={styles.profileEmail}>{user?.email}</Text>
-        <TouchableOpacity style={styles.editButton}>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => navigation.navigate('EditProfile')}
+        >
           <MaterialIcons name="edit" size={18} color={COLORS.primary} />
           <Text style={styles.editButtonText}>Chỉnh sửa hồ sơ</Text>
         </TouchableOpacity>
@@ -169,18 +185,18 @@ export default function ProfileScreen() {
       {/* Stats */}
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>28</Text>
+          <Text style={styles.statValue}>{user?.completedRides || 0}</Text>
           <Text style={styles.statLabel}>Chuyến</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>4.8</Text>
+          <Text style={styles.statValue}>{user?.averageRating || 0}</Text>
           <Text style={styles.statLabel}>Đánh giá</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>2.3K</Text>
-          <Text style={styles.statLabel}>km</Text>
+          <Text style={styles.statValue}>{user?.totalSpent ? `${(user.totalSpent / 1000).toFixed(1)}K` : '0'}</Text>
+          <Text style={styles.statLabel}>Tiêu dùng</Text>
         </View>
       </View>
 
@@ -228,10 +244,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   profileName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
     marginBottom: SPACING.xs,
+    maxWidth: '90%',
   },
   profileEmail: {
     fontSize: 13,
@@ -344,4 +361,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-})
+}
+)

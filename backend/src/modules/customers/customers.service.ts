@@ -228,4 +228,34 @@ export class CustomersService {
       'totalRides completedRides cancelledRides averageRating totalReviews totalSpent',
     );
   }
+
+  async changePassword(
+    customerId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    const customer = await this.customerModel.findById(customerId);
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, customer.password);
+
+    if (!isPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password
+    await this.customerModel.findByIdAndUpdate(customerId, {
+      password: hashedPassword,
+    });
+
+    return { message: 'Password changed successfully' };
+  }
 }
