@@ -129,7 +129,8 @@ export class PlacesService {
 
   /**
    * Call Google Places Autocomplete API
-   * Only uses real Google API - no mock fallback
+   * ⚡ Optimization: Skip Place Details here, get coordinates only when user selects
+   * This reduces API calls from 11 to 1 per search
    */
   private async callGooglePlacesAPI(keyword: string): Promise<PlaceResult[]> {
     // Check if API key is configured
@@ -155,18 +156,16 @@ export class PlacesService {
       const predictions = data.predictions || [];
       const results: PlaceResult[] = [];
 
+      // ⚡ Skip Place Details API call here - return with placeholder coordinates
+      // Will fetch real coordinates only when user SELECTS the place
       for (const prediction of predictions.slice(0, 10)) {
-        // Get place details for coordinates
-        const details = await this.getPlaceDetails(prediction.place_id);
-        if (details) {
-          results.push({
-            placeId: prediction.place_id,
-            name: prediction.main_text,
-            address: prediction.description,
-            lat: details.lat,
-            lng: details.lng,
-          });
-        }
+        results.push({
+          placeId: prediction.place_id,
+          name: prediction.main_text,
+          address: prediction.description,
+          lat: 0, // Placeholder - fetch on demand
+          lng: 0, // Placeholder - fetch on demand
+        });
       }
 
       return results;
@@ -177,21 +176,59 @@ export class PlacesService {
   }
 
   /**
-   * Get place details (coordinates)
+   * Get place details (coordinates) - PUBLIC for controller endpoint
+   * Called only when user selects a place (lazy loading)
    */
-  private async getPlaceDetails(
+  async getPlaceDetails(
     placeId: string
-  ): Promise<{ lat: number; lng: number } | null> {
+  ): Promise<PlaceResult | null> {
     try {
-      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${this.googleMapsApiKey}`;
+      // Check database first
+      const dbPlace = await this.placeModel.findOne(
+        { placeId },
+        { _id: 0, placeId: 1, name: 1, address: 1, lat: 1, lng: 1 }
+      );
+      
+      if (dbPlace && dbPlace.lat && dbPlace.lng) {
+        console.log('✅ Place details from DB:', placeId);
+        return {
+          placeId: dbPlace.placeId,
+          name: dbPlace.name,
+          address: dbPlace.address,
+          lat: dbPlace.lat,
+          lng: dbPlace.lng,
+        };
+      }
 
+      // Fetch from Google
+      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${this.googleMapsApiKey}`;
       const response = await fetch(url);
       const data = (await response.json()) as GoogleDetailsResponse;
 
       if (data.status === 'OK' && data.result?.geometry?.location) {
-        return {
+        const result = {
+          placeId,
           lat: data.result.geometry.location.lat,
           lng: data.result.geometry.location.lng,
+        };
+        console.log('✅ Place details from Google API:', placeId);
+        
+        // Save to DB for future use
+        await this.placeModel.updateOne(
+          { placeId },
+          {
+            placeId,
+            lat: result.lat,
+            lng: result.lng,
+            lastSearchedAt: new Date(),
+          },
+          { upsert: true }
+        );
+
+        return {
+          ...result,
+          name: '',
+          address: '',
         };
       }
 

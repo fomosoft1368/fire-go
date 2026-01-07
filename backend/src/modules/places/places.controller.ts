@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Param } from '@nestjs/common';
 import { PlacesService, PlaceResult } from './places.service';
 
 @Controller('api/places')
@@ -15,6 +15,12 @@ export class PlacesController {
     }
 
     return this.placesService.searchPlaces(keyword);
+  }
+
+  @Get('details/:placeId')
+  async getDetails(@Param('placeId') placeId: string): Promise<PlaceResult | null> {
+    console.log('🔍 [PlacesController] Getting details for:', placeId);
+    return this.placesService.getPlaceDetails(placeId);
   }
 
   @Get('cache-stats')

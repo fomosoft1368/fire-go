@@ -118,7 +118,7 @@ export default function HomeScreen() {
   };
 
   // Select pickup place
-  const selectPickupPlace = (place: any) => {
+  const selectPickupPlace = async (place: any) => {
     console.log('🎯 [HomeScreen] Selecting pickup place:', place);
     if (!place) {
       console.error('❌ Invalid place data:', place);
@@ -129,14 +129,32 @@ export default function HomeScreen() {
       console.error('❌ Place has no name or address:', place);
       return;
     }
+    
+    // Set location name immediately
     setPickupLocation(placeName);
-    setPickupCoordinates([place.lng, place.lat]);
     setPickupSuggestions([]);
-    console.log('✅ Pickup place selected:', placeName, [place.lng, place.lat]);
+    
+    // ⚡ Lazy load coordinates if not available
+    let coords = [place.lng, place.lat];
+    if (place.lat === 0 || place.lng === 0) {
+      console.log('📡 [HomeScreen] Fetching coordinates for:', place.placeId);
+      try {
+        const details = await placesService.getPlaceDetails(place.placeId);
+        if (details && details.lat && details.lng) {
+          coords = [details.lng, details.lat];
+          console.log('✅ Coordinates fetched:', coords);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching place details:', error);
+      }
+    }
+    
+    setPickupCoordinates(coords as [number, number]);
+    console.log('✅ Pickup place selected:', placeName, coords);
   };
 
   // Select dropoff place
-  const selectDropoffPlace = (place: any) => {
+  const selectDropoffPlace = async (place: any) => {
     console.log('🎯 [HomeScreen] Selecting dropoff place:', place);
     if (!place) {
       console.error('❌ Invalid place data:', place);
@@ -147,10 +165,28 @@ export default function HomeScreen() {
       console.error('❌ Place has no name or address:', place);
       return;
     }
+    
+    // Set location name immediately
     setDropoffLocation(placeName);
-    setDropoffCoordinates([place.lng, place.lat]);
     setDropoffSuggestions([]);
-    console.log('✅ Dropoff place selected:', placeName, [place.lng, place.lat]);
+    
+    // ⚡ Lazy load coordinates if not available
+    let coords = [place.lng, place.lat];
+    if (place.lat === 0 || place.lng === 0) {
+      console.log('📡 [HomeScreen] Fetching coordinates for:', place.placeId);
+      try {
+        const details = await placesService.getPlaceDetails(place.placeId);
+        if (details && details.lat && details.lng) {
+          coords = [details.lng, details.lat];
+          console.log('✅ Coordinates fetched:', coords);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching place details:', error);
+      }
+    }
+    
+    setDropoffCoordinates(coords as [number, number]);
+    console.log('✅ Dropoff place selected:', placeName, coords);
   };
 
   // Clear cache for debugging
