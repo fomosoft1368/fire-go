@@ -21,7 +21,7 @@
         "NSLocationWhenInUseUsageDescription": "Allow app to access your location"
       },
       "config": {
-        "googleMapsApiKey": "AIzaSyChGoynqFpqR9k80n5uE67GBxJcuW5EkVE"
+        "googleMapsApiKey": "AIzaSyBkL5y6ap46Q2qtKPv9bLtQyf4ZOSRLinw"
       }
     },
     "android": {
@@ -30,7 +30,7 @@
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyChGoynqFpqR9k80n5uE67GBxJcuW5EkVE"
+          "apiKey": "AIzaSyBkL5y6ap46Q2qtKPv9bLtQyf4ZOSRLinw"
         }
       }
     },
@@ -40,10 +40,10 @@
         {
           "fonts": ["node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf"]
         }
-      ],
+      ]
     ],
     "extra": {
-      "googleMapsApiKey": "AIzaSyChGoynqFpqR9k80n5uE67GBxJcuW5EkVE"
+      "googleMapsApiKey": "AIzaSyBkL5y6ap46Q2qtKPv9bLtQyf4ZOSRLinw"
     }
   }
 }

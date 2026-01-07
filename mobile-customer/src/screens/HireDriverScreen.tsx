@@ -14,9 +14,11 @@ import {
   TextInput,
   SafeAreaView,
   Alert,
+  FlatList,
+  StatusBar,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { SPACING, BORDER_RADIUS } from '../constants'
+import { SPACING, BORDER_RADIUS, COLORS_DARK, COLORS_LIGHT } from '../constants'
 import MapViewComponent from '../components/MapView'
 import ScheduleDateTimeModal from '../components/ScheduleDateTimeModal'
 import ChatScreen from './ChatScreen'
@@ -59,6 +61,8 @@ export default function HireDriverScreen({
 }: HireDriverScreenProps) {
   // Lấy user từ redux
   const user = useSelector((state: RootState) => state.auth.user)
+  const themeMode = useSelector((state: RootState) => state.theme.mode)
+  const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
   const [loading, setLoading] = useState(false)
   const [calculating, setCalculating] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
@@ -71,6 +75,12 @@ export default function HireDriverScreen({
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [scheduledDateTime, setScheduledDateTime] = useState<Date>(new Date())
   const [rideId, setRideId] = useState<string | null>(null)
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
+  const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
+  const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
+  const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
 
   // Reset ride state khi cancel
   const resetRideState = () => {
@@ -83,6 +93,76 @@ export default function HireDriverScreen({
     setShowChat(false)
     setRideId(null)
   }
+
+  const handlePickupLocationChange = (text: string) => {
+    setPickupLocation(text)
+    setShowPickupSuggestions(true)
+
+    // Clear previous timeout
+    if (pickupSearchTimeout) {
+      clearTimeout(pickupSearchTimeout)
+    }
+
+    // Debounce search
+    if (text.trim()) {
+      const timeout = setTimeout(async () => {
+        try {
+          const suggestions = await mapsService.searchPlaces(text)
+          setPickupSuggestions(suggestions)
+        } catch (error) {
+          console.error('Error searching pickup locations:', error)
+        }
+      }, 500)
+      setPickupSearchTimeout(timeout)
+    } else {
+      setPickupSuggestions([])
+    }
+  }
+
+  const handleDropoffLocationChange = (text: string) => {
+    setDropoffLocation(text)
+    setShowDropoffSuggestions(true)
+
+    // Clear previous timeout
+    if (dropoffSearchTimeout) {
+      clearTimeout(dropoffSearchTimeout)
+    }
+
+    // Debounce search
+    if (text.trim()) {
+      const timeout = setTimeout(async () => {
+        try {
+          const suggestions = await mapsService.searchPlaces(text)
+          setDropoffSuggestions(suggestions)
+        } catch (error) {
+          console.error('Error searching dropoff locations:', error)
+        }
+      }, 500)
+      setDropoffSearchTimeout(timeout)
+    } else {
+      setDropoffSuggestions([])
+    }
+  }
+
+  const handlePickupSuggestionSelect = (suggestion: any) => {
+    setPickupLocation(suggestion.fullText)
+    setShowPickupSuggestions(false)
+    setPickupSuggestions([])
+  }
+
+  const handleDropoffSuggestionSelect = (suggestion: any) => {
+    setDropoffLocation(suggestion.fullText)
+    setShowDropoffSuggestions(false)
+    setDropoffSuggestions([])
+  }
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (pickupSearchTimeout) clearTimeout(pickupSearchTimeout)
+      if (dropoffSearchTimeout) clearTimeout(dropoffSearchTimeout)
+    }
+  }, [])
 
   const handleScheduleDateTime = (dateTime: Date) => {
     setScheduledDateTime(dateTime)
@@ -335,7 +415,7 @@ export default function HireDriverScreen({
   // Show finding driver screen
   if (isSearching && routeInfo) {
     return (
-      <View style={styles.findingContainer}>
+      <View style={[styles.findingContainer, { backgroundColor: colors.bg }]}>
         {/* Full Screen Map */}
         <MapViewComponent
         height={null}
@@ -359,20 +439,80 @@ export default function HireDriverScreen({
       />
       <FindingDriverOverlay onCancel={resetRideState} />
       
-        {/* Status Card */}
-        <View style={styles.statusCard}>
-          <View style={styles.statusContent}>
-            <Text style={styles.statusIcon}>🔍</Text>
-            <Text style={styles.statusText}>Đang tìm tài xế gần bạn…</Text>
+        {/* Professional Finding Driver Status Card */}
+        <View style={[styles.professionalStatusCard, { backgroundColor: colors.bgSecondary, borderTopColor: colors.border }]}>
+          {/* Animated Radar Background */}
+          {/* <View style={styles.radarBackground}>
+            <View style={[styles.radarPulseRing, styles.radarRing1]} />
+            <View style={[styles.radarPulseRing, styles.radarRing2]} />
+            <View style={[styles.radarPulseRing, styles.radarRing3]} />
+            <View style={styles.radarCenter} />
+          </View> */}
+
+          {/* Status Content */}
+          <View style={styles.statusContentWrapper}>
+            {/* Header */}
+            <View style={styles.statusHeader}>
+              <View>
+                <Text style={[styles.statusTitleLarge, { color: colors.text }]}>Tìm tài xế cho bạn</Text>
+                <Text style={[styles.statusSubtitle, { color: colors.textSecondary }]}>Đang tìm kiếm trong vùng…</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.minimizeButton}
+                onPress={resetRideState}
+              >
+                <MaterialIcons name="close" size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Info Grid */}
+            <View style={styles.infoGrid}>
+              <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
+                <View style={styles.infoIcon}>
+                  <MaterialIcons name="schedule" size={20} color="#FF6B00" />
+                </View>
+                <View style={styles.infoText}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Thời gian chờ</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>~2 phút</Text>
+                </View>
+              </View>
+
+              <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
+                <View style={styles.infoIcon}>
+                  <MaterialIcons name="directions" size={20} color="#4caf50" />
+                </View>
+                <View style={styles.infoText}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Bán kính tìm</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>2 km</Text>
+                </View>
+              </View>
+
+              <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
+                <View style={styles.infoIcon}>
+                  <MaterialIcons name="person" size={20} color="#8b5cf6" />
+                </View>
+                <View style={styles.infoText}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Tài xế sẵn có</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>12+</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Progress Bar */}
+            <View style={styles.progressSection}>
+              <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+                <View style={[styles.progressFill, { backgroundColor: '#FF6B00' }]} />
+              </View>
+            </View>
           </View>
 
           {/* Cancel Button */}
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={[styles.cancelButtonLarge, { borderColor: colors.border }]}
             onPress={resetRideState}
           >
-            <MaterialIcons name="close" size={20} color="#fff" />
-            <Text style={styles.cancelButtonText}>Hủy chuyến</Text>
+            <MaterialIcons name="close" size={20} color="#ef4444" />
+            <Text style={styles.cancelButtonLargeText}>Hủy chuyến</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -380,7 +520,11 @@ export default function HireDriverScreen({
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+      <StatusBar
+        barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.bg}
+      />
       {/* Schedule DateTime Modal */}
       <ScheduleDateTimeModal
         visible={showScheduleModal}
@@ -390,14 +534,14 @@ export default function HireDriverScreen({
       />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.bg, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => setRideMode('share')}
         >
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Đặt lái xe hộ</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Đặt lái xe hộ</Text>
         <View style={{ width: 44 }} />
       </View>
 
@@ -406,38 +550,92 @@ export default function HireDriverScreen({
         showsVerticalScrollIndicator={false}
       >
         {/* Location Card */}
-        <View style={styles.locationCard}>
-          <View style={styles.locationRow}>
-            <MaterialIcons name="my-location" size={24} color="#FF6B00" />
-            <View style={styles.locationInputWrapper}>
-              <Text style={styles.locationLabel}>Điểm đón</Text>
-              <TextInput
-                style={styles.locationInput}
-                value={pickupLocation}
-                onChangeText={setPickupLocation}
-                placeholder="Nhập điểm đón"
-                placeholderTextColor="#64748b"
-                editable={!isSearching && !driverFound}
-              />
+        <View style={styles.locationCardWrapper}>
+          <View style={[styles.locationCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+            <View style={styles.locationRow}>
+              <MaterialIcons name="my-location" size={24} color="#FF6B00" />
+              <View style={styles.locationInputWrapper}>
+                <Text style={[styles.locationLabel, { color: colors.textSecondary }]}>Điểm đón</Text>
+                <TextInput
+                  style={[styles.locationInput, { color: colors.text }]}
+                  value={pickupLocation}
+                  onChangeText={handlePickupLocationChange}
+                  onFocus={() => setShowPickupSuggestions(true)}
+                  placeholder="Nhập điểm đón"
+                  placeholderTextColor={colors.textSecondary}
+                  editable={!isSearching && !driverFound}
+                />
+              </View>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <View style={styles.locationRow}>
+              <MaterialIcons name="location-on" size={24} color="#ef4444" />
+              <View style={styles.locationInputWrapper}>
+                <Text style={[styles.locationLabel, { color: colors.textSecondary }]}>Điểm đến</Text>
+                <TextInput
+                  style={[styles.locationInput, { color: colors.text }]}
+                  value={dropoffLocation}
+                  onChangeText={handleDropoffLocationChange}
+                  onFocus={() => setShowDropoffSuggestions(true)}
+                  placeholder="Bạn muốn đến đâu?"
+                  placeholderTextColor={colors.textSecondary}
+                  editable={!isSearching && !driverFound}
+                />
+              </View>
             </View>
           </View>
 
-          <View style={styles.divider} />
-
-          <View style={styles.locationRow}>
-            <MaterialIcons name="location-on" size={24} color="#ef4444" />
-            <View style={styles.locationInputWrapper}>
-              <Text style={styles.locationLabel}>Điểm đến</Text>
-              <TextInput
-                style={styles.locationInput}
-                value={dropoffLocation}
-                onChangeText={setDropoffLocation}
-                placeholder="Bạn muốn đến đâu?"
-                placeholderTextColor="#64748b"
-                editable={!isSearching && !driverFound}
+          {/* Pickup Suggestions */}
+          {showPickupSuggestions && pickupSuggestions.length > 0 && (
+            <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <FlatList
+                data={pickupSuggestions}
+                keyExtractor={(item) => item.placeId}
+                scrollEnabled={false}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.suggestionItem, { borderBottomColor: colors.border }]}
+                    onPress={() => handlePickupSuggestionSelect(item)}
+                  >
+                    <MaterialIcons name="location-on" size={18} color={colors.textSecondary} />
+                    <View style={styles.suggestionContent}>
+                      <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
+                      {item.secondaryText && (
+                        <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )}
               />
             </View>
-          </View>
+          )}
+
+          {/* Dropoff Suggestions */}
+          {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+            <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <FlatList
+                data={dropoffSuggestions}
+                keyExtractor={(item) => item.placeId}
+                scrollEnabled={false}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.suggestionItem, { borderBottomColor: colors.border }]}
+                    onPress={() => handleDropoffSuggestionSelect(item)}
+                  >
+                    <MaterialIcons name="location-on" size={18} color={colors.textSecondary} />
+                    <View style={styles.suggestionContent}>
+                      <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
+                      {item.secondaryText && (
+                        <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
         </View>
 
         {/* Map Component */}
@@ -473,23 +671,23 @@ export default function HireDriverScreen({
         />
 
         {/* Time Toggle */}
-        <View style={styles.timeToggleContainer}>
+        <View style={[styles.timeToggleContainer, { backgroundColor: colors.bgSecondary }]}>
           <TouchableOpacity
             style={[
               styles.timeButton,
-              !isScheduled && styles.timeButtonActive,
+              !isScheduled && { backgroundColor: colors.border },
             ]}
             onPress={() => setIsScheduled(false)}
           >
             <MaterialIcons
               name="bolt"
               size={18}
-              color={!isScheduled ? '#FF6B00' : '#64748b'}
+              color={!isScheduled ? '#FF6B00' : colors.textSecondary}
             />
             <Text
               style={[
                 styles.timeButtonText,
-                !isScheduled && styles.timeButtonTextActive,
+                { color: !isScheduled ? colors.text : colors.textSecondary },
               ]}
             >
               Đi ngay
@@ -498,7 +696,7 @@ export default function HireDriverScreen({
           <TouchableOpacity
             style={[
               styles.timeButton,
-              isScheduled && styles.timeButtonActive,
+              isScheduled && { backgroundColor: colors.border },
             ]}
             onPress={() => {
               setIsScheduled(true)
@@ -508,12 +706,12 @@ export default function HireDriverScreen({
             <MaterialIcons
               name="schedule"
               size={18}
-              color={isScheduled ? '#FF6B00' : '#64748b'}
+              color={isScheduled ? '#FF6B00' : colors.textSecondary}
             />
             <Text
               style={[
                 styles.timeButtonText,
-                isScheduled && styles.timeButtonTextActive,
+                { color: isScheduled ? colors.text : colors.textSecondary },
               ]}
             >
               Hẹn giờ
@@ -523,7 +721,7 @@ export default function HireDriverScreen({
 
         {/* Vehicle Info Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin xe</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Thông tin xe</Text>
 
           {/* Car Type Selection */}
           <ScrollView
@@ -540,6 +738,10 @@ export default function HireDriverScreen({
                 key={car.id}
                 style={[
                   styles.carTypeButton,
+                  {
+                    backgroundColor: carType === car.id ? 'rgba(255, 107, 0, 0.1)' : colors.bgSecondary,
+                    borderColor: carType === car.id ? '#FF6B00' : colors.border,
+                  },
                   carType === car.id && styles.carTypeButtonActive,
                 ]}
                 onPress={() => setCarType(car.id as any)}
@@ -547,12 +749,12 @@ export default function HireDriverScreen({
                 <MaterialIcons
                   name={car.icon as any}
                   size={32}
-                  color={carType === car.id ? '#FF6B00' : '#94a3b8'}
+                  color={carType === car.id ? '#FF6B00' : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.carTypeLabel,
-                    carType === car.id && styles.carTypeLabelActive,
+                    { color: carType === car.id ? '#FF6B00' : colors.textSecondary },
                   ]}
                 >
                   {car.label}
@@ -563,13 +765,13 @@ export default function HireDriverScreen({
 
           {/* License Plate Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Biển số xe</Text>
-            <View style={styles.inputContainer}>
-              <MaterialIcons name="pin" size={20} color="#94a3b8" />
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Biển số xe</Text>
+            <View style={[styles.inputContainer, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <MaterialIcons name="pin" size={20} color={colors.textSecondary} />
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { color: colors.text }]}
                 placeholder="Ví dụ: 30A-123.45"
-                placeholderTextColor="#64748b"
+                placeholderTextColor={colors.textSecondary}
                 value={licensePlate}
                 onChangeText={setLicensePlate}
               />
@@ -578,19 +780,22 @@ export default function HireDriverScreen({
 
           {/* Transmission Selection */}
           <View style={styles.transmissionGroup}>
-            <Text style={styles.inputLabel}>Loại hộp số (Bắt buộc)</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Loại hộp số (Bắt buộc)</Text>
             <View style={styles.transmissionContainer}>
               <TouchableOpacity
                 style={[
                   styles.transmissionButton,
-                  transmission === 'auto' && styles.transmissionButtonActive,
+                  {
+                    backgroundColor: transmission === 'auto' ? 'rgba(255, 107, 0, 0.1)' : colors.bgSecondary,
+                    borderColor: transmission === 'auto' ? '#FF6B00' : colors.border,
+                  },
                 ]}
                 onPress={() => setTransmission('auto')}
               >
                 <Text
                   style={[
                     styles.transmissionText,
-                    transmission === 'auto' && styles.transmissionTextActive,
+                    { color: transmission === 'auto' ? '#FF6B00' : colors.textSecondary },
                   ]}
                 >
                   Số tự động
@@ -607,14 +812,17 @@ export default function HireDriverScreen({
               <TouchableOpacity
                 style={[
                   styles.transmissionButton,
-                  transmission === 'manual' && styles.transmissionButtonActive,
+                  {
+                    backgroundColor: transmission === 'manual' ? 'rgba(255, 107, 0, 0.1)' : colors.bgSecondary,
+                    borderColor: transmission === 'manual' ? '#FF6B00' : colors.border,
+                  },
                 ]}
                 onPress={() => setTransmission('manual')}
               >
                 <Text
                   style={[
                     styles.transmissionText,
-                    transmission === 'manual' && styles.transmissionTextActive,
+                    { color: transmission === 'manual' ? '#FF6B00' : colors.textSecondary },
                   ]}
                 >
                   Số sàn
@@ -634,12 +842,12 @@ export default function HireDriverScreen({
 
         {/* Driver Note */}
         <View style={styles.noteSection}>
-          <Text style={styles.inputLabel}>Ghi chú cho tài xế</Text>
-          <View style={styles.noteContainer}>
+          <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Ghi chú cho tài xế</Text>
+          <View style={[styles.noteContainer, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
             <TextInput
-              style={styles.noteInput}
+              style={[styles.noteInput, { color: colors.text }]}
               placeholder="Xe đỗ ở hầm B1, cột A05..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.textSecondary}
               value={driverNote}
               onChangeText={setDriverNote}
               multiline
@@ -651,12 +859,12 @@ export default function HireDriverScreen({
       </ScrollView>
 
       {/* Bottom Action */}
-      <View style={styles.bottomAction}>
+      <View style={[styles.bottomAction, { backgroundColor: colors.bgSecondary, borderTopColor: colors.border }]}>
         {/* Hiển thị thông tin route nếu đã tính */}
         {routeInfo && fareEstimate && (
           <View style={styles.routeInfoContainer}>
             <View style={styles.routeInfoRow}>
-              <Text style={styles.routeInfoLabel}>
+              <Text style={[styles.routeInfoLabel, { color: colors.textSecondary }]}>
                 {formatDistance(routeInfo.distance)} • {formatDuration(routeInfo.duration)}
               </Text>
             </View>
@@ -668,10 +876,10 @@ export default function HireDriverScreen({
             <MaterialIcons name="payments" size={20} color="#FF6B00" />
           </View>
           <View style={styles.priceInfo}>
-            <Text style={styles.priceLabel}>
+            <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
               {calculating ? 'Đang tính...' : 'Ước tính'}
             </Text>
-            <Text style={styles.priceValue}>
+            <Text style={[styles.priceValue, { color: colors.text }]}>
               {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
             </Text>
           </View>
@@ -725,11 +933,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   driverSheet: {
-    backgroundColor: '#1a202c',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
     paddingBottom: SPACING.xl,
@@ -741,7 +947,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   driverAvatarSection: {
     flex: 1,
@@ -766,7 +971,6 @@ const styles = StyleSheet.create({
   driverName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
     marginBottom: 4,
   },
   ratingRow: {
@@ -776,7 +980,6 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    color: '#94a3b8',
   },
   callButton: {
     width: 48,
@@ -813,13 +1016,11 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 11,
-    color: '#94a3b8',
     marginBottom: 2,
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -864,7 +1065,6 @@ const styles = StyleSheet.create({
   },
   findingContainer: {
     flex: 1,
-    backgroundColor: '#0f172a',
     justifyContent: 'flex-end',
     paddingBottom: 0,
   },
@@ -896,11 +1096,9 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   statusCard: {
-    backgroundColor: '#1a202c',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.xl,
     gap: SPACING.lg,
@@ -915,7 +1113,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
     textAlign: 'center',
   },
   cancelButton: {
@@ -939,7 +1136,6 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
     paddingTop: SPACING.xxl,
   },
   header: {
@@ -949,7 +1145,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   backButton: {
     width: 44,
@@ -962,20 +1157,21 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
   },
   contentContainer: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
   },
+  locationCardWrapper: {
+    position: 'relative',
+    zIndex: 10,
+    marginBottom: SPACING.lg,
+  },
   locationCard: {
-    backgroundColor: '#1a202c',
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
-    marginBottom: SPACING.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   locationRow: {
     flexDirection: 'row',
@@ -988,25 +1184,56 @@ const styles = StyleSheet.create({
   locationLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#94a3b8',
     marginBottom: SPACING.xs,
   },
   locationInput: {
-    color: '#fff',
     fontSize: 14,
     fontWeight: '500',
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     marginVertical: SPACING.lg,
     marginLeft: 44,
+  },
+  suggestionsDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    borderRadius: BORDER_RADIUS.lg,
+    marginTop: -SPACING.sm,
+    borderWidth: 1,
+    maxHeight: 300,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    gap: SPACING.md,
+  },
+  suggestionContent: {
+    flex: 1,
+  },
+  suggestionMainText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: SPACING.xs,
+  },
+  suggestionSecondaryText: {
+    fontSize: 12,
   },
   timeToggleContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
     marginBottom: SPACING.lg,
-    backgroundColor: '#1a202c',
     padding: SPACING.sm,
     borderRadius: BORDER_RADIUS.lg,
   },
@@ -1018,18 +1245,14 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   timeButtonActive: {
-    backgroundColor: '#374151',
   },
   timeButtonText: {
-    color: '#94a3b8',
     fontSize: 12,
     fontWeight: '600',
   },
   timeButtonTextActive: {
-    color: '#fff',
   },
   section: {
     marginBottom: SPACING.xl,
@@ -1037,7 +1260,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
     marginBottom: SPACING.lg,
     paddingHorizontal: SPACING.sm,
   },
@@ -1048,9 +1270,7 @@ const styles = StyleSheet.create({
     width: 110,
     height: 120,
     borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: '#1a202c',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.md,
@@ -1064,7 +1284,6 @@ const styles = StyleSheet.create({
   carTypeLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#94a3b8',
     textAlign: 'center',
   },
   carTypeLabelActive: {
@@ -1076,7 +1295,6 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94a3b8',
     marginBottom: SPACING.md,
   },
   inputContainer: {
@@ -1084,15 +1302,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
     height: 56,
-    backgroundColor: '#1a202c',
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
     gap: SPACING.md,
   },
   textInput: {
     flex: 1,
-    color: '#fff',
     fontSize: 14,
   },
   transmissionGroup: {
@@ -1106,9 +1321,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 56,
     borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: '#1a202c',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -1118,7 +1331,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 107, 0, 0.1)',
   },
   transmissionText: {
-    color: '#94a3b8',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -1134,23 +1346,18 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   noteContainer: {
-    backgroundColor: '#1a202c',
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
     padding: SPACING.md,
     minHeight: 120,
   },
   noteInput: {
     flex: 1,
-    color: '#fff',
     fontSize: 14,
     textAlignVertical: 'top',
   },
   bottomAction: {
-    backgroundColor: '#1a202c',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
     gap: SPACING.md,
@@ -1166,7 +1373,6 @@ const styles = StyleSheet.create({
   routeInfoLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94a3b8',
   },
   priceContainer: {
     flexDirection: 'row',
@@ -1187,12 +1393,10 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#94a3b8',
   },
   priceValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
   },
   calculateButton: {
     flexDirection: 'row',
@@ -1235,5 +1439,140 @@ const styles = StyleSheet.create({
   },
   findButtonIcon: {
     marginLeft: SPACING.sm,
+  },
+  // ============ Professional Finding Driver Styles ============
+  professionalStatusCard: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingBottom: SPACING.xl,
+    gap: SPACING.lg,
+  },
+  radarBackground: {
+    height: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    backgroundColor: 'rgba(255, 107, 0, 0.03)',
+    borderBottomWidth: 1,
+  },
+  radarPulseRing: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderRadius: 999,
+    borderColor: 'rgba(255, 107, 0, 0.4)',
+  },
+  radarRing1: {
+    width: 80,
+    height: 80,
+  },
+  radarRing2: {
+    width: 120,
+    height: 120,
+  },
+  radarRing3: {
+    width: 160,
+    height: 160,
+  },
+  radarCenter: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  statusContentWrapper: {
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.lg,
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  statusTitleLarge: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+  },
+  statusSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  minimizeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  infoCard: {
+    flex: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.1)',
+  },
+  infoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoText: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: SPACING.xs,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  progressSection: {
+    gap: SPACING.sm,
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    width: '60%',
+    borderRadius: 3,
+  },
+  cancelButtonLarge: {
+    marginHorizontal: SPACING.lg,
+    height: 56,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 2,
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  cancelButtonLargeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ef4444',
   },
 })

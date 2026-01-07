@@ -9,9 +9,12 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
+import { useNavigation } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { COLORS, SPACING, BORDER_RADIUS, FILTER_TYPES } from '../constants'
 import { RideCard, BalanceCard } from '../components'
 import { driverService } from '../services/driverService'
@@ -20,16 +23,50 @@ import type { RideItem } from '../types'
 
 export default function HomeScreen() {
   const [isOnline, setIsOnline] = useState(true)
+  const [autoAssignEnabled, setAutoAssignEnabled] = useState(true)
   const [activeFilter, setActiveFilter] = useState<'all' | 'pool' | 'assist'>('all')
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [assignedRide, setAssignedRide] = useState<any>(null)
+  const [dismissCountdown, setDismissCountdown] = useState(15)
   const { user } = useSelector((state: RootState) => state.auth)
+  const navigation = useNavigation<NativeStackNavigationProp<any>>()
 
   // Lấy danh sách cuốc từ API
   useEffect(() => {
     fetchAvailableRides()
   }, [])
+
+  // Countdown timer cho assigned ride notification
+  useEffect(() => {
+    if (!assignedRide) return
+
+    const timer = setTimeout(() => {
+      setDismissCountdown(dismissCountdown - 1)
+      if (dismissCountdown <= 0) {
+        setAssignedRide(null)
+        setDismissCountdown(15)
+      }
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [assignedRide, dismissCountdown])
+
+  // Kiểm tra xem có cuốc nào được assign cho tài xế này không
+  useEffect(() => {
+    const assignedRideData = rides.find((ride) => {
+      return (
+        ride.driverId === user?.id &&
+        (ride.status === 'assigned' || ride.status === 'accepted')
+      )
+    })
+
+    if (assignedRideData && !assignedRide) {
+      setAssignedRide(assignedRideData)
+      setDismissCountdown(15)
+    }
+  }, [rides, user?.id])
 
   const fetchAvailableRides = async () => {
     setLoading(true)
@@ -37,7 +74,7 @@ export default function HomeScreen() {
       const allRides = await driverService.getAvailableRides()
       console.log('📱 Tất cả cuốc từ API:', allRides)
       console.log('📊 Số lượng cuốc:', allRides.length)
-      
+
       // Chỉ lấy những cuốc:
       // - Status = pending (chưa được ai nhận)
       // - Không có driverId (chưa có tài xế nhận)
@@ -53,7 +90,7 @@ export default function HomeScreen() {
         })
         return isPending && noDriver
       })
-      
+
       console.log('✅ Cuốc có sẵn:', availableRides)
       setRides(availableRides)
     } catch (error) {
@@ -83,9 +120,9 @@ export default function HomeScreen() {
       dropoffLocation: ride.dropoffAddress,
       pickupTime: ride.isScheduled
         ? new Date(ride.scheduledTime).toLocaleTimeString('vi-VN', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })
+          hour: '2-digit',
+          minute: '2-digit',
+        })
         : 'Ngay lập tức',
       time: `~${estimatedTime} phút`,
       rating: 4.8,
@@ -110,6 +147,20 @@ export default function HomeScreen() {
     }
   }
 
+  // Test: Mock assigned ride notification
+  const handleTestAssignedRide = () => {
+    const mockRide = {
+      _id: 'test-ride-123',
+      status: 'assigned',
+      driverId: user?.id,
+      pickupAddress: '123 Đường Lê Lợi, Quận 1, TP.HCM',
+      totalFare: 125000,
+      rideType: 'share',
+    }
+    setAssignedRide(mockRide)
+    setDismissCountdown(15)
+  }
+
   const filteredRides = rides
     .map(formatRideData)
     .filter((ride) => {
@@ -121,14 +172,63 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Assigned Ride Notification Card */}
+      {assignedRide && (
+        <View style={styles.assignedRideNotification}>
+          <View style={styles.assignedRideContent}>
+            <View style={styles.assignedRideIconContainer}>
+              <MaterialIcons name="check-circle" size={28} color="#4caf50" />
+            </View>
+            <View style={styles.assignedRideInfo}>
+              <Text style={styles.assignedRideTitle}>🎉 Bạn nhận được cuốc xe!</Text>
+              <Text style={styles.assignedRideLocation}>
+                {assignedRide.pickupAddress?.substring(0, 40)}...
+              </Text>
+              <Text style={styles.assignedRideTime}>
+                Lương: {(assignedRide.totalFare || 0).toLocaleString('vi-VN')}đ
+              </Text>
+            </View>
+
+            <View style={styles.assignedRideTimer}>
+              <Text style={styles.timerText}>{dismissCountdown}s</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.assignedRideClose}
+            onPress={() => {
+              setAssignedRide(null)
+              setDismissCountdown(15)
+            }}
+          >
+            <MaterialIcons name="close" size={20} color="#fff" />
+          </TouchableOpacity>
+          {/* Progress Bar */}
+          <View style={styles.timerProgressBar}>
+            <View
+              style={[
+                styles.timerProgressFill,
+                { width: `${(dismissCountdown / 15) * 100}%` },
+              ]}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={handleTestAssignedRide}
+          >
+            <MaterialIcons name="bug-report" size={16} color="#fff" />
+            <Text style={styles.testButtonText}>Nhận cuốc</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Xin chào,</Text>
             <Text style={styles.driverName}>
-              {user?.firstName && user?.lastName 
-                ? `${user.firstName} ${user.lastName}` 
+              {user?.firstName && user?.lastName
+                ? `${user.firstName} ${user.lastName}`
                 : user?.name || 'Tài xế'}
             </Text>
           </View>
@@ -146,6 +246,71 @@ export default function HomeScreen() {
           isOnline={isOnline}
           onToggleOnline={setIsOnline}
         />
+
+        {/* Auto-Assign Card */}
+        <View style={styles.autoAssignCard}>
+          <View style={styles.autoAssignHeader}>
+            <View style={styles.autoAssignTitleSection}>
+              <View style={[styles.autoAssignIcon, autoAssignEnabled && styles.autoAssignIconActive]}>
+                <MaterialIcons
+                  name="auto-awesome"
+                  size={24}
+                  color={autoAssignEnabled ? '#FF6B00' : COLORS.textSecondary}
+                />
+              </View>
+              <View style={styles.autoAssignTitle}>
+                <Text style={styles.autoAssignTitleText}>Tự động chỉ định</Text>
+                <Text style={styles.autoAssignSubtext}>
+                  {autoAssignEnabled ? 'Đang tìm kiếm cuốc phù hợp' : 'Bật để nhận cuốc tự động'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={autoAssignEnabled}
+              onValueChange={setAutoAssignEnabled}
+              trackColor={{ false: COLORS.darkBorder, true: '#FF6B0050' }}
+              thumbColor={autoAssignEnabled ? '#FF6B00' : COLORS.textSecondary}
+            />
+          </View>
+
+          {autoAssignEnabled && (
+            <View style={styles.autoAssignStats}>
+              <View style={styles.statItem}>
+                <View style={styles.statIcon}>
+                  <MaterialIcons name="location-on" size={16} color="#FF6B00" />
+                </View>
+                <View style={styles.statContent}>
+                  <Text style={styles.statLabel}>Bán kính tìm</Text>
+                  <Text style={styles.statValue}>2 km</Text>
+                </View>
+              </View>
+
+              <View style={styles.statDivider} />
+
+              <View style={styles.statItem}>
+                <View style={styles.statIcon}>
+                  <MaterialIcons name="schedule" size={16} color="#4caf50" />
+                </View>
+                <View style={styles.statContent}>
+                  <Text style={styles.statLabel}>Cuốc chờ</Text>
+                  <Text style={styles.statValue}>{rides.length}</Text>
+                </View>
+              </View>
+
+              <View style={styles.statDivider} />
+
+              <View style={styles.statItem}>
+                <View style={styles.statIcon}>
+                  <MaterialIcons name="star" size={16} color="#8b5cf6" />
+                </View>
+                <View style={styles.statContent}>
+                  <Text style={styles.statLabel}>Điểm số</Text>
+                  <Text style={styles.statValue}>4.8</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
 
         {/* Filter Buttons */}
         <FilterButtons activeFilter={activeFilter} onFilterChange={setActiveFilter} />
@@ -197,7 +362,25 @@ export default function HomeScreen() {
           <Text style={styles.viewMoreText}>Xem thêm</Text>
           <MaterialIcons name="chevron-right" size={20} color={COLORS.primary} />
         </TouchableOpacity>
+
+        {/* TEST Button - Xóa khi không cần */}
+        <TouchableOpacity
+          style={styles.testButton}
+          onPress={handleTestAssignedRide}
+        >
+          <MaterialIcons name="bug-report" size={16} color="#fff" />
+          <Text style={styles.testButtonText}>TEST: Mock Assigned Ride</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Floating Map Button */}
+      <TouchableOpacity
+        style={styles.mapButton}
+        onPress={() => navigation.navigate('MapScreen')}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="location-on" size={24} color="#fff" />
+      </TouchableOpacity>
     </SafeAreaView>
   )
 }
@@ -406,5 +589,192 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.primary,
+  },
+  mapButton: {
+    position: 'absolute',
+    bottom: 32,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  // ============ Auto-Assign Card Styles ============
+  autoAssignCard: {
+    backgroundColor: COLORS.darkCard,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.darkBorder,
+  },
+  autoAssignHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  autoAssignTitleSection: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  autoAssignIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  autoAssignIconActive: {
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+  },
+  autoAssignTitle: {
+    flex: 1,
+  },
+  autoAssignTitleText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  autoAssignSubtext: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  autoAssignStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.darkBorder,
+  },
+  statItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  statIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statContent: {
+    flex: 1,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: COLORS.darkBorder,
+    marginHorizontal: SPACING.sm,
+  },
+  // ============ Assigned Ride Notification Styles ============
+  assignedRideNotification: {
+    backgroundColor: '#FF6B00',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    marginBottom: 0,
+    overflow: 'hidden',
+    paddingTop: 40,
+  },
+  assignedRideContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingTop: 40,
+  },
+  assignedRideIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assignedRideInfo: {
+    flex: 1,
+    gap: SPACING.xs,
+  },
+  assignedRideTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  assignedRideLocation: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+  },
+  assignedRideTime: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+  },
+  assignedRideTimer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timerText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  timerProgressBar: {
+    marginTop: SPACING.md,
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 1.5,
+    overflow: 'hidden',
+  },
+  timerProgressFill: {
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 1.5,
+  },
+  // ============ Test Button ============
+  testButton: {
+    marginHorizontal: SPACING.lg,
+    marginVertical: SPACING.lg,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    backgroundColor: '#ff6b6b',
+    borderRadius: BORDER_RADIUS.lg,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  testButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
   },
 })

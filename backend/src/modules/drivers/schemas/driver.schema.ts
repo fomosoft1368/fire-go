@@ -151,6 +151,12 @@ export class Driver {
   @Prop({ default: 0 })
   totalEarnings: number;
 
+  @Prop({ default: 0 })
+  completionRate: number; // % (0-100)
+
+  @Prop()
+  lastOnlineTime?: Date; // Thời gian cuối cùng online
+
   // Current location (geospatial)
   @Prop({
     type: { type: String, enum: ['Point'] },

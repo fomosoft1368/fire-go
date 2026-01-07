@@ -11,12 +11,16 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+<<<<<<< HEAD
   FlatList,
+=======
+  StatusBar,
+>>>>>>> f71b85b613c408ba9430b980916a5ad4db650f6e
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
 import type { RootState } from '../redux/store'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
 import FindingRideModal from '../components/FindingRideModal'
@@ -54,6 +58,8 @@ export default function HomeScreen() {
   const [isScheduled, setIsScheduled] = useState(false)
   
   const user = useSelector((state: RootState) => state.auth.user)
+  const themeMode = useSelector((state: RootState) => state.theme.mode)
+  const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
 
   // 🔍 Search pickup location when debounced value changes
   useEffect(() => {
@@ -233,12 +239,15 @@ export default function HomeScreen() {
 
       const result = await rideService.createRide(rideData, user.id)
       
+      // 🚀 Tự động chỉ định tài xế
+      const assignedRide = await rideService.autoAssignDriver(result._id)
+      
       // Keep modal showing for 2 seconds, then show success alert
       setTimeout(() => {
         setIsLoading(false)
         Alert.alert(
           'Thành công',
-          '✓ Cuốc xe ghép đã được tạo!\n\nHệ thống đang tìm khách hàng khác để ghép xe với bạn...',
+          `✓ Tài xế ${assignedRide.driverId?.firstName || 'đã nhận'} chuyến!\n\nTài xế sẽ tới trong ~${assignedRide.estimatedArrival || 10} phút`,
           [
             { 
               text: 'OK', 
@@ -246,14 +255,14 @@ export default function HomeScreen() {
                 setPickupLocation('')
                 setDropoffLocation('')
                 setPassengerCount(1)
-                console.log('Shared ride created:', result)
+                console.log('Ride with auto-assigned driver created:', assignedRide)
               } 
             },
           ]
         )
       }, 2000)
 
-      console.log('Ride created:', result)
+      console.log('Ride created and assigned:', assignedRide)
     } catch (error: any) {
       setIsLoading(false)
       Alert.alert('Lỗi', error.message || 'Không thể tạo cuốc xe')
@@ -270,7 +279,11 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+      <StatusBar
+        barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.bg}
+      />
       {/* Finding Ride Modal */}
       <FindingRideModal
         visible={isLoading}
@@ -282,14 +295,14 @@ export default function HomeScreen() {
       />
 
       {/* Header with Map */}
-      <View style={styles.headerSection}>
+      <View style={[styles.headerSection, { backgroundColor: colors.bgSecondary }]}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#fff" />
+            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Đặt xe ghép</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Đặt xe ghép</Text>
           <TouchableOpacity style={styles.settingsButton}>
-            <MaterialIcons name="settings" size={24} color="#fff" />
+            <MaterialIcons name="settings" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -309,7 +322,7 @@ export default function HomeScreen() {
         />
 
         {/* Location Button */}
-        <TouchableOpacity style={styles.locationButton}>
+        <TouchableOpacity style={[styles.locationButton, { backgroundColor: colors.bgSecondary }]}>
           <MaterialIcons name="my-location" size={20} color="#FF6B00" />
         </TouchableOpacity>
       </View>
@@ -323,14 +336,17 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={[
               styles.rideTypeButton,
-              rideMode === 'share' && styles.rideTypeButtonActive,
+              {
+                backgroundColor: rideMode === 'share' ? 'transparent' : `${colors.border}`,
+                borderColor: rideMode === 'share' ? colors.text : colors.border,
+              },
             ]}
             onPress={() => setRideMode('share')}
           >
             <Text
               style={[
                 styles.rideTypeText,
-                rideMode === 'share' && styles.rideTypeTextActive,
+                { color: rideMode === 'share' ? colors.text : colors.textSecondary },
               ]}
             >
               Ghép xe
@@ -339,14 +355,17 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={[
               styles.rideTypeButton,
-              ...(( rideMode as string) === 'hire' ? [styles.rideTypeButtonActive] : []),
+              {
+                backgroundColor: (rideMode as string) === 'hire' ? 'transparent' : `${colors.border}`,
+                borderColor: (rideMode as string) === 'hire' ? colors.text : colors.border,
+              },
             ]}
             onPress={() => setRideMode('hire')}
           >
             <Text
               style={[
                 styles.rideTypeText,
-                ...((rideMode as string) === 'hire' ? [styles.rideTypeTextActive] : []),
+                { color: (rideMode as string) === 'hire' ? colors.text : colors.textSecondary },
               ]}
             >
               Lái xe hộ
@@ -356,17 +375,17 @@ export default function HomeScreen() {
 
         {/* Locations Section */}
         <View style={styles.locationsSection}>
-          <Text style={styles.sectionLabel}>ĐIỂM ĐÓN</Text>
-          <View style={styles.inputLocationWrapper}>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>ĐIỂM ĐÓN</Text>
+          <View style={[styles.inputLocationWrapper, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
             <MaterialIcons
               name="radio-button-checked"
               size={20}
               color="#FF6B00"
             />
             <TextInput
-              style={styles.inputLocation}
+              style={[styles.inputLocation, { color: colors.text }]}
               placeholder="Nhập điểm đón..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.textSecondary}
               value={pickupLocation}
               onChangeText={(text) => {
                 setPickupLocation(text);
@@ -407,12 +426,12 @@ export default function HomeScreen() {
           <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>
             ĐIỂM ĐẾN
           </Text>
-          <View style={styles.inputLocationWrapper}>
+          <View style={[styles.inputLocationWrapper, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
             <MaterialIcons name="location-on" size={20} color="#ef4444" />
             <TextInput
-              style={styles.inputLocation}
+              style={[styles.inputLocation, { color: colors.text }]}
               placeholder="Nhập điểm đến..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.textSecondary}
               value={dropoffLocation}
               onChangeText={(text) => {
                 setDropoffLocation(text);
@@ -453,42 +472,42 @@ export default function HomeScreen() {
 
         {/* Time & Passenger Section */}
         <View style={styles.timePassengerSection}>
-          <View style={styles.timeWrapper}>
+          <View style={[styles.timeWrapper, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
             <View>
-              <Text style={styles.timeLabel}>Thời gian</Text>
+              <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Thời gian</Text>
               <View style={styles.immediateBox}>
-                <Text style={styles.immediateText}>Ngay bây giờ</Text>
+                <Text style={[styles.immediateText, { color: colors.text }]}>Ngay bây giờ</Text>
                 <Text style={styles.immediateSubtext}>(Thay đổi)</Text>
               </View>
             </View>
             <Switch
               value={isImmediately}
               onValueChange={setIsImmediately}
-              trackColor={{ false: '#374151', true: '#FF6B00' }}
-              thumbColor="#fff"
+              trackColor={{ false: colors.border, true: `${colors.primary}50` }}
+              thumbColor={colors.primary}
               style={styles.switch}
             />
           </View>
 
-          <View style={styles.passengerWrapper}>
-            <Text style={styles.passengerLabel}>Số khách</Text>
+          <View style={[styles.passengerWrapper, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+            <Text style={[styles.passengerLabel, { color: colors.textSecondary }]}>Số khách</Text>
             <View style={styles.passengerControls}>
               <TouchableOpacity
-                style={styles.passengerButton}
+                style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.border }]}
                 onPress={() => {
                   if (passengerCount > 1) setPassengerCount(passengerCount - 1)
                 }}
               >
-                <Text style={styles.passengerButtonText}>−</Text>
+                <Text style={[styles.passengerButtonText, { color: colors.textSecondary }]}>−</Text>
               </TouchableOpacity>
-              <Text style={styles.passengerCount}>{passengerCount}</Text>
+              <Text style={[styles.passengerCount, { color: colors.text }]}>{passengerCount}</Text>
               <TouchableOpacity
-                style={styles.passengerButton}
+                style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.border }]}
                 onPress={() => {
                   if (passengerCount < 6) setPassengerCount(passengerCount + 1)
                 }}
               >
-                <Text style={styles.passengerButtonText}>+</Text>
+                <Text style={[styles.passengerButtonText, { color: colors.textSecondary }]}>+</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -496,7 +515,7 @@ export default function HomeScreen() {
 
         {/* Price Section */}
         <View style={styles.priceSection}>
-          <Text style={styles.priceLabel}>Giá từ</Text>
+          <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Giá từ</Text>
           <Text style={styles.priceValue}>45.000đ</Text>
         </View>
 
@@ -528,11 +547,9 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
   },
   headerSection: {
     height: height * 0.4,
-    backgroundColor: '#1a202c',
     position: 'relative',
     paddingTop: SPACING.xxl,
   },
@@ -554,7 +571,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
   },
   settingsButton: {
     width: 44,
@@ -574,7 +590,6 @@ const styles = StyleSheet.create({
   },
   mapPlaceholder: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#374151',
   //   backgroundImage: 'linear-gradient(45deg, #4b5563 25%, #374151 25%, #374151 50%, #4b5563 50%, #4b5563 75%, #374151 75%, #374151)',
    },
   routeInfo: {
@@ -601,9 +616,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#1a202c',
-    justifyContent: 'center',
-    alignItems: 'center',
     borderWidth: 2,
     borderColor: '#FF6B00',
   },
@@ -621,24 +633,20 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   rideTypeButtonActive: {
     backgroundColor: 'transparent',
-    borderColor: '#374151',
     borderWidth: 2,
   },
   rideTypeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#94a3b8',
   },
   rideTypeTextActive: {
-    color: '#fff',
+    fontWeight: '700',
   },
   locationsSection: {
     marginBottom: SPACING.xl,
@@ -646,7 +654,6 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748b',
     marginBottom: SPACING.md,
     letterSpacing: 0.5,
   },
@@ -655,10 +662,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.lg,
-    backgroundColor: '#1a202c',
     borderRadius: BORDER_RADIUS.lg,
     gap: SPACING.md,
     marginBottom: SPACING.md,
+    borderWidth: 1,
   },
   locationContent: {
     flex: 1,
@@ -666,22 +673,18 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#fff',
   },
   inputLocationWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
     height: 56,
-    backgroundColor: '#1a202c',
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
     gap: SPACING.md,
   },
   inputLocation: {
     flex: 1,
-    color: '#fff',
     fontSize: 14,
   },
   timePassengerSection: {
@@ -691,16 +694,15 @@ const styles = StyleSheet.create({
   },
   timeWrapper: {
     flex: 1,
-    backgroundColor: '#1a202c',
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     flexDirection: 'column',
     justifyContent: 'space-between',
+    borderWidth: 1,
   },
   timeLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94a3b8',
     marginBottom: SPACING.sm,
   },
   immediateBox: {
@@ -709,7 +711,6 @@ const styles = StyleSheet.create({
   immediateText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#fff',
   },
   immediateSubtext: {
     fontSize: 11,
@@ -722,14 +723,13 @@ const styles = StyleSheet.create({
   },
   passengerWrapper: {
     flex: 1,
-    backgroundColor: '#1a202c',
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
+    borderWidth: 1,
   },
   passengerLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94a3b8',
     marginBottom: SPACING.md,
   },
   passengerControls: {
@@ -742,21 +742,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   passengerButtonText: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#94a3b8',
   },
   passengerCount: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
     minWidth: 30,
     textAlign: 'center',
   },
@@ -766,7 +762,6 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94a3b8',
     marginBottom: SPACING.sm,
   },
   priceValue: {

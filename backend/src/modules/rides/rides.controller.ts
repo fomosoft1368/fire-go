@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Patch, Query } from '@nestjs/common
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { RidesService } from './rides.service';
+import { AutoAssignService } from './services/auto-assign.service';
 import { CreateRideDto } from './dto';
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
 
@@ -217,6 +218,11 @@ export class RidesController {
   @Patch(':id/assign')
   async assignDriver(@Param('id') id: string, @Body('driverId') driverId: string) {
     return this.ridesService.assignDriver(id, driverId);
+  }
+
+  @Post(':id/auto-assign')
+  async autoAssignDriver(@Param('id') id: string) {
+    return this.autoAssignService.autoAssignDriver(id);
   }
 
   @Patch(':id/start')

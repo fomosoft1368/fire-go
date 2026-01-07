@@ -120,7 +120,7 @@ const MapViewComponent = ({
           onLocationSelect?.({ latitude, longitude })
         }}
         showsUserLocation={true}
-        showsMyLocationButton={true}
+        showsMyLocationButton={false}
         showsCompass={true}
         toolbarEnabled={true}
         scrollEnabled={true}

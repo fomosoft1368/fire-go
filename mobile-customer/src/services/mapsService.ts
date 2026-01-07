@@ -33,6 +33,13 @@ interface DistanceMatrixResult {
   durationText: string
 }
 
+interface PlacePrediction {
+  placeId: string
+  mainText: string
+  secondaryText: string
+  fullText: string
+}
+
 /**
  * Mock data cho testing khi chưa có Google Maps API key
  */
@@ -120,6 +127,76 @@ const generateMockRoute = (
 }
 
 export const mapsService = {
+  /**
+   * Tìm kiếm địa chỉ và trả về gợi ý (autocomplete)
+   */
+  async searchPlaces(input: string, sessionToken?: string): Promise<PlacePrediction[]> {
+    if (!input.trim()) {
+      return []
+    }
+
+    // Nếu chưa có API key, return mock suggestions
+    if (USE_MOCK_DATA) {
+      console.warn('[MapsService] Using mock place predictions for:', input)
+      
+      // Mock suggestions dựa trên input
+      const mockSuggestions: PlacePrediction[] = [
+        {
+          placeId: 'mock_1',
+          mainText: `${input} - Hà Nội`,
+          secondaryText: 'Thành phố Hà Nội',
+          fullText: `${input} - Hà Nội, Thành phố Hà Nội`,
+        },
+        {
+          placeId: 'mock_2',
+          mainText: `${input} - Hoàn Kiếm`,
+          secondaryText: 'Quận Hoàn Kiếm, Hà Nội',
+          fullText: `${input} - Hoàn Kiếm, Quận Hoàn Kiếm, Hà Nội`,
+        },
+        {
+          placeId: 'mock_3',
+          mainText: `${input} - Thanh Xuân`,
+          secondaryText: 'Quận Thanh Xuân, Hà Nội',
+          fullText: `${input} - Thanh Xuân, Quận Thanh Xuân, Hà Nội`,
+        },
+      ]
+      
+      return mockSuggestions
+    }
+
+    try {
+      // Sử dụng Google Places Autocomplete API
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+        input
+      )}&key=${GOOGLE_MAPS_API_KEY}${sessionToken ? `&sessiontoken=${sessionToken}` : ''}`
+
+      console.log('[MapsService] Searching places:', input)
+      const response = await fetch(url)
+      const data = await response.json()
+
+      if (data.status === 'REQUEST_DENIED') {
+        console.error('[MapsService] Places API key invalid or not enabled')
+        console.warn('[MapsService] Falling back to mock predictions')
+        return this.searchPlaces(input) // Recursive call sẽ sử dụng mock data
+      }
+
+      if (data.status !== 'OK' || !data.predictions) {
+        return []
+      }
+
+      return data.predictions.map((prediction: any) => ({
+        placeId: prediction.place_id,
+        mainText: prediction.structured_formatting?.main_text || prediction.description,
+        secondaryText: prediction.structured_formatting?.secondary_text || '',
+        fullText: prediction.description,
+      }))
+    } catch (error: any) {
+      console.error('[MapsService] Search places error:', error)
+      // Return empty array thay vì throw error
+      return []
+    }
+  },
+
   /**
    * Chuyển địa chỉ thành tọa độ (Geocoding)
    */
