@@ -21,7 +21,7 @@
         "NSLocationWhenInUseUsageDescription": "Allow app to access your location"
       },
       "config": {
-        "googleMapsApiKey": "AIzaSyBkL5y6ap46Q2qtKPv9bLtQyf4ZOSRLinw"
+        "googleMapsApiKey": "AIzaSyDhotUKj8pth1cdRwUu3rgN7xn5t-P2y8A"
       }
     },
     "android": {
@@ -30,7 +30,7 @@
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyBkL5y6ap46Q2qtKPv9bLtQyf4ZOSRLinw"
+          "apiKey": "AIzaSyDhotUKj8pth1cdRwUu3rgN7xn5t-P2y8A"
         }
       }
     },
@@ -43,7 +43,7 @@
       ]
     ],
     "extra": {
-      "googleMapsApiKey": "AIzaSyBkL5y6ap46Q2qtKPv9bLtQyf4ZOSRLinw"
+      "googleMapsApiKey": "AIzaSyDhotUKj8pth1cdRwUu3rgN7xn5t-P2y8A"
     }
   }
 }

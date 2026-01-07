@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -19,12 +19,18 @@ import type { RootState } from '../redux/store'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
+import DriverFoundScreen from './DriverFoundScreen'
+import FindingRideScreen from './FindingRideScreen'
 import FindingRideModal from '../components/FindingRideModal'
 import { rideService } from '../services/rideService'
+import { mapsService } from '../services/mapsService'
 
 const { width, height } = Dimensions.get('window')
 
 export default function HomeScreen() {
+  // Track component mounted state để tránh memory leak
+  const isMountedRef = React.useRef(true)
+  
   const [rideMode, setRideMode] = useState<'share' | 'hire'>('share' as const)
   const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
@@ -33,6 +39,24 @@ export default function HomeScreen() {
   const [isImmediately, setIsImmediately] = useState(true)
   const [passengerCount, setPassengerCount] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Share ride additional states
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
+  const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
+  const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
+  const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [routeInfo, setRouteInfo] = useState<any>(null)
+  const [fareEstimate, setFareEstimate] = useState<any>(null)
+  const [calculating, setCalculating] = useState(false)
+  
+  // Share ride - Driver finding states
+  const [isSearching, setIsSearching] = useState(false)
+  const [driverFound, setDriverFound] = useState(false)
+  const [driver, setDriver] = useState<any>(null)
+  const [driverLocation, setDriverLocation] = useState<any>(null)
+  const [rideId, setRideId] = useState<string | null>(null)
   
   // Hire driver mode states
   const [carType, setCarType] = useState<'sedan' | 'suv' | 'truck'>('sedan')
@@ -45,7 +69,315 @@ export default function HomeScreen() {
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
 
-  const handleFindRide = async () => {
+  // Cleanup timeouts and mark unmounted
+  useEffect(() => {
+    isMountedRef.current = true
+    
+    return () => {
+      isMountedRef.current = false
+      if (pickupSearchTimeout) clearTimeout(pickupSearchTimeout)
+      if (dropoffSearchTimeout) clearTimeout(dropoffSearchTimeout)
+    }
+  }, [])
+
+  // Reset share ride state khi cancel
+  const resetShareRideState = () => {
+    setIsSearching(false)
+    setDriverFound(false)
+    setDriver(null)
+    setDriverLocation(null)
+    setRideId(null)
+  }
+
+  // Polling để lấy thông tin tài xế khi có tài xế nhận cuốc
+  useEffect(() => {
+    if (!isSearching || !rideId) {
+      return
+    }
+
+    console.log('[HomeScreen] Polling ride data for rideId:', rideId)
+    let pollInterval: NodeJS.Timeout
+    
+    const pollRideData = async () => {
+      // Chỉ chạy khi component còn mounted
+      if (!isMountedRef.current) return
+      
+      try {
+        const rideData = await rideService.getRideById(rideId)
+        
+        // Double check mounted state sau async call
+        if (!isMountedRef.current) return
+        
+        console.log('[HomeScreen] Ride data:', rideData)
+
+        if (!rideData || typeof rideData !== 'object') {
+          console.warn('[HomeScreen] Invalid rideData:', rideData)
+          return
+        }
+
+        // Nếu tài xế đã nhận cuốc (có driverId)
+        if (rideData.driverId) {
+          const driverData = rideData.driverId
+          
+          if (!driverData || !driverData._id) {
+            console.warn('[HomeScreen] Invalid driverData:', driverData)
+            return
+          }
+
+          console.log('[HomeScreen] Driver found:', driverData._id)
+          
+          // Map dữ liệu từ API sang format UI
+          setDriver({
+            id: driverData._id,
+            name: driverData.firstName || 'Driver',
+            phone: driverData.phone || '0',
+            avatar: driverData.avatar || '',
+            rating: driverData.rating || 4.8,
+            reviews: driverData.reviews || 128,
+            vehicle: {
+              model: driverData.vehicle?.model || 'Toyota Vios',
+              licensePlate: driverData.vehicle?.licensePlate || 'ABC 123',
+              color: driverData.vehicle?.color || 'White',
+            },
+          })
+
+          setDriverLocation({
+            latitude: rideData.driverLocation?.[1] || 21.0285,
+            longitude: rideData.driverLocation?.[0] || 105.8542,
+          })
+
+          setDriverFound(true)
+          setIsSearching(false)
+          clearInterval(pollInterval)
+        }
+      } catch (error) {
+        console.error('[HomeScreen] Polling error:', error)
+        // Không clear interval để retry
+      }
+    }
+    
+    // Start polling
+    pollInterval = setInterval(pollRideData, 2000)
+    
+    // Cleanup
+    return () => {
+      if (pollInterval) clearInterval(pollInterval)
+    }
+  }, [isSearching, rideId])
+
+  // Calculate fare dựa trên distance, duration, passenger count
+  const calculateShareRideFare = (distance: number, duration: number, passengers: number) => {
+    const baseFare = 10000 // 10k VND
+    const distanceFare = (distance / 1000) * 5000 // 5k per km
+    const timeFare = (duration / 60) * 2000 // 2k per minute
+    const passengerSurge = passengers > 2 ? (passengers - 2) * 5000 : 0
+    
+    const totalFare = baseFare + distanceFare + timeFare + passengerSurge
+    
+    return {
+      baseFare,
+      distanceFare: Math.round(distanceFare),
+      timeFare: Math.round(timeFare),
+      passengerSurge: Math.round(passengerSurge),
+      total: Math.round(totalFare),
+    }
+  }
+
+  // Tính tuyến đường khi có đủ thông tin
+  const calculateRoute = async () => {
+    if (!pickupLocation.trim() || !dropoffLocation.trim()) {
+      return
+    }
+
+    setCalculating(true)
+    try {
+      console.log('[HomeScreen] Calculating route...')
+      const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
+      setRouteInfo(route)
+
+      const fare = calculateShareRideFare(route.distance, route.duration, passengerCount)
+      setFareEstimate(fare)
+
+      console.log('[HomeScreen] Route calculated:', { route, fare })
+
+      if (route.isMockData) {
+        Alert.alert(
+          '⚠️ Chế độ Demo',
+          'Hiện đang sử dụng dữ liệu giả lập.\n\nĐể sử dụng Google Maps thật, vui lòng cấu hình API key trong file .env',
+          [{ text: 'OK' }]
+        )
+      }
+    } catch (err: any) {
+      console.error('[HomeScreen] Calculate error:', err)
+      Alert.alert('Lỗi', err.message || 'Không thể tính toán tuyến đường')
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  // Debounce calculate route
+  useEffect(() => {
+    if (!pickupLocation.trim() || !dropoffLocation.trim()) {
+      setRouteInfo(null)
+      setFareEstimate(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      if (!isMountedRef.current) return
+      
+      setCalculating(true)
+      try {
+        console.log('[HomeScreen] Calculating route...')
+        const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
+        
+        if (!isMountedRef.current) return
+        
+        setRouteInfo(route)
+
+        const fare = calculateShareRideFare(route.distance, route.duration, passengerCount)
+        setFareEstimate(fare)
+
+        console.log('[HomeScreen] Route calculated:', { route, fare })
+
+        if (route.isMockData) {
+          Alert.alert(
+            '⚠️ Chế độ Demo',
+            'Hiện đang sử dụng dữ liệu giả lập.\n\nĐể sử dụng Google Maps thật, vui lòng cấu hình API key trong file .env',
+            [{ text: 'OK' }]
+          )
+        }
+      } catch (err: any) {
+        console.error('[HomeScreen] Calculate error:', err)
+        if (isMountedRef.current) {
+          Alert.alert('Lỗi', err.message || 'Không thể tính toán tuyến đường')
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setCalculating(false)
+        }
+      }
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [pickupLocation, dropoffLocation, passengerCount])
+
+  // Handle pickup location change
+  const handlePickupLocationChange = React.useCallback((text: string) => {
+    setPickupLocation(text)
+
+    if (pickupSearchTimeout) {
+      clearTimeout(pickupSearchTimeout)
+    }
+
+    if (text.trim().length >= 5) {
+      setShowPickupSuggestions(true)
+      const timeout = setTimeout(async () => {
+        if (!isMountedRef.current) return
+        
+        try {
+          console.log('[HomeScreen] Pickup search for:', text)
+          const suggestions = await mapsService.searchPlaces(text)
+          
+          if (!isMountedRef.current) return
+          setPickupSuggestions(suggestions)
+        } catch (error) {
+          console.error('Error searching pickup locations:', error)
+          if (isMountedRef.current) {
+            setPickupSuggestions([])
+          }
+        }
+      }, 800)
+      setPickupSearchTimeout(timeout)
+    } else {
+      setPickupSuggestions([])
+      if (text.trim().length === 0) {
+        setShowPickupSuggestions(false)
+      }
+    }
+  }, [pickupSearchTimeout])
+
+  // Handle dropoff location change
+  const handleDropoffLocationChange = React.useCallback((text: string) => {
+    setDropoffLocation(text)
+
+    if (dropoffSearchTimeout) {
+      clearTimeout(dropoffSearchTimeout)
+    }
+
+    if (text.trim().length >= 5) {
+      setShowDropoffSuggestions(true)
+      const timeout = setTimeout(async () => {
+        if (!isMountedRef.current) return
+        
+        try {
+          console.log('[HomeScreen] Dropoff search for:', text)
+          const suggestions = await mapsService.searchPlaces(text)
+          
+          if (!isMountedRef.current) return
+          setDropoffSuggestions(suggestions)
+        } catch (error) {
+          console.error('Error searching dropoff locations:', error)
+          if (isMountedRef.current) {
+            setDropoffSuggestions([])
+          }
+        }
+      }, 800)
+      setDropoffSearchTimeout(timeout)
+    } else {
+      setDropoffSuggestions([])
+      if (text.trim().length === 0) {
+        setShowDropoffSuggestions(false)
+      }
+    }
+  }, [dropoffSearchTimeout])
+
+  // Handle suggestion select
+  const handlePickupSuggestionSelect = (suggestion: any) => {
+    setPickupLocation(suggestion.fullText)
+    setShowPickupSuggestions(false)
+    setPickupSuggestions([])
+  }
+
+  const handleDropoffSuggestionSelect = (suggestion: any) => {
+    setDropoffLocation(suggestion.fullText)
+    setShowDropoffSuggestions(false)
+    setDropoffSuggestions([])
+  }
+
+  // Show driver found screen khi tài xế được tìm thấy
+  if (driverFound && routeInfo && driver) {
+    return (
+      <DriverFoundScreen
+        driver={driver}
+        routeInfo={routeInfo}
+        onChat={() => {
+          console.log('Chat with driver:', driver.id)
+        }}
+        onCancel={resetShareRideState}
+      />
+    )
+  }
+
+  // Show finding driver screen
+  if (isSearching && routeInfo) {
+    return (
+      <FindingRideScreen
+        routeInfo={routeInfo}
+        passengerCount={passengerCount}
+        fareEstimate={fareEstimate}
+        onCancel={() => {
+          resetShareRideState()
+          setPickupLocation('')
+          setDropoffLocation('')
+          setRouteInfo(null)
+          setFareEstimate(null)
+        }}
+      />
+    )
+  }
+
+  const handleFindRide = React.useCallback(async () => {
     try {
       // Validation
       if (!pickupLocation.trim()) {
@@ -63,56 +395,74 @@ export default function HomeScreen() {
         return
       }
 
+      // Nếu chưa tính giá, tính trước
+      if (!routeInfo || !fareEstimate) {
+        Alert.alert(
+          'Chưa tính giá',
+          'Vui lòng chờ hệ thống tính toán hoặc kiểm tra lại địa chỉ!',
+          [{ text: 'OK' }]
+        )
+        return
+      }
+
       setIsLoading(true)
 
-      // Tạo dữ liệu cuốc xe ghép - KHÔNG cần thông tin xe
+      // Tạo dữ liệu cuốc xe ghép với thông tin tuyến đường chính xác
       const rideData = {
         rideType: 'share' as const,
-        pickupAddress: pickupLocation,
-        pickupCoordinates: pickupCoordinates,
-        dropoffAddress: dropoffLocation,
-        dropoffCoordinates: dropoffCoordinates,
-        distance: 5, // TODO: Tính từ API Maps
-        duration: 15, // TODO: Tính từ API Maps
-        baseFare: 10000,
-        distanceFare: 5000,
-        timeFare: 2000,
+        pickupAddress: routeInfo.pickup.formattedAddress,
+        pickupCoordinates: [routeInfo.pickup.coordinates.longitude, routeInfo.pickup.coordinates.latitude],
+        dropoffAddress: routeInfo.dropoff.formattedAddress,
+        dropoffCoordinates: [routeInfo.dropoff.coordinates.longitude, routeInfo.dropoff.coordinates.latitude],
+        distance: routeInfo.distance,
+        duration: routeInfo.duration,
+        baseFare: fareEstimate.baseFare,
+        distanceFare: fareEstimate.distanceFare,
+        timeFare: fareEstimate.timeFare,
         passengers: passengerCount,
-        // Không gửi carType, licensePlate, transmission, driverNote
       }
 
       const result = await rideService.createRide(rideData, user.id)
       
+      if (!isMountedRef.current) return
+      
       // 🚀 Tự động chỉ định tài xế
       const assignedRide = await rideService.autoAssignDriver(result._id)
       
+      if (!isMountedRef.current) return
+      
+      // Set searching state to track driver
+      setRideId(result._id)
+      setIsSearching(true)
+      
       // Keep modal showing for 2 seconds, then show success alert
       setTimeout(() => {
+        if (!isMountedRef.current) return
+        
         setIsLoading(false)
         Alert.alert(
           'Thành công',
-          `✓ Tài xế ${assignedRide.driverId?.firstName || 'đã nhận'} chuyến!\n\nTài xế sẽ tới trong ~${assignedRide.estimatedArrival || 10} phút`,
+          `✓ Cuốc xe đã được tạo!\n\nHệ thống đang tìm tài xế phù hợp cho bạn...`,
           [
             { 
               text: 'OK', 
               onPress: () => {
-                setPickupLocation('')
-                setDropoffLocation('')
-                setPassengerCount(1)
-                console.log('Ride with auto-assigned driver created:', assignedRide)
+                console.log('Ride created:', assignedRide)
               } 
             },
           ]
         )
-      }, 2000)
+      }, 500)
 
       console.log('Ride created and assigned:', assignedRide)
     } catch (error: any) {
+      if (!isMountedRef.current) return
+      
       setIsLoading(false)
       Alert.alert('Lỗi', error.message || 'Không thể tạo cuốc xe')
       console.error('Error:', error)
     }
-  }
+  }, [pickupLocation, dropoffLocation, user?.id, routeInfo, fareEstimate, passengerCount])
 
   const handleCancelFinding = () => {
     setIsLoading(false)
@@ -160,15 +510,27 @@ export default function HomeScreen() {
             longitudeDelta: 0.0421,
           }}
           markers={[]}
+          pickupCoords={
+            routeInfo
+              ? {
+                  latitude: routeInfo.pickup.coordinates.latitude,
+                  longitude: routeInfo.pickup.coordinates.longitude,
+                }
+              : undefined
+          }
+          dropoffCoords={
+            routeInfo
+              ? {
+                  latitude: routeInfo.dropoff.coordinates.latitude,
+                  longitude: routeInfo.dropoff.coordinates.longitude,
+                }
+              : undefined
+          }
+          routeCoordinates={routeInfo?.routeCoordinates || []}
           onLocationSelect={(location) => {
             console.log('Location selected:', location)
           }}
         />
-
-        {/* Location Button */}
-        <TouchableOpacity style={[styles.locationButton, { backgroundColor: colors.bgSecondary }]}>
-          <MaterialIcons name="my-location" size={20} color="#FF6B00" />
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -231,9 +593,28 @@ export default function HomeScreen() {
               placeholder="Nhập điểm đón..."
               placeholderTextColor={colors.textSecondary}
               value={pickupLocation}
-              onChangeText={setPickupLocation}
+              onChangeText={handlePickupLocationChange}
             />
           </View>
+          {showPickupSuggestions && pickupSuggestions.length > 0 && (
+            <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <ScrollView scrollEnabled={pickupSuggestions.length > 3} nestedScrollEnabled={true}>
+                {pickupSuggestions.map((item) => (
+                  <TouchableOpacity
+                    key={item.placeId}
+                    style={[styles.suggestionItem, { borderColor: colors.border }]}
+                    onPress={() => handlePickupSuggestionSelect(item)}
+                  >
+                    <MaterialIcons name="location-on" size={20} color="#FF6B00" />
+                    <View style={styles.suggestionContent}>
+                      <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
+                      <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           <Text style={[styles.sectionLabel, { marginTop: SPACING.xl, color: colors.textSecondary }]}>
             ĐIỂM ĐẾN
@@ -245,9 +626,28 @@ export default function HomeScreen() {
               placeholder="Nhập điểm đến..."
               placeholderTextColor={colors.textSecondary}
               value={dropoffLocation}
-              onChangeText={setDropoffLocation}
+              onChangeText={handleDropoffLocationChange}
             />
           </View>
+          {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+            <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <ScrollView scrollEnabled={dropoffSuggestions.length > 3} nestedScrollEnabled={true}>
+                {dropoffSuggestions.map((item) => (
+                  <TouchableOpacity
+                    key={item.placeId}
+                    style={[styles.suggestionItem, { borderColor: colors.border }]}
+                    onPress={() => handleDropoffSuggestionSelect(item)}
+                  >
+                    <MaterialIcons name="location-on" size={20} color="#ef4444" />
+                    <View style={styles.suggestionContent}>
+                      <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
+                      <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* Time & Passenger Section */}
@@ -293,23 +693,70 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Route Info Card */}
+        {routeInfo && (
+          <View style={[styles.routeInfoCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+            <View style={styles.routeInfoRow}>
+              <View style={styles.routeInfoItem}>
+                <MaterialIcons name="directions" size={20} color="#FF6B00" />
+                <Text style={[styles.routeInfoValue, { color: colors.text }]}>
+                  {(routeInfo.distance / 1000).toFixed(1)} km
+                </Text>
+                <Text style={[styles.routeInfoLabel, { color: colors.textSecondary }]}>Quãng đường</Text>
+              </View>
+              <View style={styles.routeInfoDivider} />
+              <View style={styles.routeInfoItem}>
+                <MaterialIcons name="schedule" size={20} color="#FF6B00" />
+                <Text style={[styles.routeInfoValue, { color: colors.text }]}>
+                  ~{Math.ceil(routeInfo.duration / 60)} phút
+                </Text>
+                <Text style={[styles.routeInfoLabel, { color: colors.textSecondary }]}>Thời gian</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Price Section */}
         <View style={styles.priceSection}>
           <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Giá từ</Text>
-          <Text style={styles.priceValue}>45.000đ</Text>
+          {fareEstimate ? (
+            <View>
+              <Text style={styles.priceValue}>{fareEstimate.total.toLocaleString()}đ</Text>
+              <View style={styles.fareBreakdown}>
+                <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
+                  Cơ bản: {fareEstimate.baseFare.toLocaleString()}đ
+                </Text>
+                <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
+                  Quãng đường: {fareEstimate.distanceFare.toLocaleString()}đ
+                </Text>
+                <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
+                  Thời gian: {fareEstimate.timeFare.toLocaleString()}đ
+                </Text>
+                {fareEstimate.passengerSurge > 0 && (
+                  <Text style={[styles.fareBreakdownItem, { color: '#FF6B00' }]}>
+                    Phụ phí khách thêm: +{fareEstimate.passengerSurge.toLocaleString()}đ
+                  </Text>
+                )}
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.priceValue}>45.000đ</Text>
+          )}
         </View>
 
         {/* Find Ride Button */}
         <TouchableOpacity 
-          style={styles.findButton}
+          style={[styles.findButton, (isLoading || calculating) && styles.findButtonDisabled]}
           onPress={handleFindRide}
-          disabled={isLoading}
+          disabled={isLoading || calculating}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <>
-              <Text style={styles.findButtonText}>Tìm chuyến xe</Text>
+              <Text style={styles.findButtonText}>
+                {calculating ? 'Đang tính giá...' : 'Tìm chuyến xe'}
+              </Text>
               <MaterialIcons
                 name="arrow-forward"
                 size={20}
@@ -370,8 +817,7 @@ const styles = StyleSheet.create({
   },
   mapPlaceholder: {
     ...StyleSheet.absoluteFillObject,
-  //   backgroundImage: 'linear-gradient(45deg, #4b5563 25%, #374151 25%, #374151 50%, #4b5563 50%, #4b5563 75%, #374151 75%, #374151)',
-   },
+  },
   routeInfo: {
     position: 'absolute',
     bottom: SPACING.lg,
@@ -430,6 +876,8 @@ const styles = StyleSheet.create({
   },
   locationsSection: {
     marginBottom: SPACING.xl,
+    position: 'relative',
+    zIndex: 10,
   },
   sectionLabel: {
     fontSize: 11,
@@ -462,10 +910,46 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
     gap: SPACING.md,
+    marginBottom: SPACING.md,
   },
   inputLocation: {
     flex: 1,
     fontSize: 14,
+  },
+  suggestionsDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    borderRadius: BORDER_RADIUS.lg,
+    marginTop: -SPACING.lg,
+    borderWidth: 1,
+    maxHeight: 300,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    gap: SPACING.md,
+  },
+  suggestionContent: {
+    flex: 1,
+  },
+  suggestionMainText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: SPACING.xs,
+  },
+  suggestionSecondaryText: {
+    fontSize: 12,
   },
   timePassengerSection: {
     flexDirection: 'row',
@@ -536,6 +1020,35 @@ const styles = StyleSheet.create({
     minWidth: 30,
     textAlign: 'center',
   },
+  routeInfoCard: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    marginBottom: SPACING.lg,
+  },
+  routeInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  routeInfoItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  routeInfoValue: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  routeInfoLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  routeInfoDivider: {
+    width: 1,
+    height: 50,
+    opacity: 0.2,
+  },
   priceSection: {
     marginBottom: SPACING.xl,
   },
@@ -548,6 +1061,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#FF6B00',
+  },
+  fareBreakdown: {
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 107, 0, 0.2)',
+    gap: SPACING.xs,
+  },
+  fareBreakdownItem: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   findButton: {
     height: 56,
@@ -563,6 +1087,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
+  },
+  findButtonDisabled: {
+    backgroundColor: '#94a3b8',
+    shadowOpacity: 0,
   },
   findButtonText: {
     fontSize: 15,

@@ -96,51 +96,65 @@ export default function HireDriverScreen({
 
   const handlePickupLocationChange = (text: string) => {
     setPickupLocation(text)
-    setShowPickupSuggestions(true)
 
     // Clear previous timeout
     if (pickupSearchTimeout) {
       clearTimeout(pickupSearchTimeout)
     }
 
-    // Debounce search
-    if (text.trim()) {
+    // Chỉ search nếu text >= 5 ký tự
+    if (text.trim().length >= 5) {
+      setShowPickupSuggestions(true)
+      // Debounce 800ms để giảm request
       const timeout = setTimeout(async () => {
         try {
+          console.log('[Search] Pickup search for:', text)
           const suggestions = await mapsService.searchPlaces(text)
           setPickupSuggestions(suggestions)
         } catch (error) {
           console.error('Error searching pickup locations:', error)
+          setPickupSuggestions([])
         }
-      }, 500)
+      }, 800)
       setPickupSearchTimeout(timeout)
     } else {
+      // Xóa suggestions nếu text < 5 ký tự
       setPickupSuggestions([])
+      if (text.trim().length === 0) {
+        setShowPickupSuggestions(false)
+      }
     }
   }
 
   const handleDropoffLocationChange = (text: string) => {
     setDropoffLocation(text)
-    setShowDropoffSuggestions(true)
 
     // Clear previous timeout
     if (dropoffSearchTimeout) {
       clearTimeout(dropoffSearchTimeout)
     }
 
-    // Debounce search
-    if (text.trim()) {
+    // Chỉ search nếu text >= 5 ký tự
+    if (text.trim().length >= 5) {
+      setShowDropoffSuggestions(true)
+      // Debounce 800ms để giảm request
       const timeout = setTimeout(async () => {
         try {
+          console.log('[Search] Dropoff search for:', text)
           const suggestions = await mapsService.searchPlaces(text)
           setDropoffSuggestions(suggestions)
         } catch (error) {
           console.error('Error searching dropoff locations:', error)
+          setDropoffSuggestions([])
         }
-      }, 500)
+      }, 800)
       setDropoffSearchTimeout(timeout)
     } else {
+      // Xóa suggestions nếu text < 5 ký tự
       setDropoffSuggestions([])
+      if (text.trim().length === 0) {
+        setShowDropoffSuggestions(false)
+      }
     }
   }
 
