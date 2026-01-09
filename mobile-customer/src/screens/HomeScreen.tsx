@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -24,8 +24,6 @@ import type { RootStackParamList } from '../types'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
-import DriverFoundScreen from './DriverFoundScreen'
-import FindingRideScreen from './FindingRideScreen'
 import FindingRideModal from '../components/FindingRideModal'
 import { rideService } from '../services/rideService'
 import { useDebounce } from '../hooks'
@@ -56,21 +54,21 @@ export default function HomeScreen() {
   const debouncedDropoffLocation = useDebounce(dropoffLocation, 500)
   
   // Share ride additional states
-  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
-  const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
-  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
-  const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
-  const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
-  const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
-  const [routeInfo, setRouteInfo] = useState<any>(null)
+  // @ts-ignore - Used for future features
   const [fareEstimate, setFareEstimate] = useState<any>(null)
+  // @ts-ignore - Used for future features
   const [calculating, setCalculating] = useState(false)
   
   // Share ride - Driver finding states
+  // @ts-ignore - Used for future features
   const [isSearching, setIsSearching] = useState(false)
+  // @ts-ignore - Used for future features
   const [driverFound, setDriverFound] = useState(false)
+  // @ts-ignore - Used for future features
   const [driver, setDriver] = useState<any>(null)
+  // @ts-ignore - Used for future features
   const [driverLocation, setDriverLocation] = useState<any>(null)
+  // @ts-ignore - Used for future features
   const [rideId, setRideId] = useState<string | null>(null)
   
   // Hire driver mode states
@@ -84,6 +82,13 @@ export default function HomeScreen() {
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // 🔍 Search pickup location when debounced value changes
   useEffect(() => {
@@ -318,7 +323,7 @@ export default function HomeScreen() {
       Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường')
       console.error('Error:', error)
     }
-  }, [pickupLocation, dropoffLocation, user?.id, routeInfo, fareEstimate, passengerCount])
+  }
 
   const handleCancelFinding = () => {
     setIsLoading(false)
@@ -542,25 +547,6 @@ export default function HomeScreen() {
               <ActivityIndicator size="small" color="#FF6B00" style={{ marginLeft: SPACING.sm }} />
             )}
           </View>
-          {showPickupSuggestions && pickupSuggestions.length > 0 && (
-            <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
-              <ScrollView scrollEnabled={pickupSuggestions.length > 3} nestedScrollEnabled={true}>
-                {pickupSuggestions.map((item) => (
-                  <TouchableOpacity
-                    key={item.placeId}
-                    style={[styles.suggestionItem, { borderColor: colors.border }]}
-                    onPress={() => handlePickupSuggestionSelect(item)}
-                  >
-                    <MaterialIcons name="location-on" size={20} color="#FF6B00" />
-                    <View style={styles.suggestionContent}>
-                      <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
-                      <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
 
           {/* Pickup Suggestions */}
           {pickupSuggestions.length > 0 && (
@@ -707,14 +693,14 @@ export default function HomeScreen() {
             <View style={[styles.routeInfo, { borderTopColor: colors.border }]}>
               <View style={styles.routeInfoItem}>
                 <MaterialIcons name="straighten" size={18} color="#FF6B00" />
-                <Text style={[styles.routeInfoText, { color: colors.text }]}>
+                <Text style={[styles.routeText, { color: colors.text }]}>
                   {routeInfo.distanceText}
                 </Text>
               </View>
               <View style={styles.routeInfoDivider} />
               <View style={styles.routeInfoItem}>
                 <MaterialIcons name="schedule" size={18} color="#FF6B00" />
-                <Text style={[styles.routeInfoText, { color: colors.text }]}>
+                <Text style={[styles.routeText, { color: colors.text }]}>
                   {routeInfo.durationText}
                 </Text>
               </View>
@@ -908,21 +894,6 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     borderTopWidth: 1,
   },
-  routeInfoItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  routeInfoText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  routeInfoDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: '#4a5568',
-  },
   locationItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -969,14 +940,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
-  },
-  suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    gap: SPACING.md,
   },
   suggestionContent: {
     flex: 1,
@@ -1167,4 +1130,64 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
   },
-})
+  fullscreenMapContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  closeMapButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  fullscreenMapInfo: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+  },
+  mapInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  mapInfoItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  mapInfoValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  mapInfoDivider: {
+    width: 1,
+    height: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  expandMapButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },})
