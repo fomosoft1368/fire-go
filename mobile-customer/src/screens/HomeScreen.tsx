@@ -13,6 +13,7 @@ import {
   Alert,
   FlatList,
   StatusBar,
+  Modal,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
@@ -23,6 +24,8 @@ import type { RootStackParamList } from '../types'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
+import DriverFoundScreen from './DriverFoundScreen'
+import FindingRideScreen from './FindingRideScreen'
 import FindingRideModal from '../components/FindingRideModal'
 import { rideService } from '../services/rideService'
 import { useDebounce } from '../hooks'
@@ -52,12 +55,31 @@ export default function HomeScreen() {
   const debouncedPickupLocation = useDebounce(pickupLocation, 500)
   const debouncedDropoffLocation = useDebounce(dropoffLocation, 500)
   
+  // Share ride additional states
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
+  const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
+  const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
+  const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [routeInfo, setRouteInfo] = useState<any>(null)
+  const [fareEstimate, setFareEstimate] = useState<any>(null)
+  const [calculating, setCalculating] = useState(false)
+  
+  // Share ride - Driver finding states
+  const [isSearching, setIsSearching] = useState(false)
+  const [driverFound, setDriverFound] = useState(false)
+  const [driver, setDriver] = useState<any>(null)
+  const [driverLocation, setDriverLocation] = useState<any>(null)
+  const [rideId, setRideId] = useState<string | null>(null)
+  
   // Hire driver mode states
   const [carType, setCarType] = useState<'sedan' | 'suv' | 'truck'>('sedan')
   const [licensePlate, setLicensePlate] = useState('')
   const [transmission, setTransmission] = useState<'auto' | 'manual'>('auto')
   const [driverNote, setDriverNote] = useState('')
   const [isScheduled, setIsScheduled] = useState(false)
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false)
   
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
@@ -264,6 +286,16 @@ export default function HomeScreen() {
         return
       }
 
+      // Nếu chưa tính giá, tính trước
+      if (!routeInfo || !fareEstimate) {
+        Alert.alert(
+          'Chưa tính giá',
+          'Vui lòng chờ hệ thống tính toán hoặc kiểm tra lại địa chỉ!',
+          [{ text: 'OK' }]
+        )
+        return
+      }
+
       setIsLoading(true)
 
       // Navigate to RideBookingScreen with calculated route info
@@ -280,14 +312,20 @@ export default function HomeScreen() {
 
       setIsLoading(false)
     } catch (error: any) {
+      if (!isMountedRef.current) return
+      
       setIsLoading(false)
       Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường')
       console.error('Error:', error)
     }
-  }
+  }, [pickupLocation, dropoffLocation, user?.id, routeInfo, fareEstimate, passengerCount])
 
   const handleCancelFinding = () => {
     setIsLoading(false)
+  }
+
+  const handleExpandMap = () => {
+    setIsMapFullscreen(true)
   }
 
   if (rideMode === 'hire') {
@@ -295,7 +333,75 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <>
+      {/* Fullscreen Map Modal */}
+      <Modal
+        visible={isMapFullscreen}
+        animationType="slide"
+        onRequestClose={() => setIsMapFullscreen(false)}
+      >
+        <View style={styles.fullscreenMapContainer}>
+          <MapViewComponent
+            height={height}
+            initialRegion={{
+              latitude: routeInfo?.pickup.coordinates.latitude || 21.0285,
+              longitude: routeInfo?.pickup.coordinates.longitude || 105.8542,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
+            }}
+            markers={[]}
+            pickupCoords={
+              routeInfo
+                ? {
+                    latitude: routeInfo.pickup.coordinates.latitude,
+                    longitude: routeInfo.pickup.coordinates.longitude,
+                  }
+                : undefined
+            }
+            dropoffCoords={
+              routeInfo
+                ? {
+                    latitude: routeInfo.dropoff.coordinates.latitude,
+                    longitude: routeInfo.dropoff.coordinates.longitude,
+                  }
+                : undefined
+            }
+            routeCoordinates={routeInfo?.routeCoordinates || []}
+            onLocationSelect={(location) => {
+              console.log('Location selected:', location)
+            }}
+          />
+          {/* Close Button */}
+          <TouchableOpacity
+            style={styles.closeMapButton}
+            onPress={() => setIsMapFullscreen(false)}
+          >
+            <MaterialIcons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          {/* Map Info Card */}
+          {routeInfo && (
+            <View style={styles.fullscreenMapInfo}>
+              <View style={styles.mapInfoRow}>
+                <View style={styles.mapInfoItem}>
+                  <MaterialIcons name="directions" size={24} color="#FF6B00" />
+                  <Text style={styles.mapInfoValue}>
+                    {(routeInfo.distance / 1000).toFixed(1)} km
+                  </Text>
+                </View>
+                <View style={styles.mapInfoDivider} />
+                <View style={styles.mapInfoItem}>
+                  <MaterialIcons name="schedule" size={24} color="#FF6B00" />
+                  <Text style={styles.mapInfoValue}>
+                    ~{Math.ceil(routeInfo.duration / 60)} phút
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <StatusBar
         barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={colors.bg}
@@ -323,24 +429,45 @@ export default function HomeScreen() {
         </View>
 
         {/* Map Placeholder */}
-        <MapViewComponent
-          height={250}
-          initialRegion={{
-            latitude: 21.0285,
-            longitude: 105.8542,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          }}
-          markers={[]}
-          onLocationSelect={(location) => {
-            console.log('Location selected:', location)
-          }}
-        />
-
-        {/* Location Button */}
-        <TouchableOpacity style={[styles.locationButton, { backgroundColor: colors.bgSecondary }]}>
-          <MaterialIcons name="my-location" size={20} color="#FF6B00" />
-        </TouchableOpacity>
+        <View style={styles.mapWrapper}>
+          <MapViewComponent
+            height={250}
+            initialRegion={{
+              latitude: 21.0285,
+              longitude: 105.8542,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
+            }}
+            markers={[]}
+            pickupCoords={
+              routeInfo
+                ? {
+                    latitude: routeInfo.pickup.coordinates.latitude,
+                    longitude: routeInfo.pickup.coordinates.longitude,
+                  }
+                : undefined
+            }
+            dropoffCoords={
+              routeInfo
+                ? {
+                    latitude: routeInfo.dropoff.coordinates.latitude,
+                    longitude: routeInfo.dropoff.coordinates.longitude,
+                  }
+                : undefined
+            }
+            routeCoordinates={routeInfo?.routeCoordinates || []}
+            onLocationSelect={(location) => {
+              console.log('Location selected:', location)
+            }}
+          />
+          {/* Expand Map Button */}
+          <TouchableOpacity 
+            style={[styles.expandMapButton, { backgroundColor: colors.bg }]}
+            onPress={handleExpandMap}
+          >
+            <MaterialIcons name="zoom-out-map" size={20} color="#FF6B00" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -415,6 +542,25 @@ export default function HomeScreen() {
               <ActivityIndicator size="small" color="#FF6B00" style={{ marginLeft: SPACING.sm }} />
             )}
           </View>
+          {showPickupSuggestions && pickupSuggestions.length > 0 && (
+            <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <ScrollView scrollEnabled={pickupSuggestions.length > 3} nestedScrollEnabled={true}>
+                {pickupSuggestions.map((item) => (
+                  <TouchableOpacity
+                    key={item.placeId}
+                    style={[styles.suggestionItem, { borderColor: colors.border }]}
+                    onPress={() => handlePickupSuggestionSelect(item)}
+                  >
+                    <MaterialIcons name="location-on" size={20} color="#FF6B00" />
+                    <View style={styles.suggestionContent}>
+                      <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
+                      <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           {/* Pickup Suggestions */}
           {pickupSuggestions.length > 0 && (
@@ -579,20 +725,44 @@ export default function HomeScreen() {
         {/* Price Section */}
         <View style={styles.priceSection}>
           <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Giá từ</Text>
-          <Text style={styles.priceValue}>45.000đ</Text>
+          {fareEstimate ? (
+            <View>
+              <Text style={styles.priceValue}>{fareEstimate.total.toLocaleString()}đ</Text>
+              <View style={styles.fareBreakdown}>
+                <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
+                  Cơ bản: {fareEstimate.baseFare.toLocaleString()}đ
+                </Text>
+                <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
+                  Quãng đường: {fareEstimate.distanceFare.toLocaleString()}đ
+                </Text>
+                <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
+                  Thời gian: {fareEstimate.timeFare.toLocaleString()}đ
+                </Text>
+                {fareEstimate.passengerSurge > 0 && (
+                  <Text style={[styles.fareBreakdownItem, { color: '#FF6B00' }]}>
+                    Phụ phí khách thêm: +{fareEstimate.passengerSurge.toLocaleString()}đ
+                  </Text>
+                )}
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.priceValue}>45.000đ</Text>
+          )}
         </View>
 
         {/* Find Ride Button */}
         <TouchableOpacity 
-          style={styles.findButton}
+          style={[styles.findButton, (isLoading || calculating) && styles.findButtonDisabled]}
           onPress={handleFindRide}
-          disabled={isLoading}
+          disabled={isLoading || calculating}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <>
-              <Text style={styles.findButtonText}>Tìm chuyến xe</Text>
+              <Text style={styles.findButtonText}>
+                {calculating ? 'Đang tính giá...' : 'Tìm chuyến xe'}
+              </Text>
               <MaterialIcons
                 name="arrow-forward"
                 size={20}
@@ -604,6 +774,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+    </>
   )
 }
 
@@ -642,6 +813,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  mapWrapper: {
+    position: 'relative',
   },
   mapContainer: {
     flex: 1,
@@ -713,6 +887,8 @@ const styles = StyleSheet.create({
   },
   locationsSection: {
     marginBottom: SPACING.xl,
+    position: 'relative',
+    zIndex: 10,
   },
   sectionLabel: {
     fontSize: 11,
@@ -772,10 +948,46 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
     gap: SPACING.md,
+    marginBottom: SPACING.md,
   },
   inputLocation: {
     flex: 1,
     fontSize: 14,
+  },
+  suggestionsDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    borderRadius: BORDER_RADIUS.lg,
+    marginTop: -SPACING.lg,
+    borderWidth: 1,
+    maxHeight: 300,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    gap: SPACING.md,
+  },
+  suggestionContent: {
+    flex: 1,
+  },
+  suggestionMainText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: SPACING.xs,
+  },
+  suggestionSecondaryText: {
+    fontSize: 12,
   },
   timePassengerSection: {
     flexDirection: 'row',
@@ -846,6 +1058,35 @@ const styles = StyleSheet.create({
     minWidth: 30,
     textAlign: 'center',
   },
+  routeInfoCard: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    marginBottom: SPACING.lg,
+  },
+  routeInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  routeInfoItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  routeInfoValue: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  routeInfoLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  routeInfoDivider: {
+    width: 1,
+    height: 50,
+    opacity: 0.2,
+  },
   priceSection: {
     marginBottom: SPACING.xl,
   },
@@ -858,6 +1099,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: '#FF6B00',
+  },
+  fareBreakdown: {
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 107, 0, 0.2)',
+    gap: SPACING.xs,
+  },
+  fareBreakdownItem: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   findButton: {
     height: 56,
@@ -873,6 +1125,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
+  },
+  findButtonDisabled: {
+    backgroundColor: '#94a3b8',
+    shadowOpacity: 0,
   },
   findButtonText: {
     fontSize: 15,

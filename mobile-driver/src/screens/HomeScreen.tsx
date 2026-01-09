@@ -139,8 +139,8 @@ export default function HomeScreen() {
       }
       await driverService.acceptRide(rideId, user.id)
       Alert.alert('Thành công', `Bạn đã nhận cuốc`)
-      // Làm mới danh sách cuốc
-      await fetchAvailableRides()
+      // Navigate to ride detail screen
+      navigation.navigate('RideDetailScreen', { rideId })
     } catch (error) {
       console.error('Lỗi khi nhận cuốc:', error)
       Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
@@ -159,6 +159,35 @@ export default function HomeScreen() {
     }
     setAssignedRide(mockRide)
     setDismissCountdown(15)
+  }
+
+  const handleAcceptAssignedRide = async () => {
+    if (!assignedRide || !user?.id) return
+    try {
+      await driverService.acceptRide(assignedRide._id, user.id)
+      Alert.alert('Thành công', 'Bạn đã nhận cuốc')
+      setAssignedRide(null)
+      setDismissCountdown(15)
+      // Navigate to ride detail screen
+      navigation.navigate('RideDetailScreen', { rideId: assignedRide._id })
+    } catch (error) {
+      console.error('Lỗi khi nhận cuốc:', error)
+      Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
+    }
+  }
+
+  const handleRejectRide = () => {
+    Alert.alert('Từ chối cuốc', 'Bạn chắc chắn muốn từ chối cuốc này?', [
+      { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+      {
+        text: 'Từ chối',
+        onPress: () => {
+          setAssignedRide(null)
+          setDismissCountdown(15)
+        },
+        style: 'destructive',
+      },
+    ])
   }
 
   const filteredRides = rides
@@ -211,13 +240,23 @@ export default function HomeScreen() {
               ]}
             />
           </View>
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={handleTestAssignedRide}
-          >
-            <MaterialIcons name="bug-report" size={16} color="#fff" />
-            <Text style={styles.testButtonText}>Nhận cuốc</Text>
-          </TouchableOpacity>
+          {/* Action Buttons */}
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.rejectButton]}
+              onPress={handleRejectRide}
+            >
+              <MaterialIcons name="close" size={18} color="#fff" />
+              <Text style={styles.actionButtonText}>Từ chối</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.acceptButton]}
+              onPress={handleAcceptAssignedRide}
+            >
+              <MaterialIcons name="check" size={18} color="#fff" />
+              <Text style={styles.actionButtonText}>Nhận cuốc</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -348,11 +387,6 @@ export default function HomeScreen() {
               <Text style={styles.emptySubText}>
                 Hãy quay lại sau để kiểm tra những cuốc mới
               </Text>
-              <View style={styles.debugInfo}>
-                <Text style={styles.debugText}>
-                  Tổng cuốc: {rides.length} | Lọc: {activeFilter} | Còn lại: {filteredRides.length}
-                </Text>
-              </View>
             </View>
           )}
         </View>
@@ -758,6 +792,32 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#fff',
     borderRadius: 1.5,
+  },
+  // ============ Action Buttons Styles ============
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.lg,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  acceptButton: {
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+  },
+  rejectButton: {
+    backgroundColor: 'rgba(244, 67, 54, 0.9)',
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
   },
   // ============ Test Button ============
   testButton: {
