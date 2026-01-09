@@ -17,6 +17,7 @@ import DispatchManagement from './pages/dispatch-management'
 import ReportsAnalytics from './pages/reports-analytics'
 import Customers from './pages/customers'
 import Settings from './pages/settings'
+import WalletManagement from './pages/transaction-management'
 import './App.css'
 
 function App() {
@@ -81,6 +82,7 @@ function App() {
               <Route path="/dispatch" element={<DispatchManagement />} />
               <Route path="/reports" element={<ReportsAnalytics />} />
               <Route path="/customers" element={<Customers />} />
+              <Route path="/transactions" element={<WalletManagement />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Router>

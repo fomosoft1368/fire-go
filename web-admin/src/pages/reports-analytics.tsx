@@ -539,7 +539,7 @@ const ReportsAnalytics: React.FC = () => {
                     alt={`Portrait of top performing driver ${driver.name}`}
                     className="w-full h-full object-cover"
                     loading="lazy"
-                    onerror={(e) => { e.currentTarget.src = 'https://via.placeholder.com/48'; }}
+                    onError={(e: any) => { e.currentTarget.src = 'https://via.placeholder.com/48'; }}
                   />
                 </div>
                 <div className="flex-1 min-w-0">

@@ -8,19 +8,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: process.env.NODE_ENV !== 'production', // Ignore expiration in development
+      ignoreExpiration: process.env.NODE_ENV !== 'production',
       secretOrKey: jwtConfig.secret,
     });
-    console.log('[JwtStrategy] Initialized with secret:', jwtConfig.secret.substring(0, 20) + '...');
+    console.log('[CustomersJwtStrategy] Initialized with secret:', jwtConfig.secret.substring(0, 20) + '...');
   }
 
   async validate(payload: any) {
-    console.log('[JwtStrategy] Validating token payload:', {
+    console.log('[CustomersJwtStrategy] Validating token payload:', {
       sub: payload.sub,
       email: payload.email,
       role: payload.role,
-      iat: new Date(payload.iat * 1000).toISOString(),
-      exp: new Date(payload.exp * 1000).toISOString(),
     });
     return {
       sub: payload.sub,

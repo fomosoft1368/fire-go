@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+
 import {
   View,
   Text,
@@ -6,20 +6,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Switch,
-  Dimensions,
-  StatusBar,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
 import { logout } from '../redux/slices/authSlice'
-import { setTheme } from '../redux/slices/themeSlice'
 import { authService } from '../services/authService'
 import type { RootState } from '../redux/store'
 import { COLORS, COLORS_DARK, COLORS_LIGHT } from '../constants'
 import { SPACING, BORDER_RADIUS } from '../constants'
-
-const { width } = Dimensions.get('window')
 
 interface MenuItem {
   icon: string
@@ -39,7 +33,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const dispatch = useDispatch()
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
 
   // Get colors based on theme
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -62,11 +55,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         style: 'destructive',
       },
     ])
-  }
-
-  const handleThemeChange = (value: boolean) => {
-    // true = light mode, false = dark mode
-    dispatch(setTheme(value ? 'light' : 'dark'))
   }
 
   const MenuSection = ({ title, items }: { title: string; items: MenuItem[] }) => (
@@ -135,7 +123,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     {
       icon: 'payment',
       label: 'Phương thức thanh toán',
-      badge: '2 phương thức',
+      onPress: () => navigation.navigate('PaymentMethods'),
     },
   ]
 
@@ -222,178 +210,64 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         </View>
       </View>
 
-            {/* User Info */}
-            <Text style={[styles.profileName, { color: colors.text }]}>
-              {user?.name || 'Người dùng'}
+      {/* Premium/Status Card */}
+      <View
+        style={[
+          styles.premiumCard,
+          {
+            backgroundColor: `${colors.primary}15`,
+            borderColor: `${colors.primary}30`,
+          },
+        ]}
+      >
+        <View style={styles.premiumContent}>
+          <View>
+            <Text style={[styles.premiumLabel, { color: colors.text }]}>
+              Thành viên thường
             </Text>
-
-            {/* Edit Button */}
-            <TouchableOpacity
-              style={[
-                styles.editButton,
-                {
-                  borderColor: colors.primary,
-                  backgroundColor: `${colors.primary}10`,
-                },
-              ]}
-              activeOpacity={0.8}
+            <Text
+              style={[styles.premiumSubtext, { color: colors.textSecondary }]}
             >
-              <MaterialIcons name="edit" size={18} color={colors.primary} />
-              <Text style={[styles.editButtonText, { color: colors.primary }]}>
-                Chỉnh sửa hồ sơ
-              </Text>
-            </TouchableOpacity>
+              Tham gia từ tháng 3, 2024
+            </Text>
+          </View>
+          <View style={styles.premiumIcon}>
+            <MaterialIcons
+              name="star"
+              size={28}
+              color={colors.primary}
+            />
           </View>
         </View>
+      </View>
 
-        {/* Premium/Status Card */}
-        <View
+      {/* Sections */}
+      <MenuSection title="Tài khoản" items={accountItems} />
+      <MenuSection title="Cài đặt" items={settingsItems} />
+      <MenuSection title="Hỗ trợ & Thông tin" items={supportItems} />
+
+      {/* Logout Button */}
+      <View style={styles.logoutSection}>
+        <TouchableOpacity
           style={[
-            styles.premiumCard,
+            styles.logoutButton,
             {
-              backgroundColor: `${colors.primary}15`,
-              borderColor: `${colors.primary}30`,
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              borderColor: 'rgba(239, 68, 68, 0.3)',
             },
           ]}
+          onPress={handleLogout}
+          activeOpacity={0.8}
         >
-          <View style={styles.premiumContent}>
-            <View>
-              <Text style={[styles.premiumLabel, { color: colors.text }]}>
-                Thành viên thường
-              </Text>
-              <Text
-                style={[styles.premiumSubtext, { color: colors.textSecondary }]}
-              >
-                Tham gia từ tháng 3, 2024
-              </Text>
-            </View>
-            <View style={styles.premiumIcon}>
-              <MaterialIcons
-                name="star"
-                size={28}
-                color={colors.primary}
-              />
-            </View>
-          </View>
-        </View>
+          <MaterialIcons name="logout" size={20} color={colors.danger} />
+          <Text style={[styles.logoutText, { color: colors.danger }]}>
+            Đăng xuất
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <TouchableOpacity
-            style={[
-              styles.statItem,
-              {
-                backgroundColor: colors.bgSecondary,
-                borderColor: `${colors.primary}15`,
-              },
-            ]}
-            activeOpacity={0.7}
-          >
-            <View
-              style={[
-                styles.statIconWrapper,
-                { backgroundColor: `${colors.primary}15` },
-              ]}
-            >
-              <MaterialIcons
-                name="local-taxi"
-                size={24}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={[styles.statValue, { color: colors.primary }]}>
-              28
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Chuyến
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.statItem,
-              {
-                backgroundColor: colors.bgSecondary,
-                borderColor: `${colors.primary}15`,
-              },
-            ]}
-            activeOpacity={0.7}
-          >
-            <View
-              style={[
-                styles.statIconWrapper,
-                { backgroundColor: `${colors.primary}15` },
-              ]}
-            >
-              <MaterialIcons name="star" size={24} color={colors.primary} />
-            </View>
-            <Text style={[styles.statValue, { color: colors.primary }]}>
-              4.8
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Đánh giá
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.statItem,
-              {
-                backgroundColor: colors.bgSecondary,
-                borderColor: `${colors.primary}15`,
-              },
-            ]}
-            activeOpacity={0.7}
-          >
-            <View
-              style={[
-                styles.statIconWrapper,
-                { backgroundColor: `${colors.primary}15` },
-              ]}
-            >
-              <MaterialIcons
-                name="trending-up"
-                size={24}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={[styles.statValue, { color: colors.primary }]}>
-              2.3K
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              km
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Sections */}
-        <MenuSection title="Tài khoản" items={accountItems} />
-        <MenuSection title="Cài đặt" items={settingsItems} />
-        <MenuSection title="Hỗ trợ & Thông tin" items={supportItems} />
-
-        {/* Logout Button */}
-        <View style={styles.logoutSection}>
-          <TouchableOpacity
-            style={[
-              styles.logoutButton,
-              {
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                borderColor: 'rgba(239, 68, 68, 0.3)',
-              },
-            ]}
-            onPress={handleLogout}
-            activeOpacity={0.8}
-          >
-            <MaterialIcons name="logout" size={20} color={colors.danger} />
-            <Text style={[styles.logoutText, { color: colors.danger }]}>
-              Đăng xuất
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ height: SPACING.xxl }} />
-      </ScrollView>
-    </>
+      <View style={{ height: SPACING.xxl }} />
+    </ScrollView>
   )
 }
 
@@ -448,18 +322,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   profileName: {
-<<<<<<< HEAD
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
     marginBottom: SPACING.xs,
     maxWidth: '90%',
-=======
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: SPACING.xs,
-    letterSpacing: 0.3,
->>>>>>> f71b85b613c408ba9430b980916a5ad4db650f6e
   },
   profileEmail: {
     fontSize: 13,
@@ -608,6 +475,14 @@ const styles = StyleSheet.create({
   menuValue: {
     fontSize: 13,
     maxWidth: 100,
+  },
+
+  // Stats Divider
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: SPACING.md,
   },
 
   // Logout Section

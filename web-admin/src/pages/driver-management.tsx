@@ -24,15 +24,6 @@ export default function DriverManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDetail, setShowDetail] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-    const handleShowDetail = (driver: Driver) => {
-      setSelectedDriver(driver);
-      setShowDetail(true);
-    };
-
-    const handleCloseDetail = () => {
-      setShowDetail(false);
-      setSelectedDriver(null);
-    };
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'online' | 'offline'>('all');
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [pendingDrivers, setPendingDrivers] = useState<Driver[]>([]);
@@ -43,6 +34,16 @@ export default function DriverManagement() {
     active: 0,
     revenue: '0'
   });
+
+  const handleShowDetail = (driver: Driver) => {
+    setSelectedDriver(driver);
+    setShowDetail(true);
+  };
+
+  const handleCloseDetail = () => {
+    setShowDetail(false);
+    setSelectedDriver(null);
+  };
 
   // Fetch drivers data
   const fetchDrivers = async () => {

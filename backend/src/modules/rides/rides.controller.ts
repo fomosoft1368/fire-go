@@ -10,6 +10,7 @@ import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema'
 export class RidesController {
   constructor(
     private readonly ridesService: RidesService,
+    private readonly autoAssignService: AutoAssignService,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
   ) {}
 
@@ -140,6 +141,44 @@ export class RidesController {
   @Get('stats')
   async getAllStats() {
     return this.ridesService.getAllRideStats();
+  }
+
+  // Calculate fare based on distance, duration and vehicle type
+  @Post('calculate-fare')
+  async calculateFare(
+    @Body() body: { distance: number; duration: number; vehicleType: string; isPeakHour?: boolean; isRainy?: boolean }
+  ) {
+    return this.ridesService.calculateFare(
+      body.distance,
+      body.duration,
+      body.vehicleType,
+      body.isPeakHour,
+      body.isRainy,
+    );
+  }
+
+  // Find nearby drivers for ride booking
+  @Get('find-drivers')
+  async findNearbyDrivers(
+    @Query('latitude') latitude: string,
+    @Query('longitude') longitude: string,
+    @Query('radius') radius?: string,
+    @Query('vehicleType') vehicleType?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ridesService.findNearbyDrivers(
+      parseFloat(latitude),
+      parseFloat(longitude),
+      radius ? parseFloat(radius) : 5,
+      vehicleType,
+      limit ? parseInt(limit) : 10,
+    );
+  }
+
+  // Get pricing for vehicle type
+  @Get('pricing/:vehicleType')
+  async getPricing(@Param('vehicleType') vehicleType: string) {
+    return this.ridesService.getPricing(vehicleType);
   }
 
   // Route directions - get route between two coordinates

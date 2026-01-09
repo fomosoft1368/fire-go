@@ -54,6 +54,12 @@ export type RootStackParamList = {
   Profile: undefined
   RideDetail: { rideId: string }
   BookingDetail: { bookingId: string }
+  RideBooking: { distance: number; duration: number; startLng: number; startLat: number; endLng: number; endLat: number; pickupAddress: string; dropoffAddress: string }
+  RideTracking: { rideId: string }
+  EditProfile: undefined
+  ChangePassword: undefined
+  PaymentMethods: undefined
+  TransactionHistory: undefined
 }
 
 // API Response Types

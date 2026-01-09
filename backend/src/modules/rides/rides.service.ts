@@ -3,12 +3,14 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
+import { Pricing } from './schemas/pricing.schema';
 import { CreateRideDto } from './dto';
 
 @Injectable()
 export class RidesService {
   constructor(
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
+    @InjectModel(Pricing.name) private pricingModel: Model<any>,
     private eventEmitter: EventEmitter2,
   ) {}
 
@@ -680,4 +682,124 @@ export class RidesService {
       earnings: Math.round(item.totalEarnings) || 0,
     }));
   }
-}
+
+  /**
+   * Get pricing for vehicle type
+   */
+  async getPricing(vehicleType: string) {
+    const pricing = await this.pricingModel.findOne({ vehicleType, isActive: true })
+    if (!pricing) {
+      throw new BadRequestException(`Pricing not found for vehicle type: ${vehicleType}`)
+    }
+    return pricing
+  }
+
+  /**
+   * Calculate fare based on distance, duration and surge pricing
+   * Formula: baseFare + (distance * pricePerKm) + (duration * pricePerMinute) + surgeFare
+   */
+  async calculateFare(distance: number, duration: number, vehicleType: string, isPeakHour?: boolean, isRainy?: boolean) {
+    if (distance <= 0 || duration <= 0) {
+      throw new BadRequestException('Distance and duration must be greater than 0');
+    }
+
+    // Get pricing config
+    const pricing = await this.getPricing(vehicleType);
+
+    // Base calculation
+    const baseFare = pricing.baseFare;
+    const distanceFare = distance * pricing.pricePerKm;
+    const timeFare = duration * pricing.pricePerMinute;
+    let subtotal = baseFare + distanceFare + timeFare;
+
+    // Apply surge pricing
+    let surgeFare = 0;
+    if (isPeakHour && pricing.peakHourSurge) {
+      surgeFare += subtotal * (pricing.peakHourSurge / 100);
+    }
+    if (isRainy && pricing.rainyDaySurge) {
+      surgeFare += subtotal * (pricing.rainyDaySurge / 100);
+    }
+
+    let totalFare = subtotal + surgeFare;
+
+    // Apply minimum fare
+    if (pricing.minimumFare && totalFare < pricing.minimumFare) {
+      totalFare = pricing.minimumFare;
+    }
+
+    return {
+      baseFare,
+      distanceFare,
+      timeFare,
+      surgeFare,
+      totalFare: Math.round(totalFare),
+      details: {
+        distance,
+        duration,
+        pricePerKm: pricing.pricePerKm,
+        pricePerMinute: pricing.pricePerMinute,
+        peakHourSurge: isPeakHour ? pricing.peakHourSurge : 0,
+        rainyDaySurge: isRainy ? pricing.rainyDaySurge : 0,
+      },
+    };
+  }
+
+  /**
+   * Find nearby online drivers
+   */
+  async findNearbyDrivers(latitude: number, longitude: number, radius: number = 5, vehicleType?: string, limit: number = 10) {
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw new BadRequestException('Invalid coordinates')
+    }
+
+    // Convert radius to meters for geospatial query
+    const radiusInMeters = radius * 1000
+
+    const drivers = await this.rideModel.db.collection('drivers')
+      .aggregate([
+        {
+          $geoNear: {
+            near: {
+              type: 'Point',
+              coordinates: [longitude, latitude],
+            },
+            distanceField: 'distance',
+            maxDistance: radiusInMeters,
+            spherical: true,
+          },
+        },
+        {
+          $match: {
+            status: 'online',
+            ...(vehicleType && { 'car.carType': vehicleType }),
+          },
+        },
+        {
+          $limit: limit,
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            phone: 1,
+            rating: 1,
+            car: 1,
+            distance: 1,
+            location: 1,
+          },
+        },
+      ])
+      .toArray()
+
+    return drivers.map(driver => ({
+      _id: driver._id,
+      name: driver.name,
+      phone: driver.phone,
+      rating: driver.rating,
+      carType: driver.car?.carType,
+      licensePlate: driver.car?.licensePlate,
+      location: driver.location,
+      distance: Math.round(driver.distance / 1000 * 10) / 10, // Convert to km, round to 1 decimal
+    }))
+  }}

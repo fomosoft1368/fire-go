@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { RidesService } from './rides.service';
 import { RidesController } from './rides.controller';
 import { Ride, RideSchema } from './schemas/ride.schema';
+import { Pricing, PricingSchema } from './schemas/pricing.schema';
 import { AutoAssignService } from './services/auto-assign.service';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 
@@ -10,6 +11,7 @@ import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
   imports: [
     MongooseModule.forFeature([
       { name: Ride.name, schema: RideSchema },
+      { name: Pricing.name, schema: PricingSchema },
       { name: Driver.name, schema: DriverSchema },
     ]),
   ],

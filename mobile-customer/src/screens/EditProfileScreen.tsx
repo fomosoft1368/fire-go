@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightBorder,
+    borderBottomColor: COLORS.borderLight,
   },
   backButton: {
     width: 40,
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.xl,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightBorder,
+    borderBottomColor: COLORS.borderLight,
   },
   avatarContainer: {
     width: 100,
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
   formInput: {
     backgroundColor: '#1e293b',
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: COLORS.borderLight,
     borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: COLORS.borderLight,
     borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
   },
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     backgroundColor: '#0f172a',
     borderTopWidth: 1,
-    borderTopColor: COLORS.lightBorder,
+    borderTopColor: COLORS.borderLight,
   },
   cancelButton: {
     flex: 1,

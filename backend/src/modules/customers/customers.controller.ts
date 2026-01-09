@@ -10,7 +10,9 @@ export class CustomersController {
   constructor(
     private readonly customersService: CustomersService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) {
+    console.log('[CustomersController] Initialized');
+  }
 
   /**
    * POST /api/customers
@@ -46,10 +48,6 @@ export class CustomersController {
           sub: customer._id,
           email: customer.email,
           role: 'customer',
-        },
-        {
-          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
-          expiresIn: '24h',
         }
       );
 
@@ -59,7 +57,6 @@ export class CustomersController {
           email: customer.email,
         },
         {
-          secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key',
           expiresIn: '7d',
         }
       );
@@ -120,12 +117,19 @@ export class CustomersController {
           sub: customer._id,
           email: customer.email,
           role: 'customer',
-        },
-        {
-          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
-          expiresIn: '24h',
         }
       );
+
+      console.log('[Customers Login] Generated access token - decoding payload:');
+      try {
+        const parts = accessToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+          console.log('[Customers Login] Token payload:', payload);
+        }
+      } catch (e) {
+        console.log('[Customers Login] Could not decode token:', e);
+      }
 
       const refreshToken = this.jwtService.sign(
         {
@@ -133,7 +137,6 @@ export class CustomersController {
           email: customer.email,
         },
         {
-          secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key',
           expiresIn: '7d',
         }
       );
@@ -182,6 +185,12 @@ export class CustomersController {
     @Request() req: any,
     @Body() body: { currentPassword: string; newPassword: string }
   ) {
+    console.log('[ChangePassword] Endpoint called!')
+    console.log('[ChangePassword] Request received:', {
+      method: req.method,
+      path: req.path,
+      headers: Object.keys(req.headers),
+    })
     console.log('[ChangePassword] Request user:', {
       sub: req.user?.sub,
       id: req.user?.id,
@@ -209,6 +218,7 @@ export class CustomersController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
+    console.log('[Patch :id] Update endpoint called with id:', id);
     return this.customersService.update(id, updateCustomerDto);
   }
 

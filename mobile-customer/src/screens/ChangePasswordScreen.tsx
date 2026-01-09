@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -11,8 +11,6 @@ import {
   SafeAreaView,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { useSelector } from 'react-redux'
-import type { RootState } from '../redux/store'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { authService } from '../services/authService'
 
@@ -20,8 +18,52 @@ interface ChangePasswordScreenProps {
   navigation: any
 }
 
+interface PasswordInputProps {
+  label: string
+  value: string
+  onChangeText: (text: string) => void
+  placeholder?: string
+  isVisible: boolean
+  onToggleVisibility: () => void
+  error?: string
+}
+
+const PasswordInput = ({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  isVisible,
+  onToggleVisibility,
+  error,
+}: PasswordInputProps) => (
+  <View style={styles.formGroup}>
+    <Text style={styles.formLabel}>{label}</Text>
+    <View style={styles.passwordInputContainer}>
+      <TextInput
+        style={[styles.formInput, error && styles.formInputError]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={COLORS.textSecondary}
+        secureTextEntry={!isVisible}
+      />
+      <TouchableOpacity
+        style={styles.visibilityButton}
+        onPress={onToggleVisibility}
+      >
+        <MaterialIcons
+          name={isVisible ? 'visibility' : 'visibility-off'}
+          size={20}
+          color={COLORS.textSecondary}
+        />
+      </TouchableOpacity>
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+)
+
 export default function ChangePasswordScreen({ navigation }: ChangePasswordScreenProps) {
-  const user = useSelector((state: RootState) => state.auth.user)
   const [loading, setLoading] = useState(false)
   const [showPasswords, setShowPasswords] = useState({
     current: false,
@@ -70,13 +112,23 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
       // Call API to change password
       const token = await authService.getToken()
       console.log('[ChangePassword] Token from storage:', token ? `${token.substring(0, 50)}...` : 'null')
-      console.log('[ChangePassword] Token extracted:', token ? token.split('.').map((p, i) => `${p.substring(0, 10)}...`).join('.') : 'null')
       
       if (!token) {
         throw new Error('No auth token found')
       }
+      
+      // Try to decode token to see role
+      try {
+        const parts = token.split('.')
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]))
+          console.log('[ChangePassword] Token payload:', payload)
+        }
+      } catch (e) {
+        console.log('[ChangePassword] Could not decode token:', e)
+      }
     
-      const url = `${process.env.REACT_APP_API_URL || 'http://192.168.1.19:3000/api'}/customers/change-password`
+      const url = `${process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'}/customers/change-password`
       console.log('[ChangePassword] Request URL:', url)
       console.log('[ChangePassword] Authorization:', `Bearer ${token.substring(0, 20)}...`)
       
@@ -93,12 +145,14 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
       })
     
       console.log('[ChangePassword] Response status:', response.status)
+      console.log('[ChangePassword] Response URL:', response.url)
       console.log('[ChangePassword] Response headers:', {
         'content-type': response.headers.get('content-type'),
       })
 
       if (!response.ok) {
         const error = await response.json()
+        console.log('[ChangePassword] Error response full:', JSON.stringify(error))
         console.log('[ChangePassword] Error response:', error)
         throw new Error(error.message || 'Không thể đổi mật khẩu')
       }
@@ -112,49 +166,6 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
       setLoading(false)
     }
   }
-
-  const PasswordInput = ({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    isVisible,
-    onToggleVisibility,
-    error,
-  }: {
-    label: string
-    value: string
-    onChangeText: (text: string) => void
-    placeholder?: string
-    isVisible: boolean
-    onToggleVisibility: () => void
-    error?: string
-  }) => (
-    <View style={styles.formGroup}>
-      <Text style={styles.formLabel}>{label}</Text>
-      <View style={styles.passwordInputContainer}>
-        <TextInput
-          style={[styles.formInput, error && styles.formInputError]}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={COLORS.textSecondary}
-          secureTextEntry={!isVisible}
-        />
-        <TouchableOpacity
-          style={styles.visibilityButton}
-          onPress={onToggleVisibility}
-        >
-          <MaterialIcons
-            name={isVisible ? 'visibility' : 'visibility-off'}
-            size={20}
-            color={COLORS.textSecondary}
-          />
-        </TouchableOpacity>
-      </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
-    </View>
-  )
 
   return (
     <SafeAreaView style={styles.container}>
@@ -277,7 +288,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightBorder,
+    borderBottomColor: COLORS.borderLight,
   },
   backButton: {
     padding: SPACING.sm,
@@ -324,7 +335,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: COLORS.borderLight,
     borderRadius: BORDER_RADIUS.md,
     paddingRight: SPACING.sm,
     backgroundColor: '#1a202c',

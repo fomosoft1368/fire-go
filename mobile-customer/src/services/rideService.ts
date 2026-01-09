@@ -4,6 +4,42 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export const rideService = {
   /**
+   * Get directions between two points
+   */
+  async getDirections(startLng: number, startLat: number, endLng: number, endLat: number) {
+    try {
+      const params = new URLSearchParams({
+        startLng: startLng.toString(),
+        startLat: startLat.toString(),
+        endLng: endLng.toString(),
+        endLat: endLat.toString(),
+      })
+
+      console.log('[RideService] Getting directions:', { startLng, startLat, endLng, endLat })
+
+      const response = await fetch(`${API_BASE_URL}/rides/directions?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Get directions failed:', result)
+        throw new Error(result.message || 'Failed to get directions')
+      }
+
+      console.log('[RideService] Directions:', result)
+      return result
+    } catch (error: any) {
+      console.error('[RideService] Get directions error:', error)
+      throw error
+    }
+  },
+
+  /**
    * Tạo cuốc xe mới
    */
   async createRide(data: CreateRideDto, customerId: string) {
@@ -451,6 +487,111 @@ export const rideService = {
         stack: error.stack,
       })
       return []
+    }
+  },
+
+  /**
+   * Calculate fare based on distance, duration and vehicle type
+   */
+  async calculateFare(distance: number, duration: number, vehicleType: string = 'basic', isPeakHour?: boolean, isRainy?: boolean) {
+    try {
+      const payload = {
+        distance,
+        duration,
+        vehicleType,
+        isPeakHour: isPeakHour || false,
+        isRainy: isRainy || false,
+      }
+
+      console.log('[RideService] Calculating fare with:', payload)
+
+      const response = await fetch(`${API_BASE_URL}/rides/calculate-fare`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Calculate fare failed:', result)
+        throw new Error(result.message || 'Failed to calculate fare')
+      }
+
+      console.log('[RideService] Fare calculation:', result)
+      return result
+    } catch (error: any) {
+      console.error('[RideService] Calculate fare error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Find nearby available drivers
+   */
+  async findNearbyDrivers(latitude: number, longitude: number, radius: number = 5, vehicleType?: string, limit: number = 10) {
+    try {
+      const params = new URLSearchParams({
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
+        radius: radius.toString(),
+        limit: limit.toString(),
+      })
+
+      if (vehicleType) {
+        params.append('vehicleType', vehicleType)
+      }
+
+      console.log('[RideService] Finding nearby drivers with:', { latitude, longitude, radius, vehicleType })
+
+      const response = await fetch(`${API_BASE_URL}/rides/find-drivers?${params}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Find drivers failed:', result)
+        throw new Error(result.message || 'Failed to find drivers')
+      }
+
+      console.log('[RideService] Found drivers:', result)
+      return result
+    } catch (error: any) {
+      console.error('[RideService] Find drivers error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Get pricing for vehicle type
+   */
+  async getPricing(vehicleType: string = 'basic') {
+    try {
+      const response = await fetch(`${API_BASE_URL}/rides/pricing/${vehicleType}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Get pricing failed:', result)
+        throw new Error(result.message || 'Failed to get pricing')
+      }
+
+      console.log('[RideService] Pricing for', vehicleType, ':', result)
+      return result
+    } catch (error: any) {
+      console.error('[RideService] Get pricing error:', error)
+      throw error
     }
   },
 }

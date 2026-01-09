@@ -1,7 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-export type TransactionDocument = Transaction & Document;
+export interface TransactionDocument extends Transaction, Document {
+  createdAt: Date
+  updatedAt: Date
+}
 
 export enum TransactionType {
   TOP_UP = 'top_up',
@@ -10,10 +13,14 @@ export enum TransactionType {
   TRANSFER = 'transfer',
   EARNING = 'earning',
   WITHDRAWAL = 'withdrawal',
+  DEPOSIT = 'deposit',
+  WITHDRAW = 'withdraw',
 }
 
 export enum TransactionStatus {
   PENDING = 'pending',
+  PROCESSING = 'processing',
+  TRANSFERRING = 'transferring',
   SUCCESS = 'success',
   FAILED = 'failed',
   CANCELLED = 'cancelled',
@@ -21,8 +28,11 @@ export enum TransactionStatus {
 
 @Schema({ timestamps: true })
 export class Transaction {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  userId: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  userId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: 'Customer' })
+  customerId?: Types.ObjectId
 
   @Prop({
     type: String,
@@ -51,10 +61,16 @@ export class Transaction {
   rideId?: Types.ObjectId;
 
   @Prop()
-  paymentMethod?: string;
+  paymentMethod?: string; // For deposit: payment method ID
+
+  @Prop({ type: Types.ObjectId, ref: 'PaymentMethod' })
+  bankAccount?: Types.ObjectId; // For withdraw: bank account details
 
   @Prop()
   transactionId?: string; // External payment gateway ID
+
+  @Prop()
+  transactionCode?: string; // Internal reference code
 
   @Prop()
   failureReason?: string;
@@ -64,11 +80,19 @@ export class Transaction {
 
   @Prop()
   balanceAfter: number;
+
+  @Prop({ type: Object })
+  metadata?: Record<string, any>
+
+  @Prop()
+  deletedAt?: Date
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
 
 TransactionSchema.index({ userId: 1 });
+TransactionSchema.index({ customerId: 1, createdAt: -1 });
 TransactionSchema.index({ type: 1 });
 TransactionSchema.index({ status: 1 });
 TransactionSchema.index({ rideId: 1 });
+TransactionSchema.index({ transactionCode: 1 });

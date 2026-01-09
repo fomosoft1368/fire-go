@@ -12,6 +12,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AdminModule } from './modules/admin/admin.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { PlacesModule } from './modules/places/places.module';
+import { PaymentModule } from './modules/payment/payment.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { PlacesModule } from './modules/places/places.module';
     AdminModule,
     MessagesModule,
     PlacesModule,
+    PaymentModule,
   ],
   controllers: [],
   providers: [],

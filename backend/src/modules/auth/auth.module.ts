@@ -23,6 +23,6 @@ import { jwtConfig } from '../../config/app.config';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  exports: [AuthService, JwtStrategy, JwtModule],
 })
 export class AuthModule {}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -11,15 +11,15 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
-<<<<<<< HEAD
   FlatList,
-=======
   StatusBar,
->>>>>>> f71b85b613c408ba9430b980916a5ad4db650f6e
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
+import { useNavigation } from '@react-navigation/native'
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootState } from '../redux/store'
+import type { RootStackParamList } from '../types'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
@@ -28,9 +28,10 @@ import { rideService } from '../services/rideService'
 import { useDebounce } from '../hooks'
 import { placesService } from '../services/placesService'
 
-const { width, height } = Dimensions.get('window')
+const { height } = Dimensions.get('window')
 
 export default function HomeScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [rideMode, setRideMode] = useState<'share' | 'hire'>('share' as const)
   const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
@@ -39,6 +40,7 @@ export default function HomeScreen() {
   const [isImmediately, setIsImmediately] = useState(true)
   const [passengerCount, setPassengerCount] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [routeInfo, setRouteInfo] = useState<any>(null)
   
   // Places autocomplete states
   const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
@@ -193,12 +195,50 @@ export default function HomeScreen() {
     
     setDropoffCoordinates(coords as [number, number]);
     console.log('✅ Dropoff place selected:', placeName, coords);
+    
+    // 🔄 Auto-calculate route when both locations are set
+    if (pickupLocation.trim()) {
+      await calculateRoute(pickupCoordinates, coords as [number, number]);
+    }
   };
 
-  // Clear cache for debugging
-  const clearSearchCache = () => {
-    placesService.clearCache();
-    Alert.alert('Cache Cleared', 'Places cache cleared successfully');
+  const calculateRoute = async (startCoords: [number, number], endCoords: [number, number]) => {
+    try {
+      console.log('[HomeScreen] Calculating route...');
+      const directions = await rideService.getDirections(
+        startCoords[0],
+        startCoords[1],
+        endCoords[0],
+        endCoords[1],
+      );
+      
+      console.log('[HomeScreen] Raw directions response:', directions);
+      
+      // Handle different response formats
+      const distance = directions.distance || directions.routes?.[0]?.distance || 0;
+      const duration = directions.duration || directions.routes?.[0]?.duration || 0;
+      
+      console.log('[HomeScreen] Extracted - distance:', distance, 'duration:', duration);
+      
+      if (!distance || !duration) {
+        console.error('[HomeScreen] Invalid distance or duration:', { distance, duration });
+        return;
+      }
+      
+      const distanceKm = typeof distance === 'string' ? parseFloat(distance) / 1000 : distance / 1000;
+      const durationSec = typeof duration === 'string' ? parseFloat(duration) : duration;
+      
+      setRouteInfo({
+        distance: distanceKm,
+        duration: durationSec,
+        distanceText: `${distanceKm.toFixed(1)} km`,
+        durationText: `~${Math.ceil(durationSec / 60)} phút`,
+      });
+      
+      console.log('[HomeScreen] Route info set:', { distanceKm, durationSec });
+    } catch (error: any) {
+      console.error('[HomeScreen] Route calculation error:', error);
+    }
   };
 
   const handleFindRide = async () => {
@@ -214,6 +254,11 @@ export default function HomeScreen() {
         return
       }
 
+      if (!routeInfo) {
+        Alert.alert('Lỗi', 'Vui lòng chọn đầy đủ vị trí')
+        return
+      }
+
       if (!user?.id) {
         Alert.alert('Lỗi', 'Vui lòng đăng nhập trước')
         return
@@ -221,51 +266,22 @@ export default function HomeScreen() {
 
       setIsLoading(true)
 
-      // Tạo dữ liệu cuốc xe ghép - KHÔNG cần thông tin xe
-      const rideData = {
-        rideType: 'share' as const,
+      // Navigate to RideBookingScreen with calculated route info
+      navigation.navigate('RideBooking', {
+        distance: routeInfo.distance,
+        duration: routeInfo.duration,
+        startLng: pickupCoordinates[0],
+        startLat: pickupCoordinates[1],
+        endLng: dropoffCoordinates[0],
+        endLat: dropoffCoordinates[1],
         pickupAddress: pickupLocation,
-        pickupCoordinates: pickupCoordinates,
         dropoffAddress: dropoffLocation,
-        dropoffCoordinates: dropoffCoordinates,
-        distance: 5, // TODO: Tính từ API Maps
-        duration: 15, // TODO: Tính từ API Maps
-        baseFare: 10000,
-        distanceFare: 5000,
-        timeFare: 2000,
-        passengers: passengerCount,
-        // Không gửi carType, licensePlate, transmission, driverNote
-      }
+      })
 
-      const result = await rideService.createRide(rideData, user.id)
-      
-      // 🚀 Tự động chỉ định tài xế
-      const assignedRide = await rideService.autoAssignDriver(result._id)
-      
-      // Keep modal showing for 2 seconds, then show success alert
-      setTimeout(() => {
-        setIsLoading(false)
-        Alert.alert(
-          'Thành công',
-          `✓ Tài xế ${assignedRide.driverId?.firstName || 'đã nhận'} chuyến!\n\nTài xế sẽ tới trong ~${assignedRide.estimatedArrival || 10} phút`,
-          [
-            { 
-              text: 'OK', 
-              onPress: () => {
-                setPickupLocation('')
-                setDropoffLocation('')
-                setPassengerCount(1)
-                console.log('Ride with auto-assigned driver created:', assignedRide)
-              } 
-            },
-          ]
-        )
-      }, 2000)
-
-      console.log('Ride created and assigned:', assignedRide)
+      setIsLoading(false)
     } catch (error: any) {
       setIsLoading(false)
-      Alert.alert('Lỗi', error.message || 'Không thể tạo cuốc xe')
+      Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường')
       console.error('Error:', error)
     }
   }
@@ -513,6 +529,53 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Route Map & Info */}
+        {routeInfo && (
+          <View style={[styles.routeSection, { backgroundColor: colors.bgSecondary }]}>
+            <MapViewComponent
+              height={150}
+              initialRegion={{
+                latitude: (pickupCoordinates[1] + dropoffCoordinates[1]) / 2,
+                longitude: (pickupCoordinates[0] + dropoffCoordinates[0]) / 2,
+                latitudeDelta: Math.abs(dropoffCoordinates[1] - pickupCoordinates[1]) * 1.5 || 0.1,
+                longitudeDelta: Math.abs(dropoffCoordinates[0] - pickupCoordinates[0]) * 1.5 || 0.1,
+              }}
+              markers={[
+                {
+                  id: 'pickup',
+                  latitude: pickupCoordinates[1],
+                  longitude: pickupCoordinates[0],
+                  title: 'Điểm đón',
+                },
+                {
+                  id: 'dropoff',
+                  latitude: dropoffCoordinates[1],
+                  longitude: dropoffCoordinates[0],
+                  title: 'Điểm đến',
+                },
+              ]}
+              onLocationSelect={() => {}}
+            />
+            
+            {/* Route Info */}
+            <View style={[styles.routeInfo, { borderTopColor: colors.border }]}>
+              <View style={styles.routeInfoItem}>
+                <MaterialIcons name="straighten" size={18} color="#FF6B00" />
+                <Text style={[styles.routeInfoText, { color: colors.text }]}>
+                  {routeInfo.distanceText}
+                </Text>
+              </View>
+              <View style={styles.routeInfoDivider} />
+              <View style={styles.routeInfoItem}>
+                <MaterialIcons name="schedule" size={18} color="#FF6B00" />
+                <Text style={[styles.routeInfoText, { color: colors.text }]}>
+                  {routeInfo.durationText}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Price Section */}
         <View style={styles.priceSection}>
           <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Giá từ</Text>
@@ -592,7 +655,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   //   backgroundImage: 'linear-gradient(45deg, #4b5563 25%, #374151 25%, #374151 50%, #4b5563 50%, #4b5563 75%, #374151 75%, #374151)',
    },
-  routeInfo: {
+  routeInfoOld: {
     position: 'absolute',
     bottom: SPACING.lg,
     left: SPACING.lg,
@@ -656,6 +719,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: SPACING.md,
     letterSpacing: 0.5,
+  },
+  routeSection: {
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
+    marginBottom: SPACING.xl,
+  },
+  routeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderTopWidth: 1,
+  },
+  routeInfoItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  routeInfoText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  routeInfoDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: '#4a5568',
   },
   locationItem: {
     flexDirection: 'row',

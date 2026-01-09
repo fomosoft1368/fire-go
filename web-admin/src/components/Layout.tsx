@@ -258,6 +258,18 @@ export default function Layout({ children }: LayoutProps) {
           </button>
 
           <button
+            onClick={() => navigate('/transactions')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/transactions')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/transactions') ? 'filled' : ''}`}>swap_horiz</span>
+            <span className="font-semibold">{t('sidebar.transactionManagement', 'Transactions')}</span>
+          </button>
+
+          <button
             onClick={() => navigate('/dispatch')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
               isActive('/dispatch')
@@ -333,6 +345,7 @@ export default function Layout({ children }: LayoutProps) {
               {location.pathname === '/rides' && 'Quản lý Cuốc xe'}
               {location.pathname === '/customers' && 'Quản lý Khách hàng'}
               {location.pathname === '/revenue' && 'Quản lý Doanh thu'}
+              {location.pathname === '/transactions' && 'Quản lý Giao dịch'}
               {location.pathname === '/dispatch' && 'Điều phối & Tranh chấp'}
               {location.pathname === '/reports' && 'Báo cáo & Thống kê'}
               {location.pathname === '/settings' && 'Cài đặt'}
