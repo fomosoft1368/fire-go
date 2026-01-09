@@ -387,11 +387,6 @@ export default function HomeScreen() {
               <Text style={styles.emptySubText}>
                 Hãy quay lại sau để kiểm tra những cuốc mới
               </Text>
-              <View style={styles.debugInfo}>
-                <Text style={styles.debugText}>
-                  Tổng cuốc: {rides.length} | Lọc: {activeFilter} | Còn lại: {filteredRides.length}
-                </Text>
-              </View>
             </View>
           )}
         </View>

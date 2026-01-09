@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  Modal,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
@@ -64,6 +65,7 @@ export default function HomeScreen() {
   const [transmission, setTransmission] = useState<'auto' | 'manual'>('auto')
   const [driverNote, setDriverNote] = useState('')
   const [isScheduled, setIsScheduled] = useState(false)
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false)
   
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
@@ -468,12 +470,84 @@ export default function HomeScreen() {
     setIsLoading(false)
   }
 
+  const handleExpandMap = () => {
+    setIsMapFullscreen(true)
+  }
+
   if (rideMode === 'hire') {
     return <HireDriverScreen {...{ isScheduled, setIsScheduled, carType, setCarType, licensePlate, setLicensePlate, transmission, setTransmission, driverNote, setDriverNote, pickupLocation, setPickupLocation, dropoffLocation, setDropoffLocation, setRideMode }} />
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <>
+      {/* Fullscreen Map Modal */}
+      <Modal
+        visible={isMapFullscreen}
+        animationType="slide"
+        onRequestClose={() => setIsMapFullscreen(false)}
+      >
+        <View style={styles.fullscreenMapContainer}>
+          <MapViewComponent
+            height={height}
+            initialRegion={{
+              latitude: routeInfo?.pickup.coordinates.latitude || 21.0285,
+              longitude: routeInfo?.pickup.coordinates.longitude || 105.8542,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
+            }}
+            markers={[]}
+            pickupCoords={
+              routeInfo
+                ? {
+                    latitude: routeInfo.pickup.coordinates.latitude,
+                    longitude: routeInfo.pickup.coordinates.longitude,
+                  }
+                : undefined
+            }
+            dropoffCoords={
+              routeInfo
+                ? {
+                    latitude: routeInfo.dropoff.coordinates.latitude,
+                    longitude: routeInfo.dropoff.coordinates.longitude,
+                  }
+                : undefined
+            }
+            routeCoordinates={routeInfo?.routeCoordinates || []}
+            onLocationSelect={(location) => {
+              console.log('Location selected:', location)
+            }}
+          />
+          {/* Close Button */}
+          <TouchableOpacity
+            style={styles.closeMapButton}
+            onPress={() => setIsMapFullscreen(false)}
+          >
+            <MaterialIcons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          {/* Map Info Card */}
+          {routeInfo && (
+            <View style={styles.fullscreenMapInfo}>
+              <View style={styles.mapInfoRow}>
+                <View style={styles.mapInfoItem}>
+                  <MaterialIcons name="directions" size={24} color="#FF6B00" />
+                  <Text style={styles.mapInfoValue}>
+                    {(routeInfo.distance / 1000).toFixed(1)} km
+                  </Text>
+                </View>
+                <View style={styles.mapInfoDivider} />
+                <View style={styles.mapInfoItem}>
+                  <MaterialIcons name="schedule" size={24} color="#FF6B00" />
+                  <Text style={styles.mapInfoValue}>
+                    ~{Math.ceil(routeInfo.duration / 60)} phút
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <StatusBar
         barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={colors.bg}
@@ -501,36 +575,45 @@ export default function HomeScreen() {
         </View>
 
         {/* Map Placeholder */}
-        <MapViewComponent
-          height={250}
-          initialRegion={{
-            latitude: 21.0285,
-            longitude: 105.8542,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          }}
-          markers={[]}
-          pickupCoords={
-            routeInfo
-              ? {
-                  latitude: routeInfo.pickup.coordinates.latitude,
-                  longitude: routeInfo.pickup.coordinates.longitude,
-                }
-              : undefined
-          }
-          dropoffCoords={
-            routeInfo
-              ? {
-                  latitude: routeInfo.dropoff.coordinates.latitude,
-                  longitude: routeInfo.dropoff.coordinates.longitude,
-                }
-              : undefined
-          }
-          routeCoordinates={routeInfo?.routeCoordinates || []}
-          onLocationSelect={(location) => {
-            console.log('Location selected:', location)
-          }}
-        />
+        <View style={styles.mapWrapper}>
+          <MapViewComponent
+            height={250}
+            initialRegion={{
+              latitude: 21.0285,
+              longitude: 105.8542,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
+            }}
+            markers={[]}
+            pickupCoords={
+              routeInfo
+                ? {
+                    latitude: routeInfo.pickup.coordinates.latitude,
+                    longitude: routeInfo.pickup.coordinates.longitude,
+                  }
+                : undefined
+            }
+            dropoffCoords={
+              routeInfo
+                ? {
+                    latitude: routeInfo.dropoff.coordinates.latitude,
+                    longitude: routeInfo.dropoff.coordinates.longitude,
+                  }
+                : undefined
+            }
+            routeCoordinates={routeInfo?.routeCoordinates || []}
+            onLocationSelect={(location) => {
+              console.log('Location selected:', location)
+            }}
+          />
+          {/* Expand Map Button */}
+          <TouchableOpacity 
+            style={[styles.expandMapButton, { backgroundColor: colors.bg }]}
+            onPress={handleExpandMap}
+          >
+            <MaterialIcons name="zoom-out-map" size={20} color="#FF6B00" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -768,6 +851,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+    </>
   )
 }
 
@@ -807,6 +891,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  mapWrapper: {
+    position: 'relative',
+  },
   mapContainer: {
     flex: 1,
     position: 'relative',
@@ -817,6 +904,21 @@ const styles = StyleSheet.create({
   },
   mapPlaceholder: {
     ...StyleSheet.absoluteFillObject,
+  },
+  expandMapButton: {
+    position: 'absolute',
+    bottom: SPACING.lg,
+    right: SPACING.lg,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   routeInfo: {
     position: 'absolute',
@@ -1100,5 +1202,55 @@ const styles = StyleSheet.create({
   },
   findButtonIcon: {
     marginLeft: SPACING.sm,
+  },
+  fullscreenMapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  closeMapButton: {
+    position: 'absolute',
+    top: 50,
+    right: SPACING.lg,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  fullscreenMapInfo: {
+    position: 'absolute',
+    bottom: 40,
+    left: SPACING.lg,
+    right: SPACING.lg,
+    backgroundColor: '#fff',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  mapInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  mapInfoItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  mapInfoValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  mapInfoDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#e0e0e0',
   },
 })

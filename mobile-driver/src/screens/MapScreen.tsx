@@ -15,6 +15,8 @@ const MapScreen = () => {
   } | null>(null)
   const [heading, setHeading] = useState<number>(0)
   const [isLoadingLocation, setIsLoadingLocation] = useState(true)
+  const [zoomLevel, setZoomLevel] = useState(0.01)
+  const [showCompass, setShowCompass] = useState(true)
   const pulseAnim = useRef(new Animated.Value(1)).current
 
   // Pulse animation
@@ -134,12 +136,48 @@ const MapScreen = () => {
         {
           latitude: userLocation.latitude,
           longitude: userLocation.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
+          latitudeDelta: zoomLevel,
+          longitudeDelta: zoomLevel,
         },
         500
       )
     }
+  }
+
+  const handleZoomIn = () => {
+    const newZoom = Math.max(zoomLevel / 2, 0.001)
+    setZoomLevel(newZoom)
+    if (userLocation && mapRef.current) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          latitudeDelta: newZoom,
+          longitudeDelta: newZoom,
+        },
+        300
+      )
+    }
+  }
+
+  const handleZoomOut = () => {
+    const newZoom = Math.min(zoomLevel * 2, 0.5)
+    setZoomLevel(newZoom)
+    if (userLocation && mapRef.current) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          latitudeDelta: newZoom,
+          longitudeDelta: newZoom,
+        },
+        300
+      )
+    }
+  }
+
+  const handleCompassToggle = () => {
+    setShowCompass(!showCompass)
   }
 
   return (
@@ -155,10 +193,11 @@ const MapScreen = () => {
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
+          mapPadding={{ top: 0, right: 0, bottom: 100, left: 0 }}
           showsUserLocation={true}
           showsMyLocationButton={false}
           followsUserLocation={true}
-          showsCompass={true}
+          showsCompass={showCompass}
           showsTraffic={false}
         >
           {/* Custom driver marker */}
@@ -167,8 +206,6 @@ const MapScreen = () => {
               latitude: userLocation.latitude,
               longitude: userLocation.longitude,
             }}
-            title="Vị trí của tôi"
-            description="Tài xế"
             anchor={{ x: 0.5, y: 0.5 }}
             rotation={heading}
             flat={true}
@@ -219,14 +256,44 @@ const MapScreen = () => {
         <MaterialIcons name="arrow-back" size={24} color="#fff" />
       </TouchableOpacity>
 
-      {/* Center Location Button */}
-      <TouchableOpacity
-        style={styles.centerButton}
-        onPress={handleCenterLocation}
-        activeOpacity={0.8}
-      >
-        <MaterialIcons name="my-location" size={24} color="#fff" />
-      </TouchableOpacity>
+      {/* Right Side Controls */}
+      <View style={styles.rightControls}>
+        {/* Zoom In Button */}
+        <TouchableOpacity
+          style={styles.controlButton}
+          onPress={handleZoomIn}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="add" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+
+        {/* Zoom Out Button */}
+        <TouchableOpacity
+          style={styles.controlButton}
+          onPress={handleZoomOut}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="remove" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+
+        {/* Center Location Button */}
+        <TouchableOpacity
+          style={styles.controlButton}
+          onPress={handleCenterLocation}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="navigation" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+
+        {/* Compass Button */}
+        <TouchableOpacity
+          style={styles.controlButton}
+          onPress={handleCompassToggle}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="explore" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   )
 }
@@ -358,28 +425,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
     zIndex: 10,
   },
-  centerButton: {
+  rightControls: {
     position: 'absolute',
-    bottom: 32,
-    right: SPACING.lg,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.primary,
+    top: '35%',
+    right: 16,
+    gap: 10,
+  },
+  controlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 10,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
 })
 
