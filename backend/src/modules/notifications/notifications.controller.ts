@@ -1,26 +1,32 @@
 import { Controller, Get, Post, Delete, Patch, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { CreateNotificationDto } from './dto';
+import { CreateNotificationDto, SendNotificationDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('api/notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  @Post()
-  @UseGuards(JwtAuthGuard)
-  async create(@Body() createNotificationDto: CreateNotificationDto) {
-    return this.notificationsService.create(createNotificationDto);
+  @Post('send')
+  async send(@Body() sendNotificationDto: SendNotificationDto) {
+    return this.notificationsService.send(sendNotificationDto);
   }
 
-  @Get()
-  @UseGuards(JwtAuthGuard)
-  async findByUserId(
-    @Request() req: any,
-    @Query('limit') limit: number = 20,
+  @Get('admin/all')
+  async findAll(
+    @Query('type') type?: string,
+    @Query('driverId') driverId?: string,
+    @Query('customerId') customerId?: string,
+    @Query('limit') limit: number = 50,
     @Query('skip') skip: number = 0,
   ) {
-    return this.notificationsService.findByUserId(req.user.id, limit, skip);
+    return this.notificationsService.getAllNotifications({
+      type,
+      driverId,
+      customerId,
+      limit,
+      skip,
+    });
   }
 
   @Get('unread')
@@ -40,6 +46,16 @@ export class NotificationsController {
   @UseGuards(JwtAuthGuard)
   async getStats(@Request() req: any) {
     return this.notificationsService.getNotificationStats(req.user.id);
+  }
+
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  async create(
+    @Request() req: any,
+    @Query('limit') limit: number = 20,
+    @Query('skip') skip: number = 0,
+  ) {
+    return this.notificationsService.findByUserId(req.user.id, limit, skip);
   }
 
   @Get(':id')

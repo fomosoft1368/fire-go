@@ -18,6 +18,7 @@ import ReportsAnalytics from './pages/reports-analytics'
 import Customers from './pages/customers'
 import Settings from './pages/settings'
 import WalletManagement from './pages/transaction-management'
+import NotificationsManagement from './pages/NotificationsManagement'
 import './App.css'
 
 function App() {
@@ -80,6 +81,7 @@ function App() {
               <Route path="/rides" element={<RideManagement />} />
               <Route path="/revenue" element={<RevenueManagement />} />
               <Route path="/dispatch" element={<DispatchManagement />} />
+              <Route path="/notifications" element={<NotificationsManagement />} />
               <Route path="/reports" element={<ReportsAnalytics />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/transactions" element={<WalletManagement />} />
