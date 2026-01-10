@@ -5,6 +5,7 @@ import { RidesService } from './rides.service';
 import { AutoAssignService } from './services/auto-assign.service';
 import { CreateRideDto } from './dto';
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
+import { Pricing } from './schemas/pricing.schema';
 
 @Controller('api/rides')
 export class RidesController {
@@ -12,6 +13,7 @@ export class RidesController {
     private readonly ridesService: RidesService,
     private readonly autoAssignService: AutoAssignService,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
+    @InjectModel(Pricing.name) private pricingModel: Model<Pricing>,
   ) {}
 
   // Seed test data route
@@ -91,7 +93,49 @@ export class RidesController {
     return { message: 'Deleted old rides and seeded 30 new test rides with correct locations', count: 30 };
   }
 
-  // Analytics routes - MUST be before :id routes
+  // Seed pricing data
+  @Post('seed-pricing')
+  async seedPricing() {
+    const pricingData = [
+      {
+        vehicleType: 'basic',
+        baseFare: 10000,        // Giá mở cửa 10.000 VND
+        pricePerKm: 5000,       // 5.000 VND/km
+        pricePerMinute: 1000,   // 1.000 VND/phút
+        minimumFare: 25000,     // Giá tối thiểu 25.000 VND
+        peakHourSurge: 20,      // Phụ phí giờ cao điểm 20%
+        rainyDaySurge: 15,      // Phụ phí mưa 15%
+        isActive: true,
+      },
+      {
+        vehicleType: 'comfort',
+        baseFare: 15000,        // Giá mở cửa 15.000 VND
+        pricePerKm: 7000,       // 7.000 VND/km
+        pricePerMinute: 1500,   // 1.500 VND/phút
+        minimumFare: 35000,     // Giá tối thiểu 35.000 VND
+        peakHourSurge: 25,      // Phụ phí giờ cao điểm 25%
+        rainyDaySurge: 20,      // Phụ phí mưa 20%
+        isActive: true,
+      },
+      {
+        vehicleType: 'premium',
+        baseFare: 20000,        // Giá mở cửa 20.000 VND
+        pricePerKm: 10000,      // 10.000 VND/km
+        pricePerMinute: 2000,   // 2.000 VND/phút
+        minimumFare: 50000,     // Giá tối thiểu 50.000 VND
+        peakHourSurge: 30,      // Phụ phí giờ cao điểm 30%
+        rainyDaySurge: 25,      // Phụ phí mưa 25%
+        isActive: true,
+      },
+    ];
+
+    // Delete existing pricing
+    await this.pricingModel.deleteMany({});
+
+    // Create new pricing
+    const created = await this.pricingModel.insertMany(pricingData);
+    return { message: 'Seeded pricing data for basic, comfort, and premium vehicle types', data: created };
+  }
   @Get('analytics/revenue')
   async getRevenueStats(
     @Query('startDate') startDate?: string,
@@ -179,6 +223,16 @@ export class RidesController {
   @Get('pricing/:vehicleType')
   async getPricing(@Param('vehicleType') vehicleType: string) {
     return this.ridesService.getPricing(vehicleType);
+  }
+
+  // Create or update pricing for vehicle type
+  @Post('pricing')
+  async createPricing(@Body() pricingData: any) {
+    const existing = await this.pricingModel.findOne({ vehicleType: pricingData.vehicleType });
+    if (existing) {
+      return this.pricingModel.findByIdAndUpdate(existing._id, pricingData, { new: true });
+    }
+    return this.pricingModel.create(pricingData);
   }
 
   // Route directions - get route between two coordinates

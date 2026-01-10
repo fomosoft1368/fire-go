@@ -13,7 +13,6 @@ import {
   Alert,
   FlatList,
   StatusBar,
-  Modal,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
@@ -77,7 +76,6 @@ export default function HomeScreen() {
   const [transmission, setTransmission] = useState<'auto' | 'manual'>('auto')
   const [driverNote, setDriverNote] = useState('')
   const [isScheduled, setIsScheduled] = useState(false)
-  const [isMapFullscreen, setIsMapFullscreen] = useState(false)
   
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
@@ -88,6 +86,24 @@ export default function HomeScreen() {
     return () => {
       isMountedRef.current = false
     }
+  }, [])
+
+  // Seed pricing data on app startup
+  useEffect(() => {
+    const seedPricing = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/rides/seed-pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        if (response.ok) {
+          console.log('✅ [HomeScreen] Pricing seeded successfully')
+        }
+      } catch (error) {
+        console.log('[HomeScreen] Pricing seed attempt (fallback will be used if needed)')
+      }
+    }
+    seedPricing()
   }, [])
 
   // 🔍 Search pickup location when debounced value changes
@@ -241,30 +257,93 @@ export default function HomeScreen() {
       
       console.log('[HomeScreen] Raw directions response:', directions);
       
-      // Handle different response formats
-      const distance = directions.distance || directions.routes?.[0]?.distance || 0;
-      const duration = directions.duration || directions.routes?.[0]?.duration || 0;
+      // Handle different response formats from backend
+      let distance = 0;
+      let duration = 0;
+      let routeCoordinates: Array<{latitude: number, longitude: number}> = [];
       
-      console.log('[HomeScreen] Extracted - distance:', distance, 'duration:', duration);
+      // Format: features[0].geometry.coordinates and properties.summary (from backend)
+      if (directions.features?.[0]) {
+        const feature = directions.features[0];
+        
+        // Get distance and duration
+        if (feature.properties?.summary) {
+          distance = feature.properties.summary.distance;
+          duration = feature.properties.summary.duration;
+        }
+        
+        // Get route coordinates from geometry
+        if (feature.geometry?.coordinates) {
+          // OSRM returns coordinates as [lng, lat] pairs
+          routeCoordinates = feature.geometry.coordinates.map((coord: [number, number]) => ({
+            latitude: coord[1],
+            longitude: coord[0],
+          }));
+        }
+      }
+      // Fallback: direct properties
+      else if (directions.distance !== undefined && directions.duration !== undefined) {
+        distance = directions.distance;
+        duration = directions.duration;
+      }
+      // Fallback: routes array
+      else if (directions.routes?.[0]) {
+        distance = directions.routes[0].distance;
+        duration = directions.routes[0].duration;
+        if (directions.routes[0].geometry?.coordinates) {
+          routeCoordinates = directions.routes[0].geometry.coordinates.map((coord: [number, number]) => ({
+            latitude: coord[1],
+            longitude: coord[0],
+          }));
+        }
+      }
       
-      if (!distance || !duration) {
+      console.log('[HomeScreen] Extracted:', { distance, duration, routeCoordinatesCount: routeCoordinates.length });
+      
+      if (!distance || !duration || distance === 0 || duration === 0) {
         console.error('[HomeScreen] Invalid distance or duration:', { distance, duration });
+        Alert.alert('Lỗi', 'Không thể tính tuyến đường. Vui lòng kiểm tra địa chỉ và thử lại.');
         return;
       }
       
-      const distanceKm = typeof distance === 'string' ? parseFloat(distance) / 1000 : distance / 1000;
-      const durationSec = typeof duration === 'string' ? parseFloat(duration) : duration;
+      // Convert distance from meters to km if needed
+      const distanceKm = distance > 500 ? distance / 1000 : distance;
+      
+      // Calculate fare in realtime
+      let fareEstimate = null;
+      try {
+        console.log('[HomeScreen] About to calculate fare for:', { distanceKm, duration, vehicleType: 'basic' });
+        fareEstimate = await rideService.calculateFare(
+          distanceKm,
+          duration / 60, // Convert seconds to minutes
+          'basic' // Default to basic vehicle type
+        );
+        console.log('[HomeScreen] Fare result received:', fareEstimate);
+      } catch (fareError) {
+        console.error('[HomeScreen] Fare calculation threw error:', fareError);
+        // Continue without fare calculation
+      }
+      
+      console.log('[HomeScreen] Final fareEstimate before setState:', fareEstimate);
       
       setRouteInfo({
         distance: distanceKm,
-        duration: durationSec,
+        duration: duration,
         distanceText: `${distanceKm.toFixed(1)} km`,
-        durationText: `~${Math.ceil(durationSec / 60)} phút`,
+        durationText: `~${Math.ceil(duration / 60)} phút`,
+        routeCoordinates: routeCoordinates,
+        fareEstimate: fareEstimate,
       });
       
-      console.log('[HomeScreen] Route info set:', { distanceKm, durationSec });
+      // Also set the fareEstimate state
+      if (fareEstimate) {
+        setFareEstimate(fareEstimate);
+      }
+      
+      console.log('[HomeScreen] Route info set:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length, fare: fareEstimate });
     } catch (error: any) {
       console.error('[HomeScreen] Route calculation error:', error);
+      Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
     }
   };
 
@@ -303,6 +382,32 @@ export default function HomeScreen() {
 
       setIsLoading(true)
 
+      // Validate coordinates exist and are valid
+      if (!pickupCoordinates || !Array.isArray(pickupCoordinates) || pickupCoordinates.length !== 2) {
+        Alert.alert('Lỗi', 'Vị trí đón khách không hợp lệ')
+        console.error('[HomeScreen] Invalid pickupCoordinates:', pickupCoordinates)
+        setIsLoading(false)
+        return
+      }
+
+      if (!dropoffCoordinates || !Array.isArray(dropoffCoordinates) || dropoffCoordinates.length !== 2) {
+        Alert.alert('Lỗi', 'Vị trí trả khách không hợp lệ')
+        console.error('[HomeScreen] Invalid dropoffCoordinates:', dropoffCoordinates)
+        setIsLoading(false)
+        return
+      }
+
+      console.log('[HomeScreen] Navigate to RideBooking with params:', {
+        distance: routeInfo.distance,
+        duration: routeInfo.duration,
+        startLng: pickupCoordinates[0],
+        startLat: pickupCoordinates[1],
+        endLng: dropoffCoordinates[0],
+        endLat: dropoffCoordinates[1],
+        pickupAddress: pickupLocation,
+        dropoffAddress: dropoffLocation,
+      })
+
       // Navigate to RideBookingScreen with calculated route info
       navigation.navigate('RideBooking', {
         distance: routeInfo.distance,
@@ -320,8 +425,8 @@ export default function HomeScreen() {
       if (!isMountedRef.current) return
       
       setIsLoading(false)
-      Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường')
-      console.error('Error:', error)
+      console.error('[HomeScreen] handleFindRide error:', error)
+      Alert.alert('Lỗi', error.message || 'Không thể xử lý yêu cầu')
     }
   }
 
@@ -343,73 +448,6 @@ export default function HomeScreen() {
 
   return (
     <>
-      {/* Fullscreen Map Modal */}
-      <Modal
-        visible={isMapFullscreen}
-        animationType="slide"
-        onRequestClose={() => setIsMapFullscreen(false)}
-      >
-        <View style={styles.fullscreenMapContainer}>
-          <MapViewComponent
-            height={height}
-            initialRegion={{
-              latitude: routeInfo?.pickup.coordinates.latitude || 21.0285,
-              longitude: routeInfo?.pickup.coordinates.longitude || 105.8542,
-              latitudeDelta: 0.0922,
-              longitudeDelta: 0.0421,
-            }}
-            markers={[]}
-            pickupCoords={
-              routeInfo
-                ? {
-                    latitude: routeInfo.pickup.coordinates.latitude,
-                    longitude: routeInfo.pickup.coordinates.longitude,
-                  }
-                : undefined
-            }
-            dropoffCoords={
-              routeInfo
-                ? {
-                    latitude: routeInfo.dropoff.coordinates.latitude,
-                    longitude: routeInfo.dropoff.coordinates.longitude,
-                  }
-                : undefined
-            }
-            routeCoordinates={routeInfo?.routeCoordinates || []}
-            onLocationSelect={(location) => {
-              console.log('Location selected:', location)
-            }}
-          />
-          {/* Close Button */}
-          <TouchableOpacity
-            style={styles.closeMapButton}
-            onPress={() => setIsMapFullscreen(false)}
-          >
-            <MaterialIcons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-          {/* Map Info Card */}
-          {routeInfo && (
-            <View style={styles.fullscreenMapInfo}>
-              <View style={styles.mapInfoRow}>
-                <View style={styles.mapInfoItem}>
-                  <MaterialIcons name="directions" size={24} color="#FF6B00" />
-                  <Text style={styles.mapInfoValue}>
-                    {(routeInfo.distance / 1000).toFixed(1)} km
-                  </Text>
-                </View>
-                <View style={styles.mapInfoDivider} />
-                <View style={styles.mapInfoItem}>
-                  <MaterialIcons name="schedule" size={24} color="#FF6B00" />
-                  <Text style={styles.mapInfoValue}>
-                    ~{Math.ceil(routeInfo.duration / 60)} phút
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-      </Modal>
-
       <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <StatusBar
         barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
@@ -437,45 +475,30 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Map Placeholder */}
+        {/* Map Display with Route */}
         <View style={styles.mapWrapper}>
           <MapViewComponent
             height={250}
             initialRegion={{
-              latitude: 21.0285,
-              longitude: 105.8542,
+              latitude: pickupCoordinates[1],
+              longitude: pickupCoordinates[0],
               latitudeDelta: 0.0922,
               longitudeDelta: 0.0421,
             }}
             markers={[]}
-            pickupCoords={
-              routeInfo
-                ? {
-                    latitude: routeInfo.pickup.coordinates.latitude,
-                    longitude: routeInfo.pickup.coordinates.longitude,
-                  }
-                : undefined
-            }
-            dropoffCoords={
-              routeInfo
-                ? {
-                    latitude: routeInfo.dropoff.coordinates.latitude,
-                    longitude: routeInfo.dropoff.coordinates.longitude,
-                  }
-                : undefined
-            }
+            pickupCoords={{
+              latitude: pickupCoordinates[1],
+              longitude: pickupCoordinates[0],
+            }}
+            dropoffCoords={{
+              latitude: dropoffCoordinates[1],
+              longitude: dropoffCoordinates[0],
+            }}
             routeCoordinates={routeInfo?.routeCoordinates || []}
             onLocationSelect={(location) => {
               console.log('Location selected:', location)
             }}
           />
-          {/* Expand Map Button */}
-          <TouchableOpacity 
-            style={[styles.expandMapButton, { backgroundColor: colors.bg }]}
-            onPress={handleExpandMap}
-          >
-            <MaterialIcons name="zoom-out-map" size={20} color="#FF6B00" />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -668,31 +691,6 @@ export default function HomeScreen() {
         {/* Route Map & Info */}
         {routeInfo && (
           <View style={[styles.routeSection, { backgroundColor: colors.bgSecondary }]}>
-            <MapViewComponent
-              height={150}
-              initialRegion={{
-                latitude: (pickupCoordinates[1] + dropoffCoordinates[1]) / 2,
-                longitude: (pickupCoordinates[0] + dropoffCoordinates[0]) / 2,
-                latitudeDelta: Math.abs(dropoffCoordinates[1] - pickupCoordinates[1]) * 1.5 || 0.1,
-                longitudeDelta: Math.abs(dropoffCoordinates[0] - pickupCoordinates[0]) * 1.5 || 0.1,
-              }}
-              markers={[
-                {
-                  id: 'pickup',
-                  latitude: pickupCoordinates[1],
-                  longitude: pickupCoordinates[0],
-                  title: 'Điểm đón',
-                },
-                {
-                  id: 'dropoff',
-                  latitude: dropoffCoordinates[1],
-                  longitude: dropoffCoordinates[0],
-                  title: 'Điểm đến',
-                },
-              ]}
-              onLocationSelect={() => {}}
-            />
-            
             {/* Route Info */}
             <View style={[styles.routeInfo, { borderTopColor: colors.border }]}>
               <View style={styles.routeInfoItem}>
@@ -715,28 +713,16 @@ export default function HomeScreen() {
         {/* Price Section */}
         <View style={styles.priceSection}>
           <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Giá từ</Text>
-          {fareEstimate ? (
+          {routeInfo?.fareEstimate ? (
             <View>
-              <Text style={styles.priceValue}>{fareEstimate.total.toLocaleString()}đ</Text>
+              <Text style={styles.priceValue}>{(routeInfo.fareEstimate.totalFare || routeInfo.fareEstimate.total)?.toLocaleString() || 'Tính toán...'}đ</Text>
               <View style={styles.fareBreakdown}>
                 <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
-                  Cơ bản: {fareEstimate.baseFare.toLocaleString()}đ
                 </Text>
-                <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
-                  Quãng đường: {fareEstimate.distanceFare.toLocaleString()}đ
-                </Text>
-                <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
-                  Thời gian: {fareEstimate.timeFare.toLocaleString()}đ
-                </Text>
-                {fareEstimate.passengerSurge > 0 && (
-                  <Text style={[styles.fareBreakdownItem, { color: '#FF6B00' }]}>
-                    Phụ phí khách thêm: +{fareEstimate.passengerSurge.toLocaleString()}đ
-                  </Text>
-                )}
               </View>
             </View>
           ) : (
-            <Text style={styles.priceValue}>45.000đ</Text>
+            <Text style={styles.priceValue}>Chọn điểm đi và điểm đến</Text>
           )}
         </View>
 
@@ -1063,8 +1049,8 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   priceValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '400',
     color: '#FF6B00',
   },
   fareBreakdown: {
@@ -1075,7 +1061,7 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   fareBreakdownItem: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '500',
   },
   findButton: {

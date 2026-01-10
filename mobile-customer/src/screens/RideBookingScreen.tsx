@@ -15,10 +15,32 @@ import { COLORS } from '../constants/colors'
 import MapViewComponent from '../components/MapView'
 import { rideService } from '../services/rideService'
 import { authService } from '../services/authService'
+import type { CreateRideDto } from '../types'
 
 const RideBookingScreen = ({ navigation }: any) => {
   const route = useRoute()
-  const { distance, duration, startLng, startLat, endLng, endLat, pickupAddress, dropoffAddress } = route.params as any
+  const params = route.params as any
+
+  // Validate params with fallbacks
+  const distance = params?.distance ?? 0
+  const duration = params?.duration ?? 0
+  const startLng = params?.startLng ?? 0
+  const startLat = params?.startLat ?? 0
+  const endLng = params?.endLng ?? 0
+  const endLat = params?.endLat ?? 0
+  const pickupAddress = params?.pickupAddress ?? 'Unknown'
+  const dropoffAddress = params?.dropoffAddress ?? 'Unknown'
+
+  console.log('[RideBookingScreen] Received params:', {
+    distance,
+    duration,
+    startLng,
+    startLat,
+    endLng,
+    endLat,
+    pickupAddress,
+    dropoffAddress,
+  })
 
   // State
   const [selectedVehicleType, setSelectedVehicleType] = useState('basic')
@@ -95,36 +117,48 @@ const RideBookingScreen = ({ navigation }: any) => {
     try {
       if (!fare) {
         setErrorMessage('Fare calculation failed')
+        console.error('[RideBookingScreen] No fare available')
         return
       }
 
       setBookingLoading(true)
       const customerId = await authService.getUserId()
 
-      const rideData = {
+      if (!customerId) {
+        setErrorMessage('User ID not found')
+        setBookingLoading(false)
+        return
+      }
+
+      const rideData: CreateRideDto = {
         pickupAddress,
         dropoffAddress,
         pickupCoordinates: [startLng, startLat] as [number, number],
         dropoffCoordinates: [endLng, endLat] as [number, number],
         distance,
         duration,
-        baseFare: fare.baseFare,
-        distanceFare: fare.distanceFare,
-        timeFare: fare.timeFare,
-        estimatedFare: fare.totalFare,
+        baseFare: fare.baseFare || 0,
+        distanceFare: fare.distanceFare || 0,
+        timeFare: fare.timeFare || 0,
         vehicleType: selectedVehicleType,
         rideType: 'share' as const,
       }
 
+      console.log('[RideBookingScreen] Creating ride with data:', rideData)
+
       const result = await rideService.createRide(rideData, customerId)
 
-      if (result) {
+      if (result && result._id) {
         // Navigate to ride tracking screen
-        navigation.replace('RideTracking', { rideId: result._id })
+        console.log('[RideBookingScreen] Ride created, navigating to FindingRideScreen')
+        navigation.replace('FindingRideScreen', { rideId: result._id })
+      } else {
+        setErrorMessage('Ride creation failed - no result')
+        console.error('[RideBookingScreen] No result from createRide')
       }
     } catch (error: any) {
-      console.error('Book ride error:', error)
-      setErrorMessage(error.message)
+      console.error('[RideBookingScreen] Book ride error:', error)
+      setErrorMessage(error.message || 'Failed to book ride')
     } finally {
       setBookingLoading(false)
     }

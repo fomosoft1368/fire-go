@@ -87,6 +87,8 @@ export interface CreateRideDto {
   distanceFare: number
   timeFare: number
   surgePricing?: number
+  rideType?: 'share' | 'hire' // 'share' for shared rides, 'hire' for hired driver
+  vehicleType?: string // Vehicle type like 'basic', 'comfort', 'premium' or 'sedan', 'suv', 'truck'
   notes?: string
   passengers?: number
   // Hire Driver specific fields

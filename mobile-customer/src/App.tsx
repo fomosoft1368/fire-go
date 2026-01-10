@@ -142,6 +142,7 @@ const RootNavigator = () => {
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
             <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
             <Stack.Screen name="RideBooking" component={RideBookingScreen} />
+            <Stack.Screen name="FindingRideScreen" component={FindingRideScreen} />
           </Stack.Group>
         </>
       ) : (
