@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { RootState } from '../redux/store'
 import { rideService } from '../services/rideService'
@@ -385,7 +385,7 @@ export default function HireDriverScreen({
       }
 
       console.log('[HireDriverScreen] Creating ride with data:', rideData)
-      const result = await rideService.createRide(rideData, user.id)
+      await rideService.createRide(rideData, user.id)
       
       Alert.alert(
         'Thành công',
@@ -432,7 +432,7 @@ export default function HireDriverScreen({
       <View style={[styles.findingContainer, { backgroundColor: colors.bg }]}>
         {/* Full Screen Map */}
         <MapViewComponent
-        height={null}
+        height={undefined}
         initialRegion={{
           latitude: routeInfo.pickup.coordinates.latitude,
           longitude: routeInfo.pickup.coordinates.longitude,
@@ -1487,18 +1487,6 @@ const styles = StyleSheet.create({
   radarRing3: {
     width: 160,
     height: 160,
-  },
-  radarCenter: {
-    position: 'absolute',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FF6B00',
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    elevation: 8,
   },
   statusContentWrapper: {
     paddingHorizontal: SPACING.lg,

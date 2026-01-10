@@ -1,35 +1,27 @@
-import React, { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Dimensions,
   SafeAreaView,
   StatusBar,
 } from 'react-native'
+import { useRoute } from '@react-navigation/native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
 import type { RootState } from '../redux/store'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 
-const { width, height } = Dimensions.get('window')
+export default function FindingRideScreen({ navigation }: any) {
+  const route = useRoute()
+  const params = route.params as any
+  const rideId = params?.rideId ?? 'unknown'
 
-interface FindingRideScreenProps {
-  routeInfo: any
-  passengerCount: number
-  fareEstimate: any
-  onCancel: () => void
-}
+  console.log('[FindingRideScreen] Received rideId:', rideId)
 
-export default function FindingRideScreen({
-  routeInfo,
-  passengerCount,
-  fareEstimate,
-  onCancel,
-}: FindingRideScreenProps) {
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
 
@@ -174,23 +166,23 @@ export default function FindingRideScreen({
       {/* Map */}
       <View style={styles.mapContainer}>
         <MapViewComponent
-          height={null}
+          height={undefined}
           initialRegion={{
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
+            latitude: 21.0285,
+            longitude: 105.8542,
             latitudeDelta: 0.05,
             longitudeDelta: 0.05,
           }}
           markers={[]}
           pickupCoords={{
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
+            latitude: 21.0285,
+            longitude: 105.8542,
           }}
           dropoffCoords={{
-            latitude: routeInfo.dropoff.coordinates.latitude,
-            longitude: routeInfo.dropoff.coordinates.longitude,
+            latitude: 21.0285,
+            longitude: 105.8542,
           }}
-          routeCoordinates={routeInfo.routeCoordinates || []}
+          routeCoordinates={[]}
           onLocationSelect={() => {}}
         />
 
@@ -267,7 +259,7 @@ export default function FindingRideScreen({
             <View style={styles.infoTextContainer}>
               <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Điểm đón</Text>
               <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
-                {routeInfo.pickup.formattedAddress}
+                Đã chọn
               </Text>
             </View>
           </View>
@@ -277,7 +269,7 @@ export default function FindingRideScreen({
             <View style={styles.infoTextContainer}>
               <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Điểm đến</Text>
               <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
-                {routeInfo.dropoff.formattedAddress}
+                Đã chọn
               </Text>
             </View>
           </View>
@@ -286,7 +278,7 @@ export default function FindingRideScreen({
             <View style={styles.statItem}>
               <MaterialIcons name="directions" size={18} color="#FF6B00" />
               <Text style={[styles.statValue, { color: colors.text }]}>
-                {(routeInfo.distance / 1000).toFixed(1)} km
+                -- km
               </Text>
             </View>
 
@@ -295,7 +287,7 @@ export default function FindingRideScreen({
             <View style={styles.statItem}>
               <MaterialIcons name="schedule" size={18} color="#FF6B00" />
               <Text style={[styles.statValue, { color: colors.text }]}>
-                ~{Math.ceil(routeInfo.duration / 60)} phút
+                -- phút
               </Text>
             </View>
 
@@ -304,24 +296,22 @@ export default function FindingRideScreen({
             <View style={styles.statItem}>
               <MaterialIcons name="people" size={18} color="#FF6B00" />
               <Text style={[styles.statValue, { color: colors.text }]}>
-                {passengerCount} khách
+                1 khách
               </Text>
             </View>
           </View>
 
           {/* Fare estimate */}
-          {fareEstimate && (
-            <View style={[styles.fareBox, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}30` }]}>
-              <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>Giá dự kiến</Text>
-              <Text style={styles.fareValue}>{fareEstimate.total.toLocaleString()}đ</Text>
-            </View>
-          )}
+          <View style={[styles.fareBox, { backgroundColor: `${colors.primary}10`, borderColor: `${colors.primary}30` }]}>
+            <Text style={[styles.fareLabel, { color: colors.textSecondary }]}>Tìm kiếm tài xế...</Text>
+            <Text style={styles.fareValue}>Chờ xác nhận</Text>
+          </View>
         </View>
 
         {/* Cancel Button */}
         <TouchableOpacity
           style={[styles.cancelButton, { backgroundColor: colors.border }]}
-          onPress={onCancel}
+          onPress={() => navigation.goBack()}
           activeOpacity={0.7}
         >
           <MaterialIcons name="close" size={22} color={colors.text} />

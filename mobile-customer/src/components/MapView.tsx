@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { View, StyleSheet, TouchableOpacity } from 'react-native'
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps'
 import * as Location from 'expo-location'
@@ -41,6 +41,7 @@ const MapViewComponent = ({
 }: MapViewComponentProps) => {
   const mapRef = useRef<MapView>(null)
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [currentRegion, setCurrentRegion] = useState(initialRegion)
 
   // Lấy vị trí người dùng
   useEffect(() => {
@@ -100,12 +101,34 @@ const MapViewComponent = ({
         {
           latitude: userLocation.latitude,
           longitude: userLocation.longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
         },
-        800
+        1000
       )
     }
+  }
+
+  // Hàm zoom in
+  const handleZoomIn = () => {
+    const newRegion = {
+      ...currentRegion,
+      latitudeDelta: Math.max(currentRegion.latitudeDelta / 2, 0.001),
+      longitudeDelta: Math.max(currentRegion.longitudeDelta / 2, 0.001),
+    }
+    setCurrentRegion(newRegion)
+    mapRef.current?.animateToRegion(newRegion, 300)
+  }
+
+  // Hàm zoom out
+  const handleZoomOut = () => {
+    const newRegion = {
+      ...currentRegion,
+      latitudeDelta: Math.min(currentRegion.latitudeDelta * 2, 180),
+      longitudeDelta: Math.min(currentRegion.longitudeDelta * 2, 180),
+    }
+    setCurrentRegion(newRegion)
+    mapRef.current?.animateToRegion(newRegion, 300)
   }
 
   return (
@@ -115,6 +138,7 @@ const MapViewComponent = ({
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={initialRegion}
+        onRegionChangeComplete={(region) => setCurrentRegion(region)}
         onPress={(e) => {
           const { latitude, longitude } = e.nativeEvent.coordinate
           onLocationSelect?.({ latitude, longitude })
@@ -192,13 +216,29 @@ const MapViewComponent = ({
         )}
       </MapView>
 
+      {/* Nút zoom in */}
+      <TouchableOpacity 
+        style={styles.zoomInButton}
+        onPress={handleZoomIn}
+      >
+        <MaterialIcons name="add" size={24} color="#0066cc" />
+      </TouchableOpacity>
+
+      {/* Nút zoom out */}
+      <TouchableOpacity 
+        style={styles.zoomOutButton}
+        onPress={handleZoomOut}
+      >
+        <MaterialIcons name="remove" size={24} color="#0066cc" />
+      </TouchableOpacity>
+
       {/* Button phóng to vị trí hiện tại */}
       {userLocation && (
         <TouchableOpacity 
           style={styles.zoomButton}
           onPress={handleZoomToCurrentLocation}
         >
-          <MaterialIcons name="my-location" size={24} color="#fff" />
+          <MaterialIcons name="my-location" size={20} color="#fff" />
         </TouchableOpacity>
       )}
     </View>
@@ -222,6 +262,38 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     backgroundColor: '#0066cc',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  zoomInButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  zoomOutButton: {
+    position: 'absolute',
+    top: 68,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

@@ -64,7 +64,9 @@ export const placesService = {
       
       if (!res.ok) {
         console.error(`[PlacesService] API error: ${res.status}`);
-        throw new Error(`API error: ${res.status}`);
+        // Fallback: return empty results instead of throwing
+        console.warn('[PlacesService] Backend unavailable, returning empty results');
+        return { results: [], source: 'api' };
       }
       
       const response = await res.json() as PlacesSearchResponse;
@@ -84,6 +86,7 @@ export const placesService = {
       return response;
     } catch (error) {
       console.error('[PlacesService] Search error:', error);
+      // Fallback gracefully - return empty results instead of crashing
       return { results: [], source: 'api' };
     }
   },
@@ -100,7 +103,9 @@ export const placesService = {
       );
       
       if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
+        console.error(`[PlacesService] Details API error: ${res.status}`);
+        // Fallback: return empty object instead of throwing
+        return { placeId, name: '', address: '', lat: 0, lng: 0 };
       }
       
       const response = await res.json() as PlaceResult;
@@ -108,7 +113,8 @@ export const placesService = {
       return response;
     } catch (error) {
       console.error('[PlacesService] Details error:', error);
-      throw error;
+      // Fallback: return empty object instead of crashing
+      return { placeId, name: '', address: '', lat: 0, lng: 0 };
     }
   },
 

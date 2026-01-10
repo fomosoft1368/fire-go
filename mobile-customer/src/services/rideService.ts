@@ -2,6 +2,61 @@ import { API_BASE_URL } from '../constants'
 import type { CreateRideDto } from '../types'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
+// Standalone fallback pricing calculation - MUST be defined before rideService
+function calculateFareFallback(distance: number, duration: number, vehicleType: string = 'basic', isPeakHour?: boolean, isRainy?: boolean) {
+  const pricingRates: Record<string, any> = {
+    'basic': {
+      baseFare: 0,
+      pricePerKm: 10000,
+      minimumFare: 25000,
+    },
+    'comfort': {
+      baseFare: 0,
+      pricePerKm: 15000,
+      minimumFare: 40000,
+    },
+    'premium': {
+      baseFare: 0,
+      pricePerKm: 20000,
+      minimumFare: 60000,
+    },
+  }
+
+  const rates = pricingRates[vehicleType] || pricingRates['basic']
+  
+  const distanceFare = distance * rates.pricePerKm
+  let totalFare = rates.baseFare + distanceFare
+
+  // Apply minimum fare
+  if (totalFare < rates.minimumFare) {
+    totalFare = rates.minimumFare
+  }
+
+  // Apply surges
+  let passengerSurge = 0
+  if (isPeakHour) {
+    passengerSurge = totalFare * 0.2 // 20% peak hour surge
+    totalFare += passengerSurge
+  }
+  if (isRainy) {
+    const rainySurge = totalFare * 0.15 // 15% rainy day surge
+    totalFare += rainySurge
+  }
+
+  console.log('[calculateFareFallback] Result:', { distanceFare, totalFare, minFare: rates.minimumFare })
+  return {
+    baseFare: rates.baseFare,
+    distanceFare: Math.round(distanceFare),
+    timeFare: 0,
+    passengerSurge: Math.round(passengerSurge),
+    totalFare: Math.round(totalFare),
+    vehicleType,
+    distance,
+    duration,
+    message: 'Pricing calculated locally (backend unavailable)',
+  }
+}
+
 export const rideService = {
   /**
    * Get directions between two points
@@ -513,18 +568,50 @@ export const rideService = {
         body: JSON.stringify(payload),
       })
 
-      const result = await response.json()
+      console.log('[RideService] API response status:', response.status, response.ok)
 
       if (!response.ok) {
-        console.error('[RideService] Calculate fare failed:', result)
-        throw new Error(result.message || 'Failed to calculate fare')
+        console.error('[RideService] Calculate fare API returned error status:', response.status)
+        console.log('[RideService] Using fallback pricing for:', { distance, duration, vehicleType })
+        try {
+          const fallbackResult = calculateFareFallback(distance, duration, vehicleType, isPeakHour, isRainy)
+          console.log('[RideService] Fallback result:', fallbackResult)
+          return fallbackResult
+        } catch (fallbackError) {
+          console.error('[RideService] Fallback pricing also failed:', fallbackError)
+          throw fallbackError
+        }
       }
 
-      console.log('[RideService] Fare calculation:', result)
+      const result = await response.json()
+      console.log('[RideService] API response JSON:', JSON.stringify(result, null, 2))
+
+      if (result.message && result.statusCode === 400) {
+        console.error('[RideService] Calculate fare failed:', result)
+        console.log('[RideService] Using fallback pricing for:', { distance, duration, vehicleType })
+        try {
+          const fallbackResult = calculateFareFallback(distance, duration, vehicleType, isPeakHour, isRainy)
+          console.log('[RideService] Fallback result:', fallbackResult)
+          return fallbackResult
+        } catch (fallbackError) {
+          console.error('[RideService] Fallback pricing also failed:', fallbackError)
+          throw fallbackError
+        }
+      }
+
+      console.log('[RideService] Fare calculation success:', result)
       return result
     } catch (error: any) {
       console.error('[RideService] Calculate fare error:', error)
-      throw error
+      console.log('[RideService] Using fallback pricing due to error for:', { distance, duration, vehicleType })
+      try {
+        const fallbackResult = calculateFareFallback(distance, duration, vehicleType, isPeakHour, isRainy)
+        console.log('[RideService] Fallback result:', fallbackResult)
+        return fallbackResult
+      } catch (fallbackError) {
+        console.error('[RideService] Fallback pricing also failed:', fallbackError)
+        throw fallbackError
+      }
     }
   },
 

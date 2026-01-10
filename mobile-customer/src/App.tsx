@@ -8,7 +8,7 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, RideBookingScreen } from './screens'
+import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, RideBookingScreen, FindingRideScreen } from './screens'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
@@ -141,6 +141,7 @@ const RootNavigator = () => {
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
             <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
             <Stack.Screen name="RideBooking" component={RideBookingScreen} />
+            <Stack.Screen name="FindingRideScreen" component={FindingRideScreen} />
           </Stack.Group>
         </>
       ) : (

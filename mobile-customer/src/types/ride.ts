@@ -9,9 +9,11 @@ export interface CreateRideDto {
   distanceFare: number;
   timeFare: number;
   surgePricing?: number;
-  carType: 'sedan' | 'suv' | 'truck';
-  licensePlate: string;
-  transmission: 'auto' | 'manual';
+  rideType?: 'share' | 'hire'; // 'share' for shared rides, 'hire' for hired driver
+  vehicleType?: string; // Vehicle type like 'basic', 'comfort', 'premium' or 'sedan', 'suv', 'truck'
+  carType?: 'sedan' | 'suv' | 'truck';
+  licensePlate?: string;
+  transmission?: 'auto' | 'manual';
   driverNote?: string;
   isScheduled?: boolean;
   scheduledTime?: string;
