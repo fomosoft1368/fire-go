@@ -12,10 +12,11 @@ import {
   Alert,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import MapView, { Marker } from 'react-native-maps'
+import MapView, { Marker, Polyline } from 'react-native-maps'
 import { useSelector } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { COLORS } from '../constants'
+import * as Location from 'expo-location'
 import { driverService } from '../services/driverService'
 import type { RootState } from '../redux/store'
 
@@ -29,10 +30,16 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const [ride, setRide] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [routeCoords, setRouteCoords] = useState<Array<{ latitude: number; longitude: number }>>([])
+  const [routeLoading, setRouteLoading] = useState(false)
+  const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [distanceToPickup, setDistanceToPickup] = useState<number | null>(null)
+  const [showCompass, setShowCompass] = useState(false)
   const { user } = useSelector((state: RootState) => state.auth)
   const scaleAnim = useRef(new Animated.Value(1)).current
   const fadeAnim = useRef(new Animated.Value(1)).current
   const statusFadeAnim = useRef(new Animated.Value(0)).current
+  const mapRef = useRef<MapView>(null)
 
   // Lấy ride ID từ route params
   const rideId = route?.params?.rideId
@@ -103,6 +110,8 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
       }
 
       setRide(formattedRide)
+      // Clear previous route when loading a new ride
+      setRouteCoords([])
       
       // Set initial button state based on ride status and driverId
       if (data.driverId) {
@@ -123,6 +132,139 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
       setLoading(false)
     }
   }
+
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371 // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  // Track driver location and calculate distance to pickup
+  useEffect(() => {
+    let locationSubscription: Location.LocationSubscription | null = null
+
+    const startLocationTracking = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status !== 'granted') {
+          console.warn('[RideDetailScreen] Location permission not granted')
+          return
+        }
+
+        // Get initial location
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        })
+        const coords = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }
+        setDriverLocation(coords)
+
+        // Calculate distance to pickup if ride exists
+        if (ride?.pickupCoords) {
+          const distance = calculateDistance(
+            coords.latitude,
+            coords.longitude,
+            ride.pickupCoords.latitude,
+            ride.pickupCoords.longitude
+          )
+          setDistanceToPickup(distance)
+        }
+
+        // Watch location changes
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 5000, // Update every 5 seconds
+            distanceInterval: 10, // Or when moved 10 meters
+          },
+          (newLocation) => {
+            const newCoords = {
+              latitude: newLocation.coords.latitude,
+              longitude: newLocation.coords.longitude,
+            }
+            setDriverLocation(newCoords)
+
+            // Update distance to pickup
+            if (ride?.pickupCoords) {
+              const distance = calculateDistance(
+                newCoords.latitude,
+                newCoords.longitude,
+                ride.pickupCoords.latitude,
+                ride.pickupCoords.longitude
+              )
+              setDistanceToPickup(distance)
+            }
+          }
+        )
+      } catch (e) {
+        console.warn('[RideDetailScreen] Error tracking location', e)
+      }
+    }
+
+    startLocationTracking()
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove()
+      }
+    }
+  }, [ride?.pickupCoords])
+
+  // Fetch driving route between pickup and dropoff using OSRM (no API key required)
+  const fetchRoute = async (pickup: { latitude: number; longitude: number }, dropoff: { latitude: number; longitude: number }) => {
+    try {
+      setRouteLoading(true)
+      const url = `https://router.project-osrm.org/route/v1/driving/${pickup.longitude},${pickup.latitude};${dropoff.longitude},${dropoff.latitude}?overview=full&geometries=geojson`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Route HTTP ${res.status}`)
+      const data = await res.json()
+      const coords = data?.routes?.[0]?.geometry?.coordinates as Array<[number, number]> | undefined
+      if (coords && coords.length) {
+        const mapped = coords.map(([lon, lat]) => ({ latitude: lat, longitude: lon }))
+        setRouteCoords(mapped)
+        // Fit camera to route
+        mapRef.current?.fitToCoordinates(mapped, {
+          edgePadding: { top: 80, right: 40, bottom: 220, left: 40 },
+          animated: true,
+        })
+      } else {
+        // Fallback: straight line
+        const fallback = [pickup, dropoff]
+        setRouteCoords(fallback)
+        mapRef.current?.fitToCoordinates(fallback, {
+          edgePadding: { top: 80, right: 40, bottom: 220, left: 40 },
+          animated: true,
+        })
+      }
+    } catch (e) {
+      // Fallback to straight line on any error
+      const fallback = [pickup, dropoff]
+      setRouteCoords(fallback)
+      mapRef.current?.fitToCoordinates(fallback, {
+        edgePadding: { top: 80, right: 40, bottom: 220, left: 40 },
+        animated: true,
+      })
+    } finally {
+      setRouteLoading(false)
+    }
+  }
+
+  // When ride is loaded/changed, fetch route
+  useEffect(() => {
+    if (ride?.pickupCoords && ride?.dropoffCoords) {
+      fetchRoute(ride.pickupCoords, ride.dropoffCoords)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ride?.pickupCoords?.latitude, ride?.pickupCoords?.longitude, ride?.dropoffCoords?.latitude, ride?.dropoffCoords?.longitude])
 
   const handleAcceptRide = async () => {
     if (updating || !user?.id) {
@@ -318,6 +460,37 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     navigation?.goBack()
   }
 
+  const handleZoomIn = () => {
+    mapRef.current?.getCamera().then((cam) => {
+      if (cam.zoom !== undefined) {
+        mapRef.current?.animateCamera({ zoom: cam.zoom + 1 }, { duration: 200 })
+      }
+    })
+  }
+
+  const handleZoomOut = () => {
+    mapRef.current?.getCamera().then((cam) => {
+      if (cam.zoom !== undefined) {
+        mapRef.current?.animateCamera({ zoom: cam.zoom - 1 }, { duration: 200 })
+      }
+    })
+  }
+
+  const handleCenterToDriver = async () => {
+    if (driverLocation) {
+      mapRef.current?.animateToRegion({
+        latitude: driverLocation.latitude,
+        longitude: driverLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500)
+    }
+  }
+
+  const handleToggleCompass = () => {
+    setShowCompass(!showCompass)
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {loading ? (
@@ -341,6 +514,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           {/* Header with Map */}
           <View style={styles.mapContainer}>
             <MapView
+              ref={mapRef}
               style={styles.map}
               initialRegion={{
                 latitude: ride.pickupCoords.latitude,
@@ -348,17 +522,39 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
                 latitudeDelta: 0.05,
                 longitudeDelta: 0.05,
               }}
+              showsUserLocation={true}
+              showsMyLocationButton={false}
+              showsCompass={showCompass}
             >
+              {/* Pickup Marker - Circle */}
               <Marker
                 coordinate={ride.pickupCoords}
                 title="Điểm đón"
                 description={ride.pickupAddress}
-              />
+              >
+                <View style={styles.pickupMarker}>
+                  <MaterialIcons name="trip-origin" size={32} color={COLORS.primary} />
+                </View>
+              </Marker>
+
+              {/* Dropoff Marker - Flag */}
               <Marker
                 coordinate={ride.dropoffCoords}
                 title="Điểm trả"
                 description={ride.dropoffAddress}
-              />
+              >
+                <View style={styles.dropoffMarker}>
+                  <MaterialIcons name="flag" size={32} color={COLORS.success} />
+                </View>
+              </Marker>
+
+              {routeCoords.length > 1 && (
+                <Polyline
+                  coordinates={routeCoords}
+                  strokeColor={COLORS.primary}
+                  strokeWidth={5}
+                />
+              )}
             </MapView>
 
             {/* Header Controls */}
@@ -366,18 +562,22 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
               <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
                 <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
               </TouchableOpacity>
+            </View>
 
-              <View style={styles.callButton}>
-                <MaterialIcons name="call" size={24} color="#4CAF50" />
-              </View>
-
-              <View style={styles.sosButton}>
-                <Text style={styles.sosText}>SOS</Text>
-              </View>
-
-              <View style={styles.moreButton}>
-                <MaterialIcons name="more-vert" size={24} color={COLORS.textSecondary} />
-              </View>
+            {/* Right Controls - Zoom and Navigation */}
+            <View style={styles.rightControls}>
+              <TouchableOpacity onPress={handleZoomIn} style={styles.controlButton}>
+                <MaterialIcons name="add" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleZoomOut} style={styles.controlButton}>
+                <MaterialIcons name="remove" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleCenterToDriver} style={styles.controlButton}>
+                <MaterialIcons name="navigation" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleToggleCompass} style={styles.controlButton}>
+                <MaterialIcons name="explore" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
             </View>
 
             {/* Info Card - Floating at bottom of map */}
@@ -385,9 +585,16 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
               <View style={styles.timePrice}>
                 <Text style={styles.time}>{ride.estimatedTime}</Text>
                 <Text style={styles.subtext}>Dự kiến</Text>
+                {distanceToPickup !== null && (
+                  <View style={styles.distanceToPickupContainer}>
+                    <MaterialIcons name="navigation" size={14} color={COLORS.primary} />
+                    <Text style={styles.distanceToPickup}>
+                      Cách điểm đón: {distanceToPickup.toFixed(1)} km
+                    </Text>
+                  </View>
+                )}
               </View>
               <View style={styles.priceBox}>
-                <MaterialIcons name="attach-money" size={16} color={COLORS.primary} />
                 <Text style={styles.price}>{(ride.price / 1000).toFixed(0)}k</Text>
                 <Text style={styles.paymentType}>{ride.paymentMethod}</Text>
               </View>
@@ -553,7 +760,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   mapContainer: {
-    height: '40%',
+    height: '45%',
     position: 'relative',
     backgroundColor: COLORS.darkBg,
   },
@@ -562,21 +769,42 @@ const styles = StyleSheet.create({
   },
   mapControls: {
     position: 'absolute',
-    top: 43,
-    left: 16,
-    right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    top: 48,
+    left: 20,
     zIndex: 10,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.darkCard,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(26, 26, 26, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  rightControls: {
+    position: 'absolute',
+    top: '38%',
+    right: 20,
+    gap: 14,
+    zIndex: 10,
+  },
+  controlButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 6,
   },
   callButton: {
     width: 40,
@@ -607,50 +835,102 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  pickupMarker: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  dropoffMarker: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: COLORS.success,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+  },
   floatingCard: {
     position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
-    backgroundColor: COLORS.darkCard,
-    borderRadius: 12,
-    padding: 16,
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(26, 26, 26, 0.95)',
+    borderRadius: 16,
+    padding: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 10,
   },
   timePrice: {
     flex: 1,
   },
   time: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: COLORS.text,
+    letterSpacing: 0.5,
   },
   subtext: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 4,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 2,
+    fontWeight: '500',
   },
-  priceBox: {
+  distanceToPickupContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  distanceToPickup: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  priceBox: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
     gap: 4,
   },
   price: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
+    fontSize: 24,
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
   },
   paymentType: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    marginLeft: 4,
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   detailsContainer: {
     flex: 1,
@@ -660,19 +940,22 @@ const styles = StyleSheet.create({
   passengerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
-    paddingBottom: 16,
+    marginBottom: 20,
+    paddingBottom: 20,
+    paddingTop: 4,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkCard,
+    borderBottomColor: 'rgba(255, 107, 0, 0.15)',
   },
   passengerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: `${COLORS.primary}20`,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
   },
   passengerDetails: {
     flex: 1,
@@ -770,13 +1053,15 @@ const styles = StyleSheet.create({
   distanceBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: COLORS.darkCard,
-    borderRadius: 8,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderRadius: 12,
     marginBottom: 24,
     marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
   },
   distance: {
     fontSize: 13,
@@ -787,22 +1072,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
+    paddingVertical: 16,
+    borderRadius: 14,
     marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   acceptButton: {
-    backgroundColor: '#FF9800',
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
   },
   arrivedButton: {
-    backgroundColor: COLORS.success,
+    backgroundColor: '#4CAF50',
+    shadowColor: '#4CAF50',
   },
   completeButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#2196F3',
+    shadowColor: '#2196F3',
   },
   completedButton: {
-    backgroundColor: COLORS.success,
-    opacity: 0.7,
+    backgroundColor: '#4CAF50',
+    shadowColor: '#4CAF50',
+    opacity: 0.8,
   },
   disabledButton: {
     opacity: 0.5,
@@ -813,13 +1107,15 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   additionalInfo: {
-    backgroundColor: `${COLORS.primary}15`,
-    borderLeftWidth: 3,
+    backgroundColor: 'rgba(255, 107, 0, 0.08)',
+    borderLeftWidth: 4,
     borderLeftColor: COLORS.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 10,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.15)',
   },
   additionalTitle: {
     fontSize: 13,

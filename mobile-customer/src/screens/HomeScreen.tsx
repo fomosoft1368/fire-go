@@ -333,6 +333,10 @@ export default function HomeScreen() {
     setIsMapFullscreen(true)
   }
 
+  const handleOpenNotifications = () => {
+    navigation.navigate('Notification')
+  }
+
   if (rideMode === 'hire') {
     return <HireDriverScreen {...{ isScheduled, setIsScheduled, carType, setCarType, licensePlate, setLicensePlate, transmission, setTransmission, driverNote, setDriverNote, pickupLocation, setPickupLocation, dropoffLocation, setDropoffLocation, setRideMode }} />
   }
@@ -428,8 +432,8 @@ export default function HomeScreen() {
             <MaterialIcons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Đặt xe ghép</Text>
-          <TouchableOpacity style={styles.settingsButton}>
-            <MaterialIcons name="settings" size={24} color={colors.text} />
+          <TouchableOpacity style={styles.settingsButton} onPress={handleOpenNotifications}>
+            <MaterialIcons name="notifications" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -1190,4 +1194,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-  },})
+  },
+})

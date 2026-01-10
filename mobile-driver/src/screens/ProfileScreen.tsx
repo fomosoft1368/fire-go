@@ -326,6 +326,7 @@ const styles = StyleSheet.create({
   profileHeader: {
     paddingBottom: SPACING.xl,
     alignItems: 'center',
+    paddingTop: SPACING.xl,
   },
   headerBackground: {
     position: 'absolute',

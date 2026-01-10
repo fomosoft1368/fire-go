@@ -52,6 +52,7 @@ export type RootStackParamList = {
   Bookings: undefined
   Promotions: undefined
   Profile: undefined
+  Notification: undefined
   RideDetail: { rideId: string }
   BookingDetail: { bookingId: string }
   RideBooking: { distance: number; duration: number; startLng: number; startLat: number; endLng: number; endLat: number; pickupAddress: string; dropoffAddress: string }
