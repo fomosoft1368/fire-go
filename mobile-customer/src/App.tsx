@@ -211,6 +211,7 @@ const RootNavigator = () => {
             }}
           >
             <Stack.Screen name="Notification" component={NotificationScreen} />
+            <Stack.Screen name="NotificationDetailScreen" component={NotificationDetailScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />

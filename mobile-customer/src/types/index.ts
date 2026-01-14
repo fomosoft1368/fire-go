@@ -66,6 +66,10 @@ export type RootStackParamList = {
   Main: undefined
   Home: undefined
   Notifications: undefined
+  NotificationDetailScreen: {
+    notification: Notification
+    onDelete?: () => void
+  }
   Bookings: undefined
   Promotions: undefined
   Profile: undefined

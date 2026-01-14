@@ -1,247 +1,172 @@
-import { useState } from 'react'
+import React, { useEffect, useCallback } from 'react'
+import { useSelector } from 'react-redux'
+import { useNavigation, useFocusEffect } from '@react-navigation/native'
+import { RootState } from '../redux/store'
+import { notificationService, Notification } from '../services/notificationService'
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  StatusBar,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { useSelector } from 'react-redux'
-import { useNavigation } from '@react-navigation/native'
-import type { RootState } from '../redux/store'
-import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
+import { SPACING, BORDER_RADIUS, COLORS_DARK, COLORS_LIGHT } from '../constants'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import type { RootStackParamList } from '../types'
 
-type NotificationType = 'driver_arrived' | 'ride_completed' | 'promo' | 'driver_assigned' | 'discount'
+type NotificationsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Notifications'>
 
-interface Notification {
-  id: string
-  type: NotificationType
-  title: string
-  message: string
-  time: string
-  isNew: boolean
-  hasAction: boolean
-}
-
-export default function NotificationScreen() {
-  const navigation = useNavigation()
+const NotificationsScreen = () => {
+  const navigation = useNavigation<NotificationsScreenNavigationProp>()
+  const token = useSelector((state: RootState) => state.auth.token)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
-  const [selectedTab, setSelectedTab] = useState<'today' | 'yesterday'>('today')
 
-  const todayNotifications: Notification[] = [
-    {
-      id: '1',
-      type: 'driver_arrived',
-      title: 'Tài xế đang đến',
-      message: 'Tài xế Nguyễn Văn A đang trên đường đến điểm đón tại 123 Nguyễn Văn Cừ...',
-      time: '10:02 AM',
-      isNew: true,
-      hasAction: true,
-    },
-    {
-      id: '2',
-      type: 'ride_completed',
-      title: 'Đặt chuyến thành công',
-      message: 'Xin chào queeee, Chuyến đi của bạn tại Hà Phương đã được sắc nhận',
-      time: '10:02 AM',
-      isNew: false,
-      hasAction: false,
-    },
-    {
-      id: '3',
-      type: 'discount',
-      title: 'Giảm 60K cho bạn mới',
-      message: 'Chào mừng bạn mới! FireGO xin tặng giảm giá 60K cho chuyến đi đầu tiên của bạn. Mã: HELLO60',
-      time: '09:18 AM',
-      isNew: false,
-      hasAction: false,
-    },
-  ]
+  const [notifications, setNotifications] = React.useState<Notification[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [refreshing, setRefreshing] = React.useState(false)
 
-  const yesterdayNotifications: Notification[] = [
-    {
-      id: '4',
-      type: 'ride_completed',
-      title: 'Hoàn thành chuyến đi',
-      message: 'Chuyến đi của bạn đã hoàn thành. Vui lòng đánh giá tài xế?',
-      time: 'Hôm qua',
-      isNew: false,
-      hasAction: false,
-    },
-    {
-      id: '5',
-      type: 'promo',
-      title: 'Cập nhật chính sách',
-      message: 'Chúng tôi đã cập nhật các quy định để dịch vụ của bạn được đầy đủ và tốt hơn',
-      time: 'Hôm qua',
-      isNew: false,
-      hasAction: false,
-    },
-  ]
+  useEffect(() => {
+    if (token) {
+      notificationService.setToken(token)
+    }
+  }, [token])
 
-  const getNotificationIcon = (type: NotificationType) => {
-    switch (type) {
-      case 'driver_arrived':
-        return { name: 'local-taxi' as const, color: '#FF6B00', bgColor: 'rgba(255, 107, 0, 0.15)' }
-      case 'ride_completed':
-        return { name: 'check-circle' as const, color: '#4CAF50', bgColor: 'rgba(76, 175, 80, 0.15)' }
-      case 'promo':
-        return { name: 'campaign' as const, color: '#FFC107', bgColor: 'rgba(255, 193, 7, 0.15)' }
-      case 'driver_assigned':
-        return { name: 'person' as const, color: '#2196F3', bgColor: 'rgba(33, 150, 243, 0.15)' }
-      case 'discount':
-        return { name: 'local-offer' as const, color: '#FFC107', bgColor: 'rgba(255, 193, 7, 0.15)' }
-      default:
-        return { name: 'notifications' as const, color: '#FF6B00', bgColor: 'rgba(255, 107, 0, 0.15)' }
+  // Fetch notifications when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications()
+    }, [])
+  )
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      setLoading(true)
+      const response = await notificationService.getNotifications(50, 0)
+      const data = (response.data || []).sort((a: Notification, b: Notification) => {
+        const dateA = new Date(a.sentAt || a.createdAt || 0).getTime()
+        const dateB = new Date(b.sentAt || b.createdAt || 0).getTime()
+        return dateB - dateA // Newest first
+      })
+      setNotifications(data)
+    } catch (error) {
+      console.error('Fetch notifications error:', error)
+      Alert.alert('Lỗi', 'Không thể tải thông báo')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await fetchNotifications()
+    } finally {
+      setRefreshing(false)
+    }
+  }, [fetchNotifications])
+
+  const handleOpenDetail = async (notification: Notification) => {
+    // Navigate to detail screen
+    navigation.navigate('NotificationDetailScreen', {
+      notification,
+      onDelete: () => {
+        setNotifications(prev => prev.filter(n => n._id !== notification._id))
+      },
+    })
+  }
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Vừa xong'
+
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return 'Vừa xong'
+
+      const now = new Date()
+      const diffMs = now.getTime() - date.getTime()
+      const diffMins = Math.floor(diffMs / 60000)
+      const diffHours = Math.floor(diffMs / 3600000)
+      const diffDays = Math.floor(diffMs / 86400000)
+
+      if (diffMins < 1) return 'Vừa xong'
+      if (diffMins < 60) return `${diffMins}m`
+      if (diffHours < 24) return `${diffHours}h`
+      if (diffDays < 7) return `${diffDays}d`
+
+      return date.toLocaleDateString('vi-VN')
+    } catch {
+      return 'Vừa xong'
     }
   }
 
-  const currentNotifications = selectedTab === 'today' ? todayNotifications : yesterdayNotifications
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-      <StatusBar
-        barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
-        backgroundColor={colors.bg}
-      />
-
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.bg }]}>
+      <View style={[styles.header, { backgroundColor: '#FF6B00', borderBottomColor: colors.border }]}>
         <TouchableOpacity 
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Thông báo</Text>
-        <TouchableOpacity style={styles.moreButton}>
-          <MaterialIcons name="tune" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: '#fff' }]}>Thông báo</Text>
+        <View style={{ width: 44 }} />
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'today' && styles.tabActive,
-            { borderBottomColor: selectedTab === 'today' ? '#FF6B00' : 'transparent' },
-          ]}
-          onPress={() => setSelectedTab('today')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: selectedTab === 'today' ? '#FF6B00' : colors.textSecondary },
-              selectedTab === 'today' && styles.tabTextActive,
-            ]}
-          >
-            Hôm nay
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'yesterday' && styles.tabActive,
-            { borderBottomColor: selectedTab === 'yesterday' ? '#FF6B00' : 'transparent' },
-          ]}
-          onPress={() => setSelectedTab('yesterday')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              { color: selectedTab === 'yesterday' ? '#FF6B00' : colors.textSecondary },
-              selectedTab === 'yesterday' && styles.tabTextActive,
-            ]}
-          >
-            Hôm qua
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            { borderBottomColor: 'transparent' },
-          ]}
-          onPress={() => {}}
-        >
-          <Text style={[styles.tabText, { color: colors.textSecondary }]}>
-            Khuyến mãi
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Notifications List */}
-      <ScrollView
-        style={styles.notificationsList}
-        showsVerticalScrollIndicator={false}
-      >
-        {currentNotifications.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="notifications-none" size={80} color={colors.textSecondary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              Chưa có thông báo nào
-            </Text>
-          </View>
-        ) : (
-          currentNotifications.map((notification) => {
-            const iconConfig = getNotificationIcon(notification.type)
-            return (
-              <TouchableOpacity
-                key={notification.id}
-                style={[
-                  styles.notificationCard,
-                  { backgroundColor: colors.bgSecondary, borderColor: colors.border },
-                ]}
-                onPress={() => navigation.navigate('NotificationDetail', { notification })}
-              >
-                <View style={styles.notificationHeader}>
-                  <View style={styles.notificationLeft}>
-                    <View style={[styles.iconContainer, { backgroundColor: iconConfig.bgColor }]}>
-                      <MaterialIcons name={iconConfig.name} size={24} color={iconConfig.color} />
-                    </View>
-                    <View style={styles.notificationInfo}>
-                      <View style={styles.titleRow}>
-                        <Text style={[styles.notificationTitle, { color: colors.text }]}>
-                          {notification.title}
-                        </Text>
-                        {notification.isNew && (
-                          <View style={styles.newBadge}>
-                            <Text style={styles.newBadgeText}>Mới</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={[styles.notificationTime, { color: colors.textSecondary }]}>
-                        {notification.time}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                <Text style={[styles.notificationMessage, { color: colors.textSecondary }]}>
-                  {notification.message}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.notificationItem,
+                {
+                  backgroundColor: !item.isRead ? colors.bgSecondary : colors.bg,
+                  borderColor: colors.border,
+                },
+              ]}
+              onPress={() => handleOpenDetail(item)}
+              activeOpacity={0.7}
+            >
+              {!item.isRead && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
+              <View style={styles.contentContainer}>
+                <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
+                  {item.title}
                 </Text>
-
-                {notification.hasAction && (
-                  <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.actionButton}>
-                      <Text style={styles.actionButtonText}>Thao tác ngay</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, styles.actionButtonSecondary]}>
-                      <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>
-                        Gọi điện
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )
-          })
-        )}
-      </ScrollView>
+                <Text style={[styles.time, { color: colors.textSecondary }]}>
+                  {formatDate(item.sentAt || item.createdAt)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          keyExtractor={item => item._id}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="inbox" size={64} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                Không có thông báo nào
+              </Text>
+            </View>
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -252,149 +177,81 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    paddingTop: SPACING.md + StatusBar.currentHeight!,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    paddingTop: 50,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  moreButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  tab: {
+  listContainer: {
+    paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    borderBottomWidth: 2,
   },
-  tabActive: {
-    borderBottomColor: '#FF6B00',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    fontWeight: '700',
-  },
-  notificationsList: {
-    flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: SPACING.xxl * 3,
-  },
-  emptyText: {
-    marginTop: SPACING.lg,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  notificationCard: {
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-  },
-  notificationHeader: {
+  notificationItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
     marginBottom: SPACING.sm,
-  },
-  notificationLeft: {
-    flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginRight: SPACING.md,
+    flexShrink: 0,
   },
-  notificationInfo: {
+  contentContainer: {
     flex: 1,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.xs,
-  },
-  notificationTitle: {
+  title: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    marginBottom: 6,
+    lineHeight: 20,
   },
-  newBadge: {
-    backgroundColor: '#FF6B00',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  newBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  notificationTime: {
+  time: {
     fontSize: 12,
     fontWeight: '500',
   },
-  notificationMessage: {
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: SPACING.md,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  actionButton: {
+  loadingContainer: {
     flex: 1,
-    backgroundColor: '#FF6B00',
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  actionButtonSecondary: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#FF6B00',
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
   },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  actionButtonTextSecondary: {
-    color: '#FF6B00',
+  emptyText: {
+    fontSize: 15,
+    marginTop: SPACING.md,
+    fontWeight: '500',
   },
 })
+
+export default NotificationsScreen

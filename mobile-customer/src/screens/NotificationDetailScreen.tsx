@@ -180,6 +180,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
+    paddingTop: 50,
   },
   headerTitle: {
     fontSize: 18,
