@@ -8,7 +8,7 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, RideBookingScreen, NotificationScreen } from './screens'
+import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, RideBookingScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen } from './screens'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
@@ -137,12 +137,14 @@ const RootNavigator = () => {
             }}
           >
             <Stack.Screen name="Notification" component={NotificationScreen} />
+            <Stack.Screen name="NotificationDetail" component={NotificationDetailScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
             <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
             <Stack.Screen name="RideBooking" component={RideBookingScreen} />
             <Stack.Screen name="FindingRideScreen" component={FindingRideScreen} />
+            <Stack.Screen name="FullscreenMap" component={FullscreenMapScreen} />
           </Stack.Group>
         </>
       ) : (

@@ -106,6 +106,18 @@ export class DriversService {
     });
   }
 
+  /**
+   * Get all available drivers (online and accepting rides)
+   */
+  async getAvailableDrivers() {
+    return this.driverModel.find({
+      status: { $ne: DriverStatus.OFFLINE },
+      isSuspended: false,
+      isAcceptingRides: true,
+      currentLocation: { $exists: true }, // Must have location
+    }).sort({ createdAt: -1 });
+  }
+
   async updateStatus(driverId: string, status: DriverStatus): Promise<DriverDocument> {
     const driver = await this.findById(driverId);
 

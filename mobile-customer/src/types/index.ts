@@ -61,6 +61,15 @@ export type RootStackParamList = {
   ChangePassword: undefined
   PaymentMethods: undefined
   TransactionHistory: undefined
+  FullscreenMap: {
+    pickupCoordinates?: [number, number]
+    dropoffCoordinates?: [number, number]
+    pickupCoords?: { latitude: number; longitude: number }
+    dropoffCoords?: { latitude: number; longitude: number }
+    routeCoordinates?: Array<{ latitude: number; longitude: number }>
+    drivers?: any[]
+    routeInfo?: any
+  }
 }
 
 // API Response Types

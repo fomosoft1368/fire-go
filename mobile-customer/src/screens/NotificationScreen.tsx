@@ -190,12 +190,13 @@ export default function NotificationScreen() {
           currentNotifications.map((notification) => {
             const iconConfig = getNotificationIcon(notification.type)
             return (
-              <View
+              <TouchableOpacity
                 key={notification.id}
                 style={[
                   styles.notificationCard,
                   { backgroundColor: colors.bgSecondary, borderColor: colors.border },
                 ]}
+                onPress={() => navigation.navigate('NotificationDetail', { notification })}
               >
                 <View style={styles.notificationHeader}>
                   <View style={styles.notificationLeft}>
@@ -236,7 +237,7 @@ export default function NotificationScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
-              </View>
+              </TouchableOpacity>
             )
           })
         )}

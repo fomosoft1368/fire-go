@@ -76,6 +76,18 @@ const driverSchema = new mongoose.Schema(
     isBlacklisted: { type: Boolean, default: false },
     blacklistReason: String,
     isAccountLocked: { type: Boolean, default: false },
+    isAcceptingRides: { type: Boolean, default: true },
+    isSuspended: { type: Boolean, default: false },
+    suspensionReason: String,
+    suspendedUntil: Date,
+    lastOnlineTime: Date,
+    lastLocationUpdate: Date,
+    backgroundCheckPassed: { type: Boolean, default: false },
+    backgroundCheckDate: Date,
+    vehicleRegistration: String,
+    completionRate: { type: Number, default: 0 },
+    approvedAt: Date,
+    approvedBy: String,
   },
   { timestamps: true }
 );
@@ -134,7 +146,7 @@ const customerSchema = new mongoose.Schema(
 
 async function seed() {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/fire_go';
+    const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH';
     console.log(`🔗 Connecting to MongoDB...`);
     
     await mongoose.connect(mongoUri);
@@ -260,6 +272,7 @@ async function seed() {
         const hashedPassword = await bcrypt.hash(driverData.password, salt);
 
         // Create driver profile with authentication fields
+        console.log(`[DEBUG] Creating driver ${driverData.email}...`);
         const driver = await Driver.create({
           firstName: driverData.firstName,
           lastName: driverData.lastName,
@@ -278,7 +291,9 @@ async function seed() {
           bankAccount: driverData.bankAccount,
           bankAccountHolder: driverData.bankAccountHolder,
           bankStatus: 'verified',
-          status: 'offline',
+          status: 'online',
+          isAcceptingRides: true,
+          isSuspended: false,
           verificationStatus: 'verified',
           currentLocation: {
             type: 'Point',
@@ -291,9 +306,10 @@ async function seed() {
           totalEarnings: Math.floor(Math.random() * 50000000) + 5000000,
         });
 
-        console.log(`✅ Created driver: ${driverData.email}`);
+        console.log(`✅ Created driver: ${driverData.email} (ID: ${driver._id})`);
       } catch (error: any) {
-        console.error(`❌ Error:`, error.message);
+        console.error(`❌ Error creating ${driverData.email}:`, error.message);
+        console.error('Full error:', error);
       }
     }
 

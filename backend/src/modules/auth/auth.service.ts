@@ -45,6 +45,10 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<AuthResponseDto> {
     console.log('🔐 Login attempt:', loginDto.email);
     
+    // Debug: List all drivers
+    const allDrivers = await this.driverModel.find({}).select('email phone firstName lastName');
+    console.log('📊 All drivers in DB:', allDrivers.map(d => ({ email: d.email, phone: d.phone })));
+    
     // Try to find driver first (drivers are independent)
     // Search by email OR phone
     const driver = await this.driverModel.findOne({ 

@@ -21,7 +21,7 @@ import { PaymentModule } from './modules/payment/payment.module';
       envFilePath: '.env',
     }),
     MongooseModule.forRoot(
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/dat_xe',
+      process.env.MONGODB_URI || 'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH',
     ),
     EventEmitterModule.forRoot(),
     AuthModule,
