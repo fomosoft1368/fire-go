@@ -70,7 +70,7 @@ export const placesService = {
 
       if (!res.ok) {
         console.error(`[PlacesService] API error: ${res.status}`);
-        console.warn('[PlacesService] Backend unavailable, returning empty results');
+        console.warn('[PlacesService] Backend unavailable');
         return { results: [], source: 'api' };
       }
       
@@ -91,9 +91,11 @@ export const placesService = {
       return response;
     } catch (error: any) {
       console.error('[PlacesService] Search error:', error?.message || error);
-      // Fallback gracefully - return empty results instead of crashing
+      console.log('📍 [PlacesService] API_BASE_URL:', API_BASE_URL);
+      console.log('🔗 [PlacesService] Full URL:', `${API_BASE_URL}/places/search?keyword=${encodeURIComponent(trimmedKeyword)}`);
+      
       if (error?.name === 'AbortError') {
-        console.warn('[PlacesService] Request timeout, backend might be unavailable');
+        console.warn('[PlacesService] Request timeout');
       }
       return { results: [], source: 'api' };
     }
@@ -112,7 +114,6 @@ export const placesService = {
       
       if (!res.ok) {
         console.error(`[PlacesService] Details API error: ${res.status}`);
-        // Fallback: return empty object instead of throwing
         return { placeId, name: '', address: '', lat: 0, lng: 0 };
       }
       
@@ -121,7 +122,6 @@ export const placesService = {
       return response;
     } catch (error) {
       console.error('[PlacesService] Details error:', error);
-      // Fallback: return empty object instead of crashing
       return { placeId, name: '', address: '', lat: 0, lng: 0 };
     }
   },
