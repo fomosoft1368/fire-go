@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Delete, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Delete, BadRequestException, UnauthorizedException, Query } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto, SavedAddressDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -166,6 +166,14 @@ export class CustomersController {
   @Get()
   async findAll() {
     return this.customersService.findAll();
+  }
+
+  @Get('search')
+  async search(@Query('q') query: string) {
+    if (!query || query.length < 2) {
+      return [];
+    }
+    return this.customersService.search(query);
   }
 
   @Get('me')

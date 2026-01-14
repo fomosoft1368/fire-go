@@ -28,6 +28,18 @@ export class DriversController {
   }
 
   /**
+   * GET /api/drivers/search
+   * Tìm kiếm tài xế theo tên hoặc số điện thoại
+   */
+  @Get('search')
+  async search(@Query('q') query: string) {
+    if (!query || query.length < 2) {
+      return [];
+    }
+    return this.driversService.search(query);
+  }
+
+  /**
    * POST /api/drivers
    * Tạo hồ sơ tài xế mới
    */

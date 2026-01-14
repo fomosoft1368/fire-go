@@ -184,4 +184,131 @@ export class NotificationsService {
 
     return this.notificationModel.insertMany(notifications) as any;
   }
+
+  /**
+   * Send notification to driver or customer from admin
+   */
+  async send(data: {
+    title: string;
+    message: string;
+    type: string;
+    driverId?: string;
+    customerId?: string;
+    broadcastTo?: string;
+    channels?: string[];
+    description?: string;
+    actionUrl?: string;
+    imageUrl?: string;
+  }): Promise<any> {
+    const { driverId, customerId, broadcastTo, channels = ['in_app'], ...notificationData } = data;
+
+    // Validate: either specific recipient OR broadcast
+    if (!broadcastTo && !driverId && !customerId) {
+      throw new Error('Either broadcastTo, driverId or customerId must be provided');
+    }
+
+    // For broadcast notifications, create multiple notifications
+    if (broadcastTo === 'drivers' || broadcastTo === 'customers') {
+      const Driver = this.notificationModel.collection.conn.model('Driver');
+      const Customer = this.notificationModel.collection.conn.model('Customer');
+
+      const model = broadcastTo === 'drivers' ? Driver : Customer;
+      const recipients = await model.find({}).select('_id').limit(10000).exec();
+
+      const notifications = await Promise.all(
+        recipients.map((recipient: any) =>
+          this.notificationModel.create({
+            ...notificationData,
+            driverId: broadcastTo === 'drivers' ? recipient._id : undefined,
+            customerId: broadcastTo === 'customers' ? recipient._id : undefined,
+            channels,
+            sentAt: new Date(),
+          })
+        )
+      );
+
+      return {
+        success: true,
+        message: `Đã gửi thông báo cho ${recipients.length} ${broadcastTo === 'drivers' ? 'tài xế' : 'khách hàng'}`,
+        totalSent: recipients.length,
+      };
+    }
+
+    // For specific recipient
+    const notification = await this.notificationModel.create({
+      ...notificationData,
+      driverId: driverId ? new Types.ObjectId(driverId) : undefined,
+      customerId: customerId ? new Types.ObjectId(customerId) : undefined,
+      channels,
+      sentAt: new Date(),
+    });
+
+    return notification.populate(['driverId', 'customerId']);
+  }
+
+  /**
+   * Get all notifications (admin view)
+   */
+  async getAllNotifications(filters?: {
+    type?: string;
+    driverId?: string;
+    customerId?: string;
+    limit?: number;
+    skip?: number;
+  }): Promise<{ data: NotificationDocument[]; total: number }> {
+    const query: any = {};
+
+    if (filters?.type) query.type = filters.type;
+    if (filters?.driverId) query.driverId = new Types.ObjectId(filters.driverId);
+    if (filters?.customerId) query.customerId = new Types.ObjectId(filters.customerId);
+
+    const limit = filters?.limit || 50;
+    const skip = filters?.skip || 0;
+
+    const [data, total] = await Promise.all([
+      this.notificationModel
+        .find(query)
+        .populate(['driverId', 'customerId'])
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(skip),
+      this.notificationModel.countDocuments(query),
+    ]);
+
+    return { data, total };
+  }
+
+  /**
+   * Get notifications for a specific customer
+   */
+  async findCustomerNotifications(
+    customerId: string,
+    filters?: {
+      type?: string;
+      limit?: number;
+      skip?: number;
+    }
+  ): Promise<{ data: NotificationDocument[]; total: number }> {
+    const query: any = {
+      customerId: new Types.ObjectId(customerId),
+    };
+
+    if (filters?.type) query.type = filters.type;
+
+    const limit = filters?.limit || 20;
+    const skip = filters?.skip || 0;
+
+    const [data, total] = await Promise.all([
+      this.notificationModel
+        .find(query)
+        .populate(['customerId', 'driverId'])
+        .sort({ sentAt: -1 })
+        .limit(limit)
+        .skip(skip),
+      this.notificationModel.countDocuments(query),
+    ]);
+
+    return { data, total };
+  }
 }
+

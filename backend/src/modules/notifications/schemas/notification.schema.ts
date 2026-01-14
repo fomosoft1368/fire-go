@@ -33,8 +33,14 @@ export enum NotificationChannel {
 
 @Schema({ timestamps: true })
 export class Notification {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  userId: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  userId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Driver' })
+  driverId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Customer' })
+  customerId?: Types.ObjectId;
 
   @Prop({
     type: String,
@@ -107,6 +113,8 @@ export class Notification {
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 
 NotificationSchema.index({ userId: 1 });
+NotificationSchema.index({ driverId: 1 });
+NotificationSchema.index({ customerId: 1 });
 NotificationSchema.index({ type: 1 });
 NotificationSchema.index({ isRead: 1 });
 NotificationSchema.index({ createdAt: -1 });

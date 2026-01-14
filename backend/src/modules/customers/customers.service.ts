@@ -89,6 +89,23 @@ export class CustomersService {
       .sort({ createdAt: -1 });
   }
 
+  async search(query: string): Promise<any[]> {
+    const searchQuery = {
+      $or: [
+        { firstName: { $regex: query, $options: 'i' } },
+        { lastName: { $regex: query, $options: 'i' } },
+        { phone: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } },
+      ],
+    };
+
+    return this.customerModel
+      .find(searchQuery)
+      .select('_id firstName lastName phone email')
+      .limit(20)
+      .exec();
+  }
+
   async update(customerId: string, updateCustomerDto: UpdateCustomerDto): Promise<CustomerDocument> {
     return this.customerModel.findByIdAndUpdate(
       customerId,

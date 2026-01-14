@@ -1,3 +1,6 @@
+import React, { useCallback, useEffect, useState } from 'react'
+import { useNavigation, useRoute } from '@react-navigation/native'
+import { useSelector } from 'react-redux'
 import {
   View,
   Text,
@@ -5,154 +8,161 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  StatusBar,
+  Alert,
+  ActivityIndicator,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { useSelector } from 'react-redux'
-import { useNavigation, useRoute } from '@react-navigation/native'
-import type { RootState } from '../redux/store'
-import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
+import { SPACING, BORDER_RADIUS, COLORS_DARK, COLORS_LIGHT } from '../constants'
+import { notificationService } from '../services/notificationService'
+import type { Notification } from '../services/notificationService'
+import { RootState } from '../redux/store'
 
-type NotificationType = 'driver_arrived' | 'ride_completed' | 'promo' | 'driver_assigned' | 'discount'
-
-interface Notification {
-  id: string
-  type: NotificationType
-  title: string
-  message: string
-  time: string
-  isNew: boolean
-  hasAction: boolean
+interface RouteParams {
+  notification: Notification
+  onDelete?: () => void
 }
 
-export default function NotificationDetailScreen() {
+const NotificationDetailScreen = () => {
   const navigation = useNavigation()
   const route = useRoute()
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
+  
+  const { notification, onDelete } = route.params as RouteParams
+  const [deleting, setDeleting] = useState(false)
 
-  const notification = (route.params as { notification: Notification }).notification
+  // Mark as read when viewing the detail
+  useEffect(() => {
+    if (!notification.isRead) {
+      const markAsRead = async () => {
+        try {
+          await notificationService.markAsRead(notification._id)
+        } catch (error) {
+          console.error('Mark as read error:', error)
+        }
+      }
+      markAsRead()
+    }
+  }, [notification._id, notification.isRead])
 
-  const getNotificationIcon = (type: NotificationType) => {
-    switch (type) {
-      case 'driver_arrived':
-        return { name: 'local-taxi' as const, color: '#FF6B00', bgColor: 'rgba(255, 107, 0, 0.15)' }
-      case 'ride_completed':
-        return { name: 'check-circle' as const, color: '#4CAF50', bgColor: 'rgba(76, 175, 80, 0.15)' }
-      case 'promo':
-        return { name: 'campaign' as const, color: '#FFC107', bgColor: 'rgba(255, 193, 7, 0.15)' }
-      case 'driver_assigned':
-        return { name: 'person' as const, color: '#2196F3', bgColor: 'rgba(33, 150, 243, 0.15)' }
-      case 'discount':
-        return { name: 'local-offer' as const, color: '#FFC107', bgColor: 'rgba(255, 193, 7, 0.15)' }
-      default:
-        return { name: 'notifications' as const, color: '#FF6B00', bgColor: 'rgba(255, 107, 0, 0.15)' }
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Vừa xong'
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return 'Vừa xong'
+      return date.toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    } catch {
+      return 'Vừa xong'
     }
   }
 
-  const iconConfig = getNotificationIcon(notification.type)
+  const handleDelete = useCallback(async () => {
+    Alert.alert('Xóa thông báo', 'Bạn có chắc chắn muốn xóa thông báo này?', [
+      {
+        text: 'Hủy',
+        onPress: () => {},
+        style: 'cancel',
+      },
+      {
+        text: 'Xóa',
+        onPress: async () => {
+          try {
+            setDeleting(true)
+            await notificationService.deleteNotification(notification._id)
+            if (onDelete) {
+              onDelete()
+            }
+            navigation.goBack()
+          } catch (error) {
+            Alert.alert('Lỗi', 'Không thể xóa thông báo')
+            console.error('Delete error:', error)
+          } finally {
+            setDeleting(false)
+          }
+        },
+        style: 'destructive',
+      },
+    ])
+  }, [notification._id, onDelete, navigation])
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-      <StatusBar
-        barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
-        backgroundColor={colors.bg}
-      />
-
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.bg, borderBottomColor: colors.border }]}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
+      <View style={[styles.header, { backgroundColor: colors.bgSecondary, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Chi tiết thông báo</Text>
-        <View style={{ width: 40 }} />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Chi tiết</Text>
+        <TouchableOpacity onPress={handleDelete} disabled={deleting}>
+          {deleting ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <MaterialIcons name="delete" size={24} color={colors.danger} />
+          )}
+        </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Detail Card */}
-        <View style={[styles.detailCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
-          {/* Icon and Basic Info */}
-          <View style={styles.iconSection}>
-            <View
-              style={[
-                styles.iconContainer,
-                { backgroundColor: iconConfig.bgColor },
-              ]}
-            >
-              <MaterialIcons
-                name={iconConfig.name}
-                size={40}
-                color={iconConfig.color}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.titleRow}>
-                <Text style={[styles.title, { color: colors.text }]}>
-                  {notification.title}
-                </Text>
-                {notification.isNew && (
-                  <View style={styles.newBadge}>
-                    <Text style={styles.newBadgeText}>Mới</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.time, { color: colors.textSecondary }]}>
-                {notification.time}
-              </Text>
-            </View>
-          </View>
+      <ScrollView style={[styles.content, { backgroundColor: colors.bg }]}>
+        <Text style={[styles.title, { color: colors.text }]}>{notification.title}</Text>
+        <Text style={[styles.time, { color: colors.textSecondary }]}>
+          {formatDate(notification.sentAt || notification.createdAt)}
+        </Text>
 
-          {/* Divider */}
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          {/* Message */}
-          <View style={styles.messageSection}>
-            <Text style={[styles.messageLabel, { color: colors.textSecondary }]}>
-              Nội dung
-            </Text>
-            <Text style={[styles.message, { color: colors.text }]}>
-              {notification.message}
-            </Text>
-          </View>
+        <Text style={[styles.message, { color: colors.text }]}>{notification.message}</Text>
 
-          {/* Additional Info */}
-          <View style={styles.infoSection}>
-            <View style={styles.infoRow}>
-              <MaterialIcons name="schedule" size={18} color="#FF6B00" />
-              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Thời gian nhận</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{notification.time}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <MaterialIcons name="done" size={18} color="#4CAF50" />
-              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Trạng thái</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>Đã nhận</Text>
-            </View>
-          </View>
-        </View>
+        {notification.description && (
+          <>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Chi tiết thêm</Text>
+            <Text style={[styles.description, { color: colors.text }]}>{notification.description}</Text>
+          </>
+        )}
 
-        {/* Action Buttons */}
-        {notification.hasAction && (
-          <View style={styles.actions}>
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: '#FF6B00' }]}>
-              <MaterialIcons name="directions" size={18} color="#fff" />
-              <Text style={styles.actionButtonText}>Thao tác ngay</Text>
-            </TouchableOpacity>
+        {notification.actionUrl && (
+          <>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <TouchableOpacity
-              style={[
-                styles.actionButton,
-                { backgroundColor: colors.bgSecondary, borderWidth: 1, borderColor: colors.border },
-              ]}
+              style={[styles.actionButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                Alert.alert('Thông báo', 'Mở URL: ' + notification.actionUrl)
+              }}
             >
-              <MaterialIcons name="call" size={18} color="#FF6B00" />
-              <Text style={[styles.actionButtonText, { color: '#FF6B00' }]}>Gọi điện</Text>
+              <Text style={styles.actionButtonText}>Xem chi tiết</Text>
+              <MaterialIcons name="arrow-forward" size={18} color="#fff" />
             </TouchableOpacity>
-          </View>
+          </>
+        )}
+
+        {notification.channels && notification.channels.length > 0 && (
+          <>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Kênh gửi</Text>
+            <View style={styles.channelsContainer}>
+              {notification.channels.map((channel, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.channelBadge,
+                    {
+                      backgroundColor: colors.primaryLight,
+                      borderColor: colors.primary,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.channelText, { color: colors.primary }]}>
+                    {channel}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -165,124 +175,83 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + SPACING.md : SPACING.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
   },
   content: {
     flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
-  },
-  detailCard: {
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    borderWidth: 1,
-    marginBottom: SPACING.lg,
-  },
-  iconSection: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.lg,
-    marginBottom: SPACING.lg,
-  },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.xs,
-    flex: 1,
+    padding: SPACING.md,
   },
   title: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '700',
-    flex: 1,
+    marginBottom: SPACING.xs,
+    lineHeight: 32,
   },
   time: {
     fontSize: 13,
-    fontWeight: '500',
+    marginBottom: SPACING.md,
   },
   divider: {
     height: 1,
-    marginBottom: SPACING.lg,
-  },
-  messageSection: {
-    marginBottom: SPACING.lg,
-  },
-  messageLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: SPACING.sm,
-    textTransform: 'uppercase',
+    marginVertical: SPACING.md,
   },
   message: {
     fontSize: 15,
     lineHeight: 24,
+    marginBottom: SPACING.md,
   },
-  infoSection: {
-    gap: SPACING.md,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  infoLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    flex: 1,
-  },
-  infoValue: {
+  label: {
     fontSize: 13,
     fontWeight: '600',
+    marginBottom: SPACING.sm,
   },
-  actions: {
-    gap: SPACING.md,
-    marginBottom: SPACING.xl,
+  description: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
   actionButton: {
     flexDirection: 'row',
-    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
     justifyContent: 'center',
+    alignItems: 'center',
     gap: SPACING.sm,
-    paddingVertical: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
+    marginBottom: SPACING.md,
   },
   actionButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
     color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
   },
-  newBadge: {
-    backgroundColor: '#FF6B00',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+  channelsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
   },
-  newBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
+  channelBadge: {
+    borderRadius: BORDER_RADIUS.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  channelText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  spacing: {
+    height: 30,
   },
 })
+
+export default NotificationDetailScreen

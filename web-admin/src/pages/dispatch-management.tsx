@@ -184,9 +184,32 @@ const DispatchManagement: React.FC = () => {
       ]);
 
       // Filter rides - should already be pending from API, but double check
-      const pending = Array.isArray(ridesRes)
+      let pending = Array.isArray(ridesRes)
         ? ridesRes.filter((r: any) => r.status === 'pending')
         : [];
+
+      // Populate customer data if missing (backend fix)
+      pending = await Promise.all(pending.map(async (ride: any) => {
+        if (!ride.customer && ride.customerId) {
+          try {
+            // Extract ID if customerId is an object (already partially populated)
+            const customerId = typeof ride.customerId === 'string' 
+              ? ride.customerId 
+              : ride.customerId?._id?.toString();
+            
+            if (customerId) {
+              // Fetch customer data separately if not populated
+              const customerRes = await apiService.get(`/customers/${customerId}`).catch(() => null);
+              if (customerRes) {
+                ride.customer = customerRes;
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to fetch customer for ride:', ride._id);
+          }
+        }
+        return ride;
+      }));
 
       // Filter only available drivers (not on ride/trip, online or offline)
       const available = Array.isArray(driversRes)
@@ -195,6 +218,7 @@ const DispatchManagement: React.FC = () => {
 
       console.log('📍 Loaded pending rides:', pending.length);
       console.log('👥 Loaded available drivers:', available.length);
+      console.log('🔍 First ride customer data:', pending[0]?.customer || 'No customer');
       
       setPendingRides(pending);
       setAvailableDrivers(available);
@@ -620,6 +644,7 @@ const DispatchManagement: React.FC = () => {
           <div className="lg:col-span-2">
             {selectedRide && selectedRide.pickupLocation?.coordinates && selectedRide.dropoffLocation?.coordinates ? (
               <RideMap
+                key={selectedRide._id}
                 pickupCoords={[selectedRide.pickupLocation.coordinates[0], selectedRide.pickupLocation.coordinates[1]]}
                 dropoffCoords={[selectedRide.dropoffLocation.coordinates[0], selectedRide.dropoffLocation.coordinates[1]]}
                 pickupAddress={selectedRide.pickupAddress}
@@ -755,50 +780,74 @@ const DispatchManagement: React.FC = () => {
               <p className="text-sm">Không có chuyến đi chờ</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {pendingRides.map(ride => (
-                <button
-                  key={ride._id}
-                  onClick={() => setSelectedRide(ride)}
-                  className={`text-left p-4 rounded-lg border-2 transition-all ${
-                    selectedRide?._id === ride._id
-                      ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500'
-                      : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 hover:border-blue-400'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">
-                        {ride.customer?.firstName} {ride.customer?.lastName || ''}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        📞 {ride.customer?.phone || 'N/A'}
-                      </p>
-                    </div>
-                    <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded">
-                      Chờ
-                    </span>
-                  </div>
-
-                  <div className="space-y-1 text-xs">
-                    <p className="text-slate-600 dark:text-slate-300 line-clamp-1">
-                      📍 {ride.pickupAddress}
-                    </p>
-                    <p className="text-slate-600 dark:text-slate-300 line-clamp-1">
-                      📌 {ride.dropoffAddress}
-                    </p>
-                    <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-600">
-                      <span className="text-slate-500">{ride.distance?.toFixed(1) || 0}km</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+            <div className="overflow-x-auto" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-900 dark:text-white">Khách hàng</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-900 dark:text-white">SĐT</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-900 dark:text-white">Điểm đón</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-900 dark:text-white">Điểm đến</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-slate-900 dark:text-white">Khoảng cách</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-slate-900 dark:text-white">Giá</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-slate-900 dark:text-white">Trạng thái</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-slate-900 dark:text-white">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingRides.map(ride => (
+                    <tr 
+                      key={ride._id}
+                      onClick={() => setSelectedRide(ride)}
+                      className={`border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer ${
+                        selectedRide?._id === ride._id
+                          ? 'bg-blue-50 dark:bg-blue-500/10'
+                          : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-sm text-slate-900 dark:text-white font-medium">
+                        {ride.customer?.firstName && ride.customer?.lastName
+                          ? `${ride.customer.firstName} ${ride.customer.lastName}`
+                          : 'Khách hàng'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+                        {ride.customer?.phone || 'Chưa có'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 max-w-xs truncate">
+                        {ride.pickupAddress}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 max-w-xs truncate">
+                        {ride.dropoffAddress}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 text-right">
+                        {ride.distance?.toFixed(1) || 0} km
+                      </td>
+                      <td className="px-4 py-3 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">
                         {(ride.totalFare || 0).toLocaleString()}đ
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded">
+                          Chờ
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedRide(ride);
+                          }}
+                          className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded transition-colors"
+                        >
+                          Chọn
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-          </div>
+        </div>
         </div>
           )}
 

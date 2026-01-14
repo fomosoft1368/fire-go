@@ -89,6 +89,23 @@ export class DriversService {
       .limit(limit);
   }
 
+  async search(query: string): Promise<any[]> {
+    const searchQuery = {
+      $or: [
+        { firstName: { $regex: query, $options: 'i' } },
+        { lastName: { $regex: query, $options: 'i' } },
+        { phone: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } },
+      ],
+    };
+
+    return this.driverModel
+      .find(searchQuery)
+      .select('_id firstName lastName phone email')
+      .limit(20)
+      .exec();
+  }
+
   async findOnlineDrivers(longitude: number, latitude: number, maxDistance: number = 5000) {
     return this.driverModel.find({
       status: { $ne: DriverStatus.OFFLINE },

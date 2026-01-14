@@ -130,13 +130,13 @@ export const mapsService = {
   /**
    * Tìm kiếm địa chỉ và trả về gợi ý (autocomplete)
    */
-  async searchPlaces(input: string, sessionToken?: string): Promise<PlacePrediction[]> {
+  async searchPlaces(input: string, sessionToken?: string, useMockFallback: boolean = false): Promise<PlacePrediction[]> {
     if (!input.trim()) {
       return []
     }
 
-    // Nếu chưa có API key, return mock suggestions
-    if (USE_MOCK_DATA) {
+    // Nếu chưa có API key hoặc fallback được yêu cầu, return mock suggestions
+    if (USE_MOCK_DATA || useMockFallback) {
       console.warn('[MapsService] Using mock place predictions for:', input)
       
       // Mock suggestions dựa trên input
@@ -169,18 +169,23 @@ export const mapsService = {
       const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
         input
       )}&key=${GOOGLE_MAPS_API_KEY}${sessionToken ? `&sessiontoken=${sessionToken}` : ''}`
-
+       
       console.log('[MapsService] Searching places:', input)
       const response = await fetch(url)
       const data = await response.json()
-
+      console.log('[MapsService] Places API response status:', data.status)
+      
       if (data.status === 'REQUEST_DENIED') {
-        console.error('[MapsService] Places API key invalid or not enabled')
-        console.warn('[MapsService] Falling back to mock predictions')
-        return this.searchPlaces(input) // Recursive call sẽ sử dụng mock data
+        console.error('[MapsService] ❌ Places API key invalid or not enabled')
+        console.error('[MapsService] Error message:', data.error_message)
+        console.warn('[MapsService] ⚠️ Falling back to mock predictions')
+        console.warn('[MapsService] 💡 Fix: Enable Places API in Google Cloud Console and verify API key')
+        // Fallback to mock data with flag to prevent infinite recursion
+        return this.searchPlaces(input, sessionToken, true)
       }
 
       if (data.status !== 'OK' || !data.predictions) {
+        console.warn('[MapsService] No predictions found:', data.status)
         return []
       }
 
@@ -191,9 +196,10 @@ export const mapsService = {
         fullText: prediction.description,
       }))
     } catch (error: any) {
-      console.error('[MapsService] Search places error:', error)
-      // Return empty array thay vì throw error
-      return []
+      console.error('[MapsService] Search places error:', error.message)
+      // Fallback to mock data on error
+      console.warn('[MapsService] Falling back to mock predictions due to network error')
+      return this.searchPlaces(input, sessionToken, true)
     }
   },
 
