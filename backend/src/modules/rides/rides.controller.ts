@@ -1,11 +1,12 @@
-import { Controller, Get, Post, Body, Param, Patch, Query } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { RidesService } from './rides.service';
-import { AutoAssignService } from './services/auto-assign.service';
-import { CreateRideDto } from './dto';
-import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
-import { Pricing } from './schemas/pricing.schema';
+import { Controller, Get, Post, Body, Param, Patch, Query } from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model, Types } from 'mongoose'
+import { RidesService } from './rides.service'
+import { AutoAssignService } from './services/auto-assign.service'
+import { CreateRideDto } from './dto'
+import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema'
+import { Pricing } from './schemas/pricing.schema'
+import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema'
 
 @Controller('api/rides')
 export class RidesController {
@@ -14,6 +15,7 @@ export class RidesController {
     private readonly autoAssignService: AutoAssignService,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<Pricing>,
+    @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
   ) {}
 
   // Seed test data route
@@ -345,5 +347,58 @@ export class RidesController {
     @Body('ratedBy') ratedBy?: 'driver' | 'customer',
   ) {
     return this.ridesService.rateRide(id, rating, review, ratedBy);
+  }
+
+  // Ride Requests Management
+  @Get(':rideId/requests')
+  async getRideRequests(@Param('rideId') rideId: string) {
+    return this.rideRequestModel
+      .find({ rideId: new Types.ObjectId(rideId), status: 'pending' })
+      .populate('customerId', 'name phone rating')
+      .sort({ createdAt: -1 })
+  }
+
+  @Patch(':rideId/requests/:requestId/accept')
+  async acceptRideRequest(
+    @Param('rideId') rideId: string,
+    @Param('requestId') requestId: string,
+  ) {
+    // Update request status to accepted
+    const request = await this.rideRequestModel.findByIdAndUpdate(
+      requestId,
+      { status: 'accepted' },
+      { new: true },
+    )
+
+    if (!request) {
+      throw new Error('Request not found')
+    }
+
+    // Add customer to ride's customerId array
+    await this.rideModel.findByIdAndUpdate(
+      rideId,
+      {
+        $addToSet: { customerId: request.customerId },
+        $inc: { passengers: 1 },
+      },
+      { new: true },
+    )
+
+    return request
+  }
+
+  @Patch(':rideId/requests/:requestId/reject')
+  async rejectRideRequest(
+    @Param('rideId') rideId: string,
+    @Param('requestId') requestId: string,
+  ) {
+    // Update request status to rejected
+    const request = await this.rideRequestModel.findByIdAndUpdate(
+      requestId,
+      { status: 'rejected' },
+      { new: true },
+    )
+
+    return request
   }
 }

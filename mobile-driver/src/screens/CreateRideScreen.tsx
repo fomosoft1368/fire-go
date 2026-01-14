@@ -77,6 +77,7 @@ export default function CreateRideScreen() {
 
     if (text.trim().length < 3) {
       setDropoffSuggestions([])
+
       return
     }
 
@@ -209,7 +210,9 @@ export default function CreateRideScreen() {
         status: 'available',
       }
 
-      console.log('📍 Ride data prepared:', rideData)
+      console.log('� User info:', user)
+      console.log('🆔 Driver ID sẽ gửi:', user?.id)
+      console.log('�📍 Ride data prepared:', rideData)
 
       await driverService.createRide(rideData)
       

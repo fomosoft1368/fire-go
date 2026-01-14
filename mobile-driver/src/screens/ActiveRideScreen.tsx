@@ -30,7 +30,39 @@ interface Customer {
   address?: string
 }
 
-export default function RideDetailScreen({ navigation, route }: RideDetailScreenProps) {
+// Mock data for testing
+const getMockRide = (rideId: string) => ({
+  _id: rideId,
+  driverId: 'driver-123',
+  pickupAddress: 'Tầng 1, Tòa nhà Keangnam, Phạm Hùng, Hà Nội',
+  dropoffAddress: 'Phố Huế, Hoàn Kiếm, Hà Nội',
+  pickupCoordinates: [105.78, 21.03],
+  dropoffCoordinates: [105.85, 21.03],
+  departureTime: new Date(Date.now() + 30 * 60000).toISOString(),
+  status: 'available',
+  totalSeats: 4,
+  remainingSeats: 2,
+  customerId: [
+    {
+      _id: 'cust-1',
+      name: 'Nguyễn Văn A',
+      phone: '0901 234 567',
+      rating: 4.8,
+    },
+    {
+      _id: 'cust-2',
+      name: 'Trần Thị B',
+      phone: '0902 345 678',
+      rating: 4.5,
+    },
+  ],
+  distance: 8.5,
+  totalFare: 85000,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+})
+
+export default function ActiveRideScreen({ navigation, route }: RideDetailScreenProps) {
   const [ride, setRide] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
@@ -95,6 +127,24 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const fetchRideDetail = async () => {
     setLoading(true)
     try {
+      // ✅ Using mock data for testing
+      const USE_MOCK = true
+      
+      if (USE_MOCK) {
+        console.log('📱 Using MOCK data for testing')
+        const mockData = getMockRide(rideId)
+        console.log('✅ Mock ride data:', mockData)
+        
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 800))
+        
+        setRide(mockData)
+        setCurrentLocation([mockData.pickupCoordinates[0], mockData.pickupCoordinates[1]])
+        setLoading(false)
+        return
+      }
+      
+      // Real API call
       const API_URL = 'http://192.168.1.18:3000/api'
       console.log('🚗 Fetching ride detail from:', `${API_URL}/rides/${rideId}`)
       const response = await fetch(`${API_URL}/rides/${rideId}`, {
@@ -311,14 +361,14 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
             <MapView
               style={styles.map}
               initialRegion={{
-                latitude: ride.pickupCoordinates[1],
-                longitude: ride.pickupCoordinates[0],
+                latitude: ride?.pickupCoordinates?.[1] || 21.0285,
+                longitude: ride?.pickupCoordinates?.[0] || 105.8542,
                 latitudeDelta: 0.05,
                 longitudeDelta: 0.05,
               }}
             >
               {/* Pickup marker */}
-              {ride.status !== 'in_progress' && (
+              {ride?.status !== 'in_progress' && ride?.pickupCoordinates && (
                 <Marker
                   coordinate={{
                     latitude: ride.pickupCoordinates[1],
@@ -342,17 +392,19 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
               )}
 
               {/* Dropoff marker */}
-              <Marker
-                coordinate={{
-                  latitude: ride.dropoffCoordinates[1],
-                  longitude: ride.dropoffCoordinates[0],
-                }}
-                title="Điểm đích"
-                pinColor="red"
-              />
+              {ride?.dropoffCoordinates && (
+                <Marker
+                  coordinate={{
+                    latitude: ride.dropoffCoordinates[1],
+                    longitude: ride.dropoffCoordinates[0],
+                  }}
+                  title="Điểm đích"
+                  pinColor="red"
+                />
+              )}
 
               {/* Route line */}
-              {currentLocation ? (
+              {currentLocation && ride?.dropoffCoordinates ? (
                 <Polyline
                   coordinates={[
                     { latitude: currentLocation[1], longitude: currentLocation[0] },
@@ -361,7 +413,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
                   strokeColor={COLORS.primary}
                   strokeWidth={3}
                 />
-              ) : (
+              ) : ride?.pickupCoordinates && ride?.dropoffCoordinates ? (
                 <Polyline
                   coordinates={[
                     { latitude: ride.pickupCoordinates[1], longitude: ride.pickupCoordinates[0] },
@@ -370,7 +422,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
                   strokeColor={COLORS.primary}
                   strokeWidth={3}
                 />
-              )}
+              ) : null}
             </MapView>
 
             {/* Header Controls */}
@@ -388,15 +440,15 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
             </View>
 
             {/* Status Badge */}
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ride.status) }]}>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ride?.status) }]}>
               <Text style={styles.statusText}>
-                {getStatusLabel(ride.status)} • {ride.distance} km
+                {getStatusLabel(ride?.status)} • {ride?.distance || 0} km
               </Text>
             </View>
 
             {/* Price Badge */}
             <View style={styles.priceBadge}>
-              <Text style={styles.priceText}>{(ride.totalFare / 1000).toFixed(0)}k</Text>
+              <Text style={styles.priceText}>{((ride?.totalFare || 0) / 1000).toFixed(0)}k</Text>
             </View>
           </View>
 
@@ -421,27 +473,50 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
               </View>
             </View>
 
-            {/* Passengers Info */}
+            {/* Passengers Info - Horizontal Carousel */}
             <View style={styles.passengerCard}>
-              <Text style={styles.cardTitle}>Khách hàng ({ride.customerId?.length || 0}/{ride.remainingSeats})</Text>
+              <Text style={styles.cardTitle}>Hành khách ({ride.customerId?.length || 0}/{ride.totalSeats})</Text>
               
               {ride.customerId && ride.customerId.length > 0 ? (
                 <FlatList
                   data={ride.customerId}
                   keyExtractor={(_, idx) => `passenger-${idx}`}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <View style={styles.passengerItem}>
-                      <View style={styles.passengerAvatar}>
-                        <MaterialIcons name="person" size={24} color={COLORS.primary} />
+                  horizontal
+                  scrollEnabled={true}
+                  showsHorizontalScrollIndicator={false}
+                  snapToInterval={300}
+                  decelerationRate="fast"
+                  renderItem={({ item, index }) => (
+                    <View style={[styles.passengerCardItem, index === 0 && { marginLeft: 0 }]}>
+                      {/* Avatar */}
+                      <View style={styles.passengerCardAvatar}>
+                        <MaterialIcons name="person" size={28} color={COLORS.primary} />
                       </View>
-                      <View style={styles.passengerInfo}>
-                        <Text style={styles.passengerName}>
+
+                      {/* Info */}
+                      <View style={styles.passengerCardInfo}>
+                        <Text style={styles.passengerCardName}>
                           {typeof item === 'string' ? item : item.name || 'Khách hàng'}
                         </Text>
-                        <Text style={styles.passengerPhone}>
+                        <View style={styles.ratingRow}>
+                          <MaterialIcons name="star" size={14} color="#FFD700" />
+                          <Text style={styles.ratingText}>
+                            {typeof item === 'object' ? item.rating || 4.5 : 4.5}
+                          </Text>
+                        </View>
+                        <Text style={styles.passengerCardPhone}>
                           {typeof item === 'object' ? item.phone : 'N/A'}
                         </Text>
+                      </View>
+
+                      {/* Action Buttons */}
+                      <View style={styles.passengerCardActions}>
+                        <TouchableOpacity style={styles.passengerActionBtn}>
+                          <MaterialIcons name="chat" size={18} color="#fff" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.passengerActionBtn}>
+                          <MaterialIcons name="call" size={18} color="#fff" />
+                        </TouchableOpacity>
                       </View>
                     </View>
                   )}
@@ -636,7 +711,7 @@ const styles = StyleSheet.create({
   },
   mapControls: {
     position: 'absolute',
-    top: 12,
+    top: 42,
     left: 12,
     right: 12,
     flexDirection: 'row',
@@ -747,6 +822,66 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginBottom: 12,
   },
+  // Horizontal Carousel Card
+  passengerCardItem: {
+    width: 280,
+    backgroundColor: `${COLORS.primary}15`,
+    borderRadius: 12,
+    padding: 14,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}40`,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  passengerCardAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${COLORS.primary}25`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  passengerCardInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  passengerCardName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  passengerCardPhone: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  passengerCardActions: {
+    gap: 8,
+  },
+  passengerActionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Old vertical list styles (keep for compatibility)
   passengerItem: {
     flexDirection: 'row',
     gap: 12,
