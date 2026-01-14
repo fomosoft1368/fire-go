@@ -55,7 +55,7 @@ export class PlacesService {
    * 2. Check database
    * 3. Call Google Places API (last resort)
    */
-  async searchPlaces(keyword: string): Promise<{
+  async searchPlaces(keyword: string, userLat: number, userLng: number): Promise<{
     results: PlaceResult[];
     source: 'cache' | 'database' | 'google';
   }> {
@@ -97,7 +97,7 @@ export class PlacesService {
       // Update lastSearchedAt
       this.placeModel.updateMany(
         { keyword: new RegExp(normalizedKeyword, 'i') },
-        { 
+        {
           lastSearchedAt: new Date(),
           $inc: { searchCount: 1 }
         }
@@ -108,7 +108,7 @@ export class PlacesService {
 
     // 3️⃣ Call Google Places Autocomplete API
     console.log('🔍 Calling Google Places API for:', normalizedKeyword);
-    const googleResults = await this.callGooglePlacesAPI(normalizedKeyword);
+    const googleResults = await this.callGooglePlacesAPI(normalizedKeyword, 0, 0);
 
     if (googleResults.length > 0) {
       // Save to database for future use
@@ -123,6 +123,7 @@ export class PlacesService {
       console.log(`✅ GOOGLE hit: ${normalizedKeyword} (${googleResults.length} results)`);
       return { results: googleResults, source: 'google' };
     }
+    console.log('data google : ', googleResults);
 
     return { results: [], source: 'google' };
   }
@@ -132,7 +133,7 @@ export class PlacesService {
    * ⚡ Optimization: Skip Place Details here, get coordinates only when user selects
    * This reduces API calls from 11 to 1 per search
    */
-  private async callGooglePlacesAPI(keyword: string): Promise<PlaceResult[]> {
+  private async callGooglePlacesAPI(keyword: string, lat?: number, lng?: number): Promise<PlaceResult[]> {
     // Check if API key is configured
     if (!this.googleMapsApiKey) {
       console.error('❌ GOOGLE_MAPS_API_KEY is not configured in .env!');
@@ -140,16 +141,32 @@ export class PlacesService {
     }
 
     try {
+      let locationParams = '';
+      if (lat && lng) {
+        locationParams = `&location=${lat},${lng}&radius=5000`;
+      }
       const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
         keyword
-      )}&key=${this.googleMapsApiKey}&components=country:vn`; // Vietnam only
+      )}&location=${lat},${lng}
+      &radius=5000&key=${this.googleMapsApiKey}&components=country:vn&language=vi`.replace(/\s+/g, '');
+
+      console.log('📡 Calling Places Autocomplete API:', {
+        keyword,
+        location: `${lat},${lng}`,
+        radius: '5km',
+        url: url.replace(this.googleMapsApiKey, '***KEY***'),
+      });
 
       const response = await fetch(url);
       const data = (await response.json()) as GoogleAutocompleteResponse;
 
       if (data.status !== 'OK') {
-        console.warn('❌ Google API error:', data.status);
+        console.error('❌ Google Places API error:', {
+          status: data.status,
+          error_message: data['error_message'] || 'No error message',
+        });
         return [];
+        
       }
 
       // Convert predictions to place results
@@ -188,7 +205,7 @@ export class PlacesService {
         { placeId },
         { _id: 0, placeId: 1, name: 1, address: 1, lat: 1, lng: 1 }
       );
-      
+
       if (dbPlace && dbPlace.lat && dbPlace.lng) {
         console.log('✅ Place details from DB:', placeId);
         return {
@@ -212,7 +229,7 @@ export class PlacesService {
           lng: data.result.geometry.location.lng,
         };
         console.log('✅ Place details from Google API:', placeId);
-        
+
         // Save to DB for future use
         await this.placeModel.updateOne(
           { placeId },

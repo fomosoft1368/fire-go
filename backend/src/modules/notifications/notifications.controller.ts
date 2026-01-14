@@ -29,6 +29,21 @@ export class NotificationsController {
     });
   }
 
+  @Get('customer')
+  @UseGuards(JwtAuthGuard)
+  async findCustomerNotifications(
+    @Request() req: any,
+    @Query('type') type?: string,
+    @Query('limit') limit: number = 20,
+    @Query('skip') skip: number = 0,
+  ) {
+    return this.notificationsService.findCustomerNotifications(req.user.id, {
+      type,
+      limit,
+      skip,
+    });
+  }
+
   @Get('unread')
   @UseGuards(JwtAuthGuard)
   async findUnread(@Request() req: any) {

@@ -18,6 +18,7 @@ import RideDetailScreen from './src/screens/RideDetailScreen'
 import TopupScreen from './src/screens/TopupScreen'
 import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 import MapScreen from './src/screens/MapScreen'
+import CreateRideScreen from './src/screens/CreateRideScreen'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -113,6 +114,11 @@ const HomeStackNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={MainNavigator} />
+      <Stack.Screen
+        name="CreateRide"
+        component={CreateRideScreen}
+        options={{ animationEnabled: true }}
+      />
       <Stack.Screen
         name="RideDetail"
         component={RideDetailScreen}

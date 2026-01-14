@@ -358,17 +358,25 @@ export default function HomeScreen() {
         <View style={styles.ridesSection}>
           <View style={styles.sectionTitleContainer}>
             <Text style={styles.sectionTitle}>Chuyến đi có sẵn</Text>
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={handleRefresh}
-              disabled={refreshing}
-            >
-              <MaterialIcons
-                name="refresh"
-                size={20}
-                color={refreshing ? COLORS.textSecondary : COLORS.primary}
-              />
-            </TouchableOpacity>
+            <View style={styles.buttonGroup}>
+              <TouchableOpacity
+                style={styles.refreshButton}
+                onPress={handleRefresh}
+                disabled={refreshing}
+              >
+                <MaterialIcons
+                  name="refresh"
+                  size={20}
+                  color={refreshing ? COLORS.textSecondary : COLORS.primary}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.createRideButton}
+                onPress={() => navigation.navigate('CreateRide')}
+              >
+                <MaterialIcons name="add" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {loading && !refreshing ? (
@@ -570,6 +578,19 @@ const styles = StyleSheet.create({
   refreshButton: {
     padding: SPACING.sm,
     borderRadius: BORDER_RADIUS.full,
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    alignItems: 'center',
+  },
+  createRideButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingContainer: {
     alignItems: 'center',

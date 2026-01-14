@@ -259,6 +259,53 @@ export class DriverService {
   }
 
   /**
+   * Tạo chuyến xe mới (tài xế tự tạo chuyến)
+   */
+  async createRide(rideData: {
+    pickupAddress: string;
+    dropoffAddress: string;
+    pickupCoordinates?: [number, number];
+    dropoffCoordinates?: [number, number];
+    distance?: number;
+    duration?: number;
+    baseFare?: number;
+    distanceFare?: number;
+    timeFare?: number;
+    rideType: 'share' | 'hire';
+    startDateTime: string;
+    remainingSeats: number;
+    driverId?: string;
+    notes?: string;
+    status?: string;
+  }): Promise<any> {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      console.log('🚗 Creating new ride:', rideData);
+      
+      const response = await axios.post(
+        `${this.baseURL}/rides`,
+        rideData,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 10000,
+        }
+      );
+      
+      console.log('✅ Ride created successfully:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error creating ride:');
+      console.error('   Error Message:', error.message);
+      console.error('   Error Status:', error.response?.status);
+      console.error('   Error Data:', error.response?.data);
+      throw error;
+    }
+  }
+
+  /**
    * Nhận một cuốc (chấp nhận cuốc)
    */
   async acceptRide(rideId: string, driverId: string): Promise<any> {

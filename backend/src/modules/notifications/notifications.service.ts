@@ -277,5 +277,38 @@ export class NotificationsService {
 
     return { data, total };
   }
+
+  /**
+   * Get notifications for a specific customer
+   */
+  async findCustomerNotifications(
+    customerId: string,
+    filters?: {
+      type?: string;
+      limit?: number;
+      skip?: number;
+    }
+  ): Promise<{ data: NotificationDocument[]; total: number }> {
+    const query: any = {
+      customerId: new Types.ObjectId(customerId),
+    };
+
+    if (filters?.type) query.type = filters.type;
+
+    const limit = filters?.limit || 20;
+    const skip = filters?.skip || 0;
+
+    const [data, total] = await Promise.all([
+      this.notificationModel
+        .find(query)
+        .populate(['customerId', 'driverId'])
+        .sort({ sentAt: -1 })
+        .limit(limit)
+        .skip(skip),
+      this.notificationModel.countDocuments(query),
+    ]);
+
+    return { data, total };
+  }
 }
 

@@ -44,11 +44,28 @@ export interface RideBooking {
   endTime?: string
 }
 
+// Notification Types
+export interface Notification {
+  _id: string
+  title: string
+  message: string
+  description?: string
+  type: string
+  channels: string[]
+  driverId?: string
+  customerId?: string
+  isRead: boolean
+  sentAt?: string
+  createdAt?: string
+  actionUrl?: string
+}
+
 // Navigation Types
 export type RootStackParamList = {
   Login: undefined
   Main: undefined
   Home: undefined
+  Notifications: undefined
   Bookings: undefined
   Promotions: undefined
   Profile: undefined
@@ -56,10 +73,12 @@ export type RootStackParamList = {
   BookingDetail: { bookingId: string }
   RideBooking: { distance: number; duration: number; startLng: number; startLat: number; endLng: number; endLat: number; pickupAddress: string; dropoffAddress: string }
   RideTracking: { rideId: string }
+  FindingRideScreen: undefined
   EditProfile: undefined
   ChangePassword: undefined
   PaymentMethods: undefined
   TransactionHistory: undefined
+  NotificationDetail: { notification: any; onDelete?: () => void }
 }
 
 // API Response Types

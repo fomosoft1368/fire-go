@@ -14,7 +14,7 @@ export class PlacesController {
       return { results: [], source: 'validation' };
     }
 
-    return this.placesService.searchPlaces(keyword);
+    return this.placesService.searchPlaces(keyword, 0, 0); // userLat, userLng not used in current implementation
   }
 
   @Get('details/:placeId')

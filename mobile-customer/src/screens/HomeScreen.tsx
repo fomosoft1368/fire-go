@@ -433,7 +433,9 @@ export default function HomeScreen() {
   const handleCancelFinding = () => {
     setIsLoading(false)
   }
-
+  const handleOpenNotifications = () => {
+    navigation.navigate('Notifications')
+  }
   if (rideMode === 'hire') {
     return <HireDriverScreen {...{ isScheduled, setIsScheduled, carType, setCarType, licensePlate, setLicensePlate, transmission, setTransmission, driverNote, setDriverNote, pickupLocation, setPickupLocation, dropoffLocation, setDropoffLocation, setRideMode }} />
   }
@@ -462,8 +464,8 @@ export default function HomeScreen() {
             <MaterialIcons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Đặt xe ghép</Text>
-          <TouchableOpacity style={styles.settingsButton}>
-            <MaterialIcons name="settings" size={24} color={colors.text} />
+          <TouchableOpacity style={styles.settingsButton} onPress={handleOpenNotifications}> 
+            <MaterialIcons name="notifications" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
