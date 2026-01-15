@@ -119,6 +119,31 @@ export const placesService = {
   },
 
   /**
+   * Reverse geocode - convert lat/lng to address
+   * @param latitude - Vĩ độ
+   * @param longitude - Kinh độ
+   */
+  async reverseGeocode(latitude: number, longitude: number): Promise<Partial<PlaceResult>> {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/places/reverse-geocode?lat=${latitude}&lng=${longitude}`
+      );
+      
+      if (!res.ok) {
+        console.warn(`[PlacesService] Reverse geocode error: ${res.status}`);
+        return { address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` };
+      }
+      
+      const response = await res.json();
+      console.log('✅ [PlacesService] Got reverse geocode:', response);
+      return response;
+    } catch (error) {
+      console.error('[PlacesService] Reverse geocode error:', error);
+      return { address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` };
+    }
+  },
+
+  /**
    * Clear cache (dùng cho debug hoặc refresh)
    */
   clearCache() {

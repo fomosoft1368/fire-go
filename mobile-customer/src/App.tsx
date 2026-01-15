@@ -9,8 +9,8 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
+import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, RideBookingScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen } from './screens'
 import { View, Text } from 'react-native'
-import { LoginScreen, HomeScreen, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, RideBookingScreen, FindingRideScreen, NotificationsScreen, NotificationDetailScreen } from './screens'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
@@ -130,14 +130,6 @@ const MainNavigator = () => {
         }}
       />
       <Tab.Screen
-        name="Notifications"
-        component={NotificationsScreen}
-        options={{
-          title: 'Thông báo',
-          headerShown: false,
-        }}
-      />
-      <Tab.Screen
         name="Bookings"
         component={BookingsScreen}
         options={{
@@ -218,13 +210,15 @@ const RootNavigator = () => {
               presentation: 'card',
             }}
           >
+            <Stack.Screen name="Notification" component={NotificationScreen} />
+            <Stack.Screen name="NotificationDetailScreen" component={NotificationDetailScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
             <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
             <Stack.Screen name="RideBooking" component={RideBookingScreen} />
             <Stack.Screen name="FindingRideScreen" component={FindingRideScreen} />
-            <Stack.Screen name="NotificationDetail" component={NotificationDetailScreen} />
+            <Stack.Screen name="FullscreenMap" component={FullscreenMapScreen} />
           </Stack.Group>
         </>
       ) : (

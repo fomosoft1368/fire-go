@@ -14,7 +14,16 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import MapView, { Marker, Polyline } from 'react-native-maps'
+<<<<<<< HEAD
 import { COLORS } from '../constants'
+=======
+import { useSelector } from 'react-redux'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { COLORS } from '../constants'
+import * as Location from 'expo-location'
+import { driverService } from '../services/driverService'
+import type { RootState } from '../redux/store'
+>>>>>>> fb2fd217ef0ed199bf27752ebc97e79d86d66400
 
 interface RideDetailScreenProps {
   navigation: any
@@ -34,12 +43,24 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const [ride, setRide] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+<<<<<<< HEAD
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
   const [showCustomerModal, setShowCustomerModal] = useState(false)
   const [requestingCustomer, setRequestingCustomer] = useState<Customer | null>(null)
   const [modalCountdown, setModalCountdown] = useState(60)
   
+=======
+  const [routeCoords, setRouteCoords] = useState<Array<{ latitude: number; longitude: number }>>([])
+  const [routeLoading, setRouteLoading] = useState(false)
+  const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [distanceToPickup, setDistanceToPickup] = useState<number | null>(null)
+  const [showCompass, setShowCompass] = useState(false)
+  const { user } = useSelector((state: RootState) => state.auth)
+  const scaleAnim = useRef(new Animated.Value(1)).current
+  const fadeAnim = useRef(new Animated.Value(1)).current
+>>>>>>> fb2fd217ef0ed199bf27752ebc97e79d86d66400
   const statusFadeAnim = useRef(new Animated.Value(0)).current
+  const mapRef = useRef<MapView>(null)
 
   // Lấy ride ID từ route params
   const rideId = route?.params?.rideId
@@ -120,7 +141,41 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
         throw new Error('Invalid ride data received')
       }
 
+<<<<<<< HEAD
       setRide(data)
+=======
+      // Format dữ liệu từ API
+      const formattedRide = {
+        id: data._id,
+        driverId: data.driverId,
+        passengerName: data.customerName || 'Khách hàng',
+        rating: data.customerRating || 4.8,
+        reviews: data.reviews || 0,
+        status: data.rideType === 'share' ? 'Khách ghép' : 'Lái xe hộ',
+        price: data.totalFare || 0,
+        estimatedTime: data.duration ? `${data.duration} phút` : '0 phút',
+        pickupAddress: data.pickupAddress || 'Không rõ',
+        pickupDistrict: data.pickupAddress || 'Không rõ',
+        dropoffAddress: data.dropoffAddress || 'Không rõ',
+        dropoffDistrict: data.dropoffAddress || 'Không rõ',
+        distance: data.distance ? `${data.distance.toFixed(1)}km` : '0km',
+        paymentMethod: data.paymentMethod === 'cash' ? 'Tiền mặt' : data.paymentMethod || 'Chưa xác định',
+        pickupCoords: {
+          latitude: data.pickupLocation?.coordinates?.[1] || 21.0285,
+          longitude: data.pickupLocation?.coordinates?.[0] || 105.8542,
+        },
+        dropoffCoords: {
+          latitude: data.dropoffLocation?.coordinates?.[1] || 21.0277,
+          longitude: data.dropoffLocation?.coordinates?.[0] || 105.8436,
+        },
+        rideType: data.rideType,
+        rideStatus: data.status,
+      }
+
+      setRide(formattedRide)
+      // Clear previous route when loading a new ride
+      setRouteCoords([])
+>>>>>>> fb2fd217ef0ed199bf27752ebc97e79d86d66400
       
       // Mock current location for demo
       if (data.status === 'in_progress') {
@@ -134,6 +189,236 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     }
   }
 
+<<<<<<< HEAD
+=======
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371 // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  // Track driver location and calculate distance to pickup
+  useEffect(() => {
+    let locationSubscription: Location.LocationSubscription | null = null
+
+    const startLocationTracking = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status !== 'granted') {
+          console.warn('[RideDetailScreen] Location permission not granted')
+          return
+        }
+
+        // Get initial location
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        })
+        const coords = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        }
+        setDriverLocation(coords)
+
+        // Calculate distance to pickup if ride exists
+        if (ride?.pickupCoords) {
+          const distance = calculateDistance(
+            coords.latitude,
+            coords.longitude,
+            ride.pickupCoords.latitude,
+            ride.pickupCoords.longitude
+          )
+          setDistanceToPickup(distance)
+        }
+
+        // Watch location changes
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 5000, // Update every 5 seconds
+            distanceInterval: 10, // Or when moved 10 meters
+          },
+          (newLocation) => {
+            const newCoords = {
+              latitude: newLocation.coords.latitude,
+              longitude: newLocation.coords.longitude,
+            }
+            setDriverLocation(newCoords)
+
+            // Update distance to pickup
+            if (ride?.pickupCoords) {
+              const distance = calculateDistance(
+                newCoords.latitude,
+                newCoords.longitude,
+                ride.pickupCoords.latitude,
+                ride.pickupCoords.longitude
+              )
+              setDistanceToPickup(distance)
+            }
+          }
+        )
+      } catch (e) {
+        console.warn('[RideDetailScreen] Error tracking location', e)
+      }
+    }
+
+    startLocationTracking()
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove()
+      }
+    }
+  }, [ride?.pickupCoords])
+
+  // Fetch driving route between pickup and dropoff using OSRM (no API key required)
+  const fetchRoute = async (pickup: { latitude: number; longitude: number }, dropoff: { latitude: number; longitude: number }) => {
+    try {
+      setRouteLoading(true)
+      const url = `https://router.project-osrm.org/route/v1/driving/${pickup.longitude},${pickup.latitude};${dropoff.longitude},${dropoff.latitude}?overview=full&geometries=geojson`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Route HTTP ${res.status}`)
+      const data = await res.json()
+      const coords = data?.routes?.[0]?.geometry?.coordinates as Array<[number, number]> | undefined
+      if (coords && coords.length) {
+        const mapped = coords.map(([lon, lat]) => ({ latitude: lat, longitude: lon }))
+        setRouteCoords(mapped)
+        // Fit camera to route
+        mapRef.current?.fitToCoordinates(mapped, {
+          edgePadding: { top: 80, right: 40, bottom: 220, left: 40 },
+          animated: true,
+        })
+      } else {
+        // Fallback: straight line
+        const fallback = [pickup, dropoff]
+        setRouteCoords(fallback)
+        mapRef.current?.fitToCoordinates(fallback, {
+          edgePadding: { top: 80, right: 40, bottom: 220, left: 40 },
+          animated: true,
+        })
+      }
+    } catch (e) {
+      // Fallback to straight line on any error
+      const fallback = [pickup, dropoff]
+      setRouteCoords(fallback)
+      mapRef.current?.fitToCoordinates(fallback, {
+        edgePadding: { top: 80, right: 40, bottom: 220, left: 40 },
+        animated: true,
+      })
+    } finally {
+      setRouteLoading(false)
+    }
+  }
+
+  // When ride is loaded/changed, fetch route
+  useEffect(() => {
+    if (ride?.pickupCoords && ride?.dropoffCoords) {
+      fetchRoute(ride.pickupCoords, ride.dropoffCoords)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ride?.pickupCoords?.latitude, ride?.pickupCoords?.longitude, ride?.dropoffCoords?.latitude, ride?.dropoffCoords?.longitude])
+
+  const handleAcceptRide = async () => {
+    if (updating || !user?.id) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID tài xế')
+      return
+    }
+
+    // Check trước nếu ride đã có driverId
+    if (ride?.driverId) {
+      Alert.alert('Thông báo', 'Chuyến đi này đã được nhận. Không thể nhận lại.')
+      return
+      
+    }
+
+    setUpdating(true)
+    try {
+      // Refresh ride data trước khi nhận để đảm bảo có dữ liệu mới nhất
+      console.log('🔄 Refreshing ride data before accept...')
+      await fetchRideDetail()
+
+      // Check ride status sau khi refresh
+      if (ride?.rideStatus !== 'pending') {
+        Alert.alert('Lỗi', `Chuyến đi không còn available. Trạng thái hiện tại: ${ride?.rideStatus}`)
+        setUpdating(false)
+        return
+      }
+
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+
+      const payload = { driverId: user.id }
+      console.log('📤 Accepting ride:', rideId)
+      console.log('📤 Ride status after refresh:', ride?.rideStatus)
+      console.log('📤 Driver ID:', user.id)
+      console.log('📤 Payload:', JSON.stringify(payload))
+      
+      const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}/accept`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const responseText = await response.text()
+      console.log('📡 Response status:', response.status)
+      console.log('📡 Response body:', responseText)
+
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${responseText}`)
+      }
+
+      const result = JSON.parse(responseText)
+      console.log('✅ Ride accepted:', result)
+      animateStatusChange()
+      setTimeout(() => setAcceptedStatus('accepted'), 300)
+    } catch (error: any) {
+      console.error('❌ Error accepting ride:', error)
+      Alert.alert('Lỗi', `Không thể nhận cuốc: ${error.message}`)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleArrivedAtPickup = async () => {
+    if (updating) return
+    setUpdating(true)
+    try {
+      console.log('📤 Arrived at pickup:', rideId)
+      const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}/start`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to update ride: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log('✅ Ride status updated to arrived:', result)
+      animateStatusChange()
+      setTimeout(() => setAcceptedStatus('arrived'), 300)
+    } catch (error: any) {
+      console.error('❌ Error updating ride:', error)
+      Alert.alert('Lỗi', `Không thể cập nhật: ${error.message}`)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+>>>>>>> fb2fd217ef0ed199bf27752ebc97e79d86d66400
   const handleStartRide = async () => {
     Alert.alert(
       'Bắt đầu chuyến',
@@ -286,6 +571,37 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     }).start()
   }, [ride?.status])
 
+  const handleZoomIn = () => {
+    mapRef.current?.getCamera().then((cam) => {
+      if (cam.zoom !== undefined) {
+        mapRef.current?.animateCamera({ zoom: cam.zoom + 1 }, { duration: 200 })
+      }
+    })
+  }
+
+  const handleZoomOut = () => {
+    mapRef.current?.getCamera().then((cam) => {
+      if (cam.zoom !== undefined) {
+        mapRef.current?.animateCamera({ zoom: cam.zoom - 1 }, { duration: 200 })
+      }
+    })
+  }
+
+  const handleCenterToDriver = async () => {
+    if (driverLocation) {
+      mapRef.current?.animateToRegion({
+        latitude: driverLocation.latitude,
+        longitude: driverLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500)
+    }
+  }
+
+  const handleToggleCompass = () => {
+    setShowCompass(!showCompass)
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {loading ? (
@@ -309,6 +625,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           {/* Map Section */}
           <View style={styles.mapContainer}>
             <MapView
+              ref={mapRef}
               style={styles.map}
               initialRegion={{
                 latitude: ride.pickupCoordinates[1],
@@ -316,7 +633,11 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
                 latitudeDelta: 0.05,
                 longitudeDelta: 0.05,
               }}
+              showsUserLocation={true}
+              showsMyLocationButton={false}
+              showsCompass={showCompass}
             >
+<<<<<<< HEAD
               {/* Pickup marker */}
               {ride.status !== 'in_progress' && (
                 <Marker
@@ -369,6 +690,35 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
                   ]}
                   strokeColor={COLORS.primary}
                   strokeWidth={3}
+=======
+              {/* Pickup Marker - Circle */}
+              <Marker
+                coordinate={ride.pickupCoords}
+                title="Điểm đón"
+                description={ride.pickupAddress}
+              >
+                <View style={styles.pickupMarker}>
+                  <MaterialIcons name="trip-origin" size={32} color={COLORS.primary} />
+                </View>
+              </Marker>
+
+              {/* Dropoff Marker - Flag */}
+              <Marker
+                coordinate={ride.dropoffCoords}
+                title="Điểm trả"
+                description={ride.dropoffAddress}
+              >
+                <View style={styles.dropoffMarker}>
+                  <MaterialIcons name="flag" size={32} color={COLORS.success} />
+                </View>
+              </Marker>
+
+              {routeCoords.length > 1 && (
+                <Polyline
+                  coordinates={routeCoords}
+                  strokeColor={COLORS.primary}
+                  strokeWidth={5}
+>>>>>>> fb2fd217ef0ed199bf27752ebc97e79d86d66400
                 />
               )}
             </MapView>
@@ -378,6 +728,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
               <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
                 <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
               </TouchableOpacity>
+<<<<<<< HEAD
               <View style={styles.spacer} />
               <TouchableOpacity style={styles.callButton}>
                 <MaterialIcons name="call" size={20} color="#4CAF50" />
@@ -397,6 +748,44 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
             {/* Price Badge */}
             <View style={styles.priceBadge}>
               <Text style={styles.priceText}>{(ride.totalFare / 1000).toFixed(0)}k</Text>
+=======
+            </View>
+
+            {/* Right Controls - Zoom and Navigation */}
+            <View style={styles.rightControls}>
+              <TouchableOpacity onPress={handleZoomIn} style={styles.controlButton}>
+                <MaterialIcons name="add" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleZoomOut} style={styles.controlButton}>
+                <MaterialIcons name="remove" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleCenterToDriver} style={styles.controlButton}>
+                <MaterialIcons name="navigation" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleToggleCompass} style={styles.controlButton}>
+                <MaterialIcons name="explore" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Info Card - Floating at bottom of map */}
+            <View style={styles.floatingCard}>
+              <View style={styles.timePrice}>
+                <Text style={styles.time}>{ride.estimatedTime}</Text>
+                <Text style={styles.subtext}>Dự kiến</Text>
+                {distanceToPickup !== null && (
+                  <View style={styles.distanceToPickupContainer}>
+                    <MaterialIcons name="navigation" size={14} color={COLORS.primary} />
+                    <Text style={styles.distanceToPickup}>
+                      Cách điểm đón: {distanceToPickup.toFixed(1)} km
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.priceBox}>
+                <Text style={styles.price}>{(ride.price / 1000).toFixed(0)}k</Text>
+                <Text style={styles.paymentType}>{ride.paymentMethod}</Text>
+              </View>
+>>>>>>> fb2fd217ef0ed199bf27752ebc97e79d86d66400
             </View>
           </View>
 
@@ -627,7 +1016,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   mapContainer: {
-    height: '40%',
+    height: '45%',
     position: 'relative',
     backgroundColor: COLORS.darkBg,
   },
@@ -636,21 +1025,51 @@ const styles = StyleSheet.create({
   },
   mapControls: {
     position: 'absolute',
+<<<<<<< HEAD
     top: 12,
     left: 12,
     right: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+=======
+    top: 48,
+    left: 20,
+>>>>>>> fb2fd217ef0ed199bf27752ebc97e79d86d66400
     zIndex: 10,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.darkCard,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(26, 26, 26, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  rightControls: {
+    position: 'absolute',
+    top: '38%',
+    right: 20,
+    gap: 14,
+    zIndex: 10,
+  },
+  controlButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 6,
   },
   spacer: {
     flex: 1,
@@ -677,6 +1096,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+<<<<<<< HEAD
   statusBadge: {
     position: 'absolute',
     bottom: 60,
@@ -709,6 +1129,297 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 12,
     paddingVertical: 12,
+=======
+  moreButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.darkCard,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickupMarker: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  dropoffMarker: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: COLORS.success,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  floatingCard: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(26, 26, 26, 0.95)',
+    borderRadius: 16,
+    padding: 18,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  timePrice: {
+    flex: 1,
+  },
+  time: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.text,
+    letterSpacing: 0.5,
+  },
+  subtext: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  distanceToPickupContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  distanceToPickup: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  priceBox: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  price: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+  },
+  paymentType: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  detailsContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  passengerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 20,
+    paddingTop: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 107, 0, 0.15)',
+  },
+  passengerAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: `${COLORS.primary}20`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  passengerDetails: {
+    flex: 1,
+  },
+  passengerName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  rating: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  reviews: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  status: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.darkBg,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  actionIcons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  messageIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.darkCard,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  phoneIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.darkCard,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationSection: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    paddingLeft: 8,
+  },
+  locationDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.primary,
+    marginRight: 12,
+    marginTop: 6,
+    flexShrink: 0,
+  },
+  locationContent: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  address: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  subAddress: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  routeLine: {
+    width: 2,
+    height: 24,
+    backgroundColor: COLORS.darkCard,
+    marginLeft: 5,
+    marginBottom: 8,
+  },
+  distanceBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    borderRadius: 12,
+    marginBottom: 24,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
+  },
+  distance: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 14,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  acceptButton: {
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+  },
+  arrivedButton: {
+    backgroundColor: '#4CAF50',
+    shadowColor: '#4CAF50',
+  },
+  completeButton: {
+    backgroundColor: '#2196F3',
+    shadowColor: '#2196F3',
+  },
+  completedButton: {
+    backgroundColor: '#4CAF50',
+    shadowColor: '#4CAF50',
+    opacity: 0.8,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  additionalInfo: {
+    backgroundColor: 'rgba(255, 107, 0, 0.08)',
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.15)',
+>>>>>>> fb2fd217ef0ed199bf27752ebc97e79d86d66400
   },
   infoCard: {
     backgroundColor: COLORS.darkCard,

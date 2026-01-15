@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
-import { View, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native'
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps'
 import * as Location from 'expo-location'
-import { MaterialIcons } from '@expo/vector-icons'
+import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 
 interface MapViewComponentProps {
   height?: number
@@ -23,28 +23,42 @@ interface MapViewComponentProps {
   pickupCoords?: { latitude: number; longitude: number }
   dropoffCoords?: { latitude: number; longitude: number }
   routeCoordinates?: Array<{ latitude: number; longitude: number }>
+  drivers?: Array<{
+    id: string
+    latitude: number
+    longitude: number
+    name: string
+    rating?: number
+    vehicle?: string
+  }>
 }
 
 const MapViewComponent = ({
   height = 300,
-  initialRegion = {
-    latitude: 21.0285, // Hanoi, Vietnam
-    longitude: 105.8542,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
-  },
+  initialRegion,
   onLocationSelect,
   markers = [],
   pickupCoords,
   dropoffCoords,
   routeCoordinates = [],
+  drivers = [],
 }: MapViewComponentProps) => {
   const mapRef = useRef<MapView>(null)
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
-  const [currentRegion, setCurrentRegion] = useState(initialRegion)
+  // Initialize with fallback region
+  const defaultRegion = {
+    latitude: 21.0285,
+    longitude: 105.8542,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  }
+  const [currentRegion, setCurrentRegion] = useState(initialRegion || defaultRegion)
+  const [mapInitialRegion, setMapInitialRegion] = useState(initialRegion || defaultRegion)
 
-  // Lấy vị trí người dùng
+  // Lấy vị trí người dùng ở BACKGROUND (không chặn rendering)
   useEffect(() => {
+    let isMounted = true
+    
     const getUserLocation = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync()
@@ -53,19 +67,70 @@ const MapViewComponent = ({
           return
         }
 
-        const location = await Location.getCurrentPositionAsync({})
-        const userCoords = {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
+        // Thử lấy last known position trước (nhanh hơn)
+        const lastPosition = await Location.getLastKnownPositionAsync({})
+        if (lastPosition && isMounted) {
+          const userCoords = {
+            latitude: lastPosition.coords.latitude,
+            longitude: lastPosition.coords.longitude,
+          }
+          setUserLocation(userCoords)
+          
+          const userRegion = {
+            latitude: userCoords.latitude,
+            longitude: userCoords.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }
+          
+          // Animate map tới vị trí người dùng
+          setTimeout(() => {
+            if (mapRef.current) {
+              mapRef.current.animateToRegion(userRegion, 800)
+            }
+          }, 300)
+          
+          console.log('[MapView] Last known location:', userCoords)
         }
-        setUserLocation(userCoords)
-        console.log('[MapView] User location:', userCoords)
+
+        // Lấy current position ở background
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        })
+        
+        if (isMounted) {
+          const userCoords = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          }
+          setUserLocation(userCoords)
+          
+          const userRegion = {
+            latitude: userCoords.latitude,
+            longitude: userCoords.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }
+          
+          // Update map with accurate location
+          setTimeout(() => {
+            if (mapRef.current) {
+              mapRef.current.animateToRegion(userRegion, 800)
+            }
+          }, 300)
+          
+          console.log('[MapView] Current location:', userCoords)
+        }
       } catch (error) {
         console.error('[MapView] Get location error:', error)
       }
     }
 
     getUserLocation()
+    
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   // Tự động zoom để hiển thị cả pickup và dropoff
@@ -137,7 +202,7 @@ const MapViewComponent = ({
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={initialRegion}
+        initialRegion={mapInitialRegion}
         onRegionChangeComplete={(region) => setCurrentRegion(region)}
         onPress={(e) => {
           const { latitude, longitude } = e.nativeEvent.coordinate
@@ -177,9 +242,14 @@ const MapViewComponent = ({
           <Marker
             coordinate={pickupCoords}
             title="Điểm đón"
-            pinColor="#FF6B00"
             identifier="pickup"
-          />
+          >
+            <View style={styles.pickupMarker}>
+              <View style={styles.markerInner}>
+                <MaterialIcons name="radio-button-checked" size={20} color="#FF6B00" />
+              </View>
+            </View>
+          </Marker>
         )}
 
         {/* Điểm đến */}
@@ -187,9 +257,14 @@ const MapViewComponent = ({
           <Marker
             coordinate={dropoffCoords}
             title="Điểm đến"
-            pinColor="#ef4444"
             identifier="dropoff"
-          />
+          >
+            <View style={styles.dropoffMarker}>
+              <View style={styles.markerInner}>
+                <MaterialIcons name="location-on" size={20} color="#ef4444" />
+              </View>
+            </View>
+          </Marker>
         )}
 
         {/* Các markers khác */}
@@ -205,14 +280,29 @@ const MapViewComponent = ({
           />
         ))}
 
-        {/* Vị trí người dùng hiện tại */}
-        {userLocation && (
-          <Marker
-            coordinate={userLocation}
-            title="Vị trí của bạn"
-            pinColor="#0066cc"
-            identifier="user"
-          />
+        {/* Hiển thị các tài xế trên map */}
+        {drivers && drivers.length > 0 && (
+          <>
+            {console.log('[MapView] 🚗 Rendering', drivers.length, 'drivers on map')}
+            {drivers.map((driver) => {
+              console.log(`[MapView] Driver marker: ${driver.name} at (${driver.latitude}, ${driver.longitude})`)
+              return (
+                <Marker
+                  key={driver.id}
+                  coordinate={{
+                    latitude: driver.latitude,
+                    longitude: driver.longitude,
+                  }}
+                  identifier={`driver-${driver.id}`}
+                  title={driver.name}
+                >
+                  <View style={styles.driverMarker}>
+                    <MaterialCommunityIcons name="car" size={24} color="#ff8c00" />
+                  </View>
+                </Marker>
+              )
+            })}
+          </>
         )}
       </MapView>
 
@@ -221,7 +311,7 @@ const MapViewComponent = ({
         style={styles.zoomInButton}
         onPress={handleZoomIn}
       >
-        <MaterialIcons name="add" size={24} color="#0066cc" />
+        <MaterialIcons name="add" size={24} color="#FF6B00" />
       </TouchableOpacity>
 
       {/* Nút zoom out */}
@@ -229,18 +319,37 @@ const MapViewComponent = ({
         style={styles.zoomOutButton}
         onPress={handleZoomOut}
       >
-        <MaterialIcons name="remove" size={24} color="#0066cc" />
+        <MaterialIcons name="remove" size={24} color="#FF6B00" />
+      </TouchableOpacity>
+
+      {/* Button vị trí hiện tại */}
+      {userLocation && (
+        <TouchableOpacity 
+          style={styles.currentLocationButton}
+          onPress={handleZoomToCurrentLocation}
+        >
+          <MaterialIcons name="navigation" size={20} color="#FF6B00"/>
+        </TouchableOpacity>
+      )}
+
+      {/* Button compass */}
+      <TouchableOpacity 
+        style={styles.compassButton}
+        onPress={() => {
+          if (mapRef.current) {
+            mapRef.current.animateCamera({
+              heading: 0,
+              pitch: 0,
+              zoom: mapRef.current.camera?.zoom || 15,
+              duration: 300,
+            }, { duration: 300 })
+          }
+        }}
+      >
+        <MaterialIcons name="explore" size={20} color="#FF6B00" />
       </TouchableOpacity>
 
       {/* Button phóng to vị trí hiện tại */}
-      {userLocation && (
-        <TouchableOpacity 
-          style={styles.zoomButton}
-          onPress={handleZoomToCurrentLocation}
-        >
-          <MaterialIcons name="my-location" size={20} color="#fff" />
-        </TouchableOpacity>
-      )}
     </View>
   )
 }
@@ -301,6 +410,89 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  currentLocationButton: {
+    position: 'absolute',
+    top: 120,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  compassButton: {
+    position: 'absolute',
+    top: 172,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  driverMarker: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickupMarker: {
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 25,
+    backgroundColor: '#fff',
+    borderWidth: 3,
+    borderColor: '#FF6B00',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  dropoffMarker: {
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 25,
+    backgroundColor: '#fff',
+    borderWidth: 3,
+    borderColor: '#ef4444',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  markerInner: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+    controlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
 })
 

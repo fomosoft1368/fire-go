@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
+import { useNavigation } from '@react-navigation/native'
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { RootState } from '../redux/store'
+import type { RootStackParamList } from '../types'
 import { rideService } from '../services/rideService'
 import { mapsService } from '../services/mapsService'
 import { calculateFare, formatCurrency, formatDistance, formatDuration } from '../utils/pricing'
@@ -59,6 +62,9 @@ export default function HireDriverScreen({
   setDropoffLocation,
   setRideMode,
 }: HireDriverScreenProps) {
+  // Navigation
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+  
   // Lấy user từ redux
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
@@ -183,6 +189,32 @@ export default function HireDriverScreen({
     setShowScheduleModal(false)
   }
 
+  const handleExpandMap = () => {
+    navigation.navigate('FullscreenMap', {
+      pickupCoordinates: routeInfo
+        ? [routeInfo.pickup.coordinates.longitude, routeInfo.pickup.coordinates.latitude]
+        : [105.8542, 21.0285],
+      dropoffCoordinates: routeInfo
+        ? [routeInfo.dropoff.coordinates.longitude, routeInfo.dropoff.coordinates.latitude]
+        : [105.8542, 21.0285],
+      pickupCoords: routeInfo
+        ? {
+            latitude: routeInfo.pickup.coordinates.latitude,
+            longitude: routeInfo.pickup.coordinates.longitude,
+          }
+        : undefined,
+      dropoffCoords: routeInfo
+        ? {
+            latitude: routeInfo.dropoff.coordinates.latitude,
+            longitude: routeInfo.dropoff.coordinates.longitude,
+          }
+        : undefined,
+      routeCoordinates: routeInfo?.routeCoordinates || [],
+      drivers: [],
+      routeInfo,
+    })
+  }
+
   // Polling để lấy thông tin tài xế khi có tài xế nhận cuốc
   useEffect(() => {
     if (!isSearching || !rideId) {
@@ -190,7 +222,7 @@ export default function HireDriverScreen({
     }
 
     console.log('[HireDriverScreen] Polling ride data for rideId:', rideId)
-    
+
     // Lấy thông tin cuốc xe mỗi 2 giây
     const pollInterval = setInterval(async () => {
       try {
@@ -208,7 +240,7 @@ export default function HireDriverScreen({
         // Nếu tài xế đã nhận cuốc (có driverId)
         if (rideData.driverId) {
           const driverData = rideData.driverId
-          
+
           // Kiểm tra driverData hợp lệ
           if (!driverData || !driverData._id) {
             console.warn('[HireDriverScreen] Invalid driver data:', driverData)
@@ -216,7 +248,7 @@ export default function HireDriverScreen({
           }
 
           console.log('[HireDriverScreen] Driver found:', driverData._id)
-          
+
           // Map dữ liệu từ API sang format UI
           setDriver({
             id: driverData._id,
@@ -386,7 +418,7 @@ export default function HireDriverScreen({
 
       console.log('[HireDriverScreen] Creating ride with data:', rideData)
       await rideService.createRide(rideData, user.id)
-      
+
       Alert.alert(
         'Thành công',
         '✓ Cuốc xe đã được tạo!\n\nHệ thống đang tìm tài xế phù hợp cho bạn...',
@@ -394,7 +426,7 @@ export default function HireDriverScreen({
           { text: 'OK' }
         ]
       )
-      
+
       // Set searching state to show finding driver screen
       setIsSearching(true)
     } catch (err: any) {
@@ -432,27 +464,27 @@ export default function HireDriverScreen({
       <View style={[styles.findingContainer, { backgroundColor: colors.bg }]}>
         {/* Full Screen Map */}
         <MapViewComponent
-        height={undefined}
-        initialRegion={{
-          latitude: routeInfo.pickup.coordinates.latitude,
-          longitude: routeInfo.pickup.coordinates.longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-        markers={[]}
-        pickupCoords={{
-          latitude: routeInfo.pickup.coordinates.latitude,
-          longitude: routeInfo.pickup.coordinates.longitude,
-        }}
-        dropoffCoords={{
-          latitude: routeInfo.dropoff.coordinates.latitude,
-          longitude: routeInfo.dropoff.coordinates.longitude,
-        }}
-        routeCoordinates={routeInfo.routeCoordinates || []}
-        onLocationSelect={() => {}}
-      />
-      <FindingDriverOverlay onCancel={resetRideState} />
-      
+          height={undefined}
+          initialRegion={{
+            latitude: routeInfo.pickup.coordinates.latitude,
+            longitude: routeInfo.pickup.coordinates.longitude,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }}
+          markers={[]}
+          pickupCoords={{
+            latitude: routeInfo.pickup.coordinates.latitude,
+            longitude: routeInfo.pickup.coordinates.longitude,
+          }}
+          dropoffCoords={{
+            latitude: routeInfo.dropoff.coordinates.latitude,
+            longitude: routeInfo.dropoff.coordinates.longitude,
+          }}
+          routeCoordinates={routeInfo.routeCoordinates || []}
+          onLocationSelect={() => { }}
+        />
+        <FindingDriverOverlay onCancel={resetRideState} />
+
         {/* Professional Finding Driver Status Card */}
         <View style={[styles.professionalStatusCard, { backgroundColor: colors.bgSecondary, borderTopColor: colors.border }]}>
           {/* Animated Radar Background */}
@@ -567,7 +599,7 @@ export default function HireDriverScreen({
         <View style={styles.locationCardWrapper}>
           <View style={[styles.locationCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
             <View style={styles.locationRow}>
-              <MaterialIcons name="my-location" size={24} color="#FF6B00" />
+              <MaterialIcons name="radio-button-checked" size={24} color="#FF6B00" />
               <View style={styles.locationInputWrapper}>
                 <Text style={[styles.locationLabel, { color: colors.textSecondary }]}>Điểm đón</Text>
                 <TextInput
@@ -585,7 +617,7 @@ export default function HireDriverScreen({
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
             <View style={styles.locationRow}>
-              <MaterialIcons name="location-on" size={24} color="#ef4444" />
+              <MaterialIcons name="flag" size={24} color="#ef4444" />
               <View style={styles.locationInputWrapper}>
                 <Text style={[styles.locationLabel, { color: colors.textSecondary }]}>Điểm đến</Text>
                 <TextInput
@@ -653,36 +685,47 @@ export default function HireDriverScreen({
         </View>
 
         {/* Map Component */}
-        <MapViewComponent
-          height={200}
-          initialRegion={{
-            latitude: 21.0285,
-            longitude: 105.8542,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          }}
-          markers={[]}
-          pickupCoords={
-            routeInfo
-              ? {
+        <View style={styles.mapWrapper}>
+          <MapViewComponent
+            height={275}
+            initialRegion={{
+              latitude: 21.0285,
+              longitude: 105.8542,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
+            }}
+            markers={[]}
+            pickupCoords={
+              routeInfo
+                ? {
                   latitude: routeInfo.pickup.coordinates.latitude,
                   longitude: routeInfo.pickup.coordinates.longitude,
                 }
-              : undefined
-          }
-          dropoffCoords={
-            routeInfo
-              ? {
+                : undefined
+            }
+            dropoffCoords={
+              routeInfo
+                ? {
                   latitude: routeInfo.dropoff.coordinates.latitude,
                   longitude: routeInfo.dropoff.coordinates.longitude,
                 }
-              : undefined
-          }
-          routeCoordinates={routeInfo?.routeCoordinates || []}
-          onLocationSelect={(location) => {
-            console.log('Location selected:', location)
-          }}
-        />
+                : undefined
+            }
+            routeCoordinates={routeInfo?.routeCoordinates || []}
+            onLocationSelect={(location) => {
+              console.log('Location selected:', location)
+            }}
+          />
+          {/* Expand Map Button - Always visible */}
+          <TouchableOpacity
+            style={[styles.expandMapButton, { backgroundColor: '#FF6B00' }]}
+            onPress={handleExpandMap}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="fullscreen" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
 
         {/* Time Toggle */}
         <View style={[styles.timeToggleContainer, { backgroundColor: colors.bgSecondary }]}>
@@ -1576,5 +1619,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#ef4444',
+  },
+  mapWrapper: {
+    position: 'relative',
+    marginHorizontal: -SPACING.lg,
+    marginVertical: SPACING.lg,
+  },
+  expandMapButton: {
+    position: 'absolute',
+    top: 20,
+    left: SPACING.lg + 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 15,
   },
 })

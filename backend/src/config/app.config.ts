@@ -6,7 +6,7 @@ import { MongooseModuleOptions } from '@nestjs/mongoose';
  * MongoDB Configuration
  */
 export const mongooseConfig = (): MongooseModuleOptions => ({
-  uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/dat_xe',
+  uri: process.env.MONGODB_URI || 'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH',
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
 });

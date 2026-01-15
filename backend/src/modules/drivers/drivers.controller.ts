@@ -83,6 +83,15 @@ export class DriversController {
   }
 
   /**
+   * GET /api/drivers/available
+   * Lấy danh sách tài xế online và sẵn sàng nhận cuốc
+   */
+  @Get('available')
+  async getAvailableDrivers() {
+    return this.driversService.getAvailableDrivers();
+  }
+
+  /**
    * GET /api/drivers/nearby
    * Tìm tài xế online gần vị trí (geolocation)
    */

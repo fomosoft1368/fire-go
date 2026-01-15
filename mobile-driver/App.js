@@ -105,7 +105,7 @@ const MainNavigator = () => (
       name="Profile"
       component={ProfileScreen}
       options={{
-        tabBarLabel: 'Tôi',
+        tabBarLabel: 'Tài khoản',
       }}
     />
   </Tab.Navigator>

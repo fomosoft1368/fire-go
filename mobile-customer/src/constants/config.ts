@@ -25,3 +25,5 @@ export const BORDER_RADIUS = {
   xl: 16,
   full: 9999,
 } as const
+
+export const API_BASE_URL = 'http://10.0.2.2:3000/api'

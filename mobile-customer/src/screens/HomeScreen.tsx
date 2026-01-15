@@ -13,14 +13,17 @@ import {
   Alert,
   FlatList,
   StatusBar,
+  Modal,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import { useSelector } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootState } from '../redux/store'
 import type { RootStackParamList } from '../types'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
+import { API_BASE_URL } from '../constants/config'
 import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
 import FindingRideModal from '../components/FindingRideModal'
@@ -35,12 +38,22 @@ export default function HomeScreen() {
   const [rideMode, setRideMode] = useState<'share' | 'hire'>('share' as const)
   const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
-  const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.8542, 21.0285])
-  const [dropoffCoordinates, setDropoffCoordinates] = useState<[number, number]>([105.8542, 21.0285])
+  const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.6909, 18.6867])
+  const [dropoffCoordinates, setDropoffCoordinates] = useState<[number, number]>([105.6909, 18.6867])
   const [isImmediately, setIsImmediately] = useState(true)
   const [passengerCount, setPassengerCount] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [routeInfo, setRouteInfo] = useState<any>(null)
+  const [isPickupSelected, setIsPickupSelected] = useState(false)
+  const [isDropoffSelected, setIsDropoffSelected] = useState(false)
+  const [isSelectingPickupOnMap, setIsSelectingPickupOnMap] = useState(false)
+  const [isSelectingDropoffOnMap, setIsSelectingDropoffOnMap] = useState(false)
+  const [isTimeModalVisible, setIsTimeModalVisible] = useState(false)
+  const [selectedTime, setSelectedTime] = useState('Ngay bây giờ')
+  const [selectedDateTime, setSelectedDateTime] = useState(new Date())
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showTimePicker, setShowTimePicker] = useState(false)
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
   
   // Places autocomplete states
   const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
@@ -69,6 +82,8 @@ export default function HomeScreen() {
   const [driverLocation, setDriverLocation] = useState<any>(null)
   // @ts-ignore - Used for future features
   const [rideId, setRideId] = useState<string | null>(null)
+  // @ts-ignore - Used for future features
+  const [drivers, setDrivers] = useState<any[]>([])
   
   // Hire driver mode states
   const [carType, setCarType] = useState<'sedan' | 'suv' | 'truck'>('sedan')
@@ -92,7 +107,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const seedPricing = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/rides/seed-pricing', {
+        const response = await fetch(`${API_BASE_URL}/rides/seed-pricing`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         })
@@ -104,6 +119,71 @@ export default function HomeScreen() {
       }
     }
     seedPricing()
+  }, [])
+
+  // Fetch available drivers on app startup
+  useEffect(() => {
+    const fetchAvailableDrivers = async () => {
+      try {
+        console.log('[HomeScreen] 📍 Fetching drivers from /api/drivers/available')
+        const response = await fetch(`${API_BASE_URL}/drivers/available`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        
+        console.log('[HomeScreen] Response status:', response.status)
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log('✅ [HomeScreen] Raw API response:', JSON.stringify(data, null, 2))
+          console.log('✅ [HomeScreen] Total drivers from API:', data?.length)
+          
+          if (!data || data.length === 0) {
+            console.warn('⚠️ [HomeScreen] No drivers returned from API')
+            setDrivers([])
+            return
+          }
+          
+          // Format drivers data from API response
+          const driversForMap = data.map((driver: any, index: number) => {
+            // Extract coordinates from GeoJSON format
+            const coordinates = driver.currentLocation?.coordinates || []
+            const fullName = `${driver.firstName || 'Tài'} ${driver.lastName || 'xế'}`
+            
+            console.log(`[HomeScreen] Driver ${index + 1}:`, {
+              name: fullName,
+              currentLocation: driver.currentLocation,
+              coordinates: coordinates,
+            })
+            
+            const formattedDriver = {
+              id: driver._id,
+              latitude: coordinates[1], // GeoJSON: [longitude, latitude]
+              longitude: coordinates[0],
+              name: fullName,
+              rating: driver.averageRating || 5,
+              vehicle: driver.vehiclePlate || 'Chưa cập nhật',
+              vehicleModel: driver.vehicleModel || '',
+              totalRides: driver.totalRides || 0,
+            }
+            
+            console.log('[HomeScreen] 🚗 Formatted driver:', formattedDriver)
+            return formattedDriver
+          })
+          
+          console.log('✅ [HomeScreen] Formatted drivers for map (total):', driversForMap.length)
+          setDrivers(driversForMap)
+        } else {
+          console.error('[HomeScreen] API error - status:', response.status)
+          const errorText = await response.text()
+          console.error('[HomeScreen] Error response:', errorText)
+        }
+      } catch (error) {
+        console.error('[HomeScreen] ❌ Fetch drivers error:', error)
+        setDrivers([])
+      }
+    }
+    fetchAvailableDrivers()
   }, [])
 
   // 🔍 Search pickup location when debounced value changes
@@ -201,6 +281,7 @@ export default function HomeScreen() {
     }
     
     setPickupCoordinates(coords as [number, number]);
+    setIsPickupSelected(true);
     console.log('✅ Pickup place selected:', placeName, coords);
   };
 
@@ -237,6 +318,7 @@ export default function HomeScreen() {
     }
     
     setDropoffCoordinates(coords as [number, number]);
+    setIsDropoffSelected(true);
     console.log('✅ Dropoff place selected:', placeName, coords);
     
     // 🔄 Auto-calculate route when both locations are set
@@ -433,16 +515,80 @@ export default function HomeScreen() {
   const handleCancelFinding = () => {
     setIsLoading(false)
   }
-  const handleOpenNotifications = () => {
-    navigation.navigate('Notifications')
+
+  const handleExpandMap = () => {
+    navigation.navigate('FullscreenMap', {
+      pickupCoordinates,
+      dropoffCoordinates,
+      pickupCoords: isPickupSelected ? {
+        latitude: pickupCoordinates[1],
+        longitude: pickupCoordinates[0],
+      } : undefined,
+      dropoffCoords: isDropoffSelected ? {
+        latitude: dropoffCoordinates[1],
+        longitude: dropoffCoordinates[0],
+      } : undefined,
+      routeCoordinates: routeInfo?.routeCoordinates || [],
+      drivers,
+      routeInfo,
+    })
   }
+
+  const handleOpenNotifications = () => {
+    navigation.navigate('Notification')
+  }
+
+  const handleMapLocationSelect = async (location: { latitude: number; longitude: number }) => {
+    try {
+      if (isSelectingPickupOnMap) {
+        setPickupCoordinates([location.longitude, location.latitude])
+        setIsPickupSelected(true)
+        setIsSelectingPickupOnMap(false)
+        // Try to reverse geocode to get address
+        try {
+          const response = await placesService.reverseGeocode(location.latitude, location.longitude)
+          if (response && response.address) {
+            setPickupLocation(response.address)
+          } else {
+            setPickupLocation(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
+          }
+        } catch (error) {
+          setPickupLocation(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
+        }
+        Alert.alert('Thành công', 'Đã chọn điểm đón')
+      } else if (isSelectingDropoffOnMap) {
+        setDropoffCoordinates([location.longitude, location.latitude])
+        setIsDropoffSelected(true)
+        setIsSelectingDropoffOnMap(false)
+        // Try to reverse geocode to get address
+        try {
+          const response = await placesService.reverseGeocode(location.latitude, location.longitude)
+          if (response && response.address) {
+            setDropoffLocation(response.address)
+          } else {
+            setDropoffLocation(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
+          }
+        } catch (error) {
+          setDropoffLocation(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
+        }
+        Alert.alert('Thành công', 'Đã chọn điểm đến')
+        // Auto-calculate route
+        if (pickupLocation.trim()) {
+          await calculateRoute(pickupCoordinates, [location.longitude, location.latitude])
+        }
+      }
+    } catch (error) {
+      console.error('Error selecting location on map:', error)
+      Alert.alert('Lỗi', 'Không thể chọn vị trí')
+    }
+  }
+
   if (rideMode === 'hire') {
     return <HireDriverScreen {...{ isScheduled, setIsScheduled, carType, setCarType, licensePlate, setLicensePlate, transmission, setTransmission, driverNote, setDriverNote, pickupLocation, setPickupLocation, dropoffLocation, setDropoffLocation, setRideMode }} />
   }
 
   return (
-    <>
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
       <StatusBar
         barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={colors.bg}
@@ -457,22 +603,115 @@ export default function HomeScreen() {
         onCancel={handleCancelFinding}
       />
 
+      {/* Time Selection Modal */}
+      <Modal
+        visible={isTimeModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsTimeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.bg }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Chọn thời gian</Text>
+              <TouchableOpacity onPress={() => setIsTimeModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Date and Time Display */}
+            <View style={styles.dateTimeDisplayContainer}>
+              <TouchableOpacity 
+                style={[styles.dateTimeButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <MaterialIcons name="calendar-today" size={20} color={colors.primary} />
+                <Text style={[styles.dateTimeButtonText, { color: colors.text }]}>
+                  {String(selectedDateTime.getDate()).padStart(2, '0')}/{String(selectedDateTime.getMonth() + 1).padStart(2, '0')}/{selectedDateTime.getFullYear()}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.dateTimeButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+                onPress={() => setShowTimePicker(true)}
+              >
+                <MaterialIcons name="schedule" size={20} color={colors.primary} />
+                <Text style={[styles.dateTimeButtonText, { color: colors.text }]}>
+                  {String(selectedDateTime.getHours()).padStart(2, '0')}:{String(selectedDateTime.getMinutes()).padStart(2, '0')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* DateTimePicker */}
+            {showDatePicker && (
+              <DateTimePicker
+                value={selectedDateTime}
+                mode="date"
+                display="spinner"
+                onChange={(event, date) => {
+                  if (date) {
+                    setSelectedDateTime(date)
+                    setShowDatePicker(false)
+                  }
+                }}
+                textColor={colors.text}
+              />
+            )}
+
+            {showTimePicker && (
+              <DateTimePicker
+                value={selectedDateTime}
+                mode="time"
+                display="spinner"
+                onChange={(event, date) => {
+                  if (date) {
+                    setSelectedDateTime(date)
+                    setShowTimePicker(false)
+                  }
+                }}
+                textColor={colors.text}
+              />
+            )}
+
+            <View style={[styles.modalFooter, { borderTopColor: colors.border, backgroundColor: colors.bgSecondary }]}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setSelectedDateTime(new Date())}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.text }]}>Bây giờ</Text>
+              </TouchableOpacity>
+              <View style={[styles.modalButtonDivider, { backgroundColor: colors.border }]} />
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={() => {
+                  const dateStr = `${String(selectedDateTime.getDate()).padStart(2, '0')}/${String(selectedDateTime.getMonth() + 1).padStart(2, '0')} ${String(selectedDateTime.getHours()).padStart(2, '0')}:${String(selectedDateTime.getMinutes()).padStart(2, '0')}`
+                  setSelectedTime(dateStr)
+                  setIsTimeModalVisible(false)
+                }}
+              >
+                <Text style={styles.modalButtonTextPrimary}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Header with Map */}
       <View style={[styles.headerSection, { backgroundColor: colors.bgSecondary }]}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+            <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Đặt xe ghép</Text>
-          <TouchableOpacity style={styles.settingsButton} onPress={handleOpenNotifications}> 
-            <MaterialIcons name="notifications" size={24} color={colors.text} />
+          <TouchableOpacity style={styles.settingsButton} onPress={handleOpenNotifications}>
+            <MaterialIcons name="notifications" size={24} color="#FF6B00" />
           </TouchableOpacity>
         </View>
 
         {/* Map Display with Route */}
         <View style={styles.mapWrapper}>
           <MapViewComponent
-            height={250}
+            height={275}
             initialRegion={{
               latitude: pickupCoordinates[1],
               longitude: pickupCoordinates[0],
@@ -480,20 +719,29 @@ export default function HomeScreen() {
               longitudeDelta: 0.0421,
             }}
             markers={[]}
-            pickupCoords={{
+            pickupCoords={isPickupSelected ? {
               latitude: pickupCoordinates[1],
               longitude: pickupCoordinates[0],
-            }}
-            dropoffCoords={{
+            } : undefined}
+            dropoffCoords={isDropoffSelected ? {
               latitude: dropoffCoordinates[1],
               longitude: dropoffCoordinates[0],
-            }}
+            } : undefined}
             routeCoordinates={routeInfo?.routeCoordinates || []}
+            drivers={drivers}
             onLocationSelect={(location) => {
-              console.log('Location selected:', location)
+              handleMapLocationSelect(location)
             }}
           />
         </View>
+        {/* Expand Map Button - Always visible */}
+        <TouchableOpacity
+          style={[styles.expandMapButton, { backgroundColor: colors.primary }]}
+          onPress={handleExpandMap}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="fullscreen" size={22} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -506,8 +754,8 @@ export default function HomeScreen() {
             style={[
               styles.rideTypeButton,
               {
-                backgroundColor: rideMode === 'share' ? 'transparent' : `${colors.border}`,
-                borderColor: rideMode === 'share' ? colors.text : colors.border,
+                backgroundColor: rideMode === 'share' ? '#FF6B00' : 'transparent',
+                borderColor: rideMode === 'share' ? '#FF6B00' : colors.border,
               },
             ]}
             onPress={() => setRideMode('share')}
@@ -515,7 +763,7 @@ export default function HomeScreen() {
             <Text
               style={[
                 styles.rideTypeText,
-                { color: rideMode === 'share' ? colors.text : colors.textSecondary },
+                { color: rideMode === 'share' ? '#fff' : colors.text },
               ]}
             >
               Ghép xe
@@ -525,8 +773,8 @@ export default function HomeScreen() {
             style={[
               styles.rideTypeButton,
               {
-                backgroundColor: (rideMode as string) === 'hire' ? 'transparent' : `${colors.border}`,
-                borderColor: (rideMode as string) === 'hire' ? colors.text : colors.border,
+                backgroundColor: (rideMode as string) === 'hire' ? '#FF6B00' : 'transparent',
+                borderColor: (rideMode as string) === 'hire' ? '#FF6B00' : colors.border,
               },
             ]}
             onPress={() => setRideMode('hire')}
@@ -534,7 +782,7 @@ export default function HomeScreen() {
             <Text
               style={[
                 styles.rideTypeText,
-                { color: (rideMode as string) === 'hire' ? colors.text : colors.textSecondary },
+                { color: (rideMode as string) === 'hire' ? '#fff' : colors.text },
               ]}
             >
               Lái xe hộ
@@ -567,6 +815,15 @@ export default function HomeScreen() {
             {isSearchingPickup && (
               <ActivityIndicator size="small" color="#FF6B00" style={{ marginLeft: SPACING.sm }} />
             )}
+            <TouchableOpacity
+              onPress={() => {
+                setIsSelectingPickupOnMap(true)
+                Alert.alert('Chọn điểm đón', 'Nhấp vào bản đồ để chọn điểm đón của bạn')
+              }}
+              style={{ borderWidth: 2, borderColor: '#FF6B00', borderRadius: 20, width: 35, height: 35, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <MaterialIcons name="chevron-right" size={24} color="#FF6B00" />
+            </TouchableOpacity>
           </View>
 
           {/* Pickup Suggestions */}
@@ -592,11 +849,11 @@ export default function HomeScreen() {
             </View>
           )}
 
-          <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>
+          <Text style={[styles.sectionLabel,  { color: colors.textSecondary, marginTop: SPACING.lg }]}>
             ĐIỂM ĐẾN
           </Text>
           <View style={[styles.inputLocationWrapper, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
-            <MaterialIcons name="location-on" size={20} color="#ef4444" />
+            <MaterialIcons name="flag" size={20} color="#ef4444" />
             <TextInput
               style={[styles.inputLocation, { color: colors.text }]}
               placeholder="Nhập điểm đến..."
@@ -613,6 +870,15 @@ export default function HomeScreen() {
             {isSearchingDropoff && (
               <ActivityIndicator size="small" color="#ef4444" style={{ marginLeft: SPACING.sm }} />
             )}
+            <TouchableOpacity
+              onPress={() => {
+                setIsSelectingDropoffOnMap(true)
+                Alert.alert('Chọn điểm đến', 'Nhấp vào bản đồ để chọn điểm đến của bạn')
+              }}
+              style={{ borderWidth: 2, borderColor: '#ef4444', borderRadius: 20, width: 35, height: 35, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <MaterialIcons name="chevron-right" size={24} color="#ef4444" />
+            </TouchableOpacity>
           </View>
 
           {/* Dropoff Suggestions */}
@@ -645,8 +911,10 @@ export default function HomeScreen() {
             <View>
               <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Thời gian</Text>
               <View style={styles.immediateBox}>
-                <Text style={[styles.immediateText, { color: colors.text }]}>Ngay bây giờ</Text>
-                <Text style={styles.immediateSubtext}>(Thay đổi)</Text>
+                <Text style={[styles.immediateText, { color: colors.text }]}>{selectedTime}</Text>
+                <TouchableOpacity onPress={() => setIsTimeModalVisible(true)}>
+                  <Text style={styles.immediateSubtext}>(Thay đổi)</Text>
+                </TouchableOpacity>
               </View>
             </View>
             <Switch
@@ -744,7 +1012,6 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
-    </>
   )
 }
 
@@ -786,6 +1053,10 @@ const styles = StyleSheet.create({
   },
   mapWrapper: {
     position: 'relative',
+    marginHorizontal: SPACING.lg,
+    marginVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
   },
   mapContainer: {
     flex: 1,
@@ -829,7 +1100,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.xl,
   },
   rideTypeContainer: {
     flexDirection: 'row',
@@ -1114,64 +1385,212 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
   },
-  fullscreenMapContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  closeMapButton: {
-    position: 'absolute',
-    top: 40,
-    right: 20,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  fullscreenMapInfo: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-  },
-  mapInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  mapInfoItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  mapInfoValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  mapInfoDivider: {
-    width: 1,
-    height: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
   expandMapButton: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
+    top: 290,
+    left: SPACING.lg + 20,
     width: 44,
     height: 44,
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 5,
+    zIndex: 50,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
-  },})
+    elevation: 15,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl,
+    maxHeight: '80%',
+    paddingBottom: 0,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  dateTimeDisplayContainer: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+  },
+  dateTimeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+  },
+  dateTimeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  calendarContainer: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    maxHeight: 320,
+  },
+  monthNavigation: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  navButton: {
+    padding: SPACING.md,
+  },
+  monthText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dayHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: SPACING.md,
+  },
+  dayHeader: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayButton: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginBottom: SPACING.sm,
+  },
+  dayButtonSelected: {
+    fontWeight: '700',
+  },
+  dayText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  timePickerSection: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  timePickerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: SPACING.md,
+  },
+  timeInputRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  timeInputBox: {
+    width: 70,
+    height: 50,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.sm,
+  },
+  timeInputText: {
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  timeColon: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  timePickerContainer: {
+    height: 280,
+    justifyContent: 'center',
+  },
+  timePickerScroll: {
+    flex: 1,
+  },
+  timePickerItem: {
+    height: 60,
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.lg,
+    borderBottomWidth: 1,
+  },
+  timePickerItemSelected: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF6B00',
+    paddingHorizontal: SPACING.lg - 2,
+  },
+  timePickerItemText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    overflow: 'hidden',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: SPACING.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalButtonSecondary: {
+    backgroundColor: 'transparent',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#FF6B00',
+  },
+  modalButtonDivider: {
+    width: 1,
+    height: '100%',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonTextPrimary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+  },
+  timeOptionsContainer: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+  },
+  timeOption: {
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  timeOptionText: {
+    fontSize: 15,
+  },
+})

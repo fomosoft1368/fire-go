@@ -192,7 +192,7 @@ export default function CreateRideScreen() {
       const distanceFare = Math.round(distance * 5000)
       const timeFare = duration * 1000
 
-      const rideData: Parameters<typeof driverService.createRide>[0] = {
+      const rideData = {
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
         pickupCoordinates: mockPickupCoords,
@@ -501,6 +501,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.darkBorder,
+    paddingTop: 35,
   },
   backButton: {
     padding: SPACING.sm,

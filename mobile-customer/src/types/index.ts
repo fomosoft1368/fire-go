@@ -66,9 +66,14 @@ export type RootStackParamList = {
   Main: undefined
   Home: undefined
   Notifications: undefined
+  NotificationDetailScreen: {
+    notification: Notification
+    onDelete?: () => void
+  }
   Bookings: undefined
   Promotions: undefined
   Profile: undefined
+  Notification: undefined
   RideDetail: { rideId: string }
   BookingDetail: { bookingId: string }
   RideBooking: { distance: number; duration: number; startLng: number; startLat: number; endLng: number; endLat: number; pickupAddress: string; dropoffAddress: string }
@@ -78,7 +83,15 @@ export type RootStackParamList = {
   ChangePassword: undefined
   PaymentMethods: undefined
   TransactionHistory: undefined
-  NotificationDetail: { notification: any; onDelete?: () => void }
+  FullscreenMap: {
+    pickupCoordinates?: [number, number]
+    dropoffCoordinates?: [number, number]
+    pickupCoords?: { latitude: number; longitude: number }
+    dropoffCoords?: { latitude: number; longitude: number }
+    routeCoordinates?: Array<{ latitude: number; longitude: number }>
+    drivers?: any[]
+    routeInfo?: any
+  }
 }
 
 // API Response Types

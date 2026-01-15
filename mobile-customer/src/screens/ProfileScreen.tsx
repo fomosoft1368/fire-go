@@ -1,4 +1,5 @@
 
+import React, { useState } from 'react'
 import {
   View,
   Text,
@@ -6,6 +7,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Switch,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
@@ -33,6 +35,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const dispatch = useDispatch()
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
+  const [isDarkMode, setIsDarkMode] = useState(themeMode === 'dark')
 
   // Get colors based on theme
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -68,13 +71,20 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             index !== items.length - 1 && styles.menuItemBorder,
           ]}
           onPress={item.onPress}
+          disabled={item.isToggle}
         >
           <View style={styles.menuLeft}>
-            <MaterialIcons
-              name={item.icon as any}
-              size={20}
-              color={item.isDanger ? COLORS.danger : COLORS.textSecondary}
-            />
+            <View style={[
+              styles.iconContainer,
+              item.isDanger && styles.iconContainerDanger,
+              !item.isDanger && { backgroundColor: COLORS.primary }
+            ]}>
+              <MaterialIcons
+                name={item.icon as any}
+                size={20}
+                color={item.isDanger ? '#fff' : '#fff'}
+              />
+            </View>
             <Text
               style={[
                 styles.menuLabel,
@@ -84,14 +94,29 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
               {item.label}
             </Text>
           </View>
-          {item.value && (
-            <Text style={styles.menuValue} numberOfLines={1} ellipsizeMode="tail">{item.value}</Text>
+          {item.isToggle ? (
+            <Switch
+              value={item.label === 'Chế độ tối' ? isDarkMode : false}
+              onValueChange={(newValue) => {
+                if (item.label === 'Chế độ tối') {
+                  setIsDarkMode(newValue)
+                }
+              }}
+              trackColor={{ false: colors.border, true: COLORS.primary + '50' }}
+              thumbColor={isDarkMode ? COLORS.primary : colors.textSecondary}
+            />
+          ) : (
+            <>
+              {item.value && (
+                <Text style={styles.menuValue} numberOfLines={1} ellipsizeMode="tail">{item.value}</Text>
+              )}
+              <MaterialIcons
+                name="chevron-right"
+                size={20}
+                color={item.isDanger ? COLORS.danger : COLORS.textSecondary}
+              />
+            </>
           )}
-          <MaterialIcons
-            name="chevron-right"
-            size={20}
-            color={item.isDanger ? COLORS.danger : COLORS.textSecondary}
-          />
         </TouchableOpacity>
       ))}
     </View>
@@ -175,7 +200,9 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
-          <MaterialIcons name="person" size={48} color={COLORS.primary} />
+          <View style={[styles.avatarInner, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <MaterialIcons name="person" size={48} color={COLORS.primary} />
+          </View>
         </View>
         <Text style={styles.profileName} numberOfLines={1} ellipsizeMode="tail">
           {user?.firstName && user?.lastName 
@@ -274,6 +301,8 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.bgSecondary,
+    paddingTop: SPACING.xxl,
   },
 
   // Profile Header Styles
@@ -295,6 +324,7 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     marginBottom: SPACING.lg,
+    marginTop: SPACING.xl,
     position: 'relative',
   },
   avatarInner: {
@@ -303,12 +333,12 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 8,
   },
   verifiedBadge: {
     position: 'absolute',
@@ -324,13 +354,14 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.text,
+    color: '#fff',
     marginBottom: SPACING.xs,
     maxWidth: '90%',
   },
   profileEmail: {
     fontSize: 13,
     marginBottom: SPACING.lg,
+    color: '#ccc',
   },
   editButton: {
     flexDirection: 'row',
@@ -399,10 +430,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginBottom: SPACING.xs,
+    color: '#fff',
   },
   statLabel: {
     fontSize: 11,
     fontWeight: '600',
+    color: '#999',
   },
 
   // Menu Section
@@ -422,6 +455,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    color: '#fff',
   },
   menuContainer: {
     overflow: 'hidden',
@@ -459,6 +493,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: SPACING.xs / 2,
+    color: '#fff',
   },
   menuLabelDanger: {
     color: '#ef4444',
@@ -475,6 +510,7 @@ const styles = StyleSheet.create({
   menuValue: {
     fontSize: 13,
     maxWidth: 100,
+    color: '#999',
   },
 
   // Stats Divider

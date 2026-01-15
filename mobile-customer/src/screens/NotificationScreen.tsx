@@ -26,7 +26,7 @@ const NotificationsScreen = () => {
   const token = useSelector((state: RootState) => state.auth.token)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
-  
+
   const [notifications, setNotifications] = React.useState<Notification[]>([])
   const [loading, setLoading] = React.useState(true)
   const [refreshing, setRefreshing] = React.useState(false)
@@ -73,7 +73,7 @@ const NotificationsScreen = () => {
 
   const handleOpenDetail = async (notification: Notification) => {
     // Navigate to detail screen
-    navigation.navigate('NotificationDetail', {
+    navigation.navigate('NotificationDetailScreen', {
       notification,
       onDelete: () => {
         setNotifications(prev => prev.filter(n => n._id !== notification._id))
@@ -83,11 +83,11 @@ const NotificationsScreen = () => {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Vừa xong'
-    
+
     try {
       const date = new Date(dateString)
       if (isNaN(date.getTime())) return 'Vừa xong'
-      
+
       const now = new Date()
       const diffMs = now.getTime() - date.getTime()
       const diffMins = Math.floor(diffMs / 60000)
@@ -107,8 +107,15 @@ const NotificationsScreen = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-      <View style={[styles.header, { backgroundColor: colors.bgSecondary, borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Thông báo</Text>
+      <View style={[styles.header, { backgroundColor: '#FF6B00', borderBottomColor: colors.border }]}>
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: '#fff' }]}>Thông báo</Text>
+        <View style={{ width: 44 }} />
       </View>
 
       {loading ? (
@@ -179,6 +186,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
+    paddingTop: 50,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 24,
