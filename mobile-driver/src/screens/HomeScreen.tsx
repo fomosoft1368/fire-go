@@ -180,20 +180,6 @@ export default function HomeScreen() {
     )
   }
 
-  // Test: Mock assigned ride notification
-  const handleTestAssignedRide = () => {
-    const mockRide = {
-      _id: 'test-ride-123',
-      status: 'assigned',
-      driverId: user?.id,
-      pickupAddress: '123 Đường Lê Lợi, Quận 1, TP.HCM',
-      totalFare: 125000,
-      rideType: 'share',
-    }
-    setAssignedRide(mockRide)
-    setDismissCountdown(15)
-  }
-
   const handleAcceptAssignedRide = async () => {
     if (!assignedRide || !user?.id) return
     try {
@@ -426,13 +412,7 @@ export default function HomeScreen() {
                   <RideCard ride={ride} onAccept={handleAcceptRide} />
                   {originalRide && (
                     <View style={styles.rideActions}>
-                      <TouchableOpacity
-                        style={[styles.actionBtn, styles.detailBtn]}
-                        onPress={() => navigation.navigate('RideRequestsScreen', { rideId: ride.id })}
-                      >
-                        <MaterialIcons name="info" size={18} color="#fff" />
-                        <Text style={styles.actionBtnText}>Chi tiết</Text>
-                      </TouchableOpacity>
+                    
                     </View>
                   )}
                 </View>
@@ -448,21 +428,6 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-
-        {/* View More */}
-        <TouchableOpacity style={styles.viewMoreButton}>
-          <Text style={styles.viewMoreText}>Xem thêm</Text>
-          <MaterialIcons name="chevron-right" size={20} color={COLORS.primary} />
-        </TouchableOpacity>
-
-        {/* TEST Button - Xóa khi không cần */}
-        <TouchableOpacity
-          style={styles.testButton}
-          onPress={handleTestAssignedRide}
-        >
-          <MaterialIcons name="bug-report" size={16} color="#fff" />
-          <Text style={styles.testButtonText}>TEST: Mock Assigned Ride</Text>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* Floating Map Button */}

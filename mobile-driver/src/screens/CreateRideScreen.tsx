@@ -19,6 +19,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useSelector } from 'react-redux'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { API_BASE_URL } from '../constants/config'
 import { driverService } from '../services/driverService'
 import { placesService } from '../services/placesService'
 import type { RootState } from '../redux/store'
@@ -29,6 +30,8 @@ export default function CreateRideScreen() {
   
   const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
+  const [pickupCoords, setPickupCoords] = useState<[number, number] | null>(null)
+  const [dropoffCoords, setDropoffCoords] = useState<[number, number] | null>(null)
   const [startDateTime, setStartDateTime] = useState(new Date())
   const [remainingSeats, setRemainingSeats] = useState('4')
   const [notes, setNotes] = useState('')
@@ -126,9 +129,42 @@ export default function CreateRideScreen() {
     }
 
     setPickupLocation(placeName)
+    
+    // If place has real coordinates (lat/lng not 0), use them directly
+    if (place.lat !== 0 && place.lng !== 0) {
+      setPickupCoords([place.lng, place.lat]) // [longitude, latitude]
+      setShowPickupSuggestions(false)
+      setPickupSuggestions([])
+      console.log('✅ Pickup place selected with real coords:', placeName, { lng: place.lng, lat: place.lat })
+      return
+    }
+
+    // Otherwise, fetch real coordinates from backend using placeId
+    try {
+      console.log('📡 Fetching real coordinates for:', place.placeId)
+      const response = await fetch(`${API_BASE_URL}/places/details/${place.placeId}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch place details: ${response.status}`)
+      }
+      
+      const details = await response.json()
+      console.log('📍 Got coordinates:', details)
+      
+      if (details.lat && details.lng) {
+        setPickupCoords([details.lng, details.lat]) // [longitude, latitude]
+        console.log('✅ Pickup place selected:', placeName, { lng: details.lng, lat: details.lat })
+      } else {
+        Alert.alert('Lỗi', 'Không thể lấy tọa độ của địa điểm')
+        return
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching place details:', error.message)
+      Alert.alert('Lỗi', 'Không thể lấy thông tin địa điểm')
+      return
+    }
+    
     setShowPickupSuggestions(false)
     setPickupSuggestions([])
-    console.log('✅ Pickup place selected:', placeName)
   }
 
   // Select dropoff place
@@ -141,10 +177,44 @@ export default function CreateRideScreen() {
     }
 
     setDropoffLocation(placeName)
+    
+    // If place has real coordinates (lat/lng not 0), use them directly
+    if (place.lat !== 0 && place.lng !== 0) {
+      setDropoffCoords([place.lng, place.lat]) // [longitude, latitude]
+      setShowDropoffSuggestions(false)
+      setDropoffSuggestions([])
+      console.log('✅ Dropoff place selected with real coords:', placeName, { lng: place.lng, lat: place.lat })
+      return
+    }
+
+    // Otherwise, fetch real coordinates from backend using placeId
+    try {
+      console.log('📡 Fetching real coordinates for:', place.placeId)
+      const response = await fetch(`${API_BASE_URL}/places/details/${place.placeId}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch place details: ${response.status}`)
+      }
+      
+      const details = await response.json()
+      console.log('📍 Got coordinates:', details)
+      
+      if (details.lat && details.lng) {
+        setDropoffCoords([details.lng, details.lat]) // [longitude, latitude]
+        console.log('✅ Dropoff place selected:', placeName, { lng: details.lng, lat: details.lat })
+      } else {
+        Alert.alert('Lỗi', 'Không thể lấy tọa độ của địa điểm')
+        return
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching place details:', error.message)
+      Alert.alert('Lỗi', 'Không thể lấy thông tin địa điểm')
+      return
+    }
+    
     setShowDropoffSuggestions(false)
     setDropoffSuggestions([])
-    console.log('✅ Dropoff place selected:', placeName)
   }
+
 
   const handleDateTimeChange = (_event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
@@ -157,11 +227,19 @@ export default function CreateRideScreen() {
 
   const handleCreateRide = async () => {
     if (!pickupLocation.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập vị trí xuất phát')
+      Alert.alert('Lỗi', 'Vui lòng chọn vị trí xuất phát từ danh sách gợi ý')
       return
     }
     if (!dropoffLocation.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập vị trí đích đến')
+      Alert.alert('Lỗi', 'Vui lòng chọn vị trí đích đến từ danh sách gợi ý')
+      return
+    }
+    if (!pickupCoords) {
+      Alert.alert('Lỗi', 'Vui lòng chọn vị trí xuất phát từ danh sách gợi ý')
+      return
+    }
+    if (!dropoffCoords) {
+      Alert.alert('Lỗi', 'Vui lòng chọn vị trí đích đến từ danh sách gợi ý')
       return
     }
     if (!remainingSeats || parseInt(remainingSeats) <= 0) {
@@ -171,21 +249,29 @@ export default function CreateRideScreen() {
 
     setLoading(true)
     try {
-      // Sử dụng mock coordinates (Hà Nội và các điểm quanh Hà Nội)
-      // Trong thực tế, sẽ lấy từ Google Geocoding API trên backend
-      const mockPickupCoords: [number, number] = [105.8542, 21.0285] // Hà Nội
-      const mockDropoffCoords: [number, number] = [105.7845, 21.0352] // Quanh Hà Nội
+      console.log('📍 Pickup coords:', pickupCoords)
+      console.log('📍 Dropoff coords:', dropoffCoords)
 
-      // Tính khoảng cách theo đường thẳng (km)
-      const distance = calculateDistance(
-        mockPickupCoords[1],
-        mockPickupCoords[0],
-        mockDropoffCoords[1],
-        mockDropoffCoords[0]
-      )
+      // Gọi backend API để lấy khoảng cách và thời gian chính xác
+      const directionUrl = `${API_BASE_URL}/rides/directions?startLng=${pickupCoords[0]}&startLat=${pickupCoords[1]}&endLng=${dropoffCoords[0]}&endLat=${dropoffCoords[1]}`
+      console.log('📍 Direction URL:', directionUrl)
 
-      // Ước tính thời gian (5 phút cho 5km)
-      const duration = Math.max(5, Math.ceil((distance / 5) * 5))
+      const response = await fetch(directionUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Không thể tính toán quảng đường (${response.status})`)
+      }
+
+      const directionData = await response.json()
+      const distance = directionData.distance || 0 // km
+      const duration = directionData.duration || 0 // minutes
+
+      console.log('✅ Distance:', distance, 'km, Duration:', duration, 'minutes')
 
       // Tính giá (cơ sở: 10k, theo khoảng cách: 5k/km, theo thời gian: 1k/phút)
       const baseFare = 10000
@@ -195,8 +281,8 @@ export default function CreateRideScreen() {
       const rideData = {
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
-        pickupCoordinates: mockPickupCoords,
-        dropoffCoordinates: mockDropoffCoords,
+        pickupCoordinates: pickupCoords, // [longitude, latitude] - THỰC
+        dropoffCoordinates: dropoffCoords, // [longitude, latitude] - THỰC
         distance: Math.round(distance * 10) / 10,
         duration: duration,
         baseFare: baseFare,
@@ -207,12 +293,10 @@ export default function CreateRideScreen() {
         remainingSeats: parseInt(remainingSeats),
         driverId: user?.id,
         notes: notes,
-        status: 'available',
+        // Status sẽ được set bởi backend thành PENDING
       }
 
-      console.log('� User info:', user)
-      console.log('🆔 Driver ID sẽ gửi:', user?.id)
-      console.log('�📍 Ride data prepared:', rideData)
+      console.log('📍 Ride data with REAL coordinates:', rideData)
 
       await driverService.createRide(rideData)
       
@@ -223,7 +307,7 @@ export default function CreateRideScreen() {
         },
       ])
     } catch (error: any) {
-      console.error('Lỗi tạo chuyến:', error)
+      console.error('❌ Lỗi tạo chuyến:', error)
       Alert.alert(
         'Lỗi',
         error?.message || 'Không thể tạo chuyến xe. Vui lòng thử lại.'
@@ -231,26 +315,6 @@ export default function CreateRideScreen() {
     } finally {
       setLoading(false)
     }
-  }
-
-  // Tính khoảng cách giữa hai điểm (Haversine formula) - trả về km
-  const calculateDistance = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number => {
-    const R = 6371 // Bán kính Trái đất (km)
-    const dLat = ((lat2 - lat1) * Math.PI) / 180
-    const dLon = ((lon2 - lon1) * Math.PI) / 180
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
   }
 
   const currentDateTime = new Date().toLocaleString('vi-VN', {

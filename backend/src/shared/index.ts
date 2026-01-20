@@ -6,5 +6,6 @@ export * from './constants/error-codes';
 
 // Utils
 export * from './utils/validators.util';
+export * from './utils/location.util';
 
 // Add more as needed

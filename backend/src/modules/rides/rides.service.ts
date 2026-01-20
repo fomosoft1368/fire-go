@@ -4,13 +4,16 @@ import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
 import { Pricing } from './schemas/pricing.schema';
+import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema';
 import { CreateRideDto } from './dto';
+import { extractLocationHierarchy } from '../../shared/utils/location.util';
 
 @Injectable()
 export class RidesService {
   constructor(
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<any>,
+    @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
     private eventEmitter: EventEmitter2,
   ) {}
 
@@ -52,10 +55,22 @@ export class RidesService {
         routes: data.routes?.length,
       });
       
-      // Convert OSRM format to GeoJSON-like format for frontend
+      // Convert OSRM format to response for frontend
       if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
         const route = data.routes[0];
+        const distanceKm = Math.round((route.distance / 1000) * 100) / 100; // Convert m to km
+        const durationMinutes = Math.ceil(route.duration / 60); // Convert s to minutes
+
+        console.log('✅ Converting to frontend format:', {
+          distanceKm,
+          durationMinutes,
+          originalDistance: route.distance,
+          originalDuration: route.duration,
+        });
+
         return {
+          distance: distanceKm, // in km
+          duration: durationMinutes, // in minutes
           features: [
             {
               geometry: route.geometry,
@@ -77,7 +92,7 @@ export class RidesService {
     }
   }
 
-  async create(createRideDto: CreateRideDto, customerId: string): Promise<RideDocument> {
+  async create(createRideDto: CreateRideDto, customerId?: string): Promise<RideDocument> {
     const totalFare =
       createRideDto.baseFare +
       createRideDto.distanceFare +
@@ -96,31 +111,61 @@ export class RidesService {
       }
     }
 
+    // For SHARE rides: driverId MUST be provided (only driver can create SHARE rides)
+    if (rideType === RideType.SHARE && !createRideDto.driverId && !customerId) {
+      throw new BadRequestException('Chỉ tài xế mới có thể tạo chuyến ghép');
+    }
+    
+    const driverId = createRideDto.driverId || customerId;
+
+    // Extract location hierarchy for filtering
+    const pickupLoc = extractLocationHierarchy(createRideDto.pickupAddress);
+    const dropoffLoc = extractLocationHierarchy(createRideDto.dropoffAddress);
+
+    console.log('📍 [create] Location hierarchy extraction:', {
+      pickup: {
+        address: createRideDto.pickupAddress,
+        extracted: pickupLoc,
+      },
+      dropoff: {
+        address: createRideDto.dropoffAddress,
+        extracted: dropoffLoc,
+      },
+    });
+
     const ride = await this.rideModel.create({
       ...createRideDto,
       rideType,
-      customerId: new Types.ObjectId(customerId),
+      driverId: driverId ? new Types.ObjectId(driverId) : undefined, // Only set if provided (SHARE rides)
+      customerId: [], // Khởi tạo rỗng, chỉ add khi có ride request được accept
       pickupLocation: {
         type: 'Point',
         coordinates: createRideDto.pickupCoordinates,
       },
+      // Use provided values or extracted values
+      pickupProvince: createRideDto.pickupProvince || pickupLoc.province,
+      pickupDistrict: createRideDto.pickupDistrict || pickupLoc.district,
+      pickupWard: createRideDto.pickupWard || pickupLoc.ward,
       dropoffLocation: {
         type: 'Point',
         coordinates: createRideDto.dropoffCoordinates,
       },
+      dropoffProvince: createRideDto.dropoffProvince || dropoffLoc.province,
+      dropoffDistrict: createRideDto.dropoffDistrict || dropoffLoc.district,
+      dropoffWard: createRideDto.dropoffWard || dropoffLoc.ward,
       totalFare,
       status: RideStatus.PENDING,
     });
 
-    // Extract customerId before populate (it's still an ObjectId at this point)
-    const customerIdStr = ride.customerId?.toString();
+    // Extract driverId before populate
+    const driverIdStr = ride.driverId?.toString();
 
     const populatedRide = await ride.populate(['customerId', 'driverId']);
 
     // Emit ride.created event
     this.eventEmitter.emit('ride.created', {
       rideId: ride._id.toString(),
-      customerId: customerIdStr,
+      driverId: driverIdStr,
       pickupAddress: createRideDto.pickupAddress,
       dropoffAddress: createRideDto.dropoffAddress,
       totalFare: totalFare,
@@ -149,6 +194,190 @@ export class RidesService {
     }
 
     return ride;
+  }
+
+  /**
+   * Enrich ride with customer details for driver app
+   * Merges customer info with RideRequest data (coordinates, addresses, fare)
+   */
+  async getRideWithEnrichedCustomers(rideId: string, ride: any): Promise<any> {
+    return this.enrichRideWithCustomers(rideId, ride);
+  }
+
+  private async enrichRideWithCustomers(rideId: string, ride: any): Promise<any> {
+    // Get all ride requests with customer details
+    console.log('🔍 Searching RideRequests for rideId:', rideId, 'Type:', typeof rideId);
+    
+    let rideIdObj: Types.ObjectId;
+    try {
+      rideIdObj = new Types.ObjectId(rideId);
+      console.log('✅ Converted rideId to ObjectId:', rideIdObj.toString());
+    } catch (e) {
+      console.error('❌ Failed to convert rideId to ObjectId:', rideId, e);
+      rideIdObj = new Types.ObjectId(rideId);
+    }
+    
+    const requests = await this.rideRequestModel
+      .find({ rideId: rideIdObj })
+      .populate('customerId', 'name phone rating firstName lastName avatar')
+      .exec() as any[];
+
+    console.log('📋 RideRequests found:', requests.length);
+    console.log('🔎 Query used:', { rideId: rideIdObj.toString() });
+    if (requests.length > 0) {
+      console.log('📋 Sample RideRequest:', {
+        _id: requests[0]._id,
+        rideId: requests[0].rideId,
+        customerId: requests[0].customerId?._id,
+        pickupAddress: requests[0].pickupAddress,
+        dropoffAddress: requests[0].dropoffAddress,
+        pickupCoordinates: requests[0].pickupCoordinates,
+        status: requests[0].status,
+      });
+      console.log('📋 All RideRequests:', requests.map(r => ({
+        _id: r._id,
+        customerId: r.customerId?._id,
+        status: r.status,
+      })));
+    } else {
+      // If no requests found, log what we're looking for
+      console.log('⚠️ No RideRequests found for rideId:', rideIdObj.toString());
+      console.log('ℹ️ This is expected if customer hasn\'t submitted a request yet');
+    }
+
+    let enrichedCustomers = [];
+    
+    if (ride.customerId && ride.customerId.length > 0) {
+      // Check if customerId is already populated (contains objects)
+      const isPopulated = ride.customerId[0] && typeof ride.customerId[0] === 'object' && ride.customerId[0]._id;
+      
+      if (isPopulated) {
+        console.log('✅ Using populated customer data');
+        enrichedCustomers = (ride.customerId || []).map((customer: any) => {
+          console.log('🔍 Finding request for customer:', {
+            customerId: customer._id?.toString?.() || customer._id,
+            customerIdType: typeof customer._id,
+          });
+          
+          const customerRequest = requests.find(r => {
+            const rCustomerId = r.customerId?._id?.toString?.() || r.customerId?.toString?.() || r.customerId;
+            const cCustomerId = customer._id?.toString?.() || customer._id;
+            const match = rCustomerId === cCustomerId;
+            
+            if (!match) {
+              console.log('   Comparing:', {
+                requestCustomerId: rCustomerId,
+                customerCustomerId: cCustomerId,
+                match,
+              });
+            }
+            return match;
+          });
+          
+          console.log('🔗 Linking customer to request:', {
+            customerId: customer._id?.toString?.() || customer._id,
+            found: !!customerRequest,
+            requestId: customerRequest?._id?.toString?.() || customerRequest?._id,
+            status: customerRequest?.status,
+          });
+          
+          return {
+            _id: customer._id,
+            name: customer.name || customer.firstName || 'Khách hàng',
+            phone: customer.phone || '',
+            rating: customer.rating || 0,
+            firstName: customer.firstName || '',
+            lastName: customer.lastName || '',
+            avatar: customer.avatar || '',
+            pickupAddress: customerRequest?.pickupAddress || ride.pickupAddress || '',
+            dropoffAddress: customerRequest?.dropoffAddress || ride.dropoffAddress || '',
+            pickupCoordinates: customerRequest?.pickupCoordinates || ride.pickupLocation?.coordinates || [],
+            dropoffCoordinates: customerRequest?.dropoffCoordinates || ride.dropoffLocation?.coordinates || [],
+            distance: customerRequest?.distance || ride.distance || 0,
+            fare: customerRequest?.fare || ride.totalFare || 0,
+            status: customerRequest?.status || 'pending',
+            requestId: customerRequest?._id?.toString(),
+          };
+        });
+      } else {
+        // Populate didn't work, manually fetch customers
+        console.log('⚠️ Populate failed, manually fetching customers...');
+        const customerIds = ride.customerId as Types.ObjectId[];
+        
+        const customers = await this.rideModel.db.db.collection('customers').find({
+          _id: { $in: customerIds.map(id => typeof id === 'string' ? new Types.ObjectId(id) : id) }
+        }).toArray();
+        
+        console.log('👥 Manually fetched customers:', customers.length);
+        
+        enrichedCustomers = customers.map((customer: any) => {
+          const customerRequest = requests.find(r => 
+            r.customerId?._id?.toString() === customer._id?.toString()
+          );
+          
+          return {
+            _id: customer._id,
+            name: customer.name || customer.firstName || 'Khách hàng',
+            phone: customer.phone || '',
+            rating: customer.rating || 0,
+            firstName: customer.firstName || '',
+            lastName: customer.lastName || '',
+            avatar: customer.avatar || '',
+            pickupAddress: customerRequest?.pickupAddress || ride.pickupAddress || '',
+            dropoffAddress: customerRequest?.dropoffAddress || ride.dropoffAddress || '',
+            pickupCoordinates: customerRequest?.pickupCoordinates || ride.pickupLocation?.coordinates || [],
+            dropoffCoordinates: customerRequest?.dropoffCoordinates || ride.dropoffLocation?.coordinates || [],
+            distance: customerRequest?.distance || ride.distance || 0,
+            fare: customerRequest?.fare || ride.totalFare || 0,
+            status: customerRequest?.status || 'pending',
+            requestId: customerRequest?._id?.toString(),
+          };
+        });
+      }
+    }
+
+    console.log('✅ enrichedCustomers:', enrichedCustomers.length);
+    console.log('✅ enrichedCustomers detailed data:');
+    enrichedCustomers.forEach((c, idx) => {
+      console.log(`   [${idx}] ${c.name}:`, {
+        pickupCoordinates: c.pickupCoordinates,
+        dropoffCoordinates: c.dropoffCoordinates,
+        pickupAddress: c.pickupAddress,
+        dropoffAddress: c.dropoffAddress,
+        status: c.status,
+        requestId: c.requestId,
+      });
+    });
+
+    const plainRide = ride.toObject ? ride.toObject() : ride;
+    return {
+      ...plainRide,
+      customerId: enrichedCustomers,
+    };
+  }
+
+  async findByIdForDriver(id: string): Promise<any> {
+    // For driver app - get ride with populated customer details
+    console.log('🚗 findByIdForDriver called with id:', id);
+    
+    // Get ride with populated driver
+    const ride = await this.rideModel
+      .findById(id)
+      .populate('driverId')
+      .populate({
+        path: 'customerId',
+        model: 'Customer',
+        select: 'name phone rating firstName lastName avatar'
+      })
+      .exec();
+
+    console.log('📦 Ride found:', !!ride);
+
+    if (!ride) {
+      throw new NotFoundException(`Ride with ID ${id} not found`);
+    }
+
+    return this.enrichRideWithCustomers(id, ride);
   }
 
   async findByCustomerId(customerId: string): Promise<RideDocument[]> {
@@ -187,11 +416,115 @@ export class RidesService {
       },
     };
 
-    return this.rideModel
+    console.log('[RidesService] Finding nearby rides query:', JSON.stringify(query, null, 2));
+
+    const result = await this.rideModel
       .find(query)
       .populate('driverId')
       .populate('customerId')
       .limit(10);
+
+    console.log('[RidesService] Found', result.length, 'nearby rides');
+
+    return result;
+  }
+
+  /**
+   * Find share rides matching customer's pickup location with multi-level filtering
+   * Customer's pickup point must match driver's dropoff location
+   * Filters: Ward (xã/phường) → District (huyện/quận) → Province (tỉnh/thành phố)
+   * Also checks customer GPS distance must be within 10km of driver
+   */
+  async findShareRides(
+    customerLongitude: number,
+    customerLatitude: number,
+    customerPickupAddress: string,
+    maxGpsDistance: number = 10000, // 10km in meters
+  ): Promise<RideDocument[]> {
+    // Extract customer's location hierarchy
+    const customerLoc = extractLocationHierarchy(customerPickupAddress);
+
+    console.log('🔍 [findShareRides] Customer location extraction:', {
+      address: customerPickupAddress,
+      extracted: customerLoc,
+      gpsCoords: [customerLongitude, customerLatitude],
+      maxDistance: maxGpsDistance,
+    });
+
+    // Build query: PENDING SHARE rides
+    const query: any = {
+      status: RideStatus.PENDING,
+      rideType: RideType.SHARE,
+      // Customer location (within GPS range of driver's pickup)
+      pickupLocation: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [customerLongitude, customerLatitude],
+          },
+          $maxDistance: maxGpsDistance,
+        },
+      },
+    };
+
+    // Filter by location hierarchy (Ward → District → Province)
+    if (customerLoc.ward) {
+      // Khách hàng ở cùng xã/phường với điểm bắt đầu của tài xế
+      console.log('🔍 [findShareRides] Filtering by Ward:', customerLoc.ward);
+      query.pickupWard = customerLoc.ward;
+      query.pickupDistrict = customerLoc.district;
+      query.pickupProvince = customerLoc.province;
+    } else if (customerLoc.district) {
+      // Khách hàng ở cùng huyện/quận với điểm bắt đầu của tài xế
+      console.log('🔍 [findShareRides] Filtering by District:', customerLoc.district);
+      query.pickupDistrict = customerLoc.district;
+      query.pickupProvince = customerLoc.province;
+    } else if (customerLoc.province) {
+      // Khách hàng ở cùng tỉnh/thành phố với điểm bắt đầu của tài xế
+      console.log('🔍 [findShareRides] Filtering by Province:', customerLoc.province);
+      query.pickupProvince = customerLoc.province;
+    } else {
+      console.warn('⚠️ [findShareRides] Could not extract any location hierarchy from:', customerPickupAddress);
+    }
+
+    console.log('🔍 [findShareRides] MongoDB query:', {
+      status: query.status,
+      rideType: query.rideType,
+      pickupWard: query.pickupWard,
+      pickupDistrict: query.pickupDistrict,
+      pickupProvince: query.pickupProvince,
+      gpsNear: query.pickupLocation.$near,
+    });
+
+    const rides = await this.rideModel
+      .find(query)
+      .populate('driverId', 'name phone rating vehicleInfo')
+      .populate('customerId')
+      .limit(20)
+      .sort({ createdAt: -1 }); // Newest rides first
+
+    console.log('✅ [findShareRides] Found', rides.length, 'share rides matching location');
+    
+    if (rides.length > 0) {
+      console.log('📍 [findShareRides] First ride sample:', {
+        _id: rides[0]._id,
+        pickup: rides[0].pickupAddress,
+        pickupCoordinates: rides[0].pickupLocation?.coordinates,
+        dropoffCoordinates: rides[0].dropoffLocation?.coordinates,
+        pickupProvince: rides[0].pickupProvince,
+        pickupDistrict: rides[0].pickupDistrict,
+        pickupWard: rides[0].pickupWard,
+        driverId: rides[0].driverId,
+        customerId: rides[0].customerId,
+      });
+    }
+
+    // Transform rides to include coordinates in array format for mobile app
+    return rides.map(ride => ({
+      ...ride.toObject(),
+      pickupCoordinates: ride.pickupLocation?.coordinates || [0, 0],
+      dropoffCoordinates: ride.dropoffLocation?.coordinates || [0, 0],
+    })) as any;
   }
 
   async acceptRide(rideId: string, driverId: string): Promise<RideDocument> {

@@ -17,6 +17,9 @@ export interface User {
   preferredDriverGender?: string
 }
 
+// Import ride types
+export {  Driver, NearbyRide, RideRequest } from './ride'
+
 export interface AuthState {
   isLoading: boolean
   user: User | null
@@ -79,6 +82,8 @@ export type RootStackParamList = {
   RideBooking: { distance: number; duration: number; startLng: number; startLat: number; endLng: number; endLat: number; pickupAddress: string; dropoffAddress: string }
   RideTracking: { rideId: string }
   FindingRideScreen: undefined
+  FindRidesScreen: { pickupAddress?: string }
+  RideDetailRequest: { rideId: string; ride: NearbyRide }
   EditProfile: undefined
   ChangePassword: undefined
   PaymentMethods: undefined

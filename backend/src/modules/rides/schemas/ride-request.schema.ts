@@ -6,6 +6,9 @@ export enum RequestStatus {
   PENDING = 'pending',
   ACCEPTED = 'accepted',
   REJECTED = 'rejected',
+  ARRIVED_AT_PICKUP = 'arrived_at_pickup',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
 }
 
 @Schema({ timestamps: true })
@@ -13,7 +16,7 @@ export class RideRequest extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Ride', required: true })
   rideId: Types.ObjectId
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
   customerId: Types.ObjectId
 
   @Prop({ type: String, enum: RequestStatus, default: RequestStatus.PENDING })
@@ -39,6 +42,9 @@ export class RideRequest extends Document {
 
   @Prop({ type: String })
   dropoffAddress?: string
+
+  @Prop({ type: Number })
+  distance?: number
 
   @Prop({ type: Date, default: Date.now })
   createdAt: Date

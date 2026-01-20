@@ -436,14 +436,9 @@ export default function HomeScreen() {
         Alert.alert('Lỗi', 'Vui lòng nhập điểm đón')
         return
       }
-      
+
       if (!dropoffLocation.trim()) {
         Alert.alert('Lỗi', 'Vui lòng nhập điểm đến')
-        return
-      }
-
-      if (!routeInfo) {
-        Alert.alert('Lỗi', 'Vui lòng chọn đầy đủ vị trí')
         return
       }
 
@@ -490,7 +485,7 @@ export default function HomeScreen() {
         dropoffAddress: dropoffLocation,
       })
 
-      // Navigate to RideBookingScreen with calculated route info
+      // Navigate to RideBookingScreen
       navigation.navigate('RideBooking', {
         distance: routeInfo.distance,
         duration: routeInfo.duration,
@@ -1010,6 +1005,23 @@ export default function HomeScreen() {
             </>
           )}
         </TouchableOpacity>
+
+        {/* Browse Nearby Rides Button */}
+        {/* <TouchableOpacity 
+          style={[styles.findButton, { backgroundColor: '#4CAF50', marginTop: SPACING.md }]}
+          onPress={() => navigation.navigate('FindRidesScreen')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.findButtonText}>
+            Duyệt chuyến xe gần đây
+          </Text>
+          <MaterialIcons
+            name="search"
+            size={20}
+            color="#fff"
+            style={styles.findButtonIcon}
+          />
+        </TouchableOpacity> */}
       </ScrollView>
     </SafeAreaView>
   )

@@ -198,7 +198,7 @@ export class PlacesService {
    */
   async getPlaceDetails(
     placeId: string
-  ): Promise<PlaceResult | null> {
+  ): Promise<PlaceResult> {
     try {
       // Check database first
       const dbPlace = await this.placeModel.findOne(
@@ -218,8 +218,21 @@ export class PlacesService {
       }
 
       // Fetch from Google
+      console.log('📡 Fetching place details from Google API for:', placeId);
       const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${this.googleMapsApiKey}`;
       const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.error('❌ Google API error:', response.status);
+        return {
+          placeId,
+          name: '',
+          address: '',
+          lat: 0,
+          lng: 0,
+        };
+      }
+
       const data = (await response.json()) as GoogleDetailsResponse;
 
       if (data.status === 'OK' && data.result?.geometry?.location) {
@@ -249,10 +262,23 @@ export class PlacesService {
         };
       }
 
-      return null;
+      console.warn('⚠️ Invalid Google API response for placeId:', placeId);
+      return {
+        placeId,
+        name: '',
+        address: '',
+        lat: 0,
+        lng: 0,
+      };
     } catch (error) {
-      console.error('Place details error:', error);
-      return null;
+      console.error('❌ Place details error:', error);
+      return {
+        placeId,
+        name: '',
+        address: '',
+        lat: 0,
+        lng: 0,
+      };
     }
   }
 

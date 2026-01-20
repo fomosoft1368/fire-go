@@ -122,44 +122,30 @@ const RideBookingScreen = ({ navigation }: any) => {
       }
 
       setBookingLoading(true)
-      const customerId = await authService.getUserId()
 
-      if (!customerId) {
-        setErrorMessage('User ID not found')
-        setBookingLoading(false)
-        return
-      }
-
-      const rideData: CreateRideDto = {
+      console.log('[RideBookingScreen] Navigating to FindingRideScreen with params:', {
         pickupAddress,
         dropoffAddress,
-        pickupCoordinates: [startLng, startLat] as [number, number],
-        dropoffCoordinates: [endLng, endLat] as [number, number],
         distance,
         duration,
-        baseFare: fare.baseFare || 0,
-        distanceFare: fare.distanceFare || 0,
-        timeFare: fare.timeFare || 0,
-        vehicleType: selectedVehicleType,
-        rideType: 'share' as const,
-      }
+        startLng,
+        startLat,
+      })
 
-      console.log('[RideBookingScreen] Creating ride with data:', rideData)
+      // Navigate to FindingRideScreen to see available rides
+      navigation.replace('FindingRideScreen', {
+        pickupAddress,
+        dropoffAddress,
+        distance,
+        duration,
+        startLng,
+        startLat,
+      })
 
-      const result = await rideService.createRide(rideData, customerId)
-
-      if (result && result._id) {
-        // Navigate to ride tracking screen
-        console.log('[RideBookingScreen] Ride created, navigating to FindingRideScreen')
-        navigation.replace('FindingRideScreen', { rideId: result._id })
-      } else {
-        setErrorMessage('Ride creation failed - no result')
-        console.error('[RideBookingScreen] No result from createRide')
-      }
+      setBookingLoading(false)
     } catch (error: any) {
-      console.error('[RideBookingScreen] Book ride error:', error)
-      setErrorMessage(error.message || 'Failed to book ride')
-    } finally {
+      console.error('[RideBookingScreen] Navigation error:', error)
+      setErrorMessage(error.message || 'Failed to navigate')
       setBookingLoading(false)
     }
   }

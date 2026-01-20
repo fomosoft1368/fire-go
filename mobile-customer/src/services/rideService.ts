@@ -193,41 +193,6 @@ export const rideService = {
   },
 
   /**
-   * Tìm cuốc xe ghép gần vị trí hiện tại
-   */
-  async findNearbyRides(longitude: number, latitude: number, maxDistance?: number) {
-    try {
-      const params = new URLSearchParams({
-        longitude: longitude.toString(),
-        latitude: latitude.toString(),
-      })
-      
-      if (maxDistance) {
-        params.append('maxDistance', maxDistance.toString())
-      }
-
-      const response = await fetch(`${API_BASE_URL}/rides/nearby?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Failed to find nearby rides')
-      }
-
-      console.log('[RideService] Found nearby rides:', result)
-      return result
-    } catch (error: any) {
-      console.error('[RideService] Find nearby rides error:', error)
-      throw error
-    }
-  },
-
-  /**
    * Chấp nhận cuốc xe (tìm thấy khách hàng phù hợp)
    */
   async acceptRide(rideId: string, driverId: string) {
@@ -678,6 +643,229 @@ export const rideService = {
       return result
     } catch (error: any) {
       console.error('[RideService] Get pricing error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Tìm chuyến xe gần vị trí hiện tại
+   */
+  async findNearbyRides(longitude: number, latitude: number, maxDistance: number = 5000) {
+    try {
+      const params = new URLSearchParams({
+        longitude: longitude.toString(),
+        latitude: latitude.toString(),
+        maxDistance: maxDistance.toString(),
+        rideType: 'share',
+      })
+
+      const url = `${API_BASE_URL}/rides/nearby?${params}`
+      console.log('[RideService] Finding nearby rides:', { longitude, latitude, maxDistance, url })
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      console.log('[RideService] Response status:', response.status, response.statusText)
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Find nearby rides failed:', { 
+          status: response.status,
+          message: result.message,
+          result 
+        })
+        throw new Error(result.message || `Failed to find nearby rides (${response.status})`)
+      }
+
+      const ridesArray = Array.isArray(result) ? result : (result.data || [])
+      console.log('[RideService] Found rides:', ridesArray.length, 'rides')
+      if (ridesArray.length > 0) {
+        console.log('[RideService] First ride sample:', {
+          _id: ridesArray[0]._id,
+          status: ridesArray[0].status,
+          rideType: ridesArray[0].rideType,
+          pickup: ridesArray[0].pickupAddress,
+        })
+      }
+      return ridesArray
+    } catch (error: any) {
+      console.error('[RideService] Find nearby rides error:', error.message)
+      throw error
+    }
+  },
+
+  /**
+   * Tìm chuyến ghép xe với lọc theo vị trí (tỉnh/huyện/phường)
+   * Điểm đón của khách hàng phải khớp với điểm bắt đầu của tài xế
+   */
+  async findShareRides(
+    longitude: number,
+    latitude: number,
+    pickupAddress: string,
+    maxDistance: number = 10000
+  ) {
+    try {
+      const params = new URLSearchParams({
+        longitude: longitude.toString(),
+        latitude: latitude.toString(),
+        pickupAddress: pickupAddress,
+        maxDistance: maxDistance.toString(),
+      })
+
+      const url = `${API_BASE_URL}/rides/share/search?${params}`
+      console.log('[RideService] Finding share rides with location filtering:', {
+        longitude,
+        latitude,
+        pickupAddress,
+        maxDistance,
+        url
+      })
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      console.log('[RideService] Share ride search response status:', response.status)
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Find share rides failed:', {
+          status: response.status,
+          message: result.message,
+          result
+        })
+        throw new Error(result.message || `Failed to find share rides (${response.status})`)
+      }
+
+      const ridesArray = Array.isArray(result) ? result : (result.data || [])
+      console.log('✅ [RideService] Found share rides:', ridesArray.length, 'rides')
+      if (ridesArray.length > 0) {
+        console.log('[RideService] First ride sample:', {
+          _id: ridesArray[0]._id,
+          status: ridesArray[0].status,
+          rideType: ridesArray[0].rideType,
+          pickup: ridesArray[0].pickupAddress,
+          pickupProvince: ridesArray[0].pickupProvince,
+          pickupDistrict: ridesArray[0].pickupDistrict,
+          pickupWard: ridesArray[0].pickupWard,
+        })
+      }
+      return ridesArray
+    } catch (error: any) {
+      console.error('[RideService] Find share rides error:', error.message)
+      throw error
+    }
+  },
+
+  /**
+   * Gửi yêu cầu tham gia chuyến
+   */
+  async createRideRequest(
+    rideId: string,
+    customerId: string,
+    pickupAddress: string,
+    dropoffAddress: string,
+    pickupCoordinates: [number, number],
+    dropoffCoordinates: [number, number],
+    distance: number,
+    fare: number,
+    seats: number = 1
+  ) {
+    try {
+      console.log('[RideService] Creating ride request for ride:', rideId)
+
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}/requests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId,
+          seats,
+          fare,
+          pickupAddress,
+          dropoffAddress,
+          pickupCoordinates,
+          dropoffCoordinates,
+          distance,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Create request failed:', result)
+        throw new Error(result.message || 'Failed to create request')
+      }
+
+      console.log('[RideService] Request created:', result._id)
+      return result
+    } catch (error: any) {
+      console.error('[RideService] Create request error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Lấy chi tiết chuyến xe
+   */
+  async getRideDetail(rideId: string) {
+    try {
+      console.log('[RideService] Getting ride detail:', rideId)
+
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[RideService] Get ride detail failed:', result)
+        throw new Error(result.message || 'Failed to get ride detail')
+      }
+
+      return result
+    } catch (error: any) {
+      console.error('[RideService] Get ride detail error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Theo dõi trạng thái yêu cầu từ tài xế
+   */
+  async getRideRequestStatus(rideId: string, requestId: string) {
+    try {
+      console.log('[RideService] Getting request status:', { rideId, requestId })
+
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}/requests/${requestId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to get request status')
+      }
+
+      return result
+    } catch (error: any) {
+      console.error('[RideService] Get request status error:', error)
       throw error
     }
   },

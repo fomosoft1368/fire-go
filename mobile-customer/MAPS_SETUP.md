@@ -19,13 +19,13 @@ Thêm Google Maps API key vào file `app.json`:
     "android": {
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyDhotUKj8pth1cdRwUu3rgN7xn5t-P2y8A"
+          "apiKey": ""
         }
       }
     },
     "ios": {
       "config": {
-        "googleMapsApiKey": "AIzaSyDhotUKj8pth1cdRwUu3rgN7xn5t-P2y8A"
+        "googleMapsApiKey": ""
       }
     }
   }

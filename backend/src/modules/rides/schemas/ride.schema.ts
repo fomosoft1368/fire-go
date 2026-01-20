@@ -35,8 +35,8 @@ export enum RideType {
 
 @Schema({ timestamps: true })
 export class Ride {
-  @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
-  customerId: Types.ObjectId;
+  @Prop({ type: [Types.ObjectId], ref: 'Customer', default: [] })
+  customerId: Types.ObjectId[];
 
   @Prop({ type: Types.ObjectId, ref: 'Driver' })
   driverId?: Types.ObjectId;
@@ -68,6 +68,16 @@ export class Ride {
     coordinates: [number, number]; // [longitude, latitude]
   };
 
+  // Pickup location hierarchy for multi-level filtering
+  @Prop()
+  pickupProvince?: string; // Tỉnh/Thành phố
+
+  @Prop()
+  pickupDistrict?: string; // Huyện/Quận
+
+  @Prop()
+  pickupWard?: string; // Xã/Phường
+
   // Dropoff location
   @Prop({ required: true })
   dropoffAddress: string;
@@ -80,6 +90,16 @@ export class Ride {
     type: string;
     coordinates: [number, number];
   };
+
+  // Dropoff location hierarchy for multi-level filtering
+  @Prop()
+  dropoffProvince?: string; // Tỉnh/Thành phố
+
+  @Prop()
+  dropoffDistrict?: string; // Huyện/Quận
+
+  @Prop()
+  dropoffWard?: string; // Xã/Phường
 
   // Distance and duration
   @Prop({ required: true })
@@ -119,6 +139,9 @@ export class Ride {
   paidAt?: Date;
 
   // Ride details
+  @Prop({ default: 4 })
+  totalSeats: number;
+
   @Prop({ default: 1 })
   passengers: number;
 

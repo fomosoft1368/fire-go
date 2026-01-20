@@ -234,7 +234,7 @@ function RequestCard({
           </View>
           <View style={styles.customerDetails}>
             <Text style={styles.customerName}>
-              {request.customerId.name}
+              {request.customerId?.name || request.customerId?.firstName || 'Khách hàng'}
             </Text>
             <View style={styles.rideTypeRow}>
               <View style={styles.badgeType}>
