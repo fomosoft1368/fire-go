@@ -256,7 +256,7 @@ export default function LoginScreen() {
               <>
                 {loginStep === 1 && (
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Email hoặc Số điện thoại</Text>
+                    <Text style={styles.label}>Số điện thoại / Email</Text>
                     <View style={styles.inputWrapper}>
                       <MaterialIcons
                         name="person"
@@ -562,7 +562,7 @@ export default function LoginScreen() {
                     <MaterialIcons
                       name="fingerprint"
                       size={36}
-                      color="#FF6B00"
+                      color="#E65100"
                     />
                   </View>
                   <Text style={styles.biometricText}>Đăng nhập nhanh</Text>
@@ -676,7 +676,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.lg,
   },
   tabActive: {
-    backgroundColor: '#fff',
+    backgroundColor: '#120C0A',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

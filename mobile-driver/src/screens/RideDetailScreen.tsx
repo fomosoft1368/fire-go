@@ -336,11 +336,17 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     if (updating) return
     setUpdating(true)
     try {
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+
       console.log('📤 Arrived at pickup:', rideId)
       const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}/start`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
       })
 
@@ -364,11 +370,17 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     if (updating) return
     setUpdating(true)
     try {
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+
       console.log('📤 Starting ride:', rideId)
       const response = await fetch(`http://10.0.2.2:3000/api/rides/${rideId}/complete`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
       })
 

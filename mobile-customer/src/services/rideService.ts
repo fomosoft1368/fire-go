@@ -113,12 +113,19 @@ export const rideService = {
         throw new Error('License plate is required for hire rides')
       }
 
+      // Lấy token từ AsyncStorage
+      const token = await AsyncStorage.getItem('authToken')
+      if (!token) {
+        throw new Error('Authentication required. Please login again.')
+      }
+
       console.log('[RideService] Creating ride:', { customerId, data })
 
-      const response = await fetch(`${API_BASE_URL}/rides?customerId=${customerId}`, {
+      const response = await fetch(`${API_BASE_URL}/rides`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(data),
       })
@@ -145,11 +152,17 @@ export const rideService = {
     try {
       console.log('[RideService] Auto-assigning driver for ride:', rideId)
 
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}/auto-assign`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       })
 
       const result = await response.json()
@@ -172,11 +185,17 @@ export const rideService = {
    */
   async getCustomerRides(customerId: string) {
     try {
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_BASE_URL}/rides/customer/${customerId}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       })
 
       const result = await response.json()
@@ -232,11 +251,17 @@ export const rideService = {
    */
   async acceptRide(rideId: string, driverId: string) {
     try {
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}/accept`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ driverId }),
       })
 
@@ -258,11 +283,17 @@ export const rideService = {
    */
   async startRide(rideId: string) {
     try {
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}/start`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       })
 
       const result = await response.json()
@@ -283,11 +314,17 @@ export const rideService = {
    */
   async completeRide(rideId: string) {
     try {
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}/complete`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       })
 
       const result = await response.json()
@@ -308,11 +345,17 @@ export const rideService = {
    */
   async cancelRide(rideId: string, cancellationBy: 'driver' | 'customer', reason?: string) {
     try {
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}/cancel`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ cancellationBy, reason }),
       })
 
@@ -334,11 +377,17 @@ export const rideService = {
    */
   async rateRide(rideId: string, rating: number, review?: string, ratedBy?: 'driver' | 'customer') {
     try {
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}/rate`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ rating, review, ratedBy }),
       })
 

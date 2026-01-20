@@ -230,8 +230,8 @@ const MapViewComponent = ({
             {/* Đường chính */}
             <Polyline
               coordinates={routeCoordinates}
-              strokeColor="#8b5cf6"
-              strokeWidth={5}
+              strokeColor="#f97316"
+              strokeWidth={9}
               lineJoin="round"
               lineCap="round"
             />
@@ -246,7 +246,7 @@ const MapViewComponent = ({
           >
             <View style={styles.pickupMarker}>
               <View style={styles.markerInner}>
-                <MaterialIcons name="radio-button-checked" size={20} color="#FF6B00" />
+                <MaterialIcons name="radio-button-checked" size={24} color="#FF6B00" />
               </View>
             </View>
           </Marker>
@@ -261,7 +261,7 @@ const MapViewComponent = ({
           >
             <View style={styles.dropoffMarker}>
               <View style={styles.markerInner}>
-                <MaterialIcons name="location-on" size={20} color="#ef4444" />
+                <MaterialIcons name="flag" size={24} color="#ef4444" />
               </View>
             </View>
           </Marker>
@@ -452,26 +452,16 @@ const styles = StyleSheet.create({
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 25,
-    backgroundColor: '#fff',
-    borderWidth: 3,
-    borderColor: '#FF6B00',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
   },
   dropoffMarker: {
-    width: 50,
+        width: 50,
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 25,
-    backgroundColor: '#fff',
-    borderWidth: 3,
-    borderColor: '#ef4444',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

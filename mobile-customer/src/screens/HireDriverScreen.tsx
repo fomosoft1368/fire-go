@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { RootState } from '../redux/store'
 import type { RootStackParamList } from '../types'
 import { rideService } from '../services/rideService'
@@ -26,7 +27,7 @@ import MapViewComponent from '../components/MapView'
 import ScheduleDateTimeModal from '../components/ScheduleDateTimeModal'
 import ChatScreen from './ChatScreen'
 import DriverFoundScreen from './DriverFoundScreen'
-import FindingDriverOverlay from '../components/FindingDriverOverlay'
+import FindingDriverScreen from './FindingDriverScreen'
 interface HireDriverScreenProps {
   isScheduled: boolean
   setIsScheduled: (value: boolean) => void
@@ -215,86 +216,80 @@ export default function HireDriverScreen({
     })
   }
 
-  // Polling để lấy thông tin tài xế khi có tài xế nhận cuốc
+  // Polling để lấy thông tin tài xế khi driver nhận cuốc
   useEffect(() => {
     if (!isSearching || !rideId) {
       return
     }
 
-    console.log('[HireDriverScreen] Polling ride data for rideId:', rideId)
+    console.log('[HireDriverScreen] 🔄 Starting polling for rideId:', rideId)
 
-    // Lấy thông tin cuốc xe mỗi 2 giây
     const pollInterval = setInterval(async () => {
       try {
-        const rideData = await rideService.getRideById(rideId)
-        console.log('[HireDriverScreen] Ride data:', rideData)
-        console.log('[HireDriverScreen] Ride data type:', typeof rideData)
-        console.log('[HireDriverScreen] Has driverId:', rideData?.driverId)
+        const token = await AsyncStorage.getItem('token')
+        const rideData = await rideService.getRideById(rideId, token || undefined)
+        
+        console.log('[HireDriverScreen] 📊 Polling result:', {
+          hasDriverId: !!rideData?.driverId,
+          driverType: typeof rideData?.driverId,
+        })
 
-        // Kiểm tra rideData hợp lệ trước
         if (!rideData || typeof rideData !== 'object') {
-          console.warn('[HireDriverScreen] Invalid rideData:', rideData)
           return
         }
 
-        // Nếu tài xế đã nhận cuốc (có driverId)
-        if (rideData.driverId) {
-          const driverData = rideData.driverId
-
-          // Kiểm tra driverData hợp lệ
-          if (!driverData || !driverData._id) {
-            console.warn('[HireDriverScreen] Invalid driver data:', driverData)
-            return
+        const driverData = rideData.driverId
+        
+        if (driverData && typeof driverData === 'object' && driverData._id) {
+          console.log('[HireDriverScreen] ✅ Driver found!', driverData._id)
+          
+          // Extract driver location
+          let driverLat = 21.0285 // Default Hanoi
+          let driverLng = 105.8542
+          if (driverData.currentLocation?.coordinates) {
+            driverLat = driverData.currentLocation.coordinates[1]
+            driverLng = driverData.currentLocation.coordinates[0]
+            console.log('[HireDriverScreen] 📍 Driver location:', { lat: driverLat, lng: driverLng })
           }
-
-          console.log('[HireDriverScreen] Driver found:', driverData._id)
-
-          // Map dữ liệu từ API sang format UI
+          
           setDriver({
             id: driverData._id,
-            name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim(),
+            name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim() || 'Tài xế',
             avatar: `https://i.pravatar.cc/150?u=${driverData._id}`,
-            rating: driverData.rating || 4.8, // Default nếu API chưa có
+            rating: driverData.averageRating || 4.8,
             totalRides: driverData.totalRides || 0,
             carType: 'Sedan',
-            licensePlate: driverData.vehicleInfo?.licensePlate || driverData.vehiclePlate || '---',
-            carColor: driverData.vehicleInfo?.color || 'Trắng',
-            distance: 1.2, // Sẽ tính từ Google Maps sau
-            eta: 3, // Tính từ distance
+            licensePlate: driverData.vehiclePlate || '---',
+            carColor: driverData.vehicleColor || 'Trắng',
+            distance: 1.2,
+            eta: 3,
             phone: driverData.phone || '',
             email: driverData.email || '',
+            currentLat: driverLat,
+            currentLng: driverLng,
           })
 
-          // Lấy vị trí tài xế nếu có
-          if (driverData.currentLocation && driverData.currentLocation.coordinates) {
+          if (driverData.currentLocation?.coordinates) {
             setDriverLocation({
-              latitude: driverData.currentLocation.coordinates[1],
-              longitude: driverData.currentLocation.coordinates[0],
-            })
-          } else {
-            // Default vị trí Hà Nội
-            setDriverLocation({
-              latitude: 21.0285,
-              longitude: 105.8542,
+              latitude: driverLat,
+              longitude: driverLng,
             })
           }
 
+          // Update states to show DriverFoundScreen
           setDriverFound(true)
-          setIsSearching(false)
+          setIsSearching(false) // Stop showing FindingDriverScreen
+          
           clearInterval(pollInterval)
-        } else {
-          console.log('[HireDriverScreen] Waiting for driver to accept... driverId:', rideData.driverId)
         }
       } catch (error) {
-        console.error('[HireDriverScreen] Polling error:', error)
-        console.error('[HireDriverScreen] Error details:', (error as any).message || error)
-        // Tiếp tục polling nếu lỗi
+        console.error('[HireDriverScreen] ❌ Polling error:', error)
       }
-    }, 2000) // 2 giây
+    }, 2000)
 
-    // Cleanup khi component unmount hoặc stop searching
     return () => clearInterval(pollInterval)
   }, [isSearching, rideId])
+
 
   useEffect(() => {
     // Không tính lại nếu đang tìm tài xế hoặc tài xế đã được tìm thấy
@@ -417,7 +412,16 @@ export default function HireDriverScreen({
       }
 
       console.log('[HireDriverScreen] Creating ride with data:', rideData)
-      await rideService.createRide(rideData, user.id)
+      const result = await rideService.createRide(rideData, user.id)
+
+      // Save rideId for polling
+      const createdRideId = result._id || result.id
+      if (createdRideId) {
+        console.log('[HireDriverScreen] ✅ Ride created with ID:', createdRideId)
+        setRideId(createdRideId)
+      } else {
+        console.error('[HireDriverScreen] ⚠️ No ride ID returned from createRide!')
+      }
 
       Alert.alert(
         'Thành công',
@@ -447,7 +451,7 @@ export default function HireDriverScreen({
   }
 
   // Show driver found screen
-  if (driverFound && routeInfo && driver && driverLocation) {
+  if (driverFound && routeInfo && driver) {
     return (
       <DriverFoundScreen
         driver={driver}
@@ -461,107 +465,11 @@ export default function HireDriverScreen({
   // Show finding driver screen
   if (isSearching && routeInfo) {
     return (
-      <View style={[styles.findingContainer, { backgroundColor: colors.bg }]}>
-        {/* Full Screen Map */}
-        <MapViewComponent
-          height={undefined}
-          initialRegion={{
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }}
-          markers={[]}
-          pickupCoords={{
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
-          }}
-          dropoffCoords={{
-            latitude: routeInfo.dropoff.coordinates.latitude,
-            longitude: routeInfo.dropoff.coordinates.longitude,
-          }}
-          routeCoordinates={routeInfo.routeCoordinates || []}
-          onLocationSelect={() => { }}
-        />
-        <FindingDriverOverlay onCancel={resetRideState} />
-
-        {/* Professional Finding Driver Status Card */}
-        <View style={[styles.professionalStatusCard, { backgroundColor: colors.bgSecondary, borderTopColor: colors.border }]}>
-          {/* Animated Radar Background */}
-          {/* <View style={styles.radarBackground}>
-            <View style={[styles.radarPulseRing, styles.radarRing1]} />
-            <View style={[styles.radarPulseRing, styles.radarRing2]} />
-            <View style={[styles.radarPulseRing, styles.radarRing3]} />
-            <View style={styles.radarCenter} />
-          </View> */}
-
-          {/* Status Content */}
-          <View style={styles.statusContentWrapper}>
-            {/* Header */}
-            <View style={styles.statusHeader}>
-              <View>
-                <Text style={[styles.statusTitleLarge, { color: colors.text }]}>Tìm tài xế cho bạn</Text>
-                <Text style={[styles.statusSubtitle, { color: colors.textSecondary }]}>Đang tìm kiếm trong vùng…</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.minimizeButton}
-                onPress={resetRideState}
-              >
-                <MaterialIcons name="close" size={18} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Info Grid */}
-            <View style={styles.infoGrid}>
-              <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
-                <View style={styles.infoIcon}>
-                  <MaterialIcons name="schedule" size={20} color="#FF6B00" />
-                </View>
-                <View style={styles.infoText}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Thời gian chờ</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>~2 phút</Text>
-                </View>
-              </View>
-
-              <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
-                <View style={styles.infoIcon}>
-                  <MaterialIcons name="directions" size={20} color="#4caf50" />
-                </View>
-                <View style={styles.infoText}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Bán kính tìm</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>2 km</Text>
-                </View>
-              </View>
-
-              <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
-                <View style={styles.infoIcon}>
-                  <MaterialIcons name="person" size={20} color="#8b5cf6" />
-                </View>
-                <View style={styles.infoText}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Tài xế sẵn có</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>12+</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Progress Bar */}
-            <View style={styles.progressSection}>
-              <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-                <View style={[styles.progressFill, { backgroundColor: '#FF6B00' }]} />
-              </View>
-            </View>
-          </View>
-
-          {/* Cancel Button */}
-          <TouchableOpacity
-            style={[styles.cancelButtonLarge, { borderColor: colors.border }]}
-            onPress={resetRideState}
-          >
-            <MaterialIcons name="close" size={20} color="#ef4444" />
-            <Text style={styles.cancelButtonLargeText}>Hủy chuyến</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <FindingDriverScreen
+        routeInfo={routeInfo}
+        colors={colors}
+        onCancel={resetRideState}
+      />
     )
   }
 
@@ -1120,77 +1028,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
-  findingContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: 0,
-  },
-  radarContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    marginLeft: -50,
-    marginTop: -50,
-    width: 100,
-    height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radarPulse: {
-    position: 'absolute',
-    borderWidth: 2,
-    borderRadius: 999,
-  },
-  radarCenter: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#FF6B00',
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  statusCard: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderTopWidth: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xl,
-    gap: SPACING.lg,
-  },
-  statusContent: {
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  statusIcon: {
-    fontSize: 40,
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  cancelButton: {
-    height: 56,
-    backgroundColor: '#ef4444',
-    borderRadius: BORDER_RADIUS.lg,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
-  },
   container: {
     flex: 1,
     paddingTop: SPACING.xxl,
@@ -1496,129 +1333,6 @@ const styles = StyleSheet.create({
   },
   findButtonIcon: {
     marginLeft: SPACING.sm,
-  },
-  // ============ Professional Finding Driver Styles ============
-  professionalStatusCard: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    paddingBottom: SPACING.xl,
-    gap: SPACING.lg,
-  },
-  radarBackground: {
-    height: 140,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    backgroundColor: 'rgba(255, 107, 0, 0.03)',
-    borderBottomWidth: 1,
-  },
-  radarPulseRing: {
-    position: 'absolute',
-    borderWidth: 2,
-    borderRadius: 999,
-    borderColor: 'rgba(255, 107, 0, 0.4)',
-  },
-  radarRing1: {
-    width: 80,
-    height: 80,
-  },
-  radarRing2: {
-    width: 120,
-    height: 120,
-  },
-  radarRing3: {
-    width: 160,
-    height: 160,
-  },
-  statusContentWrapper: {
-    paddingHorizontal: SPACING.lg,
-    gap: SPACING.lg,
-  },
-  statusHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  statusTitleLarge: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: SPACING.xs,
-  },
-  statusSubtitle: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  minimizeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  infoGrid: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  infoCard: {
-    flex: 1,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 0, 0.1)',
-  },
-  infoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  infoText: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginBottom: SPACING.xs,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  progressSection: {
-    gap: SPACING.sm,
-  },
-  progressBar: {
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    width: '60%',
-    borderRadius: 3,
-  },
-  cancelButtonLarge: {
-    marginHorizontal: SPACING.lg,
-    height: 56,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    backgroundColor: 'rgba(239, 68, 68, 0.05)',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  cancelButtonLargeText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#ef4444',
   },
   mapWrapper: {
     position: 'relative',
