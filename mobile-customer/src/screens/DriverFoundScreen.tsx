@@ -131,33 +131,14 @@ export default function DriverFoundScreen({
     }
   }
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onCancel}>
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Theo dõi chuyến đi</Text>
-        <TouchableOpacity>
-          <Text style={styles.helpText}>Trợ giúp</Text>
-        </TouchableOpacity>
-      </View>
-
-      {loading || !driver || !routeInfo ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF6B00" />
-          <Text style={styles.loadingText}>Đang tải thông tin...</Text>
-        </View>
-      ) : (
-        <ScrollView 
-          style={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-
-      {/* Map Container */}
-      <View style={styles.mapContainer}>
+    <View
+      style={styles.foundContainer}
+      // showsVerticalScrollIndicator={false}
+    >
+      <View style={StyleSheet.absoluteFillObject}>
+        {/* Map Container */}
         <MapViewComponent
-          height={500}
+          height={'100%'}
           initialRegion={{
             latitude: routeInfo.pickup.coordinates.latitude,
             longitude: routeInfo.pickup.coordinates.longitude,
@@ -173,96 +154,117 @@ export default function DriverFoundScreen({
             latitude: routeInfo.dropoff.coordinates.latitude,
             longitude: routeInfo.dropoff.coordinates.longitude,
           }}
+          drivers={
+            driver?.currentLat && driver?.currentLng
+              ? [
+                {
+                  id: driver.id,
+                  latitude: driver.currentLat,
+                  longitude: driver.currentLng,
+                  name: driver.name,
+                  rating: driver.rating,
+                  vehicle: driver.licensePlate,
+                },
+              ]
+              : []
+          }
           routeCoordinates={routeInfo?.routeCoordinates || []}
-          onLocationSelect={() => {}}
+          onLocationSelect={() => { }}
         />
-
-        {/* Status Badge Overlay */}
-        <View style={styles.statusBadgeOverlay}>
-          <MaterialIcons name="location-on" size={16} color="#FF6B00" />
-          <Text style={styles.statusBadgeText}>Tài xế đang đến • {driver.eta} phút</Text>
-        </View>
       </View>
-
-      {/* Driver Info Card */}
-      <View style={styles.driverInfoCard}>
-        <View style={styles.driverCardLeft}>
-          <View style={styles.driverCardAvatar}>
-            <Text style={styles.driverCardAvatarText}>👤</Text>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onCancel}>
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Theo dõi chuyến đi</Text>
+        <TouchableOpacity>
+          <Text style={styles.helpText}>Trợ giúp</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.professionalStatusCard}>
+        {/* Driver Info Card */}
+        <View style={styles.statusContentWrapper}>
+          <View style={styles.driverCardLeft}>
+            <View style={styles.driverCardAvatar}>
+              <Text style={styles.driverCardAvatarText}>👤</Text>
+            </View>
+            <View style={styles.driverCardInfo}>
+              <Text style={styles.driverCardName}>{driver.name}</Text>
+              <Text style={styles.driverCardSubInfo}>{driver.carType} • {driver.licensePlate}</Text>
+              <View style={styles.driverCardRating}>
+                <MaterialIcons name="star" size={14} color="#FFB800" />
+                <Text style={styles.driverCardRatingValue}>{driver.rating}</Text>
+                <Text style={styles.driverCardRideCount}>• {driver.totalRides} chuyến</Text>
+              </View>
+            </View>
           </View>
-          <View style={styles.driverCardInfo}>
-            <Text style={styles.driverCardName}>{driver.name}</Text>
-            <Text style={styles.driverCardSubInfo}>{driver.carType} • {driver.licensePlate}</Text>
-            <View style={styles.driverCardRating}>
-              <MaterialIcons name="star" size={14} color="#FFB800" />
-              <Text style={styles.driverCardRatingValue}>{driver.rating}</Text>
-              <Text style={styles.driverCardRideCount}>• {driver.totalRides} chuyến</Text>
+          <View style={styles.driverCardActions}>
+            <TouchableOpacity
+              style={styles.driverCardCallButton}>
+              <MaterialIcons name="call" size={20} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.driverCardChatButton}
+              onPress={onChat}
+            >
+              <MaterialIcons name="chat-bubble" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Route Info */}
+        <View style={styles.routeInfoContainer}>
+          <View style={styles.routePointItem}>
+            <View style={styles.routePointIcon}>
+              <MaterialIcons name="location-on" size={18} color="#FF6B00" />
+            </View>
+            <View style={styles.routePointText}>
+              <Text style={styles.routePointLabel}>ĐIỂM ĐÓN</Text>
+              <Text style={styles.routePointAddress}>{routeInfo.pickup.address}</Text>
+              <Text style={styles.routePointTime}>Ngay</Text>
+            </View>
+          </View>
+
+          <View style={styles.routeConnector} />
+
+          <View style={styles.routePointItem}>
+            <View style={[styles.routePointIcon, { backgroundColor: '#ef4444' }]}>
+              <MaterialIcons name="location-on" size={18} color="#fff" />
+            </View>
+            <View style={styles.routePointText}>
+              <Text style={styles.routePointLabel}>ĐIỂM ĐẾN</Text>
+              <Text style={styles.routePointAddress}>{routeInfo.dropoff.address}</Text>
+              <Text style={styles.routePointTime}>{driver.eta} phút (Dự kiến)</Text>
             </View>
           </View>
         </View>
-        <View style={styles.driverCardActions}>
-          <TouchableOpacity 
-            style={styles.driverCardCallButton}>
-            <MaterialIcons name="call" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.driverCardChatButton}
-            onPress={onChat}
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={onCancel}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <MaterialIcons name="chat-bubble" size={20} color="#fff" />
+            <MaterialIcons name="close" size={20} color="#fff" />
+            <Text style={styles.cancelButtonText}>Hủy</Text>
           </TouchableOpacity>
         </View>
+        {/* Status Badge Overlay */}
+        {/* <View style={styles.statusBadgeOverlay}>
+              <MaterialIcons name="location-on" size={16} color="#FF6B00" />
+              <Text style={styles.statusBadgeText}>Tài xế đang đến • {driver.eta} phút</Text>
+            </View> */}
       </View>
-
-      {/* Route Info */}
-      <View style={styles.routeInfoContainer}>
-        <View style={styles.routePointItem}>
-          <View style={styles.routePointIcon}>
-            <MaterialIcons name="location-on" size={18} color="#FF6B00" />
-          </View>
-          <View style={styles.routePointText}>
-            <Text style={styles.routePointLabel}>ĐIỂM ĐÓN</Text>
-            <Text style={styles.routePointAddress}>{routeInfo.pickup.address}</Text>
-            <Text style={styles.routePointTime}>Ngay</Text>
-          </View>
-        </View>
-
-        <View style={styles.routeConnector} />
-
-        <View style={styles.routePointItem}>
-          <View style={[styles.routePointIcon, { backgroundColor: '#ef4444' }]}>
-            <MaterialIcons name="location-on" size={18} color="#fff" />
-          </View>
-          <View style={styles.routePointText}>
-            <Text style={styles.routePointLabel}>ĐIỂM ĐẾN</Text>
-            <Text style={styles.routePointAddress}>{routeInfo.dropoff.address}</Text>
-            <Text style={styles.routePointTime}>{driver.eta} phút (Dự kiến)</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={onCancel}
-          activeOpacity={0.6}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <MaterialIcons name="close" size={20} color="#fff" />
-          <Text style={styles.cancelButtonText}>Hủy</Text>
-        </TouchableOpacity>
-      </View>
-      </ScrollView>
-      )}
-    </SafeAreaView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
+  foundContainer: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    position: 'relative',
   },
   scrollContent: {
     flex: 1,
@@ -278,21 +280,22 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: SPACING.md,
   },
-  header: {
+    header: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: SPACING.md,
+  },
+    statusContentWrapper: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    backgroundColor: '#0f172a',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-    marginTop: 30,
+    gap: SPACING.lg,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FF6B00',
     flex: 1,
     textAlign: 'center',
   },
@@ -320,6 +323,22 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     borderWidth: 1,
     borderColor: '#FF6B00',
+  },
+    professionalStatusCard: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
   },
   statusBadgeText: {
     fontSize: 13,

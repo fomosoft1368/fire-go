@@ -184,16 +184,30 @@ export class RidesService {
   }
 
   async findById(id: string): Promise<RideDocument> {
-    const ride = await this.rideModel
-      .findById(id)
-      .populate('driverId')
-      .populate('customerId');
+    try {
+      console.log('[RidesService] Finding ride by ID:', id);
+      const ride = await this.rideModel
+        .findById(id)
+        .populate('driverId', '-password -__v')
+        .populate('customerId', '-password -__v')
+        .exec();
 
-    if (!ride) {
-      throw new NotFoundException(`Ride with ID ${id} not found`);
+      if (!ride) {
+        throw new NotFoundException(`Ride with ID ${id} not found`);
+      }
+
+      console.log('[RidesService] Ride found:', { 
+        id: ride._id, 
+        status: ride.status,
+        hasDriver: !!ride.driverId,
+        hasCustomer: !!ride.customerId
+      });
+
+      return ride;
+    } catch (error) {
+      console.error('[RidesService] Error finding ride:', error.message);
+      throw error;
     }
-
-    return ride;
   }
 
   /**
@@ -528,35 +542,88 @@ export class RidesService {
   }
 
   async acceptRide(rideId: string, driverId: string): Promise<RideDocument> {
-    const ride = await this.findById(rideId);
+    try {
+      console.log('[RidesService] acceptRide called:', { rideId, driverId });
+      
+      const ride = await this.findById(rideId);
+      console.log('[RidesService] Ride found:', { 
+        id: ride._id, 
+        status: ride.status,
+        currentDriverId: ride.driverId 
+      });
 
-    if (ride.status !== RideStatus.PENDING) {
-      throw new BadRequestException('Ride is not available for acceptance');
+      if (ride.status !== RideStatus.PENDING) {
+        throw new BadRequestException(`Ride is not available for acceptance. Current status: ${ride.status}`);
+      }
+
+      if (ride.driverId) {
+        throw new BadRequestException('Ride has already been accepted by another driver');
+      }
+
+      console.log('[RidesService] Updating ride with driverId:', driverId);
+      const updatedRide = await this.rideModel.findByIdAndUpdate(
+        rideId,
+        {
+          driverId: new Types.ObjectId(driverId),
+          status: RideStatus.ACCEPTED,
+          acceptedAt: new Date(),
+        },
+        { new: true },
+      ).exec();
+
+      if (!updatedRide) {
+        throw new NotFoundException('Failed to update ride');
+      }
+
+      console.log('[RidesService] Ride updated successfully, now populating...');
+
+      // Populate separately to handle potential errors
+      try {
+        await updatedRide.populate([
+          { path: 'driverId', select: '-password -__v' },
+          { path: 'customerId', select: '-password -__v' }
+        ]);
+        console.log('[RidesService] Population successful');
+      } catch (populateError) {
+        console.warn('[RidesService] Warning: Could not populate driver/customer:', populateError.message);
+        // Continue anyway - populate failure shouldn't fail the whole operation
+      }
+
+      // Emit ride.accepted event
+      try {
+        // Extract customer ID safely
+        let extractedCustomerId: string;
+        if (ride.customerId) {
+          extractedCustomerId = typeof ride.customerId === 'object' 
+            ? (ride.customerId as any)._id?.toString() || (ride.customerId as any).toString()
+            : (ride.customerId as any).toString();
+        } else {
+          console.warn('[RidesService] Warning: ride.customerId is null, using updatedRide data');
+          const rawRideData = await this.rideModel.findById(rideId).lean();
+          extractedCustomerId = rawRideData?.customerId?.toString() || 'unknown';
+        }
+        
+        const driverName = updatedRide.driverId && typeof updatedRide.driverId === 'object'
+          ? `${(updatedRide.driverId as any).firstName || ''} ${(updatedRide.driverId as any).lastName || ''}`.trim() || 'Driver'
+          : 'Driver';
+
+        this.eventEmitter.emit('ride.accepted', {
+          rideId: rideId,
+          driverId: driverId,
+          customerId: extractedCustomerId,
+          driverName,
+        });
+        console.log('[RidesService] Event emitted: ride.accepted');
+      } catch (eventError) {
+        console.warn('[RidesService] Warning: Could not emit event:', eventError.message);
+        // Event failure shouldn't fail the whole operation
+      }
+
+      return updatedRide;
+    } catch (error) {
+      console.error('[RidesService] Error in acceptRide:', error.message);
+      throw error;
     }
-
-    const updatedRide = await this.rideModel.findByIdAndUpdate(
-      rideId,
-      {
-        driverId: new Types.ObjectId(driverId),
-        status: RideStatus.ACCEPTED,
-        acceptedAt: new Date(),
-      },
-      { new: true },
-    ).populate('driverId').populate('customerId');
-
-    // Emit ride.accepted event
-    const extractedCustomerId = ride.customerId && typeof ride.customerId === 'object' 
-      ? (ride.customerId as any)._id.toString() 
-      : ride.customerId.toString();
-    
-    this.eventEmitter.emit('ride.accepted', {
-      rideId: rideId,
-      driverId: driverId,
-      customerId: extractedCustomerId,
-      driverName: (updatedRide.driverId as any)?.name || 'Driver',
-    });
-
-    return updatedRide;
   }
 
   async assignDriver(rideId: string, driverId: string): Promise<RideDocument> {

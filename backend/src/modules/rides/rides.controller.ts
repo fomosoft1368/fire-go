@@ -1,3 +1,14 @@
+<<<<<<< HEAD
+import { Controller, Get, Post, Body, Param, Patch, Query, Request, BadRequestException, UseGuards } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { RidesService } from './rides.service';
+import { AutoAssignService } from './services/auto-assign.service';
+import { CreateRideDto } from './dto';
+import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
+import { Pricing } from './schemas/pricing.schema';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+=======
 import { Controller, Get, Post, Body, Param, Patch, Query, BadRequestException } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model, Types } from 'mongoose'
@@ -7,6 +18,7 @@ import { CreateRideDto } from './dto'
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema'
 import { Pricing } from './schemas/pricing.schema'
 import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema'
+>>>>>>> 9d5b22029e98704257396aeb160b4a0e89fc6ba1
 
 @Controller('api/rides')
 export class RidesController {
@@ -345,9 +357,16 @@ export class RidesController {
   }
 
   @Post()
-  async create(@Body() createRideDto: CreateRideDto) {
-    // Driver creates ride with driverId in body, no customerId needed
-    return this.ridesService.create(createRideDto, '');
+  @UseGuards(JwtAuthGuard)
+  async create(@Body() createRideDto: CreateRideDto, @Request() req: any) {
+    const customerId = req.user?.id || req.user?.sub;
+    
+    if (!customerId) {
+      throw new BadRequestException('Customer ID not found in authentication token');
+    }
+    
+    console.log('🆕 [RidesController] Creating ride for customer:', customerId);
+    return this.ridesService.create(createRideDto, customerId);
   }
 
   @Get()
@@ -419,8 +438,17 @@ export class RidesController {
   }
 
   @Patch(':id/accept')
+  @UseGuards(JwtAuthGuard)
   async acceptRide(@Param('id') id: string, @Body('driverId') driverId: string) {
-    return this.ridesService.acceptRide(id, driverId);
+    console.log('[RidesController] Accept ride request:', { rideId: id, driverId });
+    try {
+      const result = await this.ridesService.acceptRide(id, driverId);
+      console.log('[RidesController] Ride accepted successfully:', result._id);
+      return result;
+    } catch (error) {
+      console.error('[RidesController] Error accepting ride:', error.message);
+      throw error;
+    }
   }
 
   @Patch(':id/assign')
@@ -434,16 +462,19 @@ export class RidesController {
   }
 
   @Patch(':id/start')
+  @UseGuards(JwtAuthGuard)
   async startRide(@Param('id') id: string) {
     return this.ridesService.startRide(id);
   }
 
   @Patch(':id/complete')
+  @UseGuards(JwtAuthGuard)
   async completeRide(@Param('id') id: string) {
     return this.ridesService.completeRide(id);
   }
 
   @Patch(':id/cancel')
+  @UseGuards(JwtAuthGuard)
   async cancelRide(
     @Param('id') id: string,
     @Body('cancellationBy') cancellationBy: 'driver' | 'customer',
