@@ -29,7 +29,7 @@ export const corsConfig = {
     'http://localhost:5173',      // Web Admin (Vite dev)
     'http://localhost:3001',      // Web Admin alternative
     'http://localhost:8081',      // Mobile Customer (Expo)
-    'http://192.168.1.1:8081',    // Mobile on local network
+    'http://192.168.1.12:8081',    // Mobile on local network
     'http://10.0.2.2:3000',       // Android emulator
   ],
   credentials: true,

@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE = 'http://192.168.1.14:3000'
+const API_BASE = 'http://192.168.1.12:3000'
 
 // Create axios instance with timeout
 const axiosInstance = axios.create({
