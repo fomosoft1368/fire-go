@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { User, LoginResponse, ApiResponse } from '../types'
 
 // Update API_BASE_URL to your backend URL (use 10.0.2.2 for Android emulator, localhost for iOS)
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.14:3000/api'
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.12:3000/api'
 const TOKEN_KEY = 'authToken'
 const REFRESH_TOKEN_KEY = 'refreshToken'
 const USER_KEY = 'user'

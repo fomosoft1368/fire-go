@@ -37,7 +37,7 @@ cp .env.example .env
 ### 2. Cập nhật .env với API key của bạn
 ```env
 GOOGLE_MAPS_API_KEY=AIzaSy...YOUR_ACTUAL_API_KEY
-REACT_APP_API_URL=http://192.168.1.19:3000/api
+REACT_APP_API_URL=http://192.168.1.12:3000/api
 ```
 
 ### 3. Restart app

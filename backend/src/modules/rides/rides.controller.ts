@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { Controller, Get, Post, Body, Param, Patch, Query, Request, BadRequestException, UseGuards } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -6,19 +5,9 @@ import { RidesService } from './rides.service';
 import { AutoAssignService } from './services/auto-assign.service';
 import { CreateRideDto } from './dto';
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
+import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema';
 import { Pricing } from './schemas/pricing.schema';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-=======
-import { Controller, Get, Post, Body, Param, Patch, Query, BadRequestException } from '@nestjs/common'
-import { InjectModel } from '@nestjs/mongoose'
-import { Model, Types } from 'mongoose'
-import { RidesService } from './rides.service'
-import { AutoAssignService } from './services/auto-assign.service'
-import { CreateRideDto } from './dto'
-import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema'
-import { Pricing } from './schemas/pricing.schema'
-import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema'
->>>>>>> 9d5b22029e98704257396aeb160b4a0e89fc6ba1
 
 @Controller('api/rides')
 export class RidesController {
