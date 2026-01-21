@@ -343,7 +343,7 @@ export default function HireDriverScreen({
     }
   }
 
-  // Validation và tạo cuốc xe
+  // Validation và điều hướng đến tìm chuyến
   const handleCreateRide = async () => {
     // Kiểm tra đăng nhập
     if (!user) {
@@ -351,98 +351,17 @@ export default function HireDriverScreen({
       return
     }
 
-    // Validation các trường bắt buộc
+    // Validation điểm đón
     if (!pickupLocation.trim()) {
       Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đón!')
       return
     }
 
-    if (!dropoffLocation.trim()) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đến!')
-      return
-    }
-
-    if (!licensePlate.trim()) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập biển số xe!')
-      return
-    }
-
-    // Nếu chưa tính giá, tính trước
-    if (!routeInfo || !fareEstimate) {
-      Alert.alert(
-        'Chưa tính giá',
-        'Vui lòng nhấn "Tính giá" trước khi đặt xe!',
-        [
-          {
-            text: 'Tính giá ngay',
-            onPress: calculateEstimate,
-          },
-          { text: 'Hủy', style: 'cancel' },
-        ]
-      )
-      return
-    }
-
-    setLoading(true)
-    try {
-      const rideData: CreateRideDto = {
-        rideType: 'hire', // Loại lái xe hộ
-        pickupAddress: routeInfo.pickup.formattedAddress,
-        pickupCoordinates: [
-          routeInfo.pickup.coordinates.longitude,
-          routeInfo.pickup.coordinates.latitude,
-        ],
-        dropoffAddress: routeInfo.dropoff.formattedAddress,
-        dropoffCoordinates: [
-          routeInfo.dropoff.coordinates.longitude,
-          routeInfo.dropoff.coordinates.latitude,
-        ],
-        distance: routeInfo.distance,
-        duration: routeInfo.duration,
-        baseFare: fareEstimate.baseFare,
-        distanceFare: fareEstimate.distanceFare,
-        timeFare: fareEstimate.timeFare,
-        surgePricing: fareEstimate.surgePricing,
-        carType,
-        licensePlate,
-        transmission,
-        driverNote,
-        isScheduled,
-        scheduledTime: isScheduled ? scheduledDateTime.toISOString() : undefined,
-      }
-
-      console.log('[HireDriverScreen] Creating ride with data:', rideData)
-      const result = await rideService.createRide(rideData, user.id)
-
-      // Save rideId for polling
-      const createdRideId = result._id || result.id
-      if (createdRideId) {
-        console.log('[HireDriverScreen] ✅ Ride created with ID:', createdRideId)
-        setRideId(createdRideId)
-      } else {
-        console.error('[HireDriverScreen] ⚠️ No ride ID returned from createRide!')
-      }
-
-      Alert.alert(
-        'Thành công',
-        '✓ Cuốc xe đã được tạo!\n\nHệ thống đang tìm tài xế phù hợp cho bạn...',
-        [
-          { text: 'OK' }
-        ]
-      )
-
-      // Set searching state to show finding driver screen
-      setIsSearching(true)
-    } catch (err: any) {
-      console.error('[HireDriverScreen] Create ride error:', err)
-      Alert.alert(
-        'Lỗi',
-        err.message || 'Không thể tạo cuốc xe. Vui lòng thử lại!',
-        [{ text: 'Đóng' }]
-      )
-    } finally {
-      setLoading(false)
-    }
+    // Điều hướng đến tìm chuyến ghép với địa chỉ đón
+    console.log('[HireDriverScreen] Navigating to FindRidesScreen with pickup:', pickupLocation)
+    navigation.navigate('FindRidesScreen', {
+      pickupAddress: pickupLocation,
+    })
   }
 
   // Show chat screen (CHECK BEFORE driver found)
@@ -860,15 +779,15 @@ export default function HireDriverScreen({
           )}
         </View>
         <TouchableOpacity
-          style={[styles.findButton, (loading || calculating) && styles.findButtonDisabled]}
+          style={[styles.findButton, loading && styles.findButtonDisabled]}
           onPress={handleCreateRide}
-          disabled={loading || calculating}
+          disabled={loading}
         >
           <Text style={styles.findButtonText}>
-            {loading ? 'Đang tạo...' : calculating ? 'Đang tính...' : 'Tìm tài xế ngay'}
+            {loading ? 'Đang tải...' : 'Tìm chuyến xe ghép'}
           </Text>
           <MaterialIcons
-            name="arrow-forward"
+            name="search"
             size={20}
             color="#fff"
             style={styles.findButtonIcon}

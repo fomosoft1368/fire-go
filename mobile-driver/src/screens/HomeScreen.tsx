@@ -74,25 +74,29 @@ export default function HomeScreen() {
       const allRides = await driverService.getAvailableRides()
       console.log('📱 Tất cả cuốc từ API:', allRides)
       console.log('📊 Số lượng cuốc:', allRides.length)
+      console.log('👤 User ID hiện tại:', user?.id)
+      console.log('👤 User:', user)
 
-      // Chỉ lấy những cuốc:
-      // - Status = pending (chưa được ai nhận)
-      // - Không có driverId (chưa có tài xế nhận)
-      const availableRides = allRides.filter((ride: any) => {
-        const isPending = ride.status === 'pending'
-        const noDriver = !ride.driverId
+      // Chỉ lấy những cuốc do chính driver này tạo ra (driverId = driver hiện tại)
+      // Khi driver tạo ride: driverId = driver.id, customerId = null/[]
+      const myRides = allRides.filter((ride: any) => {
+        // driverId có thể là string hoặc object {_id: ...}, cần check cả hai trường hợp
+        const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
+        const isMyRide = rideDriverId === user?.id
         console.log(`🚗 Cuốc ${ride._id}:`, {
           status: ride.status,
           driverId: ride.driverId,
-          isPending,
-          noDriver,
-          willShow: isPending && noDriver,
+          rideDriverId: rideDriverId,
+          customerId: ride.customerId,
+          userId: user?.id,
+          match: rideDriverId === user?.id,
+          isMyRide,
         })
-        return isPending && noDriver
+        return isMyRide
       })
 
-      console.log('✅ Cuốc có sẵn:', availableRides)
-      setRides(availableRides)
+      console.log('✅ Chuyến của tôi:', myRides)
+      setRides(myRides)
     } catch (error) {
       console.error('❌ Lỗi khi lấy danh sách cuốc:', error)
       Alert.alert('Lỗi', 'Không thể lấy danh sách cuốc. Vui lòng thử lại.')
@@ -139,26 +143,41 @@ export default function HomeScreen() {
       }
       await driverService.acceptRide(rideId, user.id)
       Alert.alert('Thành công', `Bạn đã nhận cuốc`)
-      // Navigate to ride detail screen
-      navigation.navigate('RideDetailScreen', { rideId })
+      // Navigate to ride requests screen (manage incoming requests)
+      navigation.navigate('RideRequestsScreen', { rideId })
     } catch (error) {
       console.error('Lỗi khi nhận cuốc:', error)
       Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
     }
   }
 
-  // Test: Mock assigned ride notification
-  const handleTestAssignedRide = () => {
-    const mockRide = {
-      _id: 'test-ride-123',
-      status: 'assigned',
-      driverId: user?.id,
-      pickupAddress: '123 Đường Lê Lợi, Quận 1, TP.HCM',
-      totalFare: 125000,
-      rideType: 'share',
-    }
-    setAssignedRide(mockRide)
-    setDismissCountdown(15)
+  // Edit my created ride
+  const handleEditRide = (rideId: string) => {
+    navigation.navigate('EditRideScreen', { rideId })
+  }
+
+  // Update ride status (cancel, start, complete)
+  const handleUpdateRideStatus = async (rideId: string, newStatus: string) => {
+    Alert.alert(
+      'Xác nhận',
+      `Bạn muốn thay đổi trạng thái chuyến?`,
+      [
+        { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+        {
+          text: 'Xác nhận',
+          onPress: async () => {
+            try {
+              await driverService.updateRide(rideId, { status: newStatus })
+              Alert.alert('Thành công', 'Cập nhật trạng thái thành công')
+              await fetchAvailableRides()
+            } catch (error) {
+              console.error('Lỗi cập nhật:', error)
+              Alert.alert('Lỗi', 'Không thể cập nhật trạng thái')
+            }
+          },
+        },
+      ]
+    )
   }
 
   const handleAcceptAssignedRide = async () => {
@@ -168,8 +187,8 @@ export default function HomeScreen() {
       Alert.alert('Thành công', 'Bạn đã nhận cuốc')
       setAssignedRide(null)
       setDismissCountdown(15)
-      // Navigate to ride detail screen
-      navigation.navigate('RideDetailScreen', { rideId: assignedRide._id })
+      // Navigate to ride requests screen (manage incoming requests)
+      navigation.navigate('RideRequestsScreen', { rideId: assignedRide._id })
     } catch (error) {
       console.error('Lỗi khi nhận cuốc:', error)
       Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
@@ -385,9 +404,20 @@ export default function HomeScreen() {
               <Text style={styles.loadingText}>Đang tải danh sách cuốc...</Text>
             </View>
           ) : filteredRides.length > 0 ? (
-            filteredRides.map((ride) => (
-              <RideCard key={ride.id} ride={ride} onAccept={handleAcceptRide} />
-            ))
+            filteredRides.map((ride) => {
+              // Tìm ride gốc để check status
+              const originalRide = rides.find(r => r._id === ride.id)
+              return (
+                <View key={ride.id} style={styles.rideWithActions}>
+                  <RideCard ride={ride} onAccept={handleAcceptRide} />
+                  {originalRide && (
+                    <View style={styles.rideActions}>
+                    
+                    </View>
+                  )}
+                </View>
+              )
+            })
           ) : (
             <View style={styles.emptyState}>
               <MaterialIcons name="inbox" size={48} color={COLORS.textSecondary} />
@@ -398,21 +428,6 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-
-        {/* View More */}
-        <TouchableOpacity style={styles.viewMoreButton}>
-          <Text style={styles.viewMoreText}>Xem thêm</Text>
-          <MaterialIcons name="chevron-right" size={20} color={COLORS.primary} />
-        </TouchableOpacity>
-
-        {/* TEST Button - Xóa khi không cần */}
-        <TouchableOpacity
-          style={styles.testButton}
-          onPress={handleTestAssignedRide}
-        >
-          <MaterialIcons name="bug-report" size={16} color="#fff" />
-          <Text style={styles.testButtonText}>TEST: Mock Assigned Ride</Text>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* Floating Map Button */}
@@ -855,6 +870,45 @@ const styles = StyleSheet.create({
   },
   testButtonText: {
     fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  // ============ Ride Actions Styles ============
+  rideWithActions: {
+    marginBottom: SPACING.lg,
+  },
+  rideActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  detailBtn: {
+    backgroundColor: '#2196F3',
+  },
+  editBtn: {
+    backgroundColor: '#2196F3',
+  },
+  startBtn: {
+    backgroundColor: '#4CAF50',
+  },
+  completeBtn: {
+    backgroundColor: '#8BC34A',
+  },
+  cancelBtn: {
+    backgroundColor: '#f44336',
+  },
+  actionBtnText: {
+    fontSize: 12,
     fontWeight: '600',
     color: '#fff',
   },

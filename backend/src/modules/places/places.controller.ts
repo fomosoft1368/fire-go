@@ -18,7 +18,7 @@ export class PlacesController {
   }
 
   @Get('details/:placeId')
-  async getDetails(@Param('placeId') placeId: string): Promise<PlaceResult | null> {
+  async getDetails(@Param('placeId') placeId: string): Promise<PlaceResult> {
     console.log('🔍 [PlacesController] Getting details for:', placeId);
     return this.placesService.getPlaceDetails(placeId);
   }

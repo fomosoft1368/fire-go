@@ -18,3 +18,49 @@ export interface CreateRideDto {
   isScheduled?: boolean;
   scheduledTime?: string;
 }
+
+export interface Driver {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  averageRating: number;
+  totalReviews: number;
+  vehicleModel: string;
+  vehicleColor: string;
+  vehiclePlate: string;
+  currentLocation?: {
+    type: string;
+    coordinates: [number, number];
+  };
+}
+
+export interface NearbyRide {
+  _id: string;
+  driverId: Driver;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupCoordinates: [number, number];
+  dropoffCoordinates: [number, number];
+  distance: number;
+  totalFare: number;
+  status: 'pending' | 'assigned' | 'in_progress' | 'completed';
+  totalSeats: number;
+  customerId: any[];
+  createdAt: string;
+}
+
+export interface RideRequest {
+  _id?: string;
+  rideId: string;
+  customerId: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'completed';
+  seats: number;
+  fare: number;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupCoordinates: [number, number];
+  dropoffCoordinates: [number, number];
+  distance: number;
+  createdAt?: string;
+}

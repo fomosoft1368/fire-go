@@ -327,6 +327,27 @@ export class DriverService {
   }
 
   /**
+   * Cập nhật chuyến đi (status, info, v.v.)
+   */
+  async updateRide(rideId: string, updates: any): Promise<any> {
+    try {
+      const response = await axios.patch(
+        `${this.baseURL}/rides/${rideId}`,
+        updates,
+        {
+          headers: {
+            Authorization: `Bearer ${await AsyncStorage.getItem('authToken')}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error updating ride:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Lấy danh sách chuyến đi đã hoàn thành/đã hủy của tài xế (TripsScreen)
    */
   async getCompletedTrips(status?: 'completed' | 'cancelled'): Promise<any[]> {

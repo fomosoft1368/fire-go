@@ -31,6 +31,31 @@ export class CreateRideDto {
   @IsNumber({}, { each: true })
   dropoffCoordinates: [number, number];
 
+  // Location hierarchy for filtering (optional - extracted from address if not provided)
+  @IsOptional()
+  @IsString()
+  pickupProvince?: string;
+
+  @IsOptional()
+  @IsString()
+  pickupDistrict?: string;
+
+  @IsOptional()
+  @IsString()
+  pickupWard?: string;
+
+  @IsOptional()
+  @IsString()
+  dropoffProvince?: string;
+
+  @IsOptional()
+  @IsString()
+  dropoffDistrict?: string;
+
+  @IsOptional()
+  @IsString()
+  dropoffWard?: string;
+
   @IsNumber()
   @Min(0)
   distance: number; // in km
@@ -88,10 +113,15 @@ export class CreateRideDto {
   driverNote?: string;
 
   @IsOptional()
-  @IsBoolean()
-  isScheduled?: boolean;
+  @IsString()
+  driverId?: string;
 
   @IsOptional()
-  @IsDateString()
-  scheduledTime?: string;
+  @IsString()
+  startDateTime?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  remainingSeats?: number;
 }

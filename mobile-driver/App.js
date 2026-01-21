@@ -14,7 +14,8 @@ import HomeScreen from './src/screens/HomeScreen'
 import TripsScreen from './src/screens/TripsScreen'
 import EarningsScreen from './src/screens/EarningsScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
-import RideDetailScreen from './src/screens/RideDetailScreen'
+import ActiveRideScreen from './src/screens/ActiveRideScreen'
+import RideRequestsScreen from './src/screens/RideRequestsScreen'
 import TopupScreen from './src/screens/TopupScreen'
 import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 import MapScreen from './src/screens/MapScreen'
@@ -120,8 +121,13 @@ const HomeStackNavigator = () => {
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
-        name="RideDetail"
-        component={RideDetailScreen}
+        name="RideRequestsScreen"
+        component={RideRequestsScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="ActiveRideScreen"
+        component={ActiveRideScreen}
         options={{ animationEnabled: true }}
       />
       <Stack.Screen

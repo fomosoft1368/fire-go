@@ -15,7 +15,7 @@ export const RideCard: React.FC<RideCardProps> = ({ ride }) => {
 
   const handleAccept = () => {
     // @ts-ignore - Navigation types not fully defined
-    navigation.navigate('RideDetail', { rideId: ride.id })
+    navigation.navigate('RideRequestsScreen', { rideId: ride.id })
   }
   return (
     <View style={styles.card}>
