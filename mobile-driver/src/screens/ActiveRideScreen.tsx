@@ -927,6 +927,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               {(currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted') && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
                 <>
                   <Marker
+                    key={`pickup-${currentPassengerIndex}`}
                     coordinate={{
                       latitude: currentPassenger.pickupCoordinates[1],
                       longitude: currentPassenger.pickupCoordinates[0],
@@ -954,6 +955,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 <>
                   {isValidCoordinates(currentPassenger?.pickupCoordinates) && (
                     <Marker
+                      key={`pickup-inprogress-${currentPassengerIndex}`}
                       coordinate={{
                         latitude: currentPassenger.pickupCoordinates[1],
                         longitude: currentPassenger.pickupCoordinates[0],
@@ -964,6 +966,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   )}
                   {isValidCoordinates(currentPassenger?.dropoffCoordinates) && (
                     <Marker
+                      key={`dropoff-${currentPassengerIndex}`}
                       coordinate={{
                         latitude: currentPassenger.dropoffCoordinates[1],
                         longitude: currentPassenger.dropoffCoordinates[0],
@@ -991,6 +994,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               {currentPassenger?.status === 'arrived_at_pickup' && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
                 <>
                   <Marker
+                    key={`pickup-arrived-${currentPassengerIndex}`}
                     coordinate={{
                       latitude: currentPassenger.pickupCoordinates[1],
                       longitude: currentPassenger.pickupCoordinates[0],
@@ -1099,24 +1103,25 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   showsHorizontalScrollIndicator={false}
                   pagingEnabled={true}
                   scrollEventThrottle={16}
-                  onMomentumScrollEnd={(e) => {
+                  onScroll={(e) => {
                     const contentOffsetX = e.nativeEvent.contentOffset.x
-                    const itemWidth = 300 // Width of passengerCardItem + margin
-                    const newIndex = Math.round(contentOffsetX / itemWidth)
-                    const maxIndex = ride.customerId.length - 1
-                    const finalIndex = Math.min(Math.max(newIndex, 0), maxIndex)
+                    // Calculate item width: 280 (card) + 12 (margin right) = 292
+                    const ITEM_WIDTH = 292
+                    const newIndex = Math.round(contentOffsetX / ITEM_WIDTH)
+                    const maxIndex = (ride.customerId?.length || 1) - 1
+                    const finalIndex = Math.max(0, Math.min(newIndex, maxIndex))
                     
-                    console.log('🔄 Passenger swipe detected')
-                    console.log('   contentOffsetX:', contentOffsetX)
-                    console.log('   calculated index:', newIndex)
-                    console.log('   final index:', finalIndex)
-                    console.log('   current index:', currentPassengerIndex)
+                    console.log('🔄 Scroll event:', {
+                      offsetX: contentOffsetX,
+                      calculatedIndex: newIndex,
+                      finalIndex: finalIndex,
+                      currentIndex: currentPassengerIndex,
+                      maxIndex: maxIndex,
+                    })
                     
                     if (finalIndex !== currentPassengerIndex) {
-                      console.log('✅ Setting new passenger index:', finalIndex)
+                      console.log('✅ Updating passenger index to:', finalIndex)
                       setCurrentPassengerIndex(finalIndex)
-                    } else {
-                      console.log('⚠️ Index same, skipping')
                     }
                   }}
                   renderItem={({ item, index }) => (
