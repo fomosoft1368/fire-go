@@ -219,7 +219,6 @@ const RootNavigator = () => {
             <Stack.Screen name="RideBooking" component={RideBookingScreen} />
             <Stack.Screen name="RideDetailRequest" component={RideDetailRequestScreen} />
             <Stack.Screen name="FindingRideScreen" component={FindingRideScreen} />
-            <Stack.Screen name="DriverFound" component={DriverFoundScreen} />
             <Stack.Screen name="FullscreenMap" component={FullscreenMapScreen} />
           </Stack.Group>
         </>

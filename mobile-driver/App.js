@@ -20,6 +20,7 @@ import TopupScreen from './src/screens/TopupScreen'
 import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 import MapScreen from './src/screens/MapScreen'
 import CreateRideScreen from './src/screens/CreateRideScreen'
+import TripActivities from './src/screens/TripActivities'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -126,6 +127,11 @@ const HomeStackNavigator = () => {
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
+        name="RideDetailScreen"
+        component={require('./src/screens/RideDetailScreen').default}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
         name="ActiveRideScreen"
         component={ActiveRideScreen}
         options={{ animationEnabled: true }}
@@ -138,6 +144,11 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="PaymentWebView"
         component={PaymentWebViewScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="TripActivities"
+        component={TripActivities}
         options={{ animationEnabled: true }}
       />
     </Stack.Navigator>
