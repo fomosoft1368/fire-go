@@ -13,8 +13,14 @@ export enum RequestStatus {
 
 @Schema({ timestamps: true })
 export class RideRequest extends Document {
-  @Prop({ type: Types.ObjectId, ref: 'Ride', required: true })
-  rideId: Types.ObjectId
+  @Prop({ type: Types.ObjectId, ref: 'Ride' })
+  rideId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: 'CombinedTrip' })
+  combinedTripId?: Types.ObjectId
+
+  @Prop({ type: String, enum: ['ride', 'combined_trip'], default: 'ride' })
+  tripType: 'ride' | 'combined_trip'
 
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
   customerId: Types.ObjectId

@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DriversModule } from './modules/drivers/drivers.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { RidesModule } from './modules/rides/rides.module';
+import { CombinedTripsModule } from './modules/combined-trips/combined-trips.module';
 import { WalletsModule } from './modules/wallets/wallets.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -28,6 +29,7 @@ import { PaymentModule } from './modules/payment/payment.module';
     DriversModule,
     CustomersModule,
     RidesModule,
+    CombinedTripsModule,
     WalletsModule,
     ReviewsModule,
     NotificationsModule,

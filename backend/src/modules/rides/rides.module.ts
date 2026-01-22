@@ -7,6 +7,7 @@ import { Pricing, PricingSchema } from './schemas/pricing.schema'
 import { RideRequest, RideRequestSchema } from './schemas/ride-request.schema'
 import { AutoAssignService } from './services/auto-assign.service'
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema'
+import { CombinedTripsModule } from '../combined-trips/combined-trips.module'
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Driver, DriverSchema } from '../drivers/schemas/driver.schema'
       { name: RideRequest.name, schema: RideRequestSchema },
       { name: Driver.name, schema: DriverSchema },
     ]),
+    CombinedTripsModule,
   ],
   controllers: [RidesController],
   providers: [RidesService, AutoAssignService],

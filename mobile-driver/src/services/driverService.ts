@@ -57,7 +57,7 @@ export class DriverService {
 
     // Thêm JWT token vào mỗi request
     this.api.interceptors.request.use(async (config) => {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await AsyncStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -70,7 +70,7 @@ export class DriverService {
       (error) => {
         if (error.response?.status === 401) {
           // Token hết hạn, xóa token và chuyển hướng đến login
-          AsyncStorage.removeItem('authToken');
+          AsyncStorage.removeItem('token');
           // TODO: Navigate to login screen
         }
         return Promise.reject(error);
@@ -224,7 +224,7 @@ export class DriverService {
    */
   async getAvailableRides(rideType?: 'share' | 'hire'): Promise<any[]> {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await AsyncStorage.getItem('token');
       console.log('🔐 Token:', token ? 'Có token' : 'Không có token');
       console.log('🌐 Base URL:', this.baseURL);
       console.log('📍 Calling: GET', `${this.baseURL}/rides`);
@@ -259,8 +259,90 @@ export class DriverService {
   }
 
   /**
+   * Get all my combined trips (share rides)
+   */
+  async getMyCombinedTrips(): Promise<any[]> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      
+      if (!token) {
+        console.warn('⚠️ No token for getMyCombinedTrips');
+        return [];
+      }
+
+      console.log('📍 Calling: GET', `${API_BASE_URL}/combined-trips`);
+
+      const response = await axios.get(`${API_BASE_URL}/combined-trips`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 10000,
+      });
+
+      console.log('✅ Combined trips API Response:', response.data);
+      return response.data || [];
+    } catch (error: any) {
+      console.error('❌ Error fetching combined trips:');
+      console.error('   Error Message:', error.message);
+      console.error('   Error Status:', error.response?.status);
+      console.error('   Error Data:', error.response?.data);
+      // Return empty array instead of throwing to allow graceful fallback
+      return [];
+    }
+  }
+
+  /**
    * Tạo chuyến xe mới (tài xế tự tạo chuyến)
    */
+  async createCombinedTrip(rideData: {
+    pickupAddress: string;
+    dropoffAddress: string;
+    pickupCoordinates?: [number, number];
+    dropoffCoordinates?: [number, number];
+    distance?: number;
+    duration?: number;
+    baseFare?: number;
+    distanceFare?: number;
+    timeFare?: number;
+    startDateTime: string;
+    remainingSeats: number;
+    notes?: string;
+  }): Promise<any> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      
+      if (!token) {
+        console.error('❌ No auth token found. Driver must be logged in.');
+        throw new Error('Vui lòng đăng nhập trước khi tạo chuyến xe');
+      }
+      
+      console.log('🚗 Creating new combined trip (share ride):', rideData);
+      console.log('🔐 Token present:', token.substring(0, 20) + '...');
+      
+      const response = await axios.post(
+        `${API_BASE_URL}/combined-trips`,
+        rideData,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 10000,
+        }
+      );
+      
+      console.log('✅ Combined trip created successfully:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error creating combined trip:');
+      console.error('   Error Message:', error.message);
+      console.error('   Error Status:', error.response?.status);
+      console.error('   Error Data:', error.response?.data);
+      throw error;
+    }
+  }
+
   async createRide(rideData: {
     pickupAddress: string;
     dropoffAddress: string;
@@ -279,9 +361,28 @@ export class DriverService {
     status?: string;
   }): Promise<any> {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await AsyncStorage.getItem('token');
       console.log('🚗 Creating new ride:', rideData);
       
+      // For share rides (xe ghép), use combined-trips endpoint
+      if (rideData.rideType === 'share') {
+        return await this.createCombinedTrip({
+          pickupAddress: rideData.pickupAddress,
+          dropoffAddress: rideData.dropoffAddress,
+          pickupCoordinates: rideData.pickupCoordinates,
+          dropoffCoordinates: rideData.dropoffCoordinates,
+          distance: rideData.distance,
+          duration: rideData.duration,
+          baseFare: rideData.baseFare,
+          distanceFare: rideData.distanceFare,
+          timeFare: rideData.timeFare,
+          startDateTime: rideData.startDateTime,
+          remainingSeats: rideData.remainingSeats,
+          notes: rideData.notes,
+        });
+      }
+      
+      // For hire rides, use rides endpoint
       const response = await axios.post(
         `${this.baseURL}/rides`,
         rideData,
@@ -315,7 +416,7 @@ export class DriverService {
         { driverId },
         {
           headers: {
-            Authorization: `Bearer ${await AsyncStorage.getItem('authToken')}`,
+            Authorization: `Bearer ${await AsyncStorage.getItem('token')}`,
           },
         }
       );
@@ -336,7 +437,7 @@ export class DriverService {
         updates,
         {
           headers: {
-            Authorization: `Bearer ${await AsyncStorage.getItem('authToken')}`,
+            Authorization: `Bearer ${await AsyncStorage.getItem('token')}`,
           },
         }
       );
@@ -352,7 +453,7 @@ export class DriverService {
    */
   async getCompletedTrips(status?: 'completed' | 'cancelled'): Promise<any[]> {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await AsyncStorage.getItem('token');
       console.log('🚗 Fetching completed trips with status:', status || 'all');
       
       const params: any = {};
@@ -375,6 +476,28 @@ export class DriverService {
     } catch (error: any) {
       console.error(`❌ Error fetching ${status || 'all'} trips:`, error.message);
       return [];
+    }
+  }
+
+  /**
+   * Accept a combined trip (share ride)
+   */
+  async acceptCombinedTrip(combinedTripId: string, driverId: string): Promise<any> {
+    try {
+      // Use API_BASE_URL directly, not this.baseURL (which includes /drivers prefix)
+      const response = await axios.patch(
+        `${API_BASE_URL}/combined-trips/${combinedTripId}/accept`,
+        { driverId },
+        {
+          headers: {
+            Authorization: `Bearer ${await AsyncStorage.getItem('token')}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error accepting combined trip:', error);
+      throw error;
     }
   }
 }

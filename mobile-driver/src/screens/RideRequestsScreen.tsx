@@ -40,18 +40,31 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const [rejecting, setRejecting] = useState<string | null>(null)
 
   const rideId = route?.params?.rideId
+  const combinedTripId = route?.params?.combinedTripId
+  const sourceType = route?.params?.sourceType // 'ride' or 'combined_trip'
 
   useEffect(() => {
-    if (rideId) {
+    const tripId = combinedTripId || rideId
+    if (tripId) {
       loadRequests()
     }
-  }, [rideId])
+  }, [combinedTripId, rideId])
 
   const loadRequests = async () => {
     setLoading(true)
     try {
       const API_URL = 'http://192.168.1.14:3000/api'
-      const response = await fetch(`${API_URL}/rides/${rideId}/requests`, {
+      const tripId = combinedTripId || rideId
+      
+      // Determine endpoint based on source type or ID
+      let endpoint = `${API_URL}/rides/${tripId}/requests`
+      if (sourceType === 'combined_trip' || combinedTripId) {
+        endpoint = `${API_URL}/combined-trips/${tripId}/requests`
+      }
+      
+      console.log('📍 Loading requests from:', endpoint)
+      
+      const response = await fetch(endpoint, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -72,13 +85,20 @@ export default function RideRequestsScreen({ navigation, route }: any) {
     setAccepting(requestId)
     try {
       const API_URL = 'http://192.168.1.14:3000/api'
-      const response = await fetch(
-        `${API_URL}/rides/${rideId}/requests/${requestId}/accept`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      const tripId = combinedTripId || rideId
+      
+      // Determine endpoint based on source type
+      let endpoint = `${API_URL}/rides/${tripId}/requests/${requestId}/accept`
+      if (sourceType === 'combined_trip' || combinedTripId) {
+        endpoint = `${API_URL}/combined-trips/${tripId}/requests/${requestId}/accept`
+      }
+      
+      console.log('📍 Accepting request:', endpoint)
+      
+      const response = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      })
 
       if (!response.ok) throw new Error(`Failed: ${response.status}`)
 
@@ -95,13 +115,20 @@ export default function RideRequestsScreen({ navigation, route }: any) {
     setRejecting(requestId)
     try {
       const API_URL = 'http://192.168.1.14:3000/api'
-      const response = await fetch(
-        `${API_URL}/rides/${rideId}/requests/${requestId}/reject`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      const tripId = combinedTripId || rideId
+      
+      // Determine endpoint based on source type
+      let endpoint = `${API_URL}/rides/${tripId}/requests/${requestId}/reject`
+      if (sourceType === 'combined_trip' || combinedTripId) {
+        endpoint = `${API_URL}/combined-trips/${tripId}/requests/${requestId}/reject`
+      }
+      
+      console.log('📍 Rejecting request:', endpoint)
+      
+      const response = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      })
 
       if (!response.ok) throw new Error(`Failed: ${response.status}`)
 
@@ -115,7 +142,19 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   }
 
   const handleStartRide = () => {
-    navigation.navigate('ActiveRideScreen', { rideId })
+    const tripId = combinedTripId || rideId
+    
+    // Pass both IDs and sourceType to ActiveRideScreen
+    if (sourceType === 'combined_trip' || combinedTripId) {
+      navigation.navigate('ActiveRideScreen', { 
+        combinedTripId: tripId,
+        sourceType: 'combined_trip'
+      })
+    } else {
+      navigation.navigate('ActiveRideScreen', { 
+        rideId: tripId
+      })
+    }
   }
 
   const handleGoBack = () => {

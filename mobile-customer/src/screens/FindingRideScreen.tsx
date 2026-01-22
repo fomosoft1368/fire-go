@@ -16,7 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
 import type { RootState } from '../redux/store'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
-import { rideService } from '../services/rideService'
+import { combinedTripsService } from '../services/combinedTripsService'
 
 export default function FindingRideScreen({ navigation }: any) {
   const route = useRoute()
@@ -28,6 +28,8 @@ export default function FindingRideScreen({ navigation }: any) {
   const duration = params?.duration ?? 0
   const startLng = params?.startLng ?? 105.8542  // Default Hanoi
   const startLat = params?.startLat ?? 21.0285
+  const endLng = params?.endLng ?? 105.8542  // Customer's dropoff longitude
+  const endLat = params?.endLat ?? 21.0285  // Customer's dropoff latitude
 
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -108,30 +110,30 @@ setLoading(false)
         return
       }
 
-      console.log('[FindingRideScreen] Fetching SHARE rides for:', {
+      console.log('[FindingRideScreen] Fetching COMBINED TRIPS for:', {
         pickupAddress,
         latitude: startLat,
         longitude: startLng,
       })
 
-      const result = await rideService.findShareRides(startLng, startLat, pickupAddress, 10000)
-      console.log('[FindingRideScreen] Found rides:', result.length)
+      const result = await combinedTripsService.findCombinedTrips(startLng, startLat, pickupAddress, 10000)
+      console.log('[FindingRideScreen] Found combined trips:', result.length)
 
       // Map and enrich ride data with safe defaults
-      const enrichedRides = result.map((ride: any) => ({
-        ...ride,
-        pickupAddress: ride.pickupAddress || ride.pickup || pickupAddress,
-        dropoffAddress: ride.dropoffAddress || 'Địa điểm đến',
-        driverId: ride.driverId || { name: 'Tài xế', firstName: 'Tài', lastName: 'xế', rating: 5, totalReviews: 0 },
-        totalFare: ride.totalFare || ride.baseFare || 50000,
-        distance: ride.distance || 5,
-        totalSeats: ride.totalSeats || 4,
-        availableSeats: (ride.totalSeats || 4) - (ride.customerId?.length || 0),
-        pickupCoordinates: ride.pickupCoordinates || [startLng, startLat],
-        dropoffCoordinates: ride.dropoffCoordinates || [startLng + 0.05, startLat + 0.05],
-        estimatedDuration: ride.estimatedDuration || 600,
-        baseFare: ride.baseFare || 50000,
-        customerId: ride.customerId || [],
+      const enrichedRides = result.map((trip: any) => ({
+        ...trip,
+        pickupAddress: trip.pickupAddress || trip.pickup || pickupAddress,
+        dropoffAddress: trip.dropoffAddress || 'Địa điểm đến',
+        driverId: trip.driverId || { name: 'Tài xế', firstName: 'Tài', lastName: 'xế', rating: 5, totalReviews: 0 },
+        totalFare: trip.totalFare || trip.baseFare || 50000,
+        distance: trip.distance || 5,
+        totalSeats: trip.totalSeats || 4,
+        availableSeats: (trip.totalSeats || 4) - (trip.customerId?.length || 0),
+        pickupCoordinates: trip.pickupCoordinates || [startLng, startLat],
+        dropoffCoordinates: trip.dropoffCoordinates || [startLng + 0.05, startLat + 0.05],
+        estimatedDuration: trip.duration || 600,
+        baseFare: trip.baseFare || 50000,
+        customerId: trip.customerId || [],
       }))
 
       if (isMountedRef.current) {
@@ -150,19 +152,21 @@ setLoading(false)
     }
   }
 
-  const handleSelectRide = (ride: any) => {
+  const handleSelectRide = (trip: any) => {
     // Navigate to ride detail screen to request joining
-    console.log('[FindingRideScreen] Selecting ride with customer coordinates:', {
+    console.log('[FindingRideScreen] Selecting combined trip with customer coordinates:', {
+      combinedTripId: trip._id,
       pickupCoordinates: [startLng, startLat],
-      dropoffCoordinates: ride.dropoffCoordinates,
+      dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
     })
     navigation.navigate('RideDetailRequest', {
-      rideId: ride._id,
-      ride: ride,
+      combinedTripId: trip._id,
+      ride: trip,
       pickupCoordinates: [startLng, startLat],
-      dropoffCoordinates: ride.dropoffCoordinates,
+      dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
       pickupAddress: pickupAddress,
       dropoffAddress: dropoffAddress,
+      tripType: 'combined_trip',
     })
   }
 
