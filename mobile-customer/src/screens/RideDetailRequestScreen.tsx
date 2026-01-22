@@ -18,7 +18,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootState } from '../redux/store'
 import type { RootStackParamList, NearbyRide } from '../types'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
-import { rideService } from '../services/rideService'
+import { combinedTripsService } from '../services/combinedTripsService'
 import MapViewComponent from '../components/MapView'
 
 const { height } = Dimensions.get('window')
@@ -222,7 +222,7 @@ export default function RideDetailRequestScreen() {
 
   // Safe params extraction with defaults
   const params = route.params as any
-  const rideId = params?.rideId ?? ''
+  const combinedTripId = params?.combinedTripId ?? ''
   const ride = params?.ride ?? null
   
   // Get customer's pickup/dropoff coordinates from params (NOT from ride object)
@@ -237,7 +237,7 @@ export default function RideDetailRequestScreen() {
 
   // Validate ride data
   useEffect(() => {
-    if (!ride || !rideId) {
+    if (!ride || !combinedTripId) {
       Alert.alert('Lỗi', 'Không thể tải thông tin chuyến xe')
       navigation.goBack()
     }
@@ -259,15 +259,17 @@ export default function RideDetailRequestScreen() {
 
     setRequesting(true)
     try {
-      console.log('[RideDetailRequestScreen] Creating request with customer coordinates:', {
+      console.log('[RideDetailRequestScreen] Creating combined trip request with customer coordinates:', {
+        combinedTripId,
         pickupCoordinates,
         dropoffCoordinates,
         pickupAddress,
         dropoffAddress,
       })
       
-      const request = await rideService.createRideRequest(
-        rideId,
+      // Create combined trip request
+      const request = await combinedTripsService.createCombinedTripRequest(
+        combinedTripId,
         user.id,
         pickupAddress,
         dropoffAddress,
@@ -306,7 +308,8 @@ export default function RideDetailRequestScreen() {
     // Poll every 2 seconds
     statusCheckInterval.current = setInterval(async () => {
       try {
-        const status = await rideService.getRideRequestStatus(rideId, requestId)
+        const status = await combinedTripsService.getCombinedTripRequestStatus(combinedTripId, requestId)
+        
         console.log('Request status:', status.status)
 
         if (status.status === 'accepted') {
@@ -323,7 +326,10 @@ export default function RideDetailRequestScreen() {
                 {
                   text: 'Xem chuyến đi',
                   onPress: () => {
-                    navigation.navigate('DriverFound', { rideId })
+                    navigation.navigate('DriverFound', { 
+                      combinedTripId: combinedTripId,
+                      tripType: 'combined_trip',
+                    })
                   },
                 },
               ]

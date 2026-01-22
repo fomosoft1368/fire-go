@@ -55,6 +55,11 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
   // Lấy ride ID từ route params
   const rideId = route?.params?.rideId
+  const combinedTripId = route?.params?.combinedTripId
+  const sourceType = route?.params?.sourceType // 'ride' or 'combined_trip'
+  
+  // Use whichever ID is provided
+  const tripId = combinedTripId || rideId
 
   // Current passenger
   const currentPassenger = ride?.customerId?.[currentPassengerIndex]
@@ -156,17 +161,18 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       isMounted = false
       if (locationWatchId !== null) {
         console.log('🛑 Stopping location watch:', locationWatchId)
-        Location.stopLocationUpdatesAsync(locationWatchId).catch(err => 
-          console.error('Error stopping location updates:', err)
-        )
+        // locationWatchId has a .remove() method to unsubscribe from location updates
+        if (locationWatchId.remove) {
+          locationWatchId.remove()
+        }
       }
     }
   }, [])
 
   // Fetch ride detail từ API
   useEffect(() => {
-    console.log('🚗 RideDetailScreen - rideId:', rideId)
-    if (rideId) {
+    console.log('🚗 RideDetailScreen - rideId:', rideId, 'combinedTripId:', combinedTripId, 'sourceType:', sourceType)
+    if (tripId) {
       fetchRideDetail()
       
       // Setup auto-refresh every 5 seconds to get updated customer data
@@ -177,7 +183,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         }
       }, 8000)
     } else {
-      console.warn('⚠️ No rideId provided in route params')
+      console.warn('⚠️ No rideId or combinedTripId provided in route params')
       setLoading(false)
     }
     
@@ -186,7 +192,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         clearInterval(refreshIntervalRef.current)
       }
     }
-  }, [rideId])
+  }, [tripId])
 
   // Modal countdown
   useEffect(() => {
@@ -237,8 +243,9 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       return
     }
 
+    // Don't reset route coordinates - keep polyline visible while fetching new route
     // Reset route coordinates immediately
-    console.log('🔄 Resetting route coordinates...')
+    console.log('🔄 Clearing route coordinates for new route fetch...')
     setRouteCoordinates([])
 
     // Fetch route and update map
@@ -290,44 +297,54 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       console.log('🎨 Setting routeCoordinates state:', route.length, 'points')
       setRouteCoordinates(route)
       
-      // Then animate map - ensure mapRef still exists
-      // ONLY animate once, don't call fitToCoordinates repeatedly
+      // Fit map to show both driver and destination
       if (mapRef.current) {
-        console.log('🎬 Animating map to target location:', {
-          latitude: targetMarkerCoord[1],
-          longitude: targetMarkerCoord[0],
-        })
         try {
-          mapRef.current.animateToRegion({
-            latitude: targetMarkerCoord[1],
-            longitude: targetMarkerCoord[0],
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }, 500)
+          console.log('🎬 Fitting map to show full route from', startCoord, 'to', endCoord)
+          const coords = [
+            { latitude: startCoord[1], longitude: startCoord[0] }, // Driver location
+            { latitude: endCoord[1], longitude: endCoord[0] }, // Destination (pickup or dropoff)
+          ]
+          mapRef.current.fitToCoordinates(coords, {
+            edgePadding: { top: 100, right: 50, bottom: 150, left: 50 },
+            animated: true,
+          })
         } catch (error) {
-          console.error('❌ Error animating map:', error)
-        }
-      } else {
-        console.warn('⚠️ Map reference not available, will retry in 500ms')
-        // Retry animation if map not ready
-        setTimeout(() => {
-          if (mapRef.current) {
-            console.log('🎬 Retrying animation after map ready:', {
+          console.error('❌ Error fitting map:', error)
+          // Fallback: animate to target
+          try {
+            console.log('🎬 Fallback: Animating map to target location:', {
               latitude: targetMarkerCoord[1],
               longitude: targetMarkerCoord[0],
             })
+            mapRef.current.animateToRegion({
+              latitude: targetMarkerCoord[1],
+              longitude: targetMarkerCoord[0],
+              latitudeDelta: 0.1,
+              longitudeDelta: 0.1,
+            }, 500)
+          } catch (err) {
+            console.error('❌ Error animating map:', err)
+          }
+        }
+      } else {
+        console.warn('⚠️ Map reference not available, will retry in 500ms')
+        // Retry after map is ready
+        setTimeout(() => {
+          if (mapRef.current) {
             try {
-              mapRef.current.animateToRegion({
-                latitude: targetMarkerCoord[1],
-                longitude: targetMarkerCoord[0],
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
-              }, 500)
+              console.log('🎬 Retrying fitToCoordinates after delay')
+              const coords = [
+                { latitude: startCoord[1], longitude: startCoord[0] },
+                { latitude: endCoord[1], longitude: endCoord[0] },
+              ]
+              mapRef.current.fitToCoordinates(coords, {
+                edgePadding: { top: 100, right: 50, bottom: 150, left: 50 },
+                animated: true,
+              })
             } catch (error) {
-              console.error('❌ Error on retry animation:', error)
+              console.error('❌ Error on retry fitToCoordinates:', error)
             }
-          } else {
-            console.error('❌ Map reference still lost after retry')
           }
         }, 500)
       }
@@ -374,7 +391,15 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       const attempt = fetchAttempts + 1
       setFetchAttempts(attempt)
       
-      console.log(`🚗 [Attempt ${attempt}] Fetching ride detail from:`, `${API_BASE_URL}/rides/driver/${rideId}`)
+      // Determine endpoint based on source type
+      let endpoint = ''
+      if (sourceType === 'combined_trip' || combinedTripId) {
+        endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId || tripId}`
+      } else {
+        endpoint = `${API_BASE_URL}/rides/driver/${rideId || tripId}`
+      }
+      
+      console.log(`🚗 [Attempt ${attempt}] Fetching ride detail from:`, endpoint)
       
       // Add timeout to prevent infinite loading
       const controller = new AbortController()
@@ -384,7 +409,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       let data
       
       try {
-        response = await fetch(`${API_BASE_URL}/rides/driver/${rideId}`, {
+        response = await fetch(endpoint, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -453,9 +478,10 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       
       if (showLoading && isMountedRef.current) {
         const errorMsg = error.message || 'Unknown error'
+        const displayId = combinedTripId || rideId || tripId
         Alert.alert(
           'Lỗi kết nối',
-          `Không thể tải chuyến đi.\n\n${errorMsg}\n\nURL: ${API_BASE_URL}/rides/driver/${rideId}`,
+          `Không thể tải chuyến đi.\n\n${errorMsg}\n\nID: ${displayId}`,
           [
             { text: 'Thử lại', onPress: () => fetchRideDetail(true) },
             { text: 'Hủy', style: 'cancel' }
@@ -497,9 +523,16 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               }
 
               const requestId = currentPassenger.requestId || currentPassenger._id
-              console.log('📡 Calling start-journey with:', { rideId, requestId })
+              console.log('📡 Calling start-journey with:', { rideId, combinedTripId, sourceType, requestId })
               
-              const response = await fetch(`${API_BASE_URL}/rides/${rideId}/requests/${requestId}/start-journey`, {
+              let endpoint = ''
+              if (sourceType === 'combined_trip' || combinedTripId) {
+                endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId || tripId}/requests/${requestId}/start-journey`
+              } else {
+                endpoint = `${API_BASE_URL}/rides/${rideId}/requests/${requestId}/start-journey`
+              }
+              
+              const response = await fetch(endpoint, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
               })
@@ -510,8 +543,9 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 throw new Error(`Failed: ${response.status}${errorData?.message ? ' - ' + errorData.message : ''}`)
               }
               
-              const updated = await response.json()
-              setRide(updated)
+              // Don't use incomplete response - reload full ride data
+              console.log('✅ Start journey successful, reloading ride data')
+              await fetchRideDetail(false)
               Alert.alert('Thành công', 'Chuyến đi đã bắt đầu')
             } catch (error: any) {
               Alert.alert('Lỗi', error.message)
@@ -552,9 +586,16 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               if (!requestId) {
                 throw new Error('No requestId found in passenger data. Passenger: ' + JSON.stringify(currentPassenger))
               }
-              console.log('📡 Calling mark-arrived with:', { rideId, requestId, passengerName: currentPassenger.name })
+              console.log('📡 Calling mark-arrived with:', { rideId, combinedTripId, sourceType, requestId, passengerName: currentPassenger.name })
               
-              const response = await fetch(`${API_BASE_URL}/rides/${rideId}/requests/${requestId}/mark-arrived`, {
+              let endpoint = ''
+              if (sourceType === 'combined_trip' || combinedTripId) {
+                endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId || tripId}/requests/${requestId}/mark-arrived`
+              } else {
+                endpoint = `${API_BASE_URL}/rides/${rideId}/requests/${requestId}/mark-arrived`
+              }
+              
+              const response = await fetch(endpoint, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
               })
@@ -565,8 +606,9 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 throw new Error(`Failed: ${response.status}${errorData?.message ? ' - ' + errorData.message : ''}`)
               }
               
-              const updated = await response.json()
-              setRide(updated)
+              // Don't use incomplete response - reload full ride data
+              console.log('✅ Mark arrived successful, reloading ride data')
+              await fetchRideDetail(false)
               Alert.alert('Thành công', 'Đã đến điểm đón')
             } catch (error: any) {
               Alert.alert('Lỗi', error.message)
@@ -603,9 +645,16 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               }
 
               const requestId = currentPassenger.requestId || currentPassenger._id
-              console.log('📡 Calling complete with:', { rideId, requestId })
+              console.log('📡 Calling complete with:', { rideId, combinedTripId, sourceType, requestId })
               
-              const response = await fetch(`${API_BASE_URL}/rides/${rideId}/requests/${requestId}/complete`, {
+              let endpoint = ''
+              if (sourceType === 'combined_trip' || combinedTripId) {
+                endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId || tripId}/requests/${requestId}/complete`
+              } else {
+                endpoint = `${API_BASE_URL}/rides/${rideId}/requests/${requestId}/complete`
+              }
+              
+              const response = await fetch(endpoint, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
               })
@@ -616,8 +665,9 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 throw new Error(`Failed: ${response.status}${errorData?.message ? ' - ' + errorData.message : ''}`)
               }
               
-              const updated = await response.json()
-              setRide(updated)
+              // Don't use incomplete response - reload full ride data
+              console.log('✅ Complete successful, reloading ride data')
+              await fetchRideDetail(false)
               Alert.alert('Thành công', 'Chuyến hoàn thành')
             } catch (error: any) {
               Alert.alert('Lỗi', error.message)
@@ -898,6 +948,12 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
             <Text style={{ fontSize: 10, color: '#666' }}>
               Dropoff: [{currentPassenger?.dropoffCoordinates?.[0]?.toFixed(4)}, {currentPassenger?.dropoffCoordinates?.[1]?.toFixed(4)}]
             </Text>
+            <Text style={{ fontSize: 10, color: '#666' }}>
+              Marker showing: {currentPassenger?.status === 'in_progress' ? '📍 Dropoff' : currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted' ? '🟢 Pickup' : '🟡 Arrived'}
+            </Text>
+            <Text style={{ fontSize: 10, color: '#666' }}>
+              Pickup valid: {isValidCoordinates(currentPassenger?.pickupCoordinates) ? '✅' : '❌'}, Dropoff valid: {isValidCoordinates(currentPassenger?.dropoffCoordinates) ? '✅' : '❌'}
+            </Text>
           </View>
           {/* Map Section */}
           <View style={styles.mapContainer}>
@@ -950,32 +1006,28 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 </>
               )}
 
-              {/* IN_PROGRESS state: Show both pickup and dropoff markers */}
-              {currentPassenger?.status === 'in_progress' && (
+              {/* IN_PROGRESS state: Show only dropoff marker (already picked up) */}
+              {currentPassenger?.status === 'in_progress' && isValidCoordinates(currentPassenger?.dropoffCoordinates) && (
                 <>
-                  {isValidCoordinates(currentPassenger?.pickupCoordinates) && (
-                    <Marker
-                      key={`pickup-inprogress-${currentPassengerIndex}`}
-                      coordinate={{
-                        latitude: currentPassenger.pickupCoordinates[1],
-                        longitude: currentPassenger.pickupCoordinates[0],
-                      }}
-                      title={`Đón ${currentPassenger.name}`}
-                      pinColor="green"
-                    />
-                  )}
-                  {isValidCoordinates(currentPassenger?.dropoffCoordinates) && (
-                    <Marker
-                      key={`dropoff-${currentPassengerIndex}`}
-                      coordinate={{
-                        latitude: currentPassenger.dropoffCoordinates[1],
-                        longitude: currentPassenger.dropoffCoordinates[0],
-                      }}
-                      title={`Thả ${currentPassenger.name}`}
-                      description={currentPassenger.dropoffAddress}
-                      pinColor="red"
-                    />
-                  )}
+                  {console.log('✅ Rendering dropoff marker:', {
+                    status: currentPassenger?.status,
+                    dropoffCoords: currentPassenger?.dropoffCoordinates,
+                    isValid: isValidCoordinates(currentPassenger?.dropoffCoordinates),
+                    markerCoord: {
+                      latitude: currentPassenger.dropoffCoordinates[1],
+                      longitude: currentPassenger.dropoffCoordinates[0],
+                    }
+                  })}
+                  <Marker
+                    key={`dropoff-${currentPassengerIndex}`}
+                    coordinate={{
+                      latitude: currentPassenger.dropoffCoordinates[1],
+                      longitude: currentPassenger.dropoffCoordinates[0],
+                    }}
+                    title={`Thả ${currentPassenger.name}`}
+                    description={currentPassenger.dropoffAddress}
+                    pinColor="red"
+                  />
                   {currentLocation && isValidCoordinates(currentPassenger?.dropoffCoordinates) && (
                     <Polyline
                       key={`polyline-inprogress-${routeCoordinates.length}`}

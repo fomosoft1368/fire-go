@@ -84,6 +84,7 @@ export type RootStackParamList = {
   FindingRideScreen: undefined
   FindRidesScreen: { pickupAddress?: string }
   RideDetailRequest: { rideId: string; ride: NearbyRide }
+  DriverFound: { rideId?: string; combinedTripId?: string; tripType?: 'ride' | 'combined_trip' }
   EditProfile: undefined
   ChangePassword: undefined
   PaymentMethods: undefined

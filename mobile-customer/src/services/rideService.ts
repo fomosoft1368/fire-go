@@ -832,11 +832,17 @@ export const rideService = {
     try {
       console.log('[RideService] Creating ride request for ride:', rideId)
 
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}/requests`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           customerId,
           seats,
@@ -919,3 +925,4 @@ export const rideService = {
     }
   },
 }
+

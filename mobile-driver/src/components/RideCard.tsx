@@ -7,15 +7,23 @@ import { Badge } from './Badge'
 import { useNavigation } from '@react-navigation/native'
 
 interface RideCardProps {
-  ride: RideItem
+  ride: RideItem & { sourceType?: string; _id?: string }
+  onAccept?: (ride: any) => void
 }
 
-export const RideCard: React.FC<RideCardProps> = ({ ride }) => {
+export const RideCard: React.FC<RideCardProps> = ({ ride, onAccept }) => {
   const navigation = useNavigation()
 
   const handleAccept = () => {
-    // @ts-ignore - Navigation types not fully defined
-    navigation.navigate('RideRequestsScreen', { rideId: ride.id })
+    console.log('🎯 RideCard handleAccept:', { rideId: ride._id || ride.id, sourceType: ride.sourceType })
+    if (onAccept) {
+      // Call parent handler with full ride object (including sourceType)
+      onAccept(ride)
+    } else {
+      // Fallback: navigate to RideRequestsScreen
+      // @ts-ignore - Navigation types not fully defined
+      navigation.navigate('RideRequestsScreen', { rideId: ride.id })
+    }
   }
   return (
     <View style={styles.card}>
@@ -29,11 +37,15 @@ export const RideCard: React.FC<RideCardProps> = ({ ride }) => {
       <View style={styles.infoContainer}>
         <View style={styles.locationRow}>
           <MaterialIcons name="radio-button-checked" size={16} color={COLORS.primary} />
-          <Text style={styles.locationText}>{ride.pickupLocation}</Text>
+          <Text style={styles.locationText}>
+            {typeof ride.pickupLocation === 'string' ? ride.pickupLocation : 'Điểm đón'}
+          </Text>
         </View>
         <View style={styles.locationRow}>
           <MaterialIcons name="location-on" size={16} color={COLORS.danger} />
-          <Text style={styles.locationText}>{ride.dropoffLocation}</Text>
+          <Text style={styles.locationText}>
+            {typeof ride.dropoffLocation === 'string' ? ride.dropoffLocation : 'Địa điểm đến'}
+          </Text>
         </View>
       </View>
 

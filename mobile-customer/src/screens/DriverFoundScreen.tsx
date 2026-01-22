@@ -10,11 +10,13 @@ import {
   Alert,
 } from 'react-native'
 import { useSelector } from 'react-redux'
+import { useRoute } from '@react-navigation/native'
 import { RootState } from '../redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import { rideService } from '../services/rideService'
+import { combinedTripsService } from '../services/combinedTripsService'
 
 interface DriverFoundScreenProps {
   driver?: {
@@ -40,34 +42,54 @@ interface DriverFoundScreenProps {
 
 export default function DriverFoundScreen({
   driver: initialDriver,
-  rideId,
+  rideId: propsRideId,
   routeInfo: initialRouteInfo,
   onChat,
   onCancel,
 }: DriverFoundScreenProps) {
+  const route = useRoute()
   const authUser = useSelector((state: RootState) => state.auth.user)
+  
+  // Get params from route (for navigation.navigate)
+  const routeParams = route.params as any
+  const rideId = routeParams?.rideId || propsRideId || ''
+  const combinedTripId = routeParams?.combinedTripId || ''
+  const tripType = routeParams?.tripType || 'ride' // 'ride' for HIRE, 'combined_trip' for SHARE
+  
   const [driver, setDriver] = React.useState(initialDriver)
   const [routeInfo, setRouteInfo] = React.useState(initialRouteInfo)
   const [loading, setLoading] = React.useState(!driver)
 
   // Lấy dữ liệu thực từ API khi component mount
   React.useEffect(() => {
-    if (rideId && !driver) {
+    if ((rideId || combinedTripId) && !driver) {
       loadRideData()
     }
-  }, [rideId])
+  }, [rideId, combinedTripId])
 
   const loadRideData = async () => {
-    if (!rideId) {
+    const tripId = combinedTripId || rideId
+    if (!tripId) {
       Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
       return
     }
 
     setLoading(true)
     try {
-      console.log('[DriverFoundScreen] Loading ride data:', rideId)
+      console.log('[DriverFoundScreen] Loading ride data:', {
+        tripId,
+        tripType,
+      })
 
-      const rideData = await rideService.getRideById(rideId)
+      let rideData
+      
+      if (tripType === 'combined_trip') {
+        // For SHARE rides (combined trip)
+        rideData = await combinedTripsService.getCombinedTripDetail(combinedTripId)
+      } else {
+        // For HIRE rides
+        rideData = await rideService.getRideById(rideId)
+      }
 
       console.log('[DriverFoundScreen] Ride data loaded:', {
         driverId: rideData?.driverId?._id,
@@ -124,6 +146,7 @@ export default function DriverFoundScreen({
       console.error('[DriverFoundScreen] Load ride error:', {
         message: error.message,
         rideId,
+        combinedTripId,
       })
       Alert.alert('Lỗi', 'Không thể tải thông tin cuốc xe')
     } finally {

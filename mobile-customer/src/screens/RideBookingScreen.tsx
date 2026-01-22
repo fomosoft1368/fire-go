@@ -140,6 +140,8 @@ const RideBookingScreen = ({ navigation }: any) => {
         duration,
         startLng,
         startLat,
+        endLng,
+        endLat,
       })
 
       setBookingLoading(false)

@@ -71,32 +71,51 @@ export default function HomeScreen() {
   const fetchAvailableRides = async () => {
     setLoading(true)
     try {
-      const allRides = await driverService.getAvailableRides()
-      console.log('📱 Tất cả cuốc từ API:', allRides)
-      console.log('📊 Số lượng cuốc:', allRides.length)
-      console.log('👤 User ID hiện tại:', user?.id)
-      console.log('👤 User:', user)
+      // Fetch both Rides and CombinedTrips in parallel
+      const [allRides, allCombinedTrips] = await Promise.all([
+        driverService.getAvailableRides(),
+        driverService.getMyCombinedTrips(),
+      ])
 
-      // Chỉ lấy những cuốc do chính driver này tạo ra (driverId = driver hiện tại)
-      // Khi driver tạo ride: driverId = driver.id, customerId = null/[]
+      console.log('📱 Rides từ API:', allRides)
+      console.log('📱 Combined trips từ API:', allCombinedTrips)
+      console.log('👤 User ID hiện tại:', user?.id)
+
+      // Filter: only my rides (driverId = current driver)
       const myRides = allRides.filter((ride: any) => {
-        // driverId có thể là string hoặc object {_id: ...}, cần check cả hai trường hợp
         const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
         const isMyRide = rideDriverId === user?.id
-        console.log(`🚗 Cuốc ${ride._id}:`, {
-          status: ride.status,
-          driverId: ride.driverId,
-          rideDriverId: rideDriverId,
-          customerId: ride.customerId,
-          userId: user?.id,
-          match: rideDriverId === user?.id,
+        console.log(`🚗 Ride ${ride._id}:`, {
+          driverId: rideDriverId,
           isMyRide,
+          status: ride.status,
         })
         return isMyRide
       })
 
-      console.log('✅ Chuyến của tôi:', myRides)
-      setRides(myRides)
+      // Filter: only my combined trips (driverId = current driver)
+      const myCombinedTrips = allCombinedTrips.filter((trip: any) => {
+        const tripDriverId = typeof trip.driverId === 'string' ? trip.driverId : trip.driverId?._id
+        const isMyTrip = tripDriverId === user?.id
+        console.log(`🛴 Combined trip ${trip._id}:`, {
+          driverId: tripDriverId,
+          isMyTrip,
+          status: trip.status,
+        })
+        return isMyTrip
+      })
+
+      // Merge both arrays
+      const allMyRides = [
+        ...myRides.map((ride: any) => ({ ...ride, sourceType: 'ride' })),
+        ...myCombinedTrips.map((trip: any) => ({ ...trip, sourceType: 'combined_trip' })),
+      ]
+
+      console.log('✅ My rides:', myRides.length)
+      console.log('✅ My combined trips:', myCombinedTrips.length)
+      console.log('✅ Total merged rides:', allMyRides.length)
+
+      setRides(allMyRides)
     } catch (error) {
       console.error('❌ Lỗi khi lấy danh sách cuốc:', error)
       Alert.alert('Lỗi', 'Không thể lấy danh sách cuốc. Vui lòng thử lại.')
@@ -111,40 +130,82 @@ export default function HomeScreen() {
     await fetchAvailableRides()
   }
 
-  const formatRideData = (ride: any): RideItem => {
-    const isShareRide = ride.rideType === 'share'
-    const pickupDistance = Math.random() * 5 + 1 // Mock: 1-6km
-    const estimatedTime = Math.ceil(pickupDistance * 1.5) // Khoảng 1.5 phút per km
+  const formatRideData = (ride: any): RideItem & { sourceType?: string; _id?: string } => {
+    // Determine if it's a combined trip or regular ride
+    const isCombinedTrip = ride.sourceType === 'combined_trip' || !ride.rideType
+    const isShareRide = ride.rideType === 'share' || isCombinedTrip
+
+    // Get pickup address (not mock)
+    const pickupAddr = ride.pickupAddress || 'Điểm đón'
+    
+    // Handle dropoff location - could be string or GeoJSON object
+    let dropoffAddr = ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến'
+    if (typeof dropoffAddr === 'object' && dropoffAddr?.type === 'Point') {
+      dropoffAddr = ride.dropoffLocationAddress || 'Địa điểm đến'
+    }
+    
+    // For display, show short version of address
+    const shortPickupAddr = pickupAddr.length > 30 ? pickupAddr.substring(0, 30) + '...' : pickupAddr
+    const shortDropoffAddr = dropoffAddr.length > 30 ? dropoffAddr.substring(0, 30) + '...' : dropoffAddr
 
     return {
       id: ride._id,
       type: isShareRide ? 'POOL' : 'ASSIST',
       price: ride.totalFare || 0,
-      pickupLocation: `Điểm đón ở ${pickupDistance.toFixed(1)}km`,
-      dropoffLocation: ride.dropoffAddress,
-      pickupTime: ride.isScheduled
-        ? new Date(ride.scheduledTime).toLocaleTimeString('vi-VN', {
+      pickupLocation: shortPickupAddr,
+      dropoffLocation: shortDropoffAddr,
+      pickupTime: ride.startDateTime || ride.scheduledTime
+        ? new Date(ride.startDateTime || ride.scheduledTime).toLocaleTimeString('vi-VN', {
           hour: '2-digit',
           minute: '2-digit',
         })
         : 'Ngay lập tức',
-      time: `~${estimatedTime} phút`,
+      time: ride.duration ? `~${Math.ceil(ride.duration / 60)} phút` : '~15 phút',
       rating: 4.8,
       badge: isShareRide ? 'GHÉP XE' : 'LAI XE HỘ',
       badgeColor: isShareRide ? '#ff9900' : '#6200ea',
+      sourceType: ride.sourceType,
+      _id: ride._id,
     }
   }
 
-  const handleAcceptRide = async (rideId: string) => {
+  const handleAcceptRide = async (ride: any) => {
     try {
       if (!user?.id) {
         Alert.alert('Lỗi', 'Không tìm thấy thông tin tài xế')
         return
       }
-      await driverService.acceptRide(rideId, user.id)
-      Alert.alert('Thành công', `Bạn đã nhận cuốc`)
-      // Navigate to ride requests screen (manage incoming requests)
-      navigation.navigate('RideRequestsScreen', { rideId })
+      
+      const rideId = ride._id || ride.id
+      const sourceType = ride.sourceType // 'ride' or 'combined_trip'
+      
+      console.log('🚗 Accepting ride:', { rideId, sourceType })
+      
+      // For regular rides, call accept endpoint
+      if (sourceType === 'combined_trip') {
+        // Check if this driver created the combined trip (driverId is already set)
+        const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
+        const isMyTrip = rideDriverId === user.id
+        
+        if (!isMyTrip) {
+          // This is someone else's trip, we need to accept it
+          await driverService.acceptCombinedTrip(rideId, user.id)
+          console.log('✅ Combined trip accepted')
+        } else {
+          // This is my own trip, skip accept and go straight to manage requests
+          console.log('✅ This is your own combined trip, skipping accept')
+        }
+      } else {
+        await driverService.acceptRide(rideId, user.id)
+        Alert.alert('Thành công', `Bạn đã nhận cuốc`)
+      }
+      
+      // Both combined trips and regular rides go to RideRequestsScreen to manage requests
+      const params = sourceType === 'combined_trip' 
+        ? { combinedTripId: rideId, sourceType: 'combined_trip' }
+        : { rideId, sourceType: 'ride' }
+      
+      navigation.navigate('RideRequestsScreen', params)
     } catch (error) {
       console.error('Lỗi khi nhận cuốc:', error)
       Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
@@ -405,11 +466,13 @@ export default function HomeScreen() {
             </View>
           ) : filteredRides.length > 0 ? (
             filteredRides.map((ride) => {
-              // Tìm ride gốc để check status
+              // Tìm ride gốc để có full data (including sourceType)
               const originalRide = rides.find(r => r._id === ride.id)
+              // Merge formatted ride with original data to preserve sourceType
+              const completeRide = originalRide ? { ...ride, ...originalRide } : ride
               return (
                 <View key={ride.id} style={styles.rideWithActions}>
-                  <RideCard ride={ride} onAccept={handleAcceptRide} />
+                  <RideCard ride={completeRide} onAccept={handleAcceptRide} />
                   {originalRide && (
                     <View style={styles.rideActions}>
                     
