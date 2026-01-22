@@ -65,7 +65,7 @@ export default function HireDriverScreen({
 }: HireDriverScreenProps) {
   // Navigation
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
-  
+
   // Lấy user từ redux
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
@@ -200,15 +200,15 @@ export default function HireDriverScreen({
         : [105.8542, 21.0285],
       pickupCoords: routeInfo
         ? {
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
-          }
+          latitude: routeInfo.pickup.coordinates.latitude,
+          longitude: routeInfo.pickup.coordinates.longitude,
+        }
         : undefined,
       dropoffCoords: routeInfo
         ? {
-            latitude: routeInfo.dropoff.coordinates.latitude,
-            longitude: routeInfo.dropoff.coordinates.longitude,
-          }
+          latitude: routeInfo.dropoff.coordinates.latitude,
+          longitude: routeInfo.dropoff.coordinates.longitude,
+        }
         : undefined,
       routeCoordinates: routeInfo?.routeCoordinates || [],
       drivers: [],
@@ -228,7 +228,7 @@ export default function HireDriverScreen({
       try {
         const token = await AsyncStorage.getItem('token')
         const rideData = await rideService.getRideById(rideId, token || undefined)
-        
+
         console.log('[HireDriverScreen] 📊 Polling result:', {
           hasDriverId: !!rideData?.driverId,
           driverType: typeof rideData?.driverId,
@@ -239,10 +239,10 @@ export default function HireDriverScreen({
         }
 
         const driverData = rideData.driverId
-        
+
         if (driverData && typeof driverData === 'object' && driverData._id) {
           console.log('[HireDriverScreen] ✅ Driver found!', driverData._id)
-          
+
           // Extract driver location
           let driverLat = 21.0285 // Default Hanoi
           let driverLng = 105.8542
@@ -251,7 +251,7 @@ export default function HireDriverScreen({
             driverLng = driverData.currentLocation.coordinates[0]
             console.log('[HireDriverScreen] 📍 Driver location:', { lat: driverLat, lng: driverLng })
           }
-          
+
           setDriver({
             id: driverData._id,
             name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim() || 'Tài xế',
@@ -279,7 +279,7 @@ export default function HireDriverScreen({
           // Update states to show DriverFoundScreen
           setDriverFound(true)
           setIsSearching(false) // Stop showing FindingDriverScreen
-          
+
           clearInterval(pollInterval)
         }
       } catch (error) {
@@ -343,7 +343,7 @@ export default function HireDriverScreen({
     }
   }
 
-  // Validation và điều hướng đến tìm chuyến
+  // Validation và tạo cuốc xe
   const handleCreateRide = async () => {
     // Kiểm tra đăng nhập
     if (!user) {
@@ -351,17 +351,90 @@ export default function HireDriverScreen({
       return
     }
 
-    // Validation điểm đón
+    // Validation các trường bắt buộc
     if (!pickupLocation.trim()) {
       Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đón!')
       return
     }
 
-    // Điều hướng đến tìm chuyến ghép với địa chỉ đón
-    console.log('[HireDriverScreen] Navigating to FindRidesScreen with pickup:', pickupLocation)
-    navigation.navigate('FindRidesScreen', {
-      pickupAddress: pickupLocation,
-    })
+    if (!dropoffLocation.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đến!')
+      return
+    }
+
+    if (!licensePlate.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập biển số xe!')
+      return
+    }
+
+    // Nếu chưa tính giá, tính trước
+    if (!routeInfo || !fareEstimate) {
+      Alert.alert(
+        'Chưa tính giá',
+        'Vui lòng nhấn "Tính giá" trước khi đặt xe!',
+        [
+          {
+            text: 'Tính giá ngay',
+            onPress: calculateEstimate,
+          },
+          { text: 'Hủy', style: 'cancel' },
+        ]
+      )
+      return
+    }
+
+    setLoading(true)
+    try {
+      const rideData: CreateRideDto = {
+        rideType: 'hire', // Loại lái xe hộ
+        pickupAddress: routeInfo.pickup.formattedAddress,
+        pickupCoordinates: [
+          routeInfo.pickup.coordinates.longitude,
+          routeInfo.pickup.coordinates.latitude,
+        ],
+        dropoffAddress: routeInfo.dropoff.formattedAddress,
+        dropoffCoordinates: [
+          routeInfo.dropoff.coordinates.longitude,
+          routeInfo.dropoff.coordinates.latitude,
+        ],
+        distance: routeInfo.distance,
+        duration: routeInfo.duration,
+        baseFare: fareEstimate.baseFare,
+        distanceFare: fareEstimate.distanceFare,
+        timeFare: fareEstimate.timeFare,
+        surgePricing: fareEstimate.surgePricing,
+        carType,
+        licensePlate,
+        transmission,
+        driverNote,
+        isScheduled,
+        scheduledTime: isScheduled ? scheduledDateTime.toISOString() : undefined,
+      }
+
+      console.log('[HireDriverScreen] Creating ride with data:', rideData)
+      const result = await rideService.createRide(rideData, user.id)
+
+      // Save rideId for polling
+      const createdRideId = result._id || result.id
+      if (createdRideId) {
+        console.log('[HireDriverScreen] Ride created with ID:', createdRideId)
+        setRideId(createdRideId)
+      } else {
+        console.error('[HireDriverScreen] No ride ID returned from createRide!')
+      }
+
+      // Set searching state to show finding driver screen
+      setIsSearching(true)
+    } catch (err: any) {
+      console.error('[HireDriverScreen] Create ride error:', err)
+      Alert.alert(
+        'Lỗi',
+        err.message || 'Không thể tạo cuốc xe. Vui lòng thử lại!',
+        [{ text: 'Đóng' }]
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Show chat screen (CHECK BEFORE driver found)
@@ -386,6 +459,9 @@ export default function HireDriverScreen({
     return (
       <FindingDriverScreen
         routeInfo={routeInfo}
+        fareEstimate={fareEstimate}
+        pickupAddress={pickupLocation}
+        dropoffAddress={dropoffLocation}
         colors={colors}
         onCancel={resetRideState}
       />
@@ -763,9 +839,6 @@ export default function HireDriverScreen({
             <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
               {calculating ? 'Đang tính...' : 'Ước tính'}
             </Text>
-            <Text style={[styles.priceValue, { color: colors.text }]}>
-              {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
-            </Text>
           </View>
           {!calculating && (
             <TouchableOpacity
@@ -773,21 +846,22 @@ export default function HireDriverScreen({
               onPress={calculateEstimate}
               disabled={!pickupLocation || !dropoffLocation}
             >
-              <MaterialIcons name="calculate" size={20} color="#FF6B00" />
-              <Text style={styles.calculateButtonText}>Tính giá</Text>
+              <Text style={[styles.priceValue, { color: colors.text }]}>
+                {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
         <TouchableOpacity
-          style={[styles.findButton, loading && styles.findButtonDisabled]}
+          style={[styles.findButton, (loading || calculating) && styles.findButtonDisabled]}
           onPress={handleCreateRide}
-          disabled={loading}
+          disabled={loading || calculating}
         >
           <Text style={styles.findButtonText}>
-            {loading ? 'Đang tải...' : 'Tìm chuyến xe ghép'}
+            {loading ? 'Đang tạo...' : calculating ? 'Đang tính...' : 'Tìm tài xế ngay'}
           </Text>
           <MaterialIcons
-            name="search"
+            name="arrow-forward"
             size={20}
             color="#fff"
             style={styles.findButtonIcon}

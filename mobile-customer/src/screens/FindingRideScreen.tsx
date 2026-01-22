@@ -104,7 +104,7 @@ export default function FindingRideScreen({ navigation }: any) {
 
       if (!pickupAddress.trim()) {
         setError('Vui lòng nhập điểm đón')
-        setLoading(false)
+setLoading(false)
         return
       }
 
@@ -180,7 +180,7 @@ export default function FindingRideScreen({ navigation }: any) {
           <Text style={[styles.driverName, { color: colors.text }]}>{item.driverId?.name || 'Tài xế'}</Text>
           <View style={styles.ratingRow}>
             <MaterialIcons name="star" size={14} color="#FFD700" />
-            <Text style={[styles.rating, { color: colors.textSecondary }]}>
+<Text style={[styles.rating, { color: colors.textSecondary }]}>
               {item.driverId?.rating?.toFixed(1) || 'N/A'}
             </Text>
             <Text style={[styles.reviewCount, { color: colors.textSecondary }]}>
@@ -256,7 +256,7 @@ export default function FindingRideScreen({ navigation }: any) {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.bgSecondary, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+<TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={28} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Chuyến xe khả dụng</Text>
@@ -328,7 +328,7 @@ export default function FindingRideScreen({ navigation }: any) {
               <Text style={[styles.scannerTitle, { color: colors.text }]}>
                 Đang tìm kiếm chuyến xe
               </Text>
-              <Text style={[styles.scannerSubtitle, { color: colors.textSecondary }]}>
+<Text style={[styles.scannerSubtitle, { color: colors.textSecondary }]}>
                 Cập nhật mỗi 30 giây
               </Text>
               
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingTop: SPACING.md,
+paddingTop: SPACING.md,
     borderTopWidth: 1,
   },
   statItem: {

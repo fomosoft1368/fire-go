@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   },
   zoomInButton: {
     position: 'absolute',
-    top: 16,
+    top: '35%',
     right: 16,
     width: 44,
     height: 44,
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   },
   zoomOutButton: {
     position: 'absolute',
-    top: 68,
+    top: '42%',
     right: 16,
     width: 44,
     height: 44,
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   },
   currentLocationButton: {
     position: 'absolute',
-    top: 120,
+    top: '49%',
     right: 16,
     width: 44,
     height: 44,
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   },
   compassButton: {
     position: 'absolute',
-    top: 172,
+    top: '56%',
     right: 16,
     width: 44,
     height: 44,

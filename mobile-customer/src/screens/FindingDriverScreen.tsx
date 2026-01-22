@@ -6,6 +6,9 @@ import MapViewComponent from '../components/MapView'
 
 interface FindingDriverScreenProps {
   routeInfo: any
+  fareEstimate?: any
+  pickupAddress: string
+  dropoffAddress: string
   colors: {
     bg: string
     bgSecondary: string
@@ -18,6 +21,9 @@ interface FindingDriverScreenProps {
 
 export default function FindingDriverScreen({
   routeInfo,
+  fareEstimate,
+  pickupAddress,
+  dropoffAddress,
   colors,
   onCancel,
 }: FindingDriverScreenProps) {
@@ -48,10 +54,10 @@ export default function FindingDriverScreen({
       {/* Header with Back Button and Logo */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: colors.bgSecondary }]}
+          style={[styles.backButton, { backgroundColor: "#fff" }]}
           onPress={onCancel}
         >
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+          <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
         </TouchableOpacity>
         <Text style={styles.logoText}>firego</Text>
       </View>
@@ -61,68 +67,78 @@ export default function FindingDriverScreen({
           { backgroundColor: colors.bgSecondary, borderTopColor: colors.border },
         ]}
       >
+        {/* Handle Bar */}
+        <View style={styles.handleBar} />
+
         {/* Status Content */}
         <View style={styles.statusContentWrapper}>
           {/* Header */}
           <View style={styles.statusHeader}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={[styles.statusTitleLarge, { color: colors.text }]}>
-                Tìm tài xế cho bạn
+                Đang tìm tài xế cho bạn...
               </Text>
               <Text style={[styles.statusSubtitle, { color: colors.textSecondary }]}>
-                Đang tìm kiếm trong vùng…
+                Vui lòng đợi trong giây lát
               </Text>
             </View>
             <TouchableOpacity style={styles.minimizeButton} onPress={onCancel}>
-              <MaterialIcons name="close" size={18} color={colors.text} />
+              <MaterialIcons name="edit" size={18} color={colors.text} />
             </TouchableOpacity>
           </View>
-
-          {/* Info Grid */}
-          <View style={styles.infoGrid}>
-            <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
-              <View style={styles.infoIcon}>
-                <MaterialIcons name="schedule" size={20} color="#FF6B00" />
-              </View>
-              <View style={styles.infoText}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                  Thời gian chờ
-                </Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>~2 phút</Text>
-              </View>
-            </View>
-
-            <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
-              <View style={styles.infoIcon}>
-                <MaterialIcons name="directions" size={20} color="#4caf50" />
-              </View>
-              <View style={styles.infoText}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                  Bán kính tìm
-                </Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>2 km</Text>
-              </View>
-            </View>
-
-            <View style={[styles.infoCard, { backgroundColor: colors.bg }]}>
-              <View style={styles.infoIcon}>
-                <MaterialIcons name="person" size={20} color="#8b5cf6" />
-              </View>
-              <View style={styles.infoText}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                  Tài xế sẵn có
-                </Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>12+</Text>
-              </View>
-            </View>
-          </View>
-
           {/* Progress Bar */}
           <View style={styles.progressSection}>
             <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
               <View style={[styles.progressFill, { backgroundColor: '#FF6B00' }]} />
             </View>
           </View>
+
+          {/* Trip Locations */}
+          <View style={styles.tripInfo}>
+            <View style={styles.locationRow}>
+              <View style={styles.locationDot}>
+                <View style={styles.pickupDot} />
+              </View>
+              <Text
+                style={[styles.locationText, { color: colors.text }]}
+                numberOfLines={1}
+              >
+                {pickupAddress}
+              </Text>
+            </View>
+
+            <View style={styles.locationRow}>
+              <View style={styles.locationDot}>
+                <View style={styles.dropoffDot} />
+              </View>
+              <Text
+                style={[styles.locationText, { color: colors.text }]}
+                numberOfLines={1}
+              >
+                {dropoffAddress}
+              </Text>
+            </View>
+          </View>
+
+          {/* Price */}
+          {fareEstimate && (
+            <View style={[styles.priceContainer, { backgroundColor: 'rgba(255, 107, 0, 0.08)', borderColor: 'rgba(255, 107, 0, 0.2)' }]}>
+              <MaterialIcons name="payments" size={20} color="#FF6B00" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
+                  Giá ước tính
+                </Text>
+                <Text style={[styles.price, { color: colors.text }]}>
+                  {fareEstimate.total?.toLocaleString('vi-VN')}đ
+                </Text>
+              </View>
+              <View style={[styles.paymentBadge, { backgroundColor: colors.bg }]}>
+                <Text style={[styles.paymentBadgeText, { color: colors.textSecondary }]}>
+                  Tiền mặt
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Cancel Button */}
@@ -130,8 +146,7 @@ export default function FindingDriverScreen({
           style={[styles.cancelButtonLarge, { borderColor: colors.border }]}
           onPress={onCancel}
         >
-          <MaterialIcons name="close" size={20} color="#ef4444" />
-          <Text style={styles.cancelButtonLargeText}>Hủy chuyến</Text>
+          <Text style={styles.cancelButtonLargeText}>Hủy</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -151,7 +166,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.sm,
     paddingBottom: SPACING.xl,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -159,9 +174,17 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
   },
+  handleBar: {
+    width: 50,
+    height: 5,
+    backgroundColor: '#ccc',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: SPACING.md,
+  },
   statusContentWrapper: {
     paddingHorizontal: SPACING.lg,
-    gap: SPACING.lg,
+    gap: SPACING.md,
   },
   statusHeader: {
     flexDirection: 'row',
@@ -174,8 +197,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   statusSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
+    marginTop: SPACING.xs,
   },
   minimizeButton: {
     width: 36,
@@ -233,6 +257,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   cancelButtonLarge: {
+    marginTop: SPACING.lg,
     marginHorizontal: SPACING.lg,
     height: 56,
     borderRadius: BORDER_RADIUS.lg,
@@ -273,5 +298,68 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
     color: '#FF6B00',
+  },
+  tripInfo: {
+    gap: SPACING.sm,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  locationDot: {
+    width: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickupDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ef4444',
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  dropoffDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: '#10b981',
+  },
+  locationText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+  },
+  price: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  priceLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  paymentBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  paymentBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 })

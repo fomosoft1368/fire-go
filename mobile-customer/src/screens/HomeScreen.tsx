@@ -266,21 +266,27 @@ export default function HomeScreen() {
     setPickupSuggestions([]);
     
     // ⚡ Lazy load coordinates if not available
-    let coords = [place.lng, place.lat];
-    if (place.lat === 0 || place.lng === 0) {
+    let coords: [number, number] = [place.lng || 0, place.lat || 0];
+    const hasValidCoords = place.lat && place.lng && place.lat !== 0 && place.lng !== 0;
+    
+    if (!hasValidCoords && place.placeId) {
       console.log('📡 [HomeScreen] Fetching coordinates for:', place.placeId);
       try {
         const details = await placesService.getPlaceDetails(place.placeId);
-        if (details && details.lat && details.lng) {
+        if (details && details.lat && details.lng && details.lat !== 0 && details.lng !== 0) {
           coords = [details.lng, details.lat];
           console.log('✅ Coordinates fetched:', coords);
+        } else {
+          console.warn('⚠️ No valid coordinates from API, using default');
+          coords = [105.8542, 21.0285];
         }
       } catch (error) {
         console.error('❌ Error fetching place details:', error);
+        coords = [105.8542, 21.0285];
       }
     }
     
-    setPickupCoordinates(coords as [number, number]);
+    setPickupCoordinates(coords);
     setIsPickupSelected(true);
     console.log('✅ Pickup place selected:', placeName, coords);
   };
@@ -303,27 +309,33 @@ export default function HomeScreen() {
     setDropoffSuggestions([]);
     
     // ⚡ Lazy load coordinates if not available
-    let coords = [place.lng, place.lat];
-    if (place.lat === 0 || place.lng === 0) {
+    let coords: [number, number] = [place.lng || 0, place.lat || 0];
+    const hasValidCoords = place.lat && place.lng && place.lat !== 0 && place.lng !== 0;
+    
+    if (!hasValidCoords && place.placeId) {
       console.log('📡 [HomeScreen] Fetching coordinates for:', place.placeId);
       try {
         const details = await placesService.getPlaceDetails(place.placeId);
-        if (details && details.lat && details.lng) {
+        if (details && details.lat && details.lng && details.lat !== 0 && details.lng !== 0) {
           coords = [details.lng, details.lat];
           console.log('✅ Coordinates fetched:', coords);
+        } else {
+          console.warn('⚠️ No valid coordinates from API, using default');
+          coords = [105.8542, 21.0285];
         }
       } catch (error) {
         console.error('❌ Error fetching place details:', error);
+        coords = [105.8542, 21.0285];
       }
     }
     
-    setDropoffCoordinates(coords as [number, number]);
+    setDropoffCoordinates(coords);
     setIsDropoffSelected(true);
     console.log('✅ Dropoff place selected:', placeName, coords);
     
     // 🔄 Auto-calculate route when both locations are set
     if (pickupLocation.trim()) {
-      await calculateRoute(pickupCoordinates, coords as [number, number]);
+      await calculateRoute(pickupCoordinates, coords);
     }
   };
 
