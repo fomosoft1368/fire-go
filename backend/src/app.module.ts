@@ -14,6 +14,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { PlacesModule } from './modules/places/places.module';
 import { PaymentModule } from './modules/payment/payment.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { PaymentModule } from './modules/payment/payment.module';
     MessagesModule,
     PlacesModule,
     PaymentModule,
+    DeliveryModule,
   ],
   controllers: [],
   providers: [],

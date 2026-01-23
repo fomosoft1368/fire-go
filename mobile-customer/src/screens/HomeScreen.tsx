@@ -26,6 +26,7 @@ import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { API_BASE_URL } from '../constants/config'
 import MapViewComponent from '../components/MapView'
 import HireDriverScreen from './HireDriverScreen'
+import Delivery from './Delivery'
 import FindingRideModal from '../components/FindingRideModal'
 import { rideService } from '../services/rideService'
 import { useDebounce } from '../hooks'
@@ -35,7 +36,7 @@ const { height } = Dimensions.get('window')
 
 export default function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
-  const [rideMode, setRideMode] = useState<'share' | 'hire'>('share' as const)
+  const [rideMode, setRideMode] = useState<'share' | 'hire' | 'delivery'>('share' as const)
   const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
   const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.6909, 18.6867])
@@ -590,8 +591,20 @@ export default function HomeScreen() {
     }
   }
 
+
   if (rideMode === 'hire') {
     return <HireDriverScreen {...{ isScheduled, setIsScheduled, carType, setCarType, licensePlate, setLicensePlate, transmission, setTransmission, driverNote, setDriverNote, pickupLocation, setPickupLocation, dropoffLocation, setDropoffLocation, setRideMode }} />
+  }
+
+  if (rideMode === 'delivery') {
+    return (
+      <Delivery 
+        setRideMode={setRideMode}
+        onNavigateToConfirm={(params) => {
+          navigation.navigate('ConfirmDelivery', params)
+        }}
+      />
+    )
   }
 
   return (
@@ -793,6 +806,25 @@ export default function HomeScreen() {
               ]}
             >
               Lái xe hộ
+            </Text>
+          </TouchableOpacity>
+                    <TouchableOpacity
+            style={[
+              styles.rideTypeButton,
+              {
+                backgroundColor: (rideMode as string) === 'delivery' ? '#FF6B00' : 'transparent',
+                borderColor: (rideMode as string) === 'delivery' ? '#FF6B00' : colors.border,
+              },
+            ]}
+            onPress={() => setRideMode('delivery')}
+          >
+            <Text
+              style={[
+                styles.rideTypeText,
+                { color: (rideMode as string) === 'delivery' ? '#fff' : colors.text },
+              ]}
+            >
+              Giao hàng
             </Text>
           </TouchableOpacity>
         </View>

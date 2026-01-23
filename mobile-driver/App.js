@@ -1,13 +1,15 @@
-import React from 'react'
-import { StyleSheet } from 'react-native'
+import React, { useEffect } from 'react'
+import { StyleSheet, ActivityIndicator, View } from 'react-native'
 import 'react-native-gesture-handler'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import { Provider, useSelector } from 'react-redux'
+import { Provider, useSelector, useDispatch } from 'react-redux'
 import { store, RootState } from './src/redux/store'
+import { loginSuccess } from './src/redux/slices/authSlice'
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS } from './src/constants'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import LoginScreen from './src/screens/LoginScreen'
 import RegisterScreen from './src/screens/RegisterScreen'
 import HomeScreen from './src/screens/HomeScreen'
@@ -21,6 +23,8 @@ import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 import MapScreen from './src/screens/MapScreen'
 import CreateRideScreen from './src/screens/CreateRideScreen'
 import TripActivities from './src/screens/TripActivities'
+import DeliveryRequestsScreen from './src/screens/DeliveryRequestsScreen'
+import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -151,12 +155,72 @@ const HomeStackNavigator = () => {
         component={TripActivities}
         options={{ animationEnabled: true }}
       />
+      <Stack.Screen
+        name="DeliveryRequests"
+        component={DeliveryRequestsScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="ActiveDelivery"
+        component={ActiveDeliveryScreen}
+        options={{ animationEnabled: true }}
+      />
     </Stack.Navigator>
   )
 }
 
 const RootNavigator = () => {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth)
+  const dispatch = useDispatch()
+  const { isAuthenticated } = useSelector((state) => state.auth)
+  const [isLoading, setIsLoading] = React.useState(true)
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkAuth = async () => {
+      try {
+        console.log('[App] ===== CHECKING AUTH ON APP START =====')
+        const token = await AsyncStorage.getItem('token')
+        console.log('[App] Token exists:', !!token)
+        console.log('[App] Token value:', token ? `${token.substring(0, 30)}...` : 'null')
+        
+        if (token) {
+          // Get user profile using token
+          const authService = require('./src/services/authService')
+          try {
+            console.log('[App] Fetching user profile with token...')
+            const user = await authService.getCurrentUser()
+            console.log('[App] User restored successfully:', user ? `${user.email || user.phone}` : 'null')
+            
+            if (user) {
+              // Restore auth state
+              console.log('[App] Dispatching loginSuccess to restore session')
+              dispatch(loginSuccess({ token, user }))
+            }
+          } catch (error) {
+            console.log('[App] Token invalid or expired, clearing...', error.message)
+            await AsyncStorage.removeItem('token')
+          }
+        } else {
+          console.log('[App] No token found, user needs to login')
+        }
+      } catch (error) {
+        console.error('[App] Auth check error:', error)
+      } finally {
+        console.log('[App] Auth check complete, hiding splash')
+        setIsLoading(false)
+      }
+    }
+
+    checkAuth()
+  }, [dispatch])
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#101922' }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    )
+  }
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>

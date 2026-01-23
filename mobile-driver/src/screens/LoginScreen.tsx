@@ -49,7 +49,20 @@ export default function LoginScreen({ navigation }: any) {
       console.log('🔓 LoginScreen - Calling loginAPI with:', phoneEmail)
       const response = await loginAPI(phoneEmail, password)
       console.log('🔓 LoginScreen - Got response:', response)
+      console.log('🔓 LoginScreen - Access token:', response.accessToken)
+      
+      // Verify token was saved to AsyncStorage
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default
+      const savedToken = await AsyncStorage.getItem('token')
+      console.log('🔓 LoginScreen - Token saved to AsyncStorage:', !!savedToken)
+      console.log('🔓 LoginScreen - Saved token value:', savedToken ? savedToken.substring(0, 30) + '...' : 'null')
+      
+      if (!savedToken) {
+        console.error('🔓 LoginScreen - WARNING: Token was not saved to AsyncStorage!')
+      }
+      
       dispatch(loginSuccess({ token: response.accessToken, user: response.user }))
+      console.log('🔓 LoginScreen - loginSuccess dispatched')
     } catch (err: any) {
       console.log('🔓 LoginScreen - Error caught:', err.response?.data?.message || err.message)
       const errorMessage = err.response?.data?.message || 'Đăng nhập thất bại'

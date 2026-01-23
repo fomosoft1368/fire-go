@@ -14,7 +14,7 @@
 - Expo Location plugin auto-requests permissions on first app use
 
 ✅ **Environment Variables** (in .env)
-- `REACT_APP_API_URL=http://192.168.1.14:3000/api`
+- `REACT_APP_API_URL=http://192.168.1.16:3000/api`
 - `GOOGLE_MAPS_API_KEY=AIzaSyDhotUKj8pth1cdRwUu3rgN7xn5t-P2y8A`
 
 ### How Location Tracking Works:

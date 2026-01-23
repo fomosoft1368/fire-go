@@ -230,20 +230,38 @@ export class AuthService {
   }
 
   async getUserProfile(userId: string): Promise<any> {
+    // Try to find user first
     const user = await this.userModel.findById(userId).select('-password');
-    if (!user) {
-      throw new UnauthorizedException('User not found');
+    if (user) {
+      return {
+        _id: user._id,
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+        avatar: user.avatar,
+      };
     }
-    return {
-      _id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      status: user.status,
-      avatar: user.avatar,
-    };
+
+    // If not found in users, try drivers
+    const driver = await this.driverModel.findById(userId).select('-password');
+    if (driver) {
+      return {
+        _id: driver._id,
+        id: driver._id,
+        firstName: driver.firstName,
+        lastName: driver.lastName,
+        email: driver.email,
+        phone: driver.phone,
+        role: 'driver',
+        status: driver.status,
+      };
+    }
+
+    throw new UnauthorizedException('User not found');
   }
 
   async changePassword(

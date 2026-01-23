@@ -517,6 +517,23 @@ export default function HomeScreen() {
         {/* Filter Buttons */}
         <FilterButtons activeFilter={activeFilter} onFilterChange={setActiveFilter} />
 
+        {/* Delivery Button */}
+        <TouchableOpacity
+          style={styles.deliveryButton}
+          onPress={() => navigation.navigate('DeliveryRequests')}
+        >
+          <View style={styles.deliveryButtonContent}>
+            <View style={styles.deliveryIconBox}>
+              <MaterialIcons name="local-shipping" size={28} color="#FF6B00" />
+            </View>
+            <View style={styles.deliveryInfo}>
+              <Text style={styles.deliveryTitle}>Giao hàng</Text>
+              <Text style={styles.deliverySubtitle}>Xem đơn giao hàng gần bạn</Text>
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={20} color="#666" />
+          </View>
+        </TouchableOpacity>
+
         {/* Rides List */}
         <View style={styles.ridesSection}>
           <View style={styles.sectionTitleContainer}>
@@ -1027,6 +1044,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#fff',
+  },
+  // ============ Delivery Button ============
+  deliveryButton: {
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+    backgroundColor: '#fff',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  deliveryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  deliveryIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFE8DC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deliveryInfo: {
+    flex: 1,
+  },
+  deliveryTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111',
+    marginBottom: 4,
+  },
+  deliverySubtitle: {
+    fontSize: 14,
+    color: '#666',
   },
   // ============ Ride Actions Styles ============
   rideWithActions: {
