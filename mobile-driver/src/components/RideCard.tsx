@@ -15,14 +15,30 @@ export const RideCard: React.FC<RideCardProps> = ({ ride, onAccept }) => {
   const navigation = useNavigation()
 
   const handleAccept = () => {
-    console.log('🎯 RideCard handleAccept:', { rideId: ride._id || ride.id, sourceType: ride.sourceType })
+    console.log('🎯 RideCard handleAccept:', { 
+      rideId: ride._id || ride.id, 
+      sourceType: ride.sourceType, 
+      type: ride.type 
+    })
+    
     if (onAccept) {
       // Call parent handler with full ride object (including sourceType)
       onAccept(ride)
     } else {
-      // Fallback: navigate to RideRequestsScreen
-      // @ts-ignore - Navigation types not fully defined
-      navigation.navigate('RideRequestsScreen', { rideId: ride.id })
+      // Fallback: determine navigation based on ride type
+      const rideId = ride._id || ride.id
+      
+      if (ride.type === 'ASSIST') {
+        // Lái xe hộ → RideDetailScreen
+        console.log('📍 Fallback: Navigating to RideDetailScreen for ASSIST')
+        // @ts-ignore - Navigation types not fully defined
+        navigation.navigate('RideDetailScreen', { rideId })
+      } else {
+        // Ghép xe → RideRequestsScreen
+        console.log('📍 Fallback: Navigating to RideRequestsScreen for POOL')
+        // @ts-ignore - Navigation types not fully defined
+        navigation.navigate('RideRequestsScreen', { rideId })
+      }
     }
   }
   return (

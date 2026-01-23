@@ -100,6 +100,51 @@ export type RootStackParamList = {
     drivers?: any[]
     routeInfo?: any
   }
+  Delivery: undefined
+  ConfirmDelivery: {
+    deliveryId: string
+    pickup: string
+    dropoff: string
+    goodsType: string
+    weight: string
+    vehicle: string
+    estimatedPrice: number
+  }
+  FindingDelivery: {
+    deliveryId: string
+    pickup: string
+    dropoff: string
+    goodsType: string
+    weight: string
+    vehicle: string
+    estimatedPrice: number
+    distance?: string
+  }
+  DeliveryTracking: {
+    deliveryId: string
+    driver?: {
+      id: string
+      name: string
+      phone: string
+      rating: number
+      totalTrips: number
+      vehiclePlate: string
+      avatar?: string
+    }
+  }
+  DeliveryCompleted: {
+    deliveryId: string
+    totalAmount?: number
+    distance?: string
+    duration?: string
+    driver?: {
+      id: string
+      name: string
+      phone: string
+      rating: number
+      totalTrips: number
+    }
+  }
 }
 
 // API Response Types

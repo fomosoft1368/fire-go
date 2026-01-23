@@ -259,7 +259,7 @@ export class DriverService {
   }
 
   /**
-   * Get all my combined trips (share rides)
+   * Get all available combined trips (share rides) - both my trips and pending trips
    */
   async getMyCombinedTrips(): Promise<any[]> {
     try {
@@ -272,6 +272,7 @@ export class DriverService {
 
       console.log('📍 Calling: GET', `${API_BASE_URL}/combined-trips`);
 
+      // Get all combined trips (no status filter to get both pending and assigned trips)
       const response = await axios.get(`${API_BASE_URL}/combined-trips`, {
         headers: {
           'Content-Type': 'application/json',

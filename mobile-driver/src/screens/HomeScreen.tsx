@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Audio } from 'expo-av'
 import {
   View,
   Text,
@@ -20,6 +21,25 @@ import { RideCard, BalanceCard } from '../components'
 import { driverService } from '../services/driverService'
 import type { RootState } from '../redux/store'
 import type { RideItem } from '../types'
+
+// Hàm phát âm thanh notification
+async function playNotificationSound() {
+  try {
+    const { sound } = await Audio.Sound.createAsync(
+      require('../assets/sounds/notification.mp3')
+    )
+    await sound.setPositionAsync(0)
+    await sound.setVolumeAsync(1.0)
+    await sound.playAsync()
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) {
+        sound.unloadAsync()
+      }
+    })
+  } catch (e) {
+    console.log('Lỗi phát âm thanh:', e)
+  }
+}
 
 export default function HomeScreen() {
   const [isOnline, setIsOnline] = useState(true)
@@ -64,7 +84,25 @@ export default function HomeScreen() {
 
     if (assignedRideData && !assignedRide) {
       setAssignedRide(assignedRideData)
-      setDismissCountdown(15)
+      setDismissCountdown(15);
+      // Play sound when a new assigned ride appears (improved)
+      (async () => {
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require('../assets/sounds/notification.mp3')
+          )
+          await sound.setPositionAsync(0)
+          await sound.setVolumeAsync(1.0)
+          await sound.playAsync()
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              sound.unloadAsync()
+            }
+          })
+        } catch (e) {
+          console.log('Lỗi phát âm thanh:', e)
+        }
+      })()
     }
   }, [rides, user?.id])
 
@@ -81,38 +119,46 @@ export default function HomeScreen() {
       console.log('📱 Combined trips từ API:', allCombinedTrips)
       console.log('👤 User ID hiện tại:', user?.id)
 
-      // Filter: only my rides (driverId = current driver)
-      const myRides = allRides.filter((ride: any) => {
+      // Filter rides: show both my rides AND available rides (no driver assigned)
+      const relevantRides = allRides.filter((ride: any) => {
         const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
         const isMyRide = rideDriverId === user?.id
+        const isAvailable = !rideDriverId && ride.status === 'pending'
+        const shouldShow = isMyRide || isAvailable
         console.log(`🚗 Ride ${ride._id}:`, {
           driverId: rideDriverId,
-          isMyRide,
           status: ride.status,
+          isMyRide,
+          isAvailable,
+          shouldShow,
         })
-        return isMyRide
+        return shouldShow
       })
 
-      // Filter: only my combined trips (driverId = current driver)
-      const myCombinedTrips = allCombinedTrips.filter((trip: any) => {
+      // Filter combined trips: show both my trips AND available trips (no driver assigned)
+      const relevantCombinedTrips = allCombinedTrips.filter((trip: any) => {
         const tripDriverId = typeof trip.driverId === 'string' ? trip.driverId : trip.driverId?._id
         const isMyTrip = tripDriverId === user?.id
+        const isAvailable = !tripDriverId && trip.status === 'pending'
+        const shouldShow = isMyTrip || isAvailable
         console.log(`🛴 Combined trip ${trip._id}:`, {
           driverId: tripDriverId,
-          isMyTrip,
           status: trip.status,
+          isMyTrip,
+          isAvailable,
+          shouldShow,
         })
-        return isMyTrip
+        return shouldShow
       })
 
       // Merge both arrays
       const allMyRides = [
-        ...myRides.map((ride: any) => ({ ...ride, sourceType: 'ride' })),
-        ...myCombinedTrips.map((trip: any) => ({ ...trip, sourceType: 'combined_trip' })),
+        ...relevantRides.map((ride: any) => ({ ...ride, sourceType: 'ride' })),
+        ...relevantCombinedTrips.map((trip: any) => ({ ...trip, sourceType: 'combined_trip' })),
       ]
 
-      console.log('✅ My rides:', myRides.length)
-      console.log('✅ My combined trips:', myCombinedTrips.length)
+      console.log('✅ Relevant rides:', relevantRides.length)
+      console.log('✅ Relevant combined trips:', relevantCombinedTrips.length)
       console.log('✅ Total merged rides:', allMyRides.length)
 
       setRides(allMyRides)
@@ -132,18 +178,19 @@ export default function HomeScreen() {
 
   const formatRideData = (ride: any): RideItem & { sourceType?: string; _id?: string } => {
     // Determine if it's a combined trip or regular ride
-    const isCombinedTrip = ride.sourceType === 'combined_trip' || !ride.rideType
-    const isShareRide = ride.rideType === 'share' || isCombinedTrip
+    const isCombinedTrip = ride.sourceType === 'combined_trip'
+    // Combined trips are always POOL, otherwise check rideType
+    const isShareRide = isCombinedTrip || ride.rideType === 'share'
 
     // Get pickup address (not mock)
     const pickupAddr = ride.pickupAddress || 'Điểm đón'
-    
+
     // Handle dropoff location - could be string or GeoJSON object
     let dropoffAddr = ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến'
     if (typeof dropoffAddr === 'object' && dropoffAddr?.type === 'Point') {
       dropoffAddr = ride.dropoffLocationAddress || 'Địa điểm đến'
     }
-    
+
     // For display, show short version of address
     const shortPickupAddr = pickupAddr.length > 30 ? pickupAddr.substring(0, 30) + '...' : pickupAddr
     const shortDropoffAddr = dropoffAddr.length > 30 ? dropoffAddr.substring(0, 30) + '...' : dropoffAddr
@@ -175,18 +222,30 @@ export default function HomeScreen() {
         Alert.alert('Lỗi', 'Không tìm thấy thông tin tài xế')
         return
       }
-      
+
       const rideId = ride._id || ride.id
       const sourceType = ride.sourceType // 'ride' or 'combined_trip'
-      
-      console.log('🚗 Accepting ride:', { rideId, sourceType })
-      
-      // For regular rides, call accept endpoint
-      if (sourceType === 'combined_trip') {
+      const type = ride.type // 'ASSIST' or 'POOL'
+
+      console.log('🚗 Viewing ride:', { rideId, sourceType, type })
+
+      // Determine which screen to navigate to based on ride type
+      const isCombinedTrip = sourceType === 'combined_trip'
+      const isAssistRide = type === 'ASSIST'
+
+      // For lái xe hộ (ASSIST), go to RideDetailScreen
+      if (isAssistRide && !isCombinedTrip) {
+        console.log('📍 Navigating to RideDetailScreen for ASSIST ride')
+        navigation.navigate('RideDetailScreen', { rideId })
+        return
+      }
+
+      // For ghép xe (POOL/combined trips), accept and go to RideRequestsScreen
+      if (isCombinedTrip) {
         // Check if this driver created the combined trip (driverId is already set)
         const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
         const isMyTrip = rideDriverId === user.id
-        
+
         if (!isMyTrip) {
           // This is someone else's trip, we need to accept it
           await driverService.acceptCombinedTrip(rideId, user.id)
@@ -196,34 +255,48 @@ export default function HomeScreen() {
           console.log('✅ This is your own combined trip, skipping accept')
         }
       } else {
+        // Regular share ride
         await driverService.acceptRide(rideId, user.id)
         Alert.alert('Thành công', `Bạn đã nhận cuốc`)
       }
-      
-      // Both combined trips and regular rides go to RideRequestsScreen to manage requests
-      const params = sourceType === 'combined_trip' 
+
+      // Navigate to RideRequestsScreen for share rides and combined trips
+      const params = isCombinedTrip
         ? { combinedTripId: rideId, sourceType: 'combined_trip' }
         : { rideId, sourceType: 'ride' }
-      
+
+      console.log('📍 Navigating to RideRequestsScreen for POOL ride')
       navigation.navigate('RideRequestsScreen', params)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Lỗi khi nhận cuốc:', error)
-      Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
+      let msg = 'Không thể nhận cuốc. Vui lòng thử lại.'
+      if (error && error.message) {
+        msg = Array.isArray(error.message) ? error.message.join(', ') : String(error.message)
+      }
+      Alert.alert('Lỗi', msg)
     }
   }
-
-  // Edit my created ride
-  const handleEditRide = (rideId: string) => {
-    navigation.navigate('EditRideScreen', { rideId })
+  // Test: Mock assigned ride notification
+  const handleTestAssignedRide = async () => {
+    const mockRide = {
+      _id: 'test-ride-123',
+      status: 'assigned',
+      driverId: user?.id,
+      pickupAddress: '123 Đường Lê Lợi, Quận 1, TP.HCM',
+      totalFare: 125000,
+      rideType: 'share',
+    }
+    setAssignedRide(mockRide)
+    setDismissCountdown(15)
+    await playNotificationSound()
   }
-
   // Update ride status (cancel, start, complete)
   const handleUpdateRideStatus = async (rideId: string, newStatus: string) => {
     Alert.alert(
       'Xác nhận',
       `Bạn muốn thay đổi trạng thái chuyến?`,
       [
-        { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+        { text: 'Hủy', onPress: () => { }, style: 'cancel' },
         {
           text: 'Xác nhận',
           onPress: async () => {
@@ -231,9 +304,13 @@ export default function HomeScreen() {
               await driverService.updateRide(rideId, { status: newStatus })
               Alert.alert('Thành công', 'Cập nhật trạng thái thành công')
               await fetchAvailableRides()
-            } catch (error) {
+            } catch (error: any) {
               console.error('Lỗi cập nhật:', error)
-              Alert.alert('Lỗi', 'Không thể cập nhật trạng thái')
+              let msg = 'Không thể cập nhật trạng thái'
+              if (error && error.message) {
+                msg = Array.isArray(error.message) ? error.message.join(', ') : String(error.message)
+              }
+              Alert.alert('Lỗi', msg)
             }
           },
         },
@@ -250,15 +327,21 @@ export default function HomeScreen() {
       setDismissCountdown(15)
       // Navigate to ride requests screen (manage incoming requests)
       navigation.navigate('RideRequestsScreen', { rideId: assignedRide._id })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Lỗi khi nhận cuốc:', error)
-      Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
+      let msg = 'Không thể nhận cuốc. Vui lòng thử lại.'
+      if (error && error.message) {
+        msg = Array.isArray(error.message) ? error.message.join(', ') : String(error.message)
+      }
+      Alert.alert('Lỗi', msg)
     }
   }
-
+  const handleEditRide = () => {
+    navigation.navigate('TripActivities')
+  }
   const handleRejectRide = () => {
     Alert.alert('Từ chối cuốc', 'Bạn chắc chắn muốn từ chối cuốc này?', [
-      { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+      { text: 'Hủy', onPress: () => { }, style: 'cancel' },
       {
         text: 'Từ chối',
         onPress: () => {
@@ -334,7 +417,7 @@ export default function HomeScreen() {
               onPress={handleAcceptAssignedRide}
             >
               <MaterialIcons name="check" size={18} color="#fff" />
-              <Text style={styles.actionButtonText}>Nhận cuốc</Text>
+              <Text style={styles.actionButtonText} onPress={handleEditRide}>Nhận cuốc</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -434,6 +517,23 @@ export default function HomeScreen() {
         {/* Filter Buttons */}
         <FilterButtons activeFilter={activeFilter} onFilterChange={setActiveFilter} />
 
+        {/* Delivery Button */}
+        <TouchableOpacity
+          style={styles.deliveryButton}
+          onPress={() => navigation.navigate('DeliveryRequests')}
+        >
+          <View style={styles.deliveryButtonContent}>
+            <View style={styles.deliveryIconBox}>
+              <MaterialIcons name="local-shipping" size={28} color="#FF6B00" />
+            </View>
+            <View style={styles.deliveryInfo}>
+              <Text style={styles.deliveryTitle}>Giao hàng</Text>
+              <Text style={styles.deliverySubtitle}>Xem đơn giao hàng gần bạn</Text>
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={20} color="#666" />
+          </View>
+        </TouchableOpacity>
+
         {/* Rides List */}
         <View style={styles.ridesSection}>
           <View style={styles.sectionTitleContainer}>
@@ -475,7 +575,7 @@ export default function HomeScreen() {
                   <RideCard ride={completeRide} onAccept={handleAcceptRide} />
                   {originalRide && (
                     <View style={styles.rideActions}>
-                    
+
                     </View>
                   )}
                 </View>
@@ -489,8 +589,17 @@ export default function HomeScreen() {
                 Hãy quay lại sau để kiểm tra những cuốc mới
               </Text>
             </View>
+
           )}
         </View>
+        {/* TEST Button - Xóa khi không cần */}
+        <TouchableOpacity
+          style={styles.testButton}
+          onPress={handleTestAssignedRide}
+        >
+          <MaterialIcons name="bug-report" size={16} color="#fff" />
+          <Text style={styles.testButtonText}>TEST: Mock Assigned Ride</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Floating Map Button */}
@@ -935,6 +1044,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#fff',
+  },
+  // ============ Delivery Button ============
+  deliveryButton: {
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+    backgroundColor: '#fff',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  deliveryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  deliveryIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFE8DC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deliveryInfo: {
+    flex: 1,
+  },
+  deliveryTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111',
+    marginBottom: 4,
+  },
+  deliverySubtitle: {
+    fontSize: 14,
+    color: '#666',
   },
   // ============ Ride Actions Styles ============
   rideWithActions: {
