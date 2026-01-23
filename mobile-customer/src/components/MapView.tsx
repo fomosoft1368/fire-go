@@ -216,7 +216,7 @@ const MapViewComponent = ({
         zoomEnabled={true}
       >
         {/* Đường đi với outline */}
-        {routeCoordinates.length > 0 && (
+        {routeCoordinates && routeCoordinates.length > 0 && (
           <>
             {console.log('[MapView] 🛣️ Rendering route with', routeCoordinates.length, 'points')}
             {/* Outline (viền ngoài) */}
@@ -283,9 +283,9 @@ const MapViewComponent = ({
         {/* Hiển thị các tài xế trên map */}
         {drivers && drivers.length > 0 && (
           <>
-            {console.log('[MapView] 🚗 Rendering', drivers.length, 'drivers on map')}
+            
             {drivers.map((driver) => {
-              console.log(`[MapView] Driver marker: ${driver.name} at (${driver.latitude}, ${driver.longitude})`)
+              
               return (
                 <Marker
                   key={driver.id}

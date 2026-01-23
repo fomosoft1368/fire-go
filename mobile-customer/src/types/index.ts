@@ -31,20 +31,23 @@ export interface AuthState {
 // Booking Types
 export interface RideBooking {
   id: string
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'accepted' | 'arrived_at_pickup'
   pickupLocation: string
   dropoffLocation: string
-  distance: string
-  estimatedTime: string
+  pickupDistrict?: string
+  dropoffDistrict?: string
+  distance?: string
+  estimatedTime?: string
   estimatedFare: number
   actualFare?: number
-  rideType: 'standard' | 'comfort' | 'xl'
+  rideType: 'standard' | 'comfort' | 'xl' | 'hire' | 'share'
   driverName?: string
   driverRating?: number
   carPlate?: string
   bookingTime: string
   startTime?: string
   endTime?: string
+  combinedTripId?: string
 }
 
 // Notification Types

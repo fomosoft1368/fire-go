@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { RootState } from '../redux/store'
 import { rideService } from '../services/rideService'
+import { combinedTripsService } from '../services/combinedTripsService'
 import {
   View,
   Text,
@@ -17,13 +18,16 @@ import {
   Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import { useNavigation } from '@react-navigation/native'
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import type { RootStackParamList } from '../types'
 import { SPACING, BORDER_RADIUS } from '../constants'
 import type { RideBooking } from '../types'
 
-
-const mockBookings: RideBooking[] = []
+type Navigation = NativeStackNavigationProp<RootStackParamList>
 
 export default function BookingsScreen() {
+  const navigation = useNavigation<Navigation>()
   const user = useSelector((state: RootState) => state.auth.user)
   const [activeFilter, setActiveFilter] = useState('all')
   const [bookings, setBookings] = useState<RideBooking[]>([])
@@ -77,18 +81,58 @@ export default function BookingsScreen() {
     try {
       console.log('[BookingsScreen] Starting fetch for user:', userId)
       
-      const rideHistory = await rideService.getRideHistory(userId)
+      // Fetch cả HIRE rides và SHARE combined trips
+      const [rideHistory, combinedTrips] = await Promise.all([
+        rideService.getRideHistory(userId).catch((err) => {
+          console.error('[BookingsScreen] Error fetching rides:', err)
+          return []
+        }),
+        combinedTripsService.getCustomerTrips(userId).catch((err) => {
+          console.error('[BookingsScreen] Error fetching combined trips:', err)
+          return []
+        }),
+      ])
+
+      console.log('[BookingsScreen] Fetch completed:')
+      console.log('  - HIRE rides:', rideHistory?.length || 0)
+      console.log('  - SHARE combined-trips:', combinedTrips?.length || 0)
+
+      // Format combined trips thành RideBooking structure
+      const formattedCombinedTrips = (combinedTrips || []).map((trip: any) => ({
+        id: trip._id || trip.id,
+        rideType: 'share',
+        estimatedFare: trip.totalFare || 0,
+        bookingTime: trip.createdAt 
+          ? new Date(trip.createdAt).toLocaleString('vi-VN')
+          : 'N/A',
+        pickupLocation: trip.pickupLocationAddress || trip.pickupAddress || 'N/A',
+        dropoffLocation: trip.dropoffLocationAddress || trip.dropoffAddress || 'N/A',
+        pickupDistrict: 'Hà Nội',
+        dropoffDistrict: 'Hà Nội',
+        status: trip.status?.toLowerCase() || 'pending',
+        driverName: trip.driverId?.firstName + ' ' + trip.driverId?.lastName || 'N/A',
+        carPlate: trip.driverId?.vehiclePlate || 'N/A',
+        // Thêm trường để track combined trip ID
+        combinedTripId: trip._id || trip.id,
+      }))
+
+      // Merge rides + combined trips
+      const allBookings = [...rideHistory, ...formattedCombinedTrips]
       
-      console.log('[BookingsScreen] Fetch completed, got', rideHistory.length, 'rides')
-      if (rideHistory.length > 0) {
-        console.log('[BookingsScreen] First ride:', JSON.stringify(rideHistory[0], null, 2))
-      } else {
-        console.log('[BookingsScreen] No rides returned from API')
-        // Show alert to user
-        Alert.alert('Thông báo', `Không có chuyến đi nào. User ID: ${userId}`)
+      // Sort by booking time (newest first)
+      allBookings.sort((a, b) => {
+        const timeA = new Date(a.bookingTime).getTime()
+        const timeB = new Date(b.bookingTime).getTime()
+        return timeB - timeA
+      })
+
+      console.log('[BookingsScreen] Total bookings:', allBookings.length)
+      
+      if (allBookings.length === 0) {
+        Alert.alert('Thông báo', 'Không có chuyến đi nào')
       }
       
-      setBookings(rideHistory)
+      setBookings(allBookings)
     } catch (error: any) {
       console.error('[BookingsScreen] Error fetching rides:', {
         message: error.message,
@@ -136,6 +180,19 @@ export default function BookingsScreen() {
       Alert.alert('Lỗi', 'Không thể gửi đánh giá. Vui lòng thử lại!')
     } finally {
       setIsSubmittingRating(false)
+    }
+  }
+
+  const handleViewDetail = (booking: RideBooking) => {
+    // Nếu là combined trip (share ride)
+    if (booking.rideType === 'share' && booking.combinedTripId) {
+      console.log('[BookingsScreen] Navigating to DriverFound:', booking.combinedTripId)
+      navigation.navigate('DriverFound', {
+        combinedTripId: booking.combinedTripId,
+      })
+    } else {
+      // Nếu là hire ride
+      Alert.alert('Chi tiết', `Chuyến đi ${booking.id}`)
     }
   }
 
@@ -348,9 +405,40 @@ export default function BookingsScreen() {
                       />
                     ))}
                   </View>
-                  <TouchableOpacity style={styles.rebookButton}>
-                    <MaterialIcons name="replay" size={16} color="#94a3b8" />
-                    <Text style={styles.rebookText}>Đặt lại</Text>
+                  <View style={styles.footerButtonGroup}>
+                    <TouchableOpacity 
+                      style={styles.detailButton}
+                      onPress={() => handleViewDetail(booking)}
+                    >
+                      <MaterialIcons name="info" size={14} color="#53d22d" />
+                      <Text style={styles.detailButtonText}>Chi tiết</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.rebookButton}>
+                      <MaterialIcons name="replay" size={16} color="#94a3b8" />
+                      <Text style={styles.rebookText}>Đặt lại</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              {isCompleted && booking.rideType === 'share' && !booking.combinedTripId && (
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity 
+                    style={styles.detailButton}
+                    onPress={() => handleViewDetail(booking)}
+                  >
+                    <MaterialIcons name="info" size={14} color="#53d22d" />
+                    <Text style={styles.detailButtonText}>Chi tiết</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {!isCompleted && booking.rideType === 'share' && (
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity 
+                    style={styles.detailButton}
+                    onPress={() => handleViewDetail(booking)}
+                  >
+                    <MaterialIcons name="info" size={14} color="#53d22d" />
+                    <Text style={styles.detailButtonText}>Chi tiết</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -692,10 +780,10 @@ const styles = StyleSheet.create({
     minHeight: 80,
   },
   connectorLineCancelled: {
-    borderLeftWidth: 2,
-    borderLeftColor: 'rgba(150, 150, 150, 0.3)',
-    borderLeftStyle: 'dashed',
-    backgroundColor: 'transparent',
+    width: 2,
+    flex: 1,
+    backgroundColor: 'rgba(150, 150, 150, 0.3)',
+    minHeight: 80,
   },
   routeInfo: {
     flex: 1,
@@ -726,6 +814,26 @@ const styles = StyleSheet.create({
   starsContainer: {
     flexDirection: 'row',
     gap: 2,
+  },
+  footerButtonGroup: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  detailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: 'rgba(83, 210, 45, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(83, 210, 45, 0.3)',
+  },
+  detailButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#53d22d',
   },
   rebookButton: {
     flexDirection: 'row',

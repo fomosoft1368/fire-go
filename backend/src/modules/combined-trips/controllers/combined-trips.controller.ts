@@ -158,44 +158,71 @@ export class CombinedTripsController {
   }
 
   /**
-   * GET /combined-trips/:combinedTripId
-   * Get combined trip detail with enriched customer data
+   * GET /combined-trips/customer/:customerId
+   * Get all combined trips (history) for a specific customer
+   * Using regex to match exactly 'customer/:customerId'
    */
-  @Get(':combinedTripId')
-  async getCombinedTripDetail(@Param('combinedTripId') combinedTripId: string) {
+  @Get('customer/:customerId')
+  async getCustomerTrips(
+    @Param('customerId') customerId: string,
+  ) {
     try {
-      console.log('[CombinedTripsController] Getting combined trip detail:', combinedTripId);
+      console.log('🔍 [CombinedTripsController] ROUTE MATCHED: customer/:customerId');
+      console.log('[CombinedTripsController] 📜 Getting combined trips for customer:', customerId);
 
-      const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
+      // Validate customerId is a valid MongoDB ObjectId
+      if (!Types.ObjectId.isValid(customerId)) {
+        console.warn('[CombinedTripsController] Invalid customer ID format:', customerId);
+        throw new BadRequestException('Invalid customer ID format');
+      }
 
-      return trip;
+      const customerIdObj = new Types.ObjectId(customerId);
+      console.log('[CombinedTripsController] Converted to ObjectId:', customerIdObj);
+
+      // Find all combined trips where this customer is in customerId array
+      const combinedTripModel = this.combinedTripsService.getCombinedTripsModel();
+      console.log('[CombinedTripsController] Got model, querying...');
+
+      const trips = await combinedTripModel
+        .find({
+          customerId: { $in: [customerIdObj] },
+        })
+        .populate('driverId', 'firstName lastName phone avatar rating vehicleModel vehicleColor vehiclePlate currentLocation')
+        .sort({ createdAt: -1 })
+        .exec();
+
+      console.log('[CombinedTripsController] ✅ Found customer trips:', trips.length);
+      return trips || [];
     } catch (error: any) {
-      console.error('[CombinedTripsController] Error:', error);
-      throw error;
+      console.error('[CombinedTripsController] ❌ Error getting customer trips:', {
+        message: error.message,
+        stack: error.stack
+      });
+      throw new BadRequestException('Failed to get customer trips: ' + error.message);
     }
   }
 
   /**
-   * GET /combined-trips/:combinedTripId/requests/:requestId
-   * Get a specific request for a combined trip
+   * GET /combined-trips/:combinedTripId
+   * Get combined trip detail with enriched customer data
+   * Route order ensures specific routes (customer/, find-share-rides) match first
    */
-  @Get(':combinedTripId/requests/:requestId')
-  async getCombinedTripRequest(
-    @Param('combinedTripId') combinedTripId: string,
-    @Param('requestId') requestId: string,
-  ) {
+  @Get(':combinedTripId')
+  async getCombinedTripDetail(@Param('combinedTripId') combinedTripId: string) {
     try {
-      const request = await this.rideRequestModel.findById(
-        new Types.ObjectId(requestId),
-      ).populate('customerId', 'name phone rating');
+      console.log('[CombinedTripsController] GET combined trip detail:', combinedTripId);
 
-      if (!request) {
-        throw new BadRequestException('Request not found');
-      }
+      const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
 
-      return request;
+      console.log('[CombinedTripsController] 📤 Returning trip from GET endpoint:', {
+        _id: trip._id,
+        status: trip.status,
+        customerId: trip.customerId?.length,
+      });
+
+      return trip;
     } catch (error: any) {
-      console.error('[CombinedTripsController] Error getting request:', error);
+      console.error('[CombinedTripsController] ❌ Error getting combined trip detail:', error);
       throw error;
     }
   }
@@ -224,6 +251,31 @@ export class CombinedTripsController {
       return requests;
     } catch (error: any) {
       console.error('[CombinedTripsController] Error getting requests:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /combined-trips/:combinedTripId/requests/:requestId
+   * Get a specific request for a combined trip
+   */
+  @Get(':combinedTripId/requests/:requestId')
+  async getCombinedTripRequest(
+    @Param('combinedTripId') combinedTripId: string,
+    @Param('requestId') requestId: string,
+  ) {
+    try {
+      const request = await this.rideRequestModel.findById(
+        new Types.ObjectId(requestId),
+      ).populate('customerId', 'name phone rating');
+
+      if (!request) {
+        throw new BadRequestException('Request not found');
+      }
+
+      return request;
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error getting request:', error);
       throw error;
     }
   }
@@ -442,6 +494,7 @@ export class CombinedTripsController {
         requestId,
       });
 
+      // Update RideRequest status
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
         { status: 'in_progress' },
@@ -452,9 +505,20 @@ export class CombinedTripsController {
         throw new BadRequestException('Request not found');
       }
 
+      // Also update CombinedTrip status to in_progress
+      await this.combinedTripsService.updateCombinedTripStatus(
+        combinedTripId,
+        CombinedTripStatus.IN_PROGRESS,
+      );
+
+      console.log('[CombinedTripsController] ✅ Journey started - Request and Trip updated:', {
+        requestStatus: request.status,
+        tripId: combinedTripId,
+      });
+
       return { status: request.status };
     } catch (error: any) {
-      console.error('[CombinedTripsController] Error:', error);
+      console.error('[CombinedTripsController] Error starting journey:', error);
       throw error;
     }
   }
@@ -508,6 +572,80 @@ export class CombinedTripsController {
       return result;
     } catch (error) {
       console.error('[CombinedTripsController] Error accepting combined trip:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /combined-trips/:combinedTripId/driver-location
+   * Get driver's current location
+   */
+  @Get(':combinedTripId/driver-location')
+  async getDriverLocation(@Param('combinedTripId') combinedTripId: string) {
+    try {
+      console.log('[CombinedTripsController] Getting driver location for trip:', combinedTripId);
+      
+      const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
+      
+      if (!trip?.driverId) {
+        throw new BadRequestException('Trip or driver not found');
+      }
+
+      // Return driver's current location (if available from real-time service)
+      // For now, return driver's stored location
+      return {
+        driverId: trip.driverId._id,
+        currentLocation: trip.driverId.currentLocation || {
+          type: 'Point',
+          coordinates: [0, 0],
+        },
+        status: trip.status,
+        updatedAt: trip.updatedAt,
+      };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /combined-trips/:combinedTripId/route
+   * Get navigation route from driver current location to dropoff
+   */
+  @Get(':combinedTripId/route')
+  async getRoute(@Param('combinedTripId') combinedTripId: string) {
+    try {
+      console.log('[CombinedTripsController] Getting route for trip:', combinedTripId);
+      
+      const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
+      
+      if (!trip?.driverId?.currentLocation || !trip?.dropoffLocation) {
+        throw new BadRequestException('Missing location data');
+      }
+
+      const driverCoords = trip.driverId.currentLocation.coordinates;
+      const dropoffCoords = trip.dropoffLocation.coordinates;
+
+      // Call OSRM or Google Maps API for route
+      // This should return polyline and route details
+      return {
+        tripId: trip._id,
+        from: {
+          coordinates: driverCoords,
+          name: 'Vị trí tài xế',
+        },
+        to: {
+          coordinates: dropoffCoords,
+          name: trip.dropoffLocationAddress || 'Điểm đến',
+        },
+        // Route data would be fetched from OSRM/Google Maps
+        // For now return empty - frontend should fetch from OSRM
+        polyline: null,
+        distance: 0,
+        duration: 0,
+      };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error:', error);
       throw error;
     }
   }

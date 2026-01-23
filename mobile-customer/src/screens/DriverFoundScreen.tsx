@@ -1,544 +1,855 @@
-import React from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  ScrollView,
   ActivityIndicator,
   Alert,
+  Dimensions,
+  StatusBar,
 } from 'react-native'
-import { useSelector } from 'react-redux'
-import { useRoute } from '@react-navigation/native'
-import { RootState } from '../redux/store'
+import { LinearGradient } from 'expo-linear-gradient'
 import { MaterialIcons } from '@expo/vector-icons'
-import { SPACING, BORDER_RADIUS } from '../constants'
-import MapViewComponent from '../components/MapView'
-import { rideService } from '../services/rideService'
+import { useSelector } from 'react-redux'
+import { useNavigation, useRoute } from '@react-navigation/native'
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import type { RootState } from '../redux/store'
+import type { RootStackParamList } from '../types'
+import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
+import { rideService } from '../services/rideService'
+import MapViewComponent from '../components/MapView'
 
-interface DriverFoundScreenProps {
-  driver?: {
-    id: string
-    name: string
-    avatar: string
-    rating: number
-    totalRides: number
-    carType: string
-    licensePlate: string
-    carColor: string
-    distance: number
-    eta: number
-    currentLat: number
-    currentLng: number
-    phone?: string
+const { height } = Dimensions.get('window')
+
+type Navigation = NativeStackNavigationProp<RootStackParamList>
+
+const getStatusLabel = (status: string) => {
+  const statusMap: { [key: string]: string } = {
+    pending: 'Chuyến đi mới',
+    accepted: 'Tài xế đã chấp nhận',
+    arrived_at_pickup: 'Tài xế đã đến',
+    in_progress: 'Bắt đầu chuyến đi',
+    completed: 'Hoàn thành',
+    cancelled: 'Đã hủy',
   }
-  rideId?: string
-  routeInfo?: any
-  onChat: () => void
-  onCancel: () => void
+  return statusMap[status] || 'Chờ xử lý'
 }
 
-export default function DriverFoundScreen({
-  driver: initialDriver,
-  rideId: propsRideId,
-  routeInfo: initialRouteInfo,
-  onChat,
-  onCancel,
-}: DriverFoundScreenProps) {
+const getEstimatedTime = (status: string) => {
+  const timeMap: { [key: string]: string } = {
+    pending: '~10 phút',
+    accepted: '~5 phút',
+    arrived_at_pickup: '0 phút',
+    in_progress: 'Đang di chuyển',
+    completed: 'Hoàn thành',
+  }
+  return timeMap[status] || '~10 phút'
+}
+
+export default function DriverFoundScreen() {
+  const navigation = useNavigation<Navigation>()
   const route = useRoute()
-  const authUser = useSelector((state: RootState) => state.auth.user)
-  
-  // Get params from route (for navigation.navigate)
-  const routeParams = route.params as any
-  const rideId = routeParams?.rideId || propsRideId || ''
-  const combinedTripId = routeParams?.combinedTripId || ''
-  const tripType = routeParams?.tripType || 'ride' // 'ride' for HIRE, 'combined_trip' for SHARE
-  
-  const [driver, setDriver] = React.useState(initialDriver)
-  const [routeInfo, setRouteInfo] = React.useState(initialRouteInfo)
-  const [loading, setLoading] = React.useState(!driver)
+  const themeMode = useSelector((state: RootState) => state.theme.mode)
+  const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
+  const user = useSelector((state: RootState) => state.auth.user) // Get current user
 
-  // Lấy dữ liệu thực từ API khi component mount
-  React.useEffect(() => {
-    if ((rideId || combinedTripId) && !driver) {
-      loadRideData()
-    }
-  }, [rideId, combinedTripId])
+  // Safe params extraction
+  const params = route.params as any
+  const combinedTripId = params?.combinedTripId ?? ''
 
-  const loadRideData = async () => {
-    const tripId = combinedTripId || rideId
-    if (!tripId) {
-      Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
-      return
-    }
+  const [tripData, setTripData] = useState<any>(null)
+  const [driverLocation, setDriverLocation] = useState<any>(null)
+  const [routeData, setRouteData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const pollingInterval = useRef<NodeJS.Timeout | null>(null)
+  const locationInterval = useRef<NodeJS.Timeout | null>(null)
 
-    setLoading(true)
-    try {
-      console.log('[DriverFoundScreen] Loading ride data:', {
-        tripId,
-        tripType,
-      })
+  // Load trip details on mount
+  useEffect(() => {
+    loadTripDetails()
+    loadDriverLocation() // Load location immediately on mount
+    
+    // Poll trip status every 2 seconds
+    pollingInterval.current = setInterval(() => {
+      loadTripDetails()
+    }, 2000)
 
-      let rideData
-      
-      if (tripType === 'combined_trip') {
-        // For SHARE rides (combined trip)
-        rideData = await combinedTripsService.getCombinedTripDetail(combinedTripId)
-      } else {
-        // For HIRE rides
-        rideData = await rideService.getRideById(rideId)
+    // Poll driver location every 3 seconds (faster updates)
+    locationInterval.current = setInterval(() => {
+      loadDriverLocation()
+    }, 3000)
+
+    return () => {
+      if (pollingInterval.current) {
+        clearInterval(pollingInterval.current)
       }
+      if (locationInterval.current) {
+        clearInterval(locationInterval.current)
+      }
+    }
+  }, [combinedTripId])
 
-      console.log('[DriverFoundScreen] Ride data loaded:', {
-        driverId: rideData?.driverId?._id,
-        status: rideData?.status,
-      })
+  // Load route when request starts (status = in_progress) or driver location changes
+  useEffect(() => {
+    if (tripData && driverLocation) {
+      // Get current customer's request status
+      const currentRequest = tripData?.customerId?.find(
+        (customer: any) => customer._id === user?.id || customer._id === user?._id
+      )
+      if (currentRequest?.status === 'in_progress') {
+        loadRoute()
+      }
+    }
+  }, [tripData, driverLocation, user?.id, user?._id])
 
-      if (!rideData || !rideData.driverId) {
-        Alert.alert('Lỗi', 'Không tìm thấy thông tin tài xế')
+  const loadTripDetails = async () => {
+    try {
+      if (!combinedTripId) {
+        setError('Missing trip ID')
         return
       }
 
-      const driverInfo = rideData.driverId
-      const driverData = {
-        id: driverInfo._id,
-        name: `${driverInfo.firstName} ${driverInfo.lastName}`,
-        avatar: driverInfo.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${driverInfo.email}`,
-        rating: driverInfo.rating || 5,
-        totalRides: driverInfo.totalRides || 0,
-        carType: driverInfo.carType || 'Xe tiêu chuẩn',
-        licensePlate: driverInfo.licensePlate || 'N/A',
-        carColor: driverInfo.carColor || 'Trắng',
-        distance: 2.5, // TODO: Tính từ current location
-        eta: 5, // TODO: Tính từ routing
-        currentLat: driverInfo.currentLocation?.coordinates[1] || 21.0285,
-        currentLng: driverInfo.currentLocation?.coordinates[0] || 105.8542,
-        phone: driverInfo.phone,
-      }
-
-      setDriver(driverData)
-
-      // Chuẩn bị route info từ pickup/dropoff
-      const routeData = {
-        pickup: {
-          address: rideData.pickupAddress,
-          coordinates: {
-            latitude: rideData.pickupLocation?.coordinates[1] || 21.0285,
-            longitude: rideData.pickupLocation?.coordinates[0] || 105.8542,
-          },
-        },
-        dropoff: {
-          address: rideData.dropoffAddress,
-          coordinates: {
-            latitude: rideData.dropoffLocation?.coordinates[1] || 21.0410,
-            longitude: rideData.dropoffLocation?.coordinates[0] || 105.8704,
-          },
-        },
-        routeCoordinates: rideData.routeCoordinates || [],
-      }
-
-      setRouteInfo(routeData)
-
-      console.log('[DriverFoundScreen] Ride data loaded successfully')
-    } catch (error: any) {
-      console.error('[DriverFoundScreen] Load ride error:', {
-        message: error.message,
-        rideId,
-        combinedTripId,
+      const trip = await combinedTripsService.getCombinedTripDetail(combinedTripId)
+      console.log('[DriverFoundScreen] Trip updated - Full data:', {
+        _id: trip?._id,
+        status: trip?.status,
+        statusFromAPI: trip?.status,
+        pickupLocation: trip?.pickupLocation,
+        dropoffLocation: trip?.dropoffLocation,
+        driverId: trip?.driverId?.firstName,
+        allData: JSON.stringify(trip, null, 2),
       })
-      Alert.alert('Lỗi', 'Không thể tải thông tin cuốc xe')
-    } finally {
+      console.log('[DriverFoundScreen] ⚠️ Status value type:', typeof trip?.status, 'Value:', trip?.status)
+      setTripData(trip)
+      setLoading(false)
+      setError(null)
+    } catch (err: any) {
+      console.error('Error loading trip details:', err)
+      setError(err.message || 'Failed to load trip details')
       setLoading(false)
     }
   }
+
+  const loadDriverLocation = async () => {
+    try {
+      if (!combinedTripId) return
+
+      const response = await combinedTripsService.getDriverLocation(combinedTripId)
+      console.log('[DriverFoundScreen] Driver location updated:', response.currentLocation)
+      setDriverLocation(response.currentLocation)
+    } catch (err: any) {
+      console.error('Error loading driver location:', err)
+    }
+  }
+
+  const loadRoute = async () => {
+    try {
+      if (!combinedTripId || !driverLocation || !tripData?.dropoffLocation) return
+
+      console.log('[DriverFoundScreen] Loading route for trip in progress')
+      
+      // Fetch route from OSRM
+      const directions = await rideService.getDirections(
+        driverLocation.coordinates[0],
+        driverLocation.coordinates[1],
+        tripData.dropoffLocation.coordinates[0],
+        tripData.dropoffLocation.coordinates[1],
+      )
+
+      console.log('[DriverFoundScreen] Route fetched')
+      setRouteData(directions)
+    } catch (err: any) {
+      console.error('Error loading route:', err)
+    }
+  }
+
+  const handleCall = () => {
+    if (tripData?.driverId?.phoneNumber) {
+      Alert.alert('Gọi tài xế', `Gọi đến ${tripData.driverId.phoneNumber}?`, [
+        { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+        { text: 'Gọi', onPress: () => console.log('Call driver') },
+      ])
+    }
+  }
+
+  const handleChat = () => {
+    if (tripData?.driverId?._id) {
+      Alert.alert('Nhắn tin', `Nhắn cho tài xế ${tripData.driverId.firstName} ${tripData.driverId.lastName}`, [
+        { text: 'Đóng', onPress: () => {}, style: 'cancel' },
+      ])
+    }
+  }
+
+  const handleCancelTrip = () => {
+    Alert.alert('Hủy chuyến đi', 'Bạn có chắc chắn muốn hủy chuyến đi này?', [
+      { text: 'Không', onPress: () => {}, style: 'cancel' },
+      {
+        text: 'Hủy chuyến',
+        onPress: async () => {
+          try {
+            Alert.alert('Thành công', 'Chuyến đi đã bị hủy')
+            navigation.goBack()
+          } catch (err: any) {
+            Alert.alert('Lỗi', err.message || 'Không thể hủy chuyến đi')
+          }
+        },
+        style: 'destructive',
+      },
+    ])
+  }
+
+  const handleShare = () => {
+    Alert.alert('Chia sẻ hành trình', 'Sao chép link hành trình đã được copy vào clipboard')
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#53d22d" />
+          <Text style={[styles.loadingText, { color: colors.text }]}>Đang tải thông tin chuyến đi...</Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (error || !tripData) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+        <View style={styles.errorContainer}>
+          <MaterialIcons name="error-outline" size={48} color={colors.textSecondary} />
+          <Text style={[styles.errorText, { color: colors.text }]}>{error || 'Không thể tải chuyến đi'}</Text>
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: '#53d22d' }]}
+            onPress={loadTripDetails}
+          >
+            <Text style={styles.retryButtonText}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  const driver = tripData?.driverId || {
+    firstName: 'N/A',
+    lastName: 'N/A',
+    averageRating: 5,
+    rating: 5,
+    totalReviews: 0,
+    vehicleModel: 'N/A',
+    vehiclePlate: 'N/A',
+    phoneNumber: 'N/A',
+  }
+  
+  // Get current customer's request status (not combined trip status)
+  const currentCustomerRequest = tripData?.customerId?.find(
+    (customer: any) => customer._id === user?.id || customer._id === user?._id
+  )
+  const requestStatus = currentCustomerRequest?.status || 'pending'
+  
+  console.log('[DriverFoundScreen] 📊 Request status vs Trip status:', {
+    requestStatus: requestStatus,
+    tripStatus: tripData?.status,
+    currentCustomerId: user?.id || user?._id,
+    foundCustomer: !!currentCustomerRequest,
+  })
+  
+  const statusLabel = getStatusLabel(requestStatus)
+  const estimatedTime = getEstimatedTime(requestStatus)
+  
+  // Debug log
+  if (tripData) {
+    console.log('[DriverFoundScreen] 🔄 Rendering with request status:', {
+      requestStatus: requestStatus,
+      statusLabel,
+      tripStatus: tripData?.status,
+      tripData_id: tripData._id,
+      currentCustomerRequest,
+      tripDataKeys: Object.keys(tripData || {}),
+    })
+  }
+  
+  // Use driver location if available (real-time), else use stored coordinates
+  const displayDriverLocation = driverLocation || tripData?.driverId?.currentLocation
+  const pickupCoords = tripData?.pickupLocation?.coordinates || [105.8542, 21.0285]
+  const dropoffCoords = tripData?.dropoffLocation?.coordinates || [105.8542, 21.0285]
+  const tripId = tripData?._id || combinedTripId
+
+  // Determine what to show on map based on request status
+  let mapPickupCoords = null
+  let mapDropoffCoords = null
+  let mapRouteCoordinates = null
+
+  if (requestStatus === 'pending' || requestStatus === 'accepted' || requestStatus === 'arrived_at_pickup') {
+    // Show pickup location
+    mapPickupCoords = {
+      latitude: pickupCoords[1],
+      longitude: pickupCoords[0],
+    }
+  }
+
+  if (requestStatus === 'in_progress') {
+    // Show route from driver to dropoff
+    mapDropoffCoords = {
+      latitude: dropoffCoords[1],
+      longitude: dropoffCoords[0],
+    }
+    
+    // Extract polyline from route data if available
+    if (routeData?.features?.[0]?.geometry?.coordinates) {
+      mapRouteCoordinates = routeData.features[0].geometry.coordinates.map(
+        (coord: [number, number]) => ({
+          latitude: coord[1],
+          longitude: coord[0],
+        })
+      )
+    }
+  }
+
   return (
-    <View
-      style={styles.foundContainer}
-      // showsVerticalScrollIndicator={false}
-    >
-      <View style={StyleSheet.absoluteFillObject}>
-        {/* Map Container */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
+
+      <View style={styles.mapContainer}>
+        {/* Map - Updates based on trip status */}
         <MapViewComponent
-          height={'100%'}
-          initialRegion={{
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
-            latitudeDelta: 0.0922,
-            longitudeDelta: 0.0421,
-          }}
-          markers={[]}
-          pickupCoords={{
-            latitude: routeInfo.pickup.coordinates.latitude,
-            longitude: routeInfo.pickup.coordinates.longitude,
-          }}
-          dropoffCoords={{
-            latitude: routeInfo.dropoff.coordinates.latitude,
-            longitude: routeInfo.dropoff.coordinates.longitude,
-          }}
-          drivers={
-            driver?.currentLat && driver?.currentLng
+          height={height * 0.55}
+          pickupCoords={mapPickupCoords ?? undefined}
+          dropoffCoords={mapDropoffCoords ?? undefined}
+          routeCoordinates={mapRouteCoordinates}
+          markers={
+            displayDriverLocation
               ? [
-                {
-                  id: driver.id,
-                  latitude: driver.currentLat,
-                  longitude: driver.currentLng,
-                  name: driver.name,
-                  rating: driver.rating,
-                  vehicle: driver.licensePlate,
-                },
-              ]
+                  {
+                    id: 'driver',
+                    latitude: displayDriverLocation.coordinates[1],
+                    longitude: displayDriverLocation.coordinates[0],
+                    title: 'Tài xế',
+                    description: 'Vị trí tài xế',
+                  },
+                ]
               : []
           }
-          routeCoordinates={routeInfo?.routeCoordinates || []}
-          onLocationSelect={() => { }}
         />
-      </View>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onCancel}>
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Theo dõi chuyến đi</Text>
-        <TouchableOpacity>
-          <Text style={styles.helpText}>Trợ giúp</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.professionalStatusCard}>
-        {/* Driver Info Card */}
-        <View style={styles.statusContentWrapper}>
-          <View style={styles.driverCardLeft}>
-            <View style={styles.driverCardAvatar}>
-              <Text style={styles.driverCardAvatarText}>👤</Text>
+
+        {/* Top Gradient Overlay */}
+        <LinearGradient
+          colors={['rgba(19,19,21,0.9)', 'rgba(19,19,21,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.mapOverlayTop}
+        />
+
+        {/* Top Navigation Bar */}
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            style={styles.topBarButton}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <View style={styles.topBarCenter}>
+            <Text style={styles.topBarTitle}>Ghép xe - Chuyến đi #{tripId?.slice?.(-5)?.toUpperCase?.() || 'N/A'}</Text>
+            <Text style={styles.topBarSubtitle}>{statusLabel}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.topBarButton}
+            onPress={() => Alert.alert('Trợ giúp', 'Liên hệ với hỗ trợ khách hàng')}
+          >
+            <MaterialIcons name="help" size={24} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Share Button - Floating */}
+        <View style={styles.shareButtonContainer}>
+          <TouchableOpacity
+            style={[styles.shareButton, { backgroundColor: colors.bgSecondary }]}
+            onPress={handleShare}
+          >
+            <View style={styles.shareIconContainer}>
+              <MaterialIcons name="share-location" size={16} color="#53d22d" />
             </View>
-            <View style={styles.driverCardInfo}>
-              <Text style={styles.driverCardName}>{driver.name}</Text>
-              <Text style={styles.driverCardSubInfo}>{driver.carType} • {driver.licensePlate}</Text>
-              <View style={styles.driverCardRating}>
-                <MaterialIcons name="star" size={14} color="#FFB800" />
-                <Text style={styles.driverCardRatingValue}>{driver.rating}</Text>
-                <Text style={styles.driverCardRideCount}>• {driver.totalRides} chuyến</Text>
+            <Text style={[styles.shareButtonText, { color: colors.text }]}>Chia sẻ hành trình</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Bottom Sheet Info Card */}
+      <LinearGradient
+        colors={[colors.bgSecondary, colors.bgSecondary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={[styles.bottomSheet, { backgroundColor: colors.bgSecondary }]}
+      >
+        {/* Drag Handle */}
+        <View style={styles.dragHandle}>
+          <View style={[styles.dragHandleBar, { backgroundColor: colors.border }]} />
+        </View>
+
+        <ScrollView style={styles.bottomSheetContent} showsVerticalScrollIndicator={false}>
+          {/* Status Header - DYNAMIC */}
+          <View style={styles.statusHeader}>
+            <View>
+              <Text style={[styles.statusTitle, { color: colors.text }]}>{statusLabel}</Text>
+              <View style={styles.estimatedTimeRow}>
+                <MaterialIcons name="schedule" size={18} color="#53d22d" />
+                <Text style={styles.estimatedTime}>{estimatedTime}</Text>
+              </View>
+            </View>
+
+            {/* Carpool Visualizer */}
+            <View style={styles.carpoolVisualizer}>
+              <Text style={styles.carpoolLabel}>Ghép xe</Text>
+              <View style={styles.avatarGroup}>
+                <View style={[styles.avatarSmall, { backgroundColor: colors.border }]}>
+                  <Text style={styles.avatarText}>Tôi</Text>
+                </View>
+                <View style={[styles.avatarSmall, { backgroundColor: '#53d22d', marginLeft: -8 }]}>
+                  <Text style={styles.avatarTextWhite}>K2</Text>
+                </View>
+                <View
+                  style={[
+                    styles.avatarSmall,
+                    {
+                      backgroundColor: 'transparent',
+                      borderWidth: 1.5,
+                      borderStyle: 'dashed',
+                      borderColor: colors.border,
+                      marginLeft: -8,
+                    },
+                  ]}
+                >
+                  <MaterialIcons name="add" size={14} color={colors.border} />
+                </View>
               </View>
             </View>
           </View>
-          <View style={styles.driverCardActions}>
+
+          {/* Driver & Vehicle Profile */}
+          <View style={[styles.driverCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+            <View style={styles.driverCardContent}>
+              <View style={styles.driverAvatar}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
+                  <MaterialIcons name="person" size={28} color={colors.text} />
+                </View>
+                <View style={styles.ratingBadge}>
+                  <Text style={styles.ratingText}>
+                    {(driver.averageRating || driver.rating || 5).toFixed(1)}
+                  </Text>
+                  <MaterialIcons name="star" size={10} color="black" />
+                </View>
+              </View>
+
+              <View style={styles.driverInfo}>
+                <View style={styles.driverNameRow}>
+                  <Text style={[styles.driverName, { color: colors.text }]}>
+                    {driver.firstName} {driver.lastName}
+                  </Text>
+                  <View style={styles.firegoBadge}>
+                    <Text style={styles.firegoBadgeText}>FireGo Car</Text>
+                  </View>
+                </View>
+                <Text style={[styles.vehicleInfo, { color: colors.textSecondary }]}>
+                  {driver.vehicleModel || 'Xe'} • {driver.vehicleColor || 'N/A'}
+                </Text>
+                <Text style={[styles.plateNumber, { color: colors.text }]}>{driver.vehiclePlate || 'N/A'}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtonsGrid}>
             <TouchableOpacity
-              style={styles.driverCardCallButton}>
-              <MaterialIcons name="call" size={20} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.driverCardChatButton}
-              onPress={onChat}
+              style={[styles.actionButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+              onPress={handleChat}
             >
-              <MaterialIcons name="chat-bubble" size={20} color="#fff" />
+              <MaterialIcons name="chat-bubble" size={20} color="#53d22d" />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Nhắn tin</Text>
+              <View style={styles.notificationDot} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+              onPress={handleCall}
+            >
+              <MaterialIcons name="call" size={20} color="#4ade80" />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>Gọi điện</Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Route Info */}
-        <View style={styles.routeInfoContainer}>
-          <View style={styles.routePointItem}>
-            <View style={styles.routePointIcon}>
-              <MaterialIcons name="location-on" size={18} color="#FF6B00" />
-            </View>
-            <View style={styles.routePointText}>
-              <Text style={styles.routePointLabel}>ĐIỂM ĐÓN</Text>
-              <Text style={styles.routePointAddress}>{routeInfo.pickup.address}</Text>
-              <Text style={styles.routePointTime}>Ngay</Text>
-            </View>
-          </View>
-
-          <View style={styles.routeConnector} />
-
-          <View style={styles.routePointItem}>
-            <View style={[styles.routePointIcon, { backgroundColor: '#ef4444' }]}>
-              <MaterialIcons name="location-on" size={18} color="#fff" />
-            </View>
-            <View style={styles.routePointText}>
-              <Text style={styles.routePointLabel}>ĐIỂM ĐẾN</Text>
-              <Text style={styles.routePointAddress}>{routeInfo.dropoff.address}</Text>
-              <Text style={styles.routePointTime}>{driver.eta} phút (Dự kiến)</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
+          {/* Secondary Action - Cancel */}
           <TouchableOpacity
             style={styles.cancelButton}
-            onPress={onCancel}
-            activeOpacity={0.6}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={handleCancelTrip}
           >
-            <MaterialIcons name="close" size={20} color="#fff" />
-            <Text style={styles.cancelButtonText}>Hủy</Text>
+            <MaterialIcons name="cancel" size={20} color="#ef4444" />
+            <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
           </TouchableOpacity>
-        </View>
-        {/* Status Badge Overlay */}
-        {/* <View style={styles.statusBadgeOverlay}>
-              <MaterialIcons name="location-on" size={16} color="#FF6B00" />
-              <Text style={styles.statusBadgeText}>Tài xế đang đến • {driver.eta} phút</Text>
-            </View> */}
-      </View>
-    </View>
+
+          {/* Trip Details - Optional */}
+          <View style={[styles.tripDetailsCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+            <Text style={[styles.tripDetailsTitle, { color: colors.text }]}>Chi tiết chuyến đi</Text>
+            <View style={styles.tripDetailRow}>
+              <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Loại xe</Text>
+              <Text style={[styles.tripDetailValue, { color: colors.text }]}>Ghép xe</Text>
+            </View>
+            <View style={styles.tripDetailRow}>
+              <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Giá cước</Text>
+              <Text style={[styles.tripDetailValue, { color: colors.text }]}>
+                ₫{(tripData?.totalFare || 0).toLocaleString()}
+              </Text>
+            </View>
+            <View style={styles.tripDetailRow}>
+              <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Quãng đường</Text>
+              <Text style={[styles.tripDetailValue, { color: colors.text }]}>
+                {(tripData?.distance || 0).toFixed(1)} km
+              </Text>
+            </View>
+          </View>
+
+          {/* Spacer */}
+          <View style={{ height: SPACING.xl }} />
+        </ScrollView>
+      </LinearGradient>
+    </SafeAreaView>
   )
 }
 
+
 const styles = StyleSheet.create({
-  foundContainer: {
+  container: {
     flex: 1,
+  },
+  mapContainer: {
+    position: 'relative',
+    height: height * 0.55,
+  },
+  mapOverlayTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    paddingTop: SPACING.lg,
+  },
+  topBarButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  topBarCenter: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+  },
+  topBarTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
+  },
+  topBarSubtitle: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  shareButtonContainer: {
+    position: 'absolute',
+    right: 0,
+    bottom: 80,
+    zIndex: 100,
+    paddingRight: SPACING.lg,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: SPACING.lg,
+    paddingLeft: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    gap: SPACING.sm,
+  },
+  shareIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(83,210,45,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bottomSheet: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  dragHandle: {
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xs,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dragHandleBar: {
+    width: 48,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
+  },
+  bottomSheetContent: {
+    flex: 1,
+    paddingHorizontal: SPACING.lg,
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.lg,
+    paddingTop: SPACING.sm,
+  },
+  statusTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  estimatedTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
+  },
+  estimatedTime: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#53d22d',
+  },
+  carpoolVisualizer: {
+    alignItems: 'flex-end',
+  },
+  carpoolLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: SPACING.xs,
+  },
+  avatarGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  avatarText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6b7280',
+  },
+  avatarTextWhite: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'black',
+  },
+  driverCard: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  driverCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  driverAvatar: {
     position: 'relative',
   },
-  scrollContent: {
+  avatarPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  ratingBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    backgroundColor: '#eab308',
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  ratingText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'black',
+  },
+  driverInfo: {
     flex: 1,
+  },
+  driverNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xs,
+  },
+  driverName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  firegoBadge: {
+    backgroundColor: 'rgba(83,210,45,0.2)',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  firegoBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#53d22d',
+  },
+  vehicleInfo: {
+    fontSize: 13,
+    marginBottom: SPACING.xs,
+  },
+  plateNumber: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+  },
+  actionButtonsGrid: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.lg,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  notificationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+    marginLeft: SPACING.xs,
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ef4444',
+  },
+  tripDetailsCard: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginTop: SPACING.lg,
+  },
+  tripDetailsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: SPACING.md,
+  },
+  tripDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  tripDetailLabel: {
+    fontSize: 13,
+  },
+  tripDetailValue: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: SPACING.lg,
   },
   loadingText: {
-    fontSize: 14,
-    color: '#94a3b8',
     marginTop: SPACING.md,
+    fontSize: 14,
   },
-    header: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-    statusContentWrapper: {
-    paddingHorizontal: SPACING.lg,
-    gap: SPACING.lg,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FF6B00',
+  errorContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  errorText: {
+    fontSize: 14,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
     textAlign: 'center',
   },
-  helpText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF6B00',
-  },
-  mapContainer: {
-    position: 'relative',
-    height: 500,
-    backgroundColor: '#0f172a',
-  },
-  statusBadgeOverlay: {
-    position: 'absolute',
-    top: 160,
-    left: '50%',
-    marginLeft: -90,
-    backgroundColor: 'rgba(15, 23, 42, 0.9)',
-    borderRadius: 20,
+  retryButton: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderColor: '#FF6B00',
-  },
-    professionalStatusCard: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.xl,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  statusBadgeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  driverInfoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1a202c',
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.lg,
-    padding: SPACING.lg,
+    paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
-  driverCardLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  driverCardAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 107, 0, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  driverCardAvatarText: {
-    fontSize: 24,
-  },
-  driverCardInfo: {
-    flex: 1,
-  },
-  driverCardName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 2,
-  },
-  driverCardSubInfo: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginBottom: 4,
-  },
-  driverCardRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  driverCardRatingValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  driverCardRideCount: {
-    fontSize: 12,
-    color: '#94a3b8',
-  },
-  driverCardActions: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  driverCardCallButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FF6B00',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  driverCardChatButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1a202c',
-    borderWidth: 1,
-    borderColor: '#FF6B00',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  routeInfoContainer: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  routePointItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
-  },
-  routePointIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  routePointText: {
-    flex: 1,
-  },
-  routePointLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#94a3b8',
-    marginBottom: 2,
-    letterSpacing: 0.5,
-  },
-  routePointAddress: {
+  retryButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
-    marginBottom: 2,
-  },
-  routePointTime: {
-    fontSize: 12,
-    color: '#94a3b8',
-  },
-  routeConnector: {
-    width: 2,
-    height: 30,
-    backgroundColor: 'rgba(255, 107, 0, 0.3)',
-    marginLeft: 19,
-    marginBottom: SPACING.lg,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
-    backgroundColor: '#0f172a',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  chatButton: {
-    flex: 1,
-    height: 52,
-    borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    borderWidth: 2,
-    borderColor: '#FF6B00',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  chatButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FF6B00',
-  },
-  cancelButton: {
-    flex: 1,
-    height: 52,
-    borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: '#ef4444',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
+    color: 'black',
   },
 })

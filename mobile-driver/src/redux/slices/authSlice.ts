@@ -55,6 +55,21 @@ const authSlice = createSlice({
       state.isLoading = false
       state.error = action.payload
     },
+    restoreAuth: (state, action: PayloadAction<{ token: string; user: any } | null>) => {
+      if (action.payload) {
+        state.token = action.payload.token
+        state.user = action.payload.user
+        state.isAuthenticated = true
+        state.isLoading = false
+        state.error = null
+      } else {
+        state.token = null
+        state.user = null
+        state.isAuthenticated = false
+        state.isLoading = false
+        state.error = null
+      }
+    },
   },
 })
 
@@ -66,6 +81,7 @@ export const {
   registerStart,
   registerSuccess,
   registerFailure,
+  restoreAuth,
 } = authSlice.actions
 
 export default authSlice.reducer

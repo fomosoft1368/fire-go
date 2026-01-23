@@ -141,24 +141,46 @@ export class PlacesService {
     }
 
     try {
+      // Clean keyword: remove commas and extra spaces for better search
+      // "Tan Giang, Quynh Bang" -> "Tan Giang Quynh Bang"
+      const cleanKeyword = keyword.replace(/[,。，]/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      console.log('🧹 [PlacesService] Cleaned keyword:', {
+        original: keyword,
+        cleaned: cleanKeyword,
+      });
+
+      // Build location params if provided
       let locationParams = '';
-      if (lat && lng) {
+      let locationLog = 'default';
+      if (lat && lng && lat !== 0 && lng !== 0) {
         locationParams = `&location=${lat},${lng}&radius=5000`;
+        locationLog = `${lat},${lng}`;
+      } else {
+        // Default to Vietnam center if no location provided
+        locationParams = `&components=country:vn`;
       }
+
       const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-        keyword
-      )}&location=${lat},${lng}
-      &radius=5000&key=${this.googleMapsApiKey}&components=country:vn&language=vi`.replace(/\s+/g, '');
+        cleanKeyword
+      )}${locationParams}&key=${this.googleMapsApiKey}&language=vi`.replace(/\s+/g, '');
 
       console.log('📡 Calling Places Autocomplete API:', {
-        keyword,
-        location: `${lat},${lng}`,
-        radius: '5km',
+        keyword: cleanKeyword,
+        location: locationLog,
         url: url.replace(this.googleMapsApiKey, '***KEY***'),
       });
 
       const response = await fetch(url);
       const data = (await response.json()) as GoogleAutocompleteResponse;
+
+      console.log('📥 [PlacesService] Google API response status:', data.status);
+      if (data.predictions) {
+        console.log('   Predictions count:', data.predictions.length);
+      }
+      if (data['error_message']) {
+        console.log('   Error message:', data['error_message']);
+      }
 
       if (data.status !== 'OK') {
         console.error('❌ Google Places API error:', {
@@ -166,7 +188,6 @@ export class PlacesService {
           error_message: data['error_message'] || 'No error message',
         });
         return [];
-        
       }
 
       // Convert predictions to place results

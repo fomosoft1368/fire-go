@@ -523,14 +523,10 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               }
 
               const requestId = currentPassenger.requestId || currentPassenger._id
-              console.log('📡 Calling start-journey with:', { rideId, combinedTripId, sourceType, requestId })
+              console.log('📡 Calling start-journey with:', { combinedTripId, requestId })
               
-              let endpoint = ''
-              if (sourceType === 'combined_trip' || combinedTripId) {
-                endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId || tripId}/requests/${requestId}/start-journey`
-              } else {
-                endpoint = `${API_BASE_URL}/rides/${rideId}/requests/${requestId}/start-journey`
-              }
+              // Use combined-trips endpoint for RideRequest status update
+              const endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId}/requests/${requestId}/start-journey`
               
               const response = await fetch(endpoint, {
                 method: 'PATCH',
@@ -582,23 +578,24 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               }
 
               console.log('📋 currentPassenger object:', JSON.stringify(currentPassenger, null, 2))
+              console.log('🔍 DEBUG markArrived:', { rideId, combinedTripId, sourceType, tripId })
+              
               const requestId = currentPassenger.requestId || currentPassenger._id
               if (!requestId) {
                 throw new Error('No requestId found in passenger data. Passenger: ' + JSON.stringify(currentPassenger))
               }
-              console.log('📡 Calling mark-arrived with:', { rideId, combinedTripId, sourceType, requestId, passengerName: currentPassenger.name })
+              console.log('📡 Calling mark-arrived with:', { combinedTripId, requestId, passengerName: currentPassenger.name })
               
-              let endpoint = ''
-              if (sourceType === 'combined_trip' || combinedTripId) {
-                endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId || tripId}/requests/${requestId}/mark-arrived`
-              } else {
-                endpoint = `${API_BASE_URL}/rides/${rideId}/requests/${requestId}/mark-arrived`
-              }
+              // Use combined-trips endpoint for RideRequest status update
+              const endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId}/requests/${requestId}/mark-arrived`
+              console.log('🔗 ENDPOINT:', endpoint)
               
               const response = await fetch(endpoint, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
               })
+              
+              console.log('📨 Response status:', response.status, 'OK:', response.ok)
               
               if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}))
@@ -645,14 +642,10 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               }
 
               const requestId = currentPassenger.requestId || currentPassenger._id
-              console.log('📡 Calling complete with:', { rideId, combinedTripId, sourceType, requestId })
+              console.log('📡 Calling complete with:', { combinedTripId, requestId })
               
-              let endpoint = ''
-              if (sourceType === 'combined_trip' || combinedTripId) {
-                endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId || tripId}/requests/${requestId}/complete`
-              } else {
-                endpoint = `${API_BASE_URL}/rides/${rideId}/requests/${requestId}/complete`
-              }
+              // Use combined-trips endpoint for RideRequest status update
+              const endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId}/requests/${requestId}/complete`
               
               const response = await fetch(endpoint, {
                 method: 'PATCH',

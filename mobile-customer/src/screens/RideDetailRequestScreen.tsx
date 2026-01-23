@@ -10,7 +10,9 @@ import {
   Alert,
   Modal,
   Dimensions,
+  StatusBar,
 } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
 import { useNavigation, useRoute } from '@react-navigation/native'
@@ -21,196 +23,13 @@ import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
 import MapViewComponent from '../components/MapView'
 
-const { height } = Dimensions.get('window')
+const { height, width } = Dimensions.get('window')
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  mapContainer: {
-    height: height * 0.4,
-    backgroundColor: '#ddd',
-  },
-  contentContainer: {
-    flex: 1,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-  },
-  section: {
-    marginBottom: SPACING.lg,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: SPACING.md,
-  },
-  driverCard: {
-    flexDirection: 'row',
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  driverAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  driverInfo: {
-    flex: 1,
-  },
-  driverName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  driverRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  ratingText: {
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  vehicleInfo: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  routeCard: {
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.md,
-  },
-  locationIcon: {
-    marginRight: SPACING.md,
-    marginTop: 2,
-  },
-  locationText: {
-    flex: 1,
-    fontSize: 13,
-  },
-  priceCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-  },
-  priceInfo: {
-    flex: 1,
-  },
-  priceLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginBottom: 4,
-  },
-  price: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  distanceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  distanceText: {
-    fontSize: 12,
-    marginLeft: SPACING.sm,
-    opacity: 0.7,
-  },
-  seatsInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-  },
-  seatsLabel: {
-    fontSize: 13,
-  },
-  seatsValue: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  footer: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  button: {
-    flex: 1,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: SPACING.sm,
-  },
-  cancelButton: {
-    borderWidth: 2,
-  },
-  confirmButton: {},
-  requestingModal: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    alignItems: 'center',
-    width: '80%',
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  modalMessage: {
-    fontSize: 13,
-    opacity: 0.7,
-    textAlign: 'center',
-    marginBottom: SPACING.lg,
-  },
-  successIcon: {
-    marginBottom: SPACING.md,
-  },
-  statusBadge: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    marginTop: SPACING.md,
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-})
-
-type Navigation = NativeStackNavigationProp<RootStackParamList>;
+type Navigation = NativeStackNavigationProp<RootStackParamList>
 
 interface RideDetailRequestScreenProps {
-  rideId: string;
-  ride: NearbyRide;
+  rideId: string
+  ride: NearbyRide
 }
 
 export default function RideDetailRequestScreen() {
@@ -224,15 +43,16 @@ export default function RideDetailRequestScreen() {
   const params = route.params as any
   const combinedTripId = params?.combinedTripId ?? ''
   const ride = params?.ride ?? null
-  
+
   // Get customer's pickup/dropoff coordinates from params (NOT from ride object)
   const pickupCoordinates = params?.pickupCoordinates ?? ride?.pickupCoordinates ?? [105.8542, 21.0285]
-  const dropoffCoordinates = params?.dropoffCoordinates ?? ride?.dropoffCoordinates ?? [105.8542, 21.0285]
+  const dropoffCoordinates = params?.dropoffCoordinates ?? [105.8542, 21.0285]
   const pickupAddress = params?.pickupAddress ?? ride?.pickupAddress ?? ''
   const dropoffAddress = params?.dropoffAddress ?? ride?.dropoffAddress ?? ''
 
   const [requesting, setRequesting] = useState(false)
   const [requestStatus, setRequestStatus] = useState<'pending' | 'accepted' | 'rejected' | null>(null)
+  const [selectedSeat, setSelectedSeat] = useState<number | null>(null)
   const statusCheckInterval = useRef<NodeJS.Timeout | null>(null)
 
   // Validate ride data
@@ -266,7 +86,7 @@ export default function RideDetailRequestScreen() {
         pickupAddress,
         dropoffAddress,
       })
-      
+
       // Create combined trip request
       const request = await combinedTripsService.createCombinedTripRequest(
         combinedTripId,
@@ -304,12 +124,38 @@ export default function RideDetailRequestScreen() {
     }
   }
 
+  const handleStartJourney = async () => {
+    if (!combinedTripId || !selectedSeat) {
+      Alert.alert('Lỗi', 'Vui lòng chọn ghế ngồi trước')
+      return
+    }
+
+    setRequesting(true)
+    try {
+      console.log('[RideDetailRequestScreen] Starting journey:', {
+        combinedTripId,
+        requestId: selectedSeat, // Using selectedSeat as proxy, should be actual request ID
+      })
+
+      // In real scenario, we should have requestId from ride data
+      // For now, we'll need to fetch the request ID from the trip
+      // This is a workaround - ideally RideDetailRequestScreen should receive requestId in params
+      
+      Alert.alert('Thông báo', 'Tính năng này sẽ được cập nhật. Vui lòng thực hiện qua tài xế.')
+      setRequesting(false)
+    } catch (error: any) {
+      console.error('Error starting journey:', error)
+      Alert.alert('Lỗi', error.message || 'Không thể bắt đầu chuyến đi.')
+      setRequesting(false)
+    }
+  }
+
   const pollRequestStatus = (requestId: string) => {
     // Poll every 2 seconds
     statusCheckInterval.current = setInterval(async () => {
       try {
         const status = await combinedTripsService.getCombinedTripRequestStatus(combinedTripId, requestId)
-        
+
         console.log('Request status:', status.status)
 
         if (status.status === 'accepted') {
@@ -326,7 +172,7 @@ export default function RideDetailRequestScreen() {
                 {
                   text: 'Xem chuyến đi',
                   onPress: () => {
-                    navigation.navigate('DriverFound', { 
+                    navigation.navigate('DriverFound', {
                       combinedTripId: combinedTripId,
                       tripType: 'combined_trip',
                     })
@@ -358,132 +204,321 @@ export default function RideDetailRequestScreen() {
   }
 
   // Safe calculation with fallback
-  const availableSeats = ride 
-    ? (ride.totalSeats || 4) - (ride.customerId?.length || 0)
-    : 0
+  const availableSeats = ride ? (ride.totalSeats || 4) - (ride.customerId?.length || 0) : 0
+
+  // Car seats layout (4 seats total)
+  const occupiedSeats = ride?.customerId?.length || 0
+  const getSeatsState = () => {
+    const seats = []
+    for (let i = 0; i < 4; i++) {
+      if (i < occupiedSeats) {
+        seats.push('occupied')
+      } else {
+        seats.push('available')
+      }
+    }
+    return seats
+  }
+
+  const seatsState = getSeatsState()
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-      {/* Map */}
-      <View style={styles.mapContainer}>
-        {ride && (
-          <MapViewComponent
-            pickupCoords={{ latitude: ride.pickupCoordinates[1], longitude: ride.pickupCoordinates[0] }}
-            dropoffCoords={{ latitude: ride.dropoffCoordinates[1], longitude: ride.dropoffCoordinates[0] }}
-          />
-        )}
-      </View>
+      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
 
-      {/* Content */}
       {!ride ? (
-        <View style={[styles.contentContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+        <View style={styles.errorContainer}>
           <MaterialIcons name="error-outline" size={48} color={colors.textSecondary} />
-          <Text style={[{ color: colors.text, marginTop: SPACING.md, fontSize: 14 }]}>
-            Không thể tải thông tin chuyến xe
-          </Text>
+          <Text style={[styles.errorText, { color: colors.text }]}>Không thể tải thông tin chuyến xe</Text>
         </View>
       ) : (
         <>
-          <ScrollView style={styles.contentContainer}>
-            {/* Driver Section */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Tài xế</Text>
-              <View style={[styles.driverCard, { borderColor: colors.border }]}>
-                <View style={[styles.driverAvatar, { backgroundColor: colors.primary }]}>
-                  <MaterialIcons name="person" size={32} color="#fff" />
-                </View>
-                <View style={styles.driverInfo}>
-                  <Text style={[styles.driverName, { color: colors.text }]}>
-                    {ride.driverId?.firstName || 'Tài'} {ride.driverId?.lastName || 'xế'}
-                  </Text>
-                  <View style={styles.driverRating}>
-                    <MaterialIcons name="star" size={14} color="#FFB800" />
-                    <Text style={[styles.ratingText, { color: colors.text }]}>
-                      {(ride.driverId?.averageRating || ride.driverId?.rating || 5).toFixed(1)} ({ride.driverId?.totalReviews || 0} đánh giá)
+          <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* Map Hero Section with Top App Bar Overlay */}
+            <View style={styles.mapHero}>
+              
+              <MapViewComponent
+                height={height * 0.35}
+                pickupCoords={{ latitude: pickupCoordinates[1], longitude: pickupCoordinates[0] }}
+                dropoffCoords={{ latitude: dropoffCoordinates[1], longitude: dropoffCoordinates[0] }}
+              />
+              
+              {/* Gradient Overlay Bottom - Fade from transparent to BG color */}
+              <LinearGradient
+                colors={['transparent', colors.bg]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={styles.mapGradientBottom}
+              />
+              
+              {/* Fixed Top App Bar - Overlay on Map */}
+              <View style={[styles.topAppBar, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+                <TouchableOpacity onPress={handleCancel} style={styles.backButtonTopBar}>
+                  <MaterialIcons name="arrow-back" size={24} color="white" />
+                </TouchableOpacity>
+                <Text style={styles.topBarTitle}>Chi tiết chuyến đi</Text>
+                <View style={{ width: 40 }} />
+              </View>
+            </View>
+
+            {/* Content Below Map */}
+            <View style={[styles.contentWrapper, { backgroundColor: colors.bg }]}>
+              {/* Driver Section - Simple Layout */}
+              <View style={[styles.driverSection, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+                <View style={styles.driverRow}>
+                  <View style={styles.driverAvatarContainer}>
+                    <View style={[styles.driverAvatar, { backgroundColor: '#53d22d' }]}>
+                      <MaterialIcons name="person" size={28} color="black" />
+                    </View>
+                    <View style={styles.verifiedBadge}>
+                      <MaterialIcons name="verified" size={10} color="black" />
+                    </View>
+                  </View>
+                  <View style={styles.driverDetails}>
+                    <View style={styles.driverHeaderRow}>
+                      <Text style={[styles.driverName, { color: colors.text }]}>
+                        {ride.driverId?.firstName || 'Tài'} {ride.driverId?.lastName || 'xế'}
+                      </Text>
+                    </View>
+                    <View style={styles.ratingRow}>
+                      <MaterialIcons name="star" size={14} color="#FFB800" />
+                      <Text style={[styles.ratingValue, { color: colors.text }]}>
+                        {(ride.driverId?.averageRating || ride.driverId?.rating || 5).toFixed(1)}
+                      </Text>
+                      <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>
+                        ({ride.driverId?.totalReviews || 0})
+                      </Text>
+                    </View>
+                    <Text style={[styles.vehicleText, { color: colors.textSecondary }]}>
+                      {ride.driverId?.vehicleModel || 'Xe'} • {ride.driverId?.vehiclePlate || 'N/A'}
                     </Text>
                   </View>
-                  <Text style={[styles.vehicleInfo, { color: colors.textSecondary }]}>
-                    {ride.driverId?.vehicleModel || 'Xe'} • {ride.driverId?.vehiclePlate || 'N/A'}
-                  </Text>
                 </View>
               </View>
-            </View>
 
-            {/* Route Section */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Tuyến đường</Text>
-              <View style={[styles.routeCard, { borderColor: colors.border }]}>
-                <View style={styles.locationRow}>
-                  <View style={styles.locationIcon}>
-                    <MaterialIcons name="location-on" size={18} color="#4CAF50" />
+              {/* Timeline Section */}
+              <View style={[styles.timelineSection, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+                <View style={styles.timelineContainer}>
+                  {/* Pickup Point */}
+                  <View style={styles.timelineRow}>
+                    <View style={styles.timelineLeft}>
+                      <View style={[styles.timelineDot, { backgroundColor: '#53d22d' }]} />
+                      <View style={[styles.timelineLine, { backgroundColor: '#53d22d' }]} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineTime, { color: '#53d22d' }]}>08:00 • Đón khách</Text>
+                      <Text style={[styles.timelineAddress, { color: colors.text }]} numberOfLines={2}>
+                        {pickupAddress}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={[styles.locationText, { color: colors.text }]}>
-                    {ride.pickupAddress}
-                  </Text>
-                </View>
-                <View style={styles.locationRow}>
-                  <View style={styles.locationIcon}>
-                    <MaterialIcons name="location-on" size={18} color="#F44336" />
+
+                  {/* Dropoff Point */}
+                  <View style={styles.timelineRow}>
+                    <View style={styles.timelineLeft}>
+                      <MaterialIcons name="location-on" size={24} color={colors.textSecondary} />
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineTime, { color: colors.textSecondary }]}>10:30 • Trả khách</Text>
+                      <Text style={[styles.timelineAddress, { color: colors.text }]} numberOfLines={2}>
+                        {dropoffAddress}
+                      </Text>
+                    </View>
                   </View>
-                  <Text style={[styles.locationText, { color: colors.text }]}>
-                    {ride.dropoffAddress}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Details Section */}
-            <View style={styles.section}>
-              {/* Price */}
-              <View style={[styles.priceCard, { borderColor: colors.border, marginBottom: SPACING.md }]}>
-                <View style={styles.priceInfo}>
-                  <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Giá dự kiến</Text>
-                  <Text style={[styles.price, { color: colors.primary }]}>
-                    ₫{ride.totalFare.toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.distanceInfo}>
-                  <MaterialIcons name="directions" size={16} color={colors.primary} />
-                  <Text style={[styles.distanceText, { color: colors.textSecondary }]}>
-                    {(ride.distance || 5).toFixed(1)} km
-                  </Text>
                 </View>
               </View>
 
-              {/* Seats */}
-              <View style={[styles.seatsInfo, { borderColor: colors.border }]}>
-                <Text style={[styles.seatsLabel, { color: colors.textSecondary }]}>Ghế trống</Text>
-                <Text style={[styles.seatsValue, { color: colors.primary }]}>
-                  {availableSeats} / {ride.totalSeats || 4}
-                </Text>
+            {/* Seat Selection - Car Layout */}
+              <View style={[styles.seatSection, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+                <View style={styles.seatHeaderSimple}>
+                  <Text style={[styles.seatTitleSimple, { color: colors.text }]}>Chọn ghế ngồi</Text>
+                  <View style={styles.seatsAvailableBadge}>
+                    <Text style={styles.seatsAvailableText}>{availableSeats} ghế trống</Text>
+                  </View>
+                </View>
+
+                {/* Car Layout Visualization */}
+                <View style={[styles.carLayout, { backgroundColor: colors.bgSecondary }]}>
+                  {/* Steering Wheel */}
+                  <View style={styles.steeringWheel}>
+                    <MaterialIcons name="directions-car" size={28} color={colors.textSecondary + '4D'} />
+                  </View>
+
+                  {/* Seats Grid */}
+                  <View style={styles.seatsContainer}>
+                    {/* Row 1 - Passenger Seat (Single) */}
+                    <View style={styles.seatsRow}>
+                      <View style={{ width: 48 }} /> {/* Empty space for driver side */}
+                      <TouchableOpacity
+                        disabled={seatsState[0] === 'occupied'}
+                        onPress={() => setSelectedSeat(seatsState[0] === 'available' ? 0 : null)}
+                        style={[
+                          styles.seatButtonCar,
+                          {
+                            backgroundColor:
+                              seatsState[0] === 'occupied'
+                                ? colors.border
+                                : selectedSeat === 0
+                                  ? '#53d22d'
+                                  : 'transparent',
+                            borderColor:
+                              seatsState[0] === 'occupied'
+                                ? colors.border
+                                : selectedSeat === 0
+                                  ? '#53d22d'
+                                  : colors.border,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={seatsState[0] === 'occupied' ? 'person' : selectedSeat === 0 ? 'check' : 'chair'}
+                          size={20}
+                          color={seatsState[0] === 'occupied' ? colors.textSecondary : selectedSeat === 0 ? 'black' : colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Row 2 - Back Left and Back Right */}
+                    <View style={styles.seatsRow}>
+                      <TouchableOpacity
+                        disabled={seatsState[1] === 'occupied'}
+                        onPress={() => setSelectedSeat(seatsState[1] === 'available' ? 1 : null)}
+                        style={[
+                          styles.seatButtonCar,
+                          {
+                            backgroundColor:
+                              seatsState[1] === 'occupied'
+                                ? colors.border
+                                : selectedSeat === 1
+                                  ? '#53d22d'
+                                  : 'transparent',
+                            borderColor:
+                              seatsState[1] === 'occupied'
+                                ? colors.border
+                                : selectedSeat === 1
+                                  ? '#53d22d'
+                                  : colors.border,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={seatsState[1] === 'occupied' ? 'person' : selectedSeat === 1 ? 'check' : 'chair'}
+                          size={20}
+                          color={seatsState[1] === 'occupied' ? colors.textSecondary : selectedSeat === 1 ? 'black' : colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        disabled={seatsState[2] === 'occupied'}
+                        onPress={() => setSelectedSeat(seatsState[2] === 'available' ? 2 : null)}
+                        style={[
+                          styles.seatButtonCar,
+                          {
+                            backgroundColor:
+                              seatsState[2] === 'occupied'
+                                ? colors.border
+                                : selectedSeat === 2
+                                  ? '#53d22d'
+                                  : 'transparent',
+                            borderColor:
+                              seatsState[2] === 'occupied'
+                                ? colors.border
+                                : selectedSeat === 2
+                                  ? '#53d22d'
+                                  : colors.border,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={seatsState[2] === 'occupied' ? 'person' : selectedSeat === 2 ? 'check' : 'chair'}
+                          size={20}
+                          color={seatsState[2] === 'occupied' ? colors.textSecondary : selectedSeat === 2 ? 'black' : colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        disabled={seatsState[3] === 'occupied'}
+                        onPress={() => setSelectedSeat(seatsState[3] === 'available' ? 3 : null)}
+                        style={[
+                          styles.seatButtonCar,
+                          {
+                            backgroundColor:
+                              seatsState[3] === 'occupied'
+                                ? colors.border
+                                : selectedSeat === 3
+                                  ? '#53d22d'
+                                  : 'transparent',
+                            borderColor:
+                              seatsState[3] === 'occupied'
+                                ? colors.border
+                                : selectedSeat === 3
+                                  ? '#53d22d'
+                                  : colors.border,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={seatsState[3] === 'occupied' ? 'person' : selectedSeat === 3 ? 'check' : 'chair'}
+                          size={20}
+                          color={seatsState[3] === 'occupied' ? colors.textSecondary : selectedSeat === 3 ? 'black' : colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Legend */}
+                <View style={styles.seatLegend}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { borderColor: colors.border }]} />
+                    <Text style={[styles.legendText, { color: colors.textSecondary }]}>Trống</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: '#53d22d' }]} />
+                    <Text style={[styles.legendText, { color: colors.text }]}>Đang chọn</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: colors.border }]} />
+                    <Text style={[styles.legendText, { color: colors.textSecondary }]}>Đã đặt</Text>
+                  </View>
+                </View>
               </View>
+
+              {/* Insurance / Policy Card */}
+              <View style={[styles.policyCard, { backgroundColor: '#53d22d' + '15', borderColor: '#53d22d' + '30' }]}>
+                <MaterialIcons name="shield" size={24} color="#53d22d" style={{ marginTop: 2 }} />
+                <View style={styles.policyContent}>
+                  <Text style={[styles.policyTitle, { color: colors.text }]}>Bảo hiểm chuyến đi</Text>
+                  <Text style={[styles.policyText, { color: colors.textSecondary }]}>
+                    Chuyến đi của bạn được bảo hiểm trọn gói bởi FireGo Care. An tâm trên mọi nẻo đường.
+                  </Text>
+                </View>
+              </View>
+
+              {/* Spacer for footer */}
+              <View style={{ height: SPACING.xl }} />
             </View>
           </ScrollView>
 
-          {/* Footer Actions */}
-          <View style={[styles.footer, { borderTopColor: colors.border }]}>
+          {/* Sticky Footer */}
+          <View style={[styles.footer, { backgroundColor: colors.bgSecondary, borderTopColor: colors.border }]}>
+            <View style={styles.priceSection}>
+              <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Tổng cộng (1 ghế)</Text>
+              <View style={styles.priceValue}>
+                <Text style={[styles.price, { color: colors.text }]}>₫{ride.totalFare.toLocaleString()}</Text>
+              </View>
+            </View>
             <TouchableOpacity
-              style={[styles.button, styles.cancelButton, { borderColor: colors.text }]}
-              onPress={handleCancel}
-              disabled={requesting}
-            >
-              <MaterialIcons name="close" size={20} color={colors.text} />
-              <Text style={[styles.buttonText, { color: colors.text }]}>Hủy</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.confirmButton, { backgroundColor: colors.primary }]}
+              style={[styles.bookButton, { backgroundColor: '#53d22d' }]}
               onPress={handleRequestRide}
               disabled={requesting || availableSeats <= 0}
-              activeOpacity={0.7}
             >
               {requesting ? (
-                <ActivityIndicator color="#fff" size={20} />
+                <ActivityIndicator color="black" size={20} />
               ) : (
                 <>
-                  <MaterialIcons name="check-circle" size={20} color="#fff" />
-                  <Text style={[styles.buttonText, { color: '#fff' }]}>
-                    Yêu cầu tham gia
-                  </Text>
+                  <Text style={styles.bookButtonText}>Đặt chỗ ngay</Text>
+                  <MaterialIcons name="arrow-forward" size={20} color="black" />
                 </>
               )}
             </TouchableOpacity>
@@ -493,14 +528,9 @@ export default function RideDetailRequestScreen() {
 
       {/* Requesting Modal */}
       <Modal visible={requesting && requestStatus === 'pending'} transparent>
-        <View style={styles.requestingModal}>
-          <View
-            style={[
-              styles.modalContent,
-              { backgroundColor: colors.bg, borderColor: colors.border },
-            ]}
-          >
-            <ActivityIndicator color={colors.primary} size={40} />
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.bgSecondary }]}>
+            <ActivityIndicator color="#53d22d" size={40} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Đang gửi yêu cầu</Text>
             <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
               Vui lòng chờ tài xế phản hồi yêu cầu của bạn...
@@ -511,14 +541,9 @@ export default function RideDetailRequestScreen() {
 
       {/* Success Modal */}
       <Modal visible={requesting && requestStatus === 'accepted'} transparent>
-        <View style={styles.requestingModal}>
-          <View
-            style={[
-              styles.modalContent,
-              { backgroundColor: colors.bg, borderColor: colors.border },
-            ]}
-          >
-            <MaterialIcons name="check-circle" size={40} color={colors.primary} />
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.bgSecondary }]}>
+            <MaterialIcons name="check-circle" size={40} color="#53d22d" />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Yêu cầu được chấp nhận!</Text>
             <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
               Tài xế {ride?.driverId?.firstName} đã chấp nhận yêu cầu của bạn
@@ -529,4 +554,385 @@ export default function RideDetailRequestScreen() {
     </SafeAreaView>
   )
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  errorText: {
+    fontSize: 14,
+    marginTop: SPACING.md,
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  mapHero: {
+    height: height * 0.35,
+    position: 'relative',
+  },
+  mapGradientBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 250,
+  },
+  topAppBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    zIndex: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+  },
+  backButtonTopBar: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topBarTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'white',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  contentWrapper: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    marginTop: -16,
+  },
+  driverSection: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  driverRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+  },
+  driverAvatarContainer: {
+    position: 'relative',
+  },
+  driverAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#53d22d',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#53d22d',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  driverDetails: {
+    flex: 1,
+  },
+  driverHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: SPACING.sm,
+  },
+  driverName: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  ratingValue: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  ratingCount: {
+    fontSize: 11,
+  },
+  vehicleText: {
+    fontSize: 12,
+  },
+  timelineSection: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  timelineContainer: {
+    gap: 0,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    marginBottom: SPACING.lg,
+  },
+  timelineLeft: {
+    width: 40,
+    alignItems: 'center',
+    paddingRight: SPACING.md,
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  timelineLine: {
+    width: 2,
+    minHeight: 40,
+    marginVertical: 4,
+  },
+  timelineContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  timelineTime: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  timelineAddress: {
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  locationSection: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    marginBottom: SPACING.md,
+    overflow: 'hidden',
+  },
+  locationItem: {
+    flexDirection: 'row',
+    padding: SPACING.lg,
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+  },
+  locationIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    opacity: 0.8,
+  },
+  locationContent: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  locationAddress: {
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  locationDivider: {
+    height: 1,
+    marginHorizontal: SPACING.lg,
+  },
+  seatSection: {
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  seatHeaderSimple: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  seatTitleSimple: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  seatsAvailableBadge: {
+    backgroundColor: '#53d22d' + '20',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 6,
+  },
+  seatsAvailableText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#53d22d',
+  },
+  carLayout: {
+    borderRadius: 32,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.xl,
+    marginBottom: SPACING.lg,
+    alignItems: 'center',
+  },
+  steeringWheel: {
+    opacity: 0.3,
+    marginBottom: SPACING.lg,
+  },
+  seatsContainer: {
+    width: '100%',
+  },
+  seatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+    gap: SPACING.md,
+  },
+  seatButtonCar: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  seatLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: SPACING.xl,
+    paddingTop: SPACING.lg,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  legendDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    borderWidth: 1,
+  },
+  legendText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  policyCard: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.xl,
+    gap: SPACING.md,
+    alignItems: 'flex-start',
+  },
+  policyContent: {
+    flex: 1,
+  },
+  policyTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+  },
+  policyText: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  seatGridSimple: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: SPACING.md,
+  },
+  seatButtonSimple: {
+    width: '23%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  footer: {
+    borderTopWidth: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    paddingBottom: SPACING.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.lg,
+  },
+  priceSection: {
+    flex: 0.5,
+  },
+  priceLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  priceValue: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  price: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  bookButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  bookButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'black',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    width: '80%',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+  modalMessage: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: SPACING.md,
+  },
+})
 

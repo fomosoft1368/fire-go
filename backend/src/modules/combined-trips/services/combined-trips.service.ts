@@ -15,6 +15,13 @@ export class CombinedTripsService {
   ) {}
 
   /**
+   * Get the combined trip model for direct queries
+   */
+  getCombinedTripsModel(): Model<CombinedTripDocument> {
+    return this.combinedTripModel;
+  }
+
+  /**
    * Get all combined trips with optional filtering
    */
   async findAll(filters?: any): Promise<CombinedTrip[]> {
@@ -95,6 +102,8 @@ export class CombinedTripsService {
    */
   async getCombinedTripDetail(combinedTripId: string): Promise<any> {
     try {
+      console.log('[CombinedTripsService] getCombinedTripDetail called for:', combinedTripId);
+
       const tripIdObj = new Types.ObjectId(combinedTripId);
 
       const trip = await this.combinedTripModel
@@ -110,10 +119,23 @@ export class CombinedTripsService {
         throw new NotFoundException('Combined trip not found');
       }
 
+      console.log('[CombinedTripsService] Trip found from DB with status:', {
+        _id: trip._id,
+        status: trip.status,
+        updatedAt: (trip as any).updatedAt,
+      });
+
       // Enrich with RideRequest data
-      return this.enrichCombinedTripWithCustomers(combinedTripId, trip);
+      const enrichedTrip = await this.enrichCombinedTripWithCustomers(combinedTripId, trip);
+      
+      console.log('[CombinedTripsService] Returning enriched trip with status:', {
+        _id: enrichedTrip._id,
+        status: enrichedTrip.status,
+      });
+
+      return enrichedTrip;
     } catch (error) {
-      console.error('❌ Error getting combined trip detail:', error);
+      console.error('[CombinedTripsService] ❌ Error getting combined trip detail:', error);
       throw error;
     }
   }
@@ -179,10 +201,22 @@ export class CombinedTripsService {
         }
       }
 
-      return {
-        ...trip.toObject ? trip.toObject() : trip,
+      const tripObject = trip.toObject ? trip.toObject() : trip;
+      const enrichedTrip = {
+        ...tripObject,
         customerId: enrichedCustomers,
       };
+
+      console.log('✅ Enriched trip data returned to API:', {
+        _id: enrichedTrip._id,
+        status: enrichedTrip.status,
+        statusType: typeof enrichedTrip.status,
+        tripObjectStatus: tripObject.status,
+        driverId: enrichedTrip.driverId?._id || enrichedTrip.driverId,
+        updatedAt: enrichedTrip.updatedAt,
+      });
+
+      return enrichedTrip;
     } catch (error) {
       console.error('❌ Error enriching combined trip:', error);
       throw error;
@@ -219,6 +253,11 @@ export class CombinedTripsService {
     status: CombinedTripStatus,
   ): Promise<CombinedTrip> {
     try {
+      console.log('[CombinedTripsService] 🔄 updateCombinedTripStatus called:', {
+        combinedTripId,
+        newStatus: status,
+      });
+
       const trip = await this.combinedTripModel.findByIdAndUpdate(
         combinedTripId,
         { status, updatedAt: new Date() },
@@ -229,9 +268,16 @@ export class CombinedTripsService {
         throw new NotFoundException('Combined trip not found');
       }
 
+      console.log('[CombinedTripsService] ✅ Trip status updated successfully:', {
+        tripId: trip._id,
+        oldStatus: trip.status,
+        newStatus: status,
+        updatedAt: (trip as any).updatedAt,
+      });
+
       return trip;
     } catch (error) {
-      console.error('❌ Error updating combined trip status:', error);
+      console.error('[CombinedTripsService] ❌ Error updating combined trip status:', error);
       throw error;
     }
   }

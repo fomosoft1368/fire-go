@@ -4,10 +4,13 @@ import 'react-native-gesture-handler'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import { Provider, useSelector } from 'react-redux'
+import { Provider, useSelector, useDispatch } from 'react-redux'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store, RootState } from './src/redux/store'
+import { restoreAuth } from './src/redux/slices/authSlice'
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS } from './src/constants'
+import { useEffect } from 'react'
 import LoginScreen from './src/screens/LoginScreen'
 import RegisterScreen from './src/screens/RegisterScreen'
 import HomeScreen from './src/screens/HomeScreen'
@@ -146,6 +149,42 @@ const HomeStackNavigator = () => {
 
 const RootNavigator = () => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth)
+  const dispatch = useDispatch()
+
+  useEffect(() => {
+    const restoreAuthFromStorage = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token')
+        const userStr = await AsyncStorage.getItem('user')
+        
+        console.log('[Driver App] Restoring auth...')
+        console.log('[Driver App] Token exists:', !!token)
+        console.log('[Driver App] User exists:', !!userStr)
+
+        if (token && userStr) {
+          try {
+            const user = JSON.parse(userStr)
+            console.log('[Driver App] Restored user:', { id: user.id, role: user.role, email: user.email })
+            dispatch(restoreAuth({ token, user }))
+          } catch (parseError) {
+            console.error('[Driver App] User JSON parse error:', parseError)
+            // Clear corrupted data
+            await AsyncStorage.removeItem('token')
+            await AsyncStorage.removeItem('user')
+            dispatch(restoreAuth(null))
+          }
+        } else {
+          console.log('[Driver App] No auth data in storage')
+          dispatch(restoreAuth(null))
+        }
+      } catch (error) {
+        console.error('[Driver App] Restore auth error:', error)
+        dispatch(restoreAuth(null))
+      }
+    }
+
+    restoreAuthFromStorage()
+  }, [dispatch])
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>

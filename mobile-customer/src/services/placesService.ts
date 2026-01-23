@@ -58,30 +58,44 @@ export const placesService = {
       // 2️⃣ Call backend endpoint
       console.log('📡 [PlacesService] Fetching from backend:', trimmedKeyword);
       // Backend sẽ check: Redis cache → Database → Google Places API
-      const res = await fetch(
-        `${API_BASE_URL}/places/search?keyword=${encodeURIComponent(trimmedKeyword)}`
-      );
+      const url = `${API_BASE_URL}/places/search?keyword=${encodeURIComponent(trimmedKeyword)}`;
+      console.log('🌐 [PlacesService] Calling:', url);
+      
+      const res = await fetch(url);
+      
+      console.log(`📥 [PlacesService] Response status: ${res.status}, ok: ${res.ok}`);
       
       if (!res.ok) {
-        console.error(`[PlacesService] API error: ${res.status}`);
+        console.error(`❌ [PlacesService] API error: ${res.status} ${res.statusText}`);
+        const errorText = await res.text();
+        console.error('[PlacesService] Error body:', errorText);
         // Fallback: return empty results instead of throwing
         console.warn('[PlacesService] Backend unavailable, returning empty results');
         return { results: [], source: 'api' };
       }
       
       const response = await res.json() as PlacesSearchResponse;
+      console.log('✅ [PlacesService] Backend response:', { source: response.source, count: response.results?.length || 0 });
 
-      // 3️⃣ Cache result ở frontend
-      placeCache.set(trimmedKeyword, {
-        results: response.results,
-        timestamp: Date.now(),
-      });
-
-      console.log(
-        '📍 [PlacesService] Got results from',
-        response.source || 'backend',
-        `(${response.results.length} places)`
-      );
+      // 3️⃣ Cache result ở frontend - ONLY cache if have results
+      // ⚡ Don't cache empty results to avoid caching "no match" responses
+      if (response.results && response.results.length > 0) {
+        placeCache.set(trimmedKeyword, {
+          results: response.results,
+          timestamp: Date.now(),
+        });
+        console.log(
+          '📍 [PlacesService] Got results from',
+          response.source || 'backend',
+          `(${response.results.length} places) - CACHED`
+        );
+      } else {
+        console.log(
+          '📍 [PlacesService] No results from',
+          response.source || 'backend',
+          '- not caching to allow retry'
+        );
+      }
 
       return response;
     } catch (error) {

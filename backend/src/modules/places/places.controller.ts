@@ -10,11 +10,17 @@ export class PlacesController {
     results: PlaceResult[];
     source: 'cache' | 'database' | 'google' | 'validation';
   }> {
+    console.log('🔥 [PlacesController] Search request received:', keyword);
+    
     if (!keyword || keyword.trim().length < 3) {
+      console.log('⏭️ [PlacesController] Keyword too short:', keyword?.length);
       return { results: [], source: 'validation' };
     }
 
-    return this.placesService.searchPlaces(keyword, 0, 0); // userLat, userLng not used in current implementation
+    console.log('✅ [PlacesController] Calling service for:', keyword);
+    const result = await this.placesService.searchPlaces(keyword, 0, 0);
+    console.log('📤 [PlacesController] Service returned:', { source: result.source, count: result.results.length });
+    return result;
   }
 
   @Get('details/:placeId')

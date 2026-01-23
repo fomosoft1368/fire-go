@@ -76,17 +76,25 @@ export const placesService = {
       
       const response = await res.json() as PlacesSearchResponse;
 
-      // 3️⃣ Cache result ở frontend
-      placeCache.set(trimmedKeyword, {
-        results: response.results,
-        timestamp: Date.now(),
-      });
-
-      console.log(
-        '✅ [PlacesService] Got results from',
-        response.source || 'backend',
-        `(${response.results.length} places)`
-      );
+      // 3️⃣ Cache result ở frontend - ONLY cache if have results
+      // ⚡ Don't cache empty results to avoid caching "no match" responses
+      if (response.results && response.results.length > 0) {
+        placeCache.set(trimmedKeyword, {
+          results: response.results,
+          timestamp: Date.now(),
+        });
+        console.log(
+          '✅ [PlacesService] Got results from',
+          response.source || 'backend',
+          `(${response.results.length} places) - CACHED`
+        );
+      } else {
+        console.log(
+          '✅ [PlacesService] No results from',
+          response.source || 'backend',
+          '- not caching to allow retry'
+        );
+      }
 
       return response;
     } catch (error: any) {
