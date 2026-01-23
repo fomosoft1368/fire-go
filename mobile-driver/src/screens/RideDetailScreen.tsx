@@ -101,11 +101,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const fetchRideDetail = async () => {
     setLoading(true)
     try {
-<<<<<<< HEAD
-      const API_URL = 'http://192.168.1.18:3000/api'
-=======
       const API_URL = 'http://192.168.1.16:3000/api'
->>>>>>> f615926e441a806aecd45b60e9184db5811fa2d1
       console.log('🚗 Fetching ride detail from:', `${API_URL}/rides/${rideId}`)
       const response = await fetch(`${API_URL}/rides/${rideId}`, {
         method: 'GET',
@@ -155,11 +151,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
-<<<<<<< HEAD
-              const API_URL = 'http://192.168.1.18:3000/api'
-=======
               const API_URL = 'http://192.168.1.16:3000/api'
->>>>>>> f615926e441a806aecd45b60e9184db5811fa2d1
               const response = await fetch(`${API_URL}/rides/${rideId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -194,11 +186,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
-<<<<<<< HEAD
-              const API_URL = 'http://192.168.1.18:3000/api'
-=======
               const API_URL = 'http://192.168.1.16:3000/api'
->>>>>>> f615926e441a806aecd45b60e9184db5811fa2d1
               const response = await fetch(`${API_URL}/rides/${rideId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -264,11 +252,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     if (!requestingCustomer) return
     try {
       setUpdating(true)
-<<<<<<< HEAD
-      const API_URL = 'http://192.168.1.18:3000/api'
-=======
       const API_URL = 'http://192.168.1.16:3000/api'
->>>>>>> f615926e441a806aecd45b60e9184db5811fa2d1
       const response = await fetch(`${API_URL}/rides/${rideId}/add-passenger`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
