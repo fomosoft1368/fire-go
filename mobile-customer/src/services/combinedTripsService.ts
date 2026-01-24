@@ -65,25 +65,12 @@ export const combinedTripsService = {
     try {
       console.log('[CombinedTripsService] Getting combined trip detail:', combinedTripId)
 
-      const token = await AsyncStorage.getItem('authToken')
-      const headers: any = {
-        'Content-Type': 'application/json',
-      }
-      if (token) {
-        headers.Authorization = `Bearer ${token}`
-        console.log('[CombinedTripsService] ✅ Token found, adding to headers')
-      } else {
-        console.warn('[CombinedTripsService] ⚠️ No auth token found')
-      }
-
-      console.log('[CombinedTripsService] 🌐 Fetching from:', `${API_BASE_URL}/combined-trips/${combinedTripId}`)
-
       const response = await fetch(`${API_BASE_URL}/combined-trips/${combinedTripId}`, {
         method: 'GET',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
       })
-
-      console.log('[CombinedTripsService] 📥 API Response status:', response.status)
 
       const result = await response.json()
 
@@ -92,17 +79,10 @@ export const combinedTripsService = {
         throw new Error(result.message || 'Failed to get combined trip')
       }
 
-      console.log('[CombinedTripsService] ✅ Combined trip detail received:', {
-        id: result._id,
-        status: result.status,
-        statusType: typeof result.status,
-        hasDriverId: !!result.driverId,
-        customersCount: result.customerId?.length || 0,
-      })
-      
+      console.log('[CombinedTripsService] Combined trip detail:', result._id)
       return result
     } catch (error: any) {
-      console.error('[CombinedTripsService] ❌ Get combined trip error:', error)
+      console.error('[CombinedTripsService] Get combined trip error:', error)
       throw error
     }
   },
@@ -263,44 +243,4 @@ export const combinedTripsService = {
       throw error
     }
   },
-
-  /**
-   * Start journey - Customer initiates trip start (changes status to in_progress)
-   */
-  async startJourney(combinedTripId: string, requestId: string) {
-    try {
-      console.log('[CombinedTripsService] Starting journey:', {
-        combinedTripId,
-        requestId,
-      })
-
-      const token = await AsyncStorage.getItem('authToken')
-      const headers: any = {
-        'Content-Type': 'application/json',
-      }
-      if (token) {
-        headers.Authorization = `Bearer ${token}`
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/combined-trips/${combinedTripId}/requests/${requestId}/start-journey`,
-        {
-          method: 'PATCH',
-          headers,
-        }
-      )
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        console.error('[CombinedTripsService] Start journey failed:', result)
-        throw new Error(result.message || 'Failed to start journey')
-      }
-
-      console.log('[CombinedTripsService] Journey started successfully')
-      return result
-    } catch (error: any) {
-      console.error('[CombinedTripsService] Start journey error:', error)
-      throw error
-    }
-  },}
+}

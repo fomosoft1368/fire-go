@@ -17,6 +17,7 @@ import MapView, { Marker, Polyline } from 'react-native-maps'
 import * as Location from 'expo-location'
 import { COLORS } from '../constants'
 import { API_BASE_URL } from '../constants/config'
+import ChatScreen from './ChatScreen'
 
 // Google Maps API Key from .env
 const GOOGLE_MAPS_API_KEY = 'AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY'
@@ -41,6 +42,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
   const [updating, setUpdating] = useState(false)
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
   const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [showChatScreen, setShowChatScreen] = useState(false)
   const [requestingCustomer, setRequestingCustomer] = useState<Customer | null>(null)
   const [modalCountdown, setModalCountdown] = useState(60)
   const [currentPassengerIndex, setCurrentPassengerIndex] = useState(0)
@@ -1194,10 +1196,27 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
                       {/* Action Buttons */}
                       <View style={styles.passengerCardActions}>
-                        <TouchableOpacity style={styles.passengerActionBtn}>
+                        <TouchableOpacity 
+                          style={styles.passengerActionBtn}
+                          onPress={() => {
+                            if (currentPassenger) {
+                              setShowChatScreen(true)
+                            }
+                          }}
+                        >
                           <MaterialIcons name="chat" size={18} color="#fff" />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.passengerActionBtn}>
+                        <TouchableOpacity 
+                          style={styles.passengerActionBtn}
+                          onPress={() => {
+                            if (currentPassenger?.phone) {
+                              Alert.alert('Gọi khách', `Gọi ${currentPassenger.name}?`, [
+                                { text: 'Hủy', style: 'cancel' },
+                                { text: 'Gọi', onPress: () => console.log('Call:', currentPassenger.phone) },
+                              ])
+                            }
+                          }}
+                        >
                           <MaterialIcons name="call" size={18} color="#fff" />
                         </TouchableOpacity>
                       </View>
@@ -1322,7 +1341,25 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               </View>
             </View>
           </Modal>
-          
+
+          {/* Chat Modal */}
+          <Modal 
+            visible={showChatScreen} 
+            animationType="slide"
+            transparent={false}
+          >
+            {showChatScreen && currentPassenger && (
+              <ChatScreen
+                customer={{
+                  id: currentPassenger._id,
+                  name: currentPassenger.name,
+                  phone: currentPassenger.phone,
+                }}
+                rideId={ride._id}
+                onClose={() => setShowChatScreen(false)}
+              />
+            )}
+          </Modal>
 
         </>
       )}

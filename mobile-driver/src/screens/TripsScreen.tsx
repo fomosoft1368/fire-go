@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
+import { useSelector } from 'react-redux'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { driverService } from '../services/driverService'
+import type { RootState } from '../redux/store'
 
 interface Trip {
   _id?: string
@@ -21,10 +23,12 @@ interface Trip {
   customerName?: string
   createdAt?: string
   updatedAt?: string
+  sourceType?: 'ride' | 'combined_trip' // Track which type of trip
 }
 
 export default function TripsScreen() {
   const navigation = useNavigation()
+  const { user } = useSelector((state: RootState) => state.auth)
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,41 +42,86 @@ export default function TripsScreen() {
     try {
       setLoading(true)
       setError(null)
-      console.log('📱 Fetching trips with filter:', activeFilter)
       
-      let data: any[] = []
-      
-      if (activeFilter === 'completed') {
-        // Lấy cuốc đã hoàn thành
-        data = await driverService.getCompletedTrips('completed')
-      } else if (activeFilter === 'upcoming') {
-        // Lấy cuốc sắp tới (status = pending hoặc accepted)
-        data = await driverService.getAvailableRides()
-      } else {
-        // Lấy tất cả cuốc đã hoàn thành (gồi cả completed và cancelled)
-        // Vì API có thể không hỗ trợ array status, nên gọi riêng từng cái rồi combine
-        const completedTrips = await driverService.getCompletedTrips('completed')
-        const cancelledTrips = await driverService.getCompletedTrips('cancelled')
-        data = [...(completedTrips || []), ...(cancelledTrips || [])]
+      if (!user?.id) {
+        console.warn('⚠️ No user ID available')
+        setError('Chưa đăng nhập')
+        return
       }
 
-      console.log('📊 Trips data:', data)
+      console.log('📱 Fetching trips with filter:', activeFilter, 'userId:', user.id)
+      
+      // Fetch trips from all sources - pass driverId for backend filtering
+      const [allRides, allCombinedTrips, allDeliveries] = await Promise.all([
+        driverService.getCompletedTrips(user.id),
+        driverService.getCompletedCombinedTrips(user.id),
+        driverService.getCompletedDeliveries(user.id),
+      ])
+
+      console.log('📊 All rides từ API:', allRides.length)
+      if (allRides.length > 0) {
+        console.log('📊 Sample ride:', JSON.stringify(allRides[0], null, 2))
+      }
+      console.log('📊 All combined trips từ API:', allCombinedTrips.length)
+      if (allCombinedTrips.length > 0) {
+        console.log('📊 Sample combined trip:', JSON.stringify(allCombinedTrips[0], null, 2))
+      }
+      console.log('📊 All deliveries từ API:', allDeliveries.length)
+      if (allDeliveries.length > 0) {
+        console.log('📊 Sample delivery:', JSON.stringify(allDeliveries[0], null, 2))
+      }
+      console.log('👤 User ID hiện tại:', user.id)
+
+      // No need for client-side filtering now - backend already filtered by driverId
+      const myRides = allRides
+      const myCombinedTrips = allCombinedTrips
+      const myDeliveries = allDeliveries
+
+      let allTripsData: any[] = [
+        ...myRides.map((r: any) => ({ ...r, sourceType: 'ride' })),
+        ...myCombinedTrips.map((c: any) => ({ ...c, sourceType: 'combined_trip' })),
+        ...myDeliveries.map((d: any) => ({ ...d, sourceType: 'delivery' })),
+      ]
+
+      console.log('✅ My rides:', myRides.length)
+      console.log('✅ My combined trips:', myCombinedTrips.length)
+      console.log('✅ My deliveries:', myDeliveries.length)
+      console.log('✅ Total my trips:', allTripsData.length)
+      
+      // Double-check: filter by driverId on client-side as well
+      const filteredTripsData = allTripsData.filter((trip: any) => {
+        const tripDriverId = typeof trip.driverId === 'string' ? trip.driverId : trip.driverId?._id
+        const isMyTrip = String(tripDriverId) === String(user.id)
+        if (!isMyTrip) {
+          console.warn(`⚠️ Trip ${trip._id} has different driverId: ${tripDriverId}, user: ${user.id}`)
+        }
+        return isMyTrip
+      })
+      
+      console.log('✅ After client-side filter:', filteredTripsData.length)
+      console.log('🔍 Trips sourceType check:', filteredTripsData.map(t => ({ 
+        id: t._id, 
+        sourceType: t.sourceType,
+        status: t.status,
+        driverId: typeof t.driverId === 'string' ? t.driverId : t.driverId?._id
+      })))
       
       // Format dữ liệu từ API thành Trip interface
-      const formattedTrips = (Array.isArray(data) ? data : []).map((ride: any) => ({
+      const formattedTrips = (Array.isArray(filteredTripsData) ? filteredTripsData : []).map((ride: any) => ({
         _id: ride._id,
         id: ride._id || ride.id,
         status: ride.status || 'completed',
         pickupLocation: ride.pickupAddress || 'Điểm đón',
-        dropoffLocation: ride.dropoffAddress || 'Điểm trả',
+        dropoffLocation: ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến',
         pickupAddress: ride.pickupAddress,
-        dropoffAddress: ride.dropoffAddress,
-        distance: ride.distance ? `${ride.distance} km` : '0 km',
-        amount: ride.totalFare || 0,
-        totalFare: ride.totalFare,
+        dropoffAddress: ride.dropoffAddress || ride.dropoffLocationAddress,
+        distance: ride.distance ? `${ride.distance.toFixed(1)} km` : '0 km',
+        amount: ride.totalFare || ride.fare || 0,
+        totalFare: ride.totalFare || ride.fare,
         date: formatDate(ride.createdAt || ride.date),
         rating: ride.rating,
         customerName: ride.customerName,
+        sourceType: ride.sourceType,
       }))
 
       console.log('✅ Formatted trips:', formattedTrips)
@@ -111,18 +160,46 @@ export default function TripsScreen() {
     }
   }
   const renderTripCard = (trip: Trip) => {
-    const statusConfig = {
+    const statusConfig: any = {
       completed: { label: 'Hoàn thành', color: COLORS.success },
       cancelled: { label: 'Đã hủy', color: COLORS.danger },
       upcoming: { label: 'Sắp tới', color: COLORS.warning },
+      pending: { label: 'Chờ xử lý', color: COLORS.warning },
+      accepted: { label: 'Đã chấp nhận', color: COLORS.primary },
+      in_progress: { label: 'Đang thực hiện', color: COLORS.primary },
     }
 
-    const config = statusConfig[trip.status]
+    const config = statusConfig[trip.status] || { label: trip.status || 'Không xác định', color: COLORS.textSecondary }
 
     const handleViewDetails = () => {
-      console.log('📍 View trip details:', trip.id || trip._id)
-      // @ts-ignore - Navigation types not fully defined
-      navigation.navigate('TripDetail', { tripId: trip.id || trip._id, trip })
+      console.log('📍 View trip details:', { 
+        tripId: trip.id || trip._id, 
+        sourceType: trip.sourceType 
+      })
+      
+      // Navigate based on trip type
+      if (trip.sourceType === 'combined_trip') {
+        // Xe ghép -> ActiveRideScreen
+        // @ts-ignore
+        navigation.navigate('ActiveRideScreen', { 
+          combinedTripId: trip.id || trip._id,
+          sourceType: 'combined_trip'
+        })
+      } else if (trip.sourceType === 'delivery') {
+        // Giao hàng -> DeliveryDetailScreen
+        // @ts-ignore
+        navigation.navigate('DeliveryDetailScreen', { 
+          deliveryId: trip.id || trip._id,
+          sourceType: 'delivery'
+        })
+      } else {
+        // Lái xe hộ -> ActiveDeliveryScreen
+        // @ts-ignore
+        navigation.navigate('ActiveDeliveryScreen', { 
+          tripId: trip.id || trip._id,
+          sourceType: 'ride'
+        })
+      }
     }
 
     return (
@@ -141,8 +218,24 @@ export default function TripsScreen() {
               <Text style={styles.dropoffText} numberOfLines={1}>{trip.dropoffLocation}</Text>
             </View>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: config.color + '20' }]}>
-            <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+          <View style={styles.badgesContainer}>
+            {/* Trip Type Badge */}
+            <View style={[
+              styles.typeBadge, 
+              { backgroundColor: trip.sourceType === 'combined_trip' ? '#10b98120' : trip.sourceType === 'delivery' ? '#f5931120' : '#6366f120' }
+            ]}>
+              <Text style={[
+                styles.typeBadgeText,
+                { color: trip.sourceType === 'combined_trip' ? COLORS.success : trip.sourceType === 'delivery' ? '#f59311' : '#6366f1' }
+              ]}>
+                {trip.sourceType === 'combined_trip' ? 'Ghép xe' : trip.sourceType === 'delivery' ? 'Đặt hàng' : 'Lái xe hộ'}
+              </Text>
+            </View>
+            
+            {/* Status Badge */}
+            <View style={[styles.statusBadge, { backgroundColor: config.color + '20' }]}>
+              <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+            </View>
           </View>
         </View>
 
@@ -354,6 +447,20 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     gap: SPACING.md,
+  },
+  badgesContainer: {
+    flexDirection: 'column',
+    gap: SPACING.xs,
+    alignItems: 'flex-end',
+  },
+  typeBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   locationDot: {
     width: 8,

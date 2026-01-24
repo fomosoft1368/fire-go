@@ -210,19 +210,13 @@ export class CombinedTripsController {
   @Get(':combinedTripId')
   async getCombinedTripDetail(@Param('combinedTripId') combinedTripId: string) {
     try {
-      console.log('[CombinedTripsController] GET combined trip detail:', combinedTripId);
+      console.log('[CombinedTripsController] Getting combined trip detail:', combinedTripId);
 
       const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
 
-      console.log('[CombinedTripsController] 📤 Returning trip from GET endpoint:', {
-        _id: trip._id,
-        status: trip.status,
-        customerId: trip.customerId?.length,
-      });
-
       return trip;
     } catch (error: any) {
-      console.error('[CombinedTripsController] ❌ Error getting combined trip detail:', error);
+      console.error('[CombinedTripsController] Error:', error);
       throw error;
     }
   }
@@ -494,7 +488,6 @@ export class CombinedTripsController {
         requestId,
       });
 
-      // Update RideRequest status
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
         { status: 'in_progress' },
@@ -505,20 +498,9 @@ export class CombinedTripsController {
         throw new BadRequestException('Request not found');
       }
 
-      // Also update CombinedTrip status to in_progress
-      await this.combinedTripsService.updateCombinedTripStatus(
-        combinedTripId,
-        CombinedTripStatus.IN_PROGRESS,
-      );
-
-      console.log('[CombinedTripsController] ✅ Journey started - Request and Trip updated:', {
-        requestStatus: request.status,
-        tripId: combinedTripId,
-      });
-
       return { status: request.status };
     } catch (error: any) {
-      console.error('[CombinedTripsController] Error starting journey:', error);
+      console.error('[CombinedTripsController] Error:', error);
       throw error;
     }
   }

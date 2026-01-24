@@ -452,17 +452,20 @@ export class DriverService {
   /**
    * Lấy danh sách chuyến đi đã hoàn thành/đã hủy của tài xế (TripsScreen)
    */
-  async getCompletedTrips(status?: 'completed' | 'cancelled'): Promise<any[]> {
+  async getCompletedTrips(driverId?: string, status?: 'completed' | 'cancelled'): Promise<any[]> {
     try {
       const token = await AsyncStorage.getItem('token');
-      console.log('🚗 Fetching completed trips with status:', status || 'all');
+      console.log('🚗 Fetching completed trips with driverId:', driverId, 'status:', status || 'all');
       
       const params: any = {};
+      if (driverId) {
+        params.driverId = driverId;
+      }
       if (status) {
         params.status = status;
       }
 
-      const response = await axios.get(`${this.baseURL}/rides`, {
+      const response = await axios.get(`${API_BASE_URL}/rides`, {
         params,
         headers: {
           'Content-Type': 'application/json',
@@ -476,6 +479,40 @@ export class DriverService {
       return result;
     } catch (error: any) {
       console.error(`❌ Error fetching ${status || 'all'} trips:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Lấy danh sách chuyến xe ghép đã hoàn thành/đã hủy (TripsScreen)
+   */
+  async getCompletedCombinedTrips(driverId?: string, status?: 'completed' | 'cancelled'): Promise<any[]> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('🚗 Fetching completed combined trips with driverId:', driverId, 'status:', status || 'all');
+      
+      const params: any = {};
+      if (driverId) {
+        params.driverId = driverId;
+      }
+      if (status) {
+        params.status = status;
+      }
+
+      const response = await axios.get(`${API_BASE_URL}/combined-trips`, {
+        params,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 10000,
+      });
+      
+      const result = Array.isArray(response.data) ? response.data : [];
+      console.log(`✅ Completed combined trips (${status || 'all'}) fetched:`, result.length);
+      return result;
+    } catch (error: any) {
+      console.error(`❌ Error fetching ${status || 'all'} combined trips:`, error.message);
       return [];
     }
   }
@@ -499,6 +536,40 @@ export class DriverService {
     } catch (error) {
       console.error('Error accepting combined trip:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách đơn hàng/giao hàng đã hoàn thành (TripsScreen)
+   */
+  async getCompletedDeliveries(driverId?: string, status?: 'completed' | 'cancelled'): Promise<any[]> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('🚚 Fetching completed deliveries with driverId:', driverId, 'status:', status || 'all');
+      
+      const params: any = {};
+      if (driverId) {
+        params.driverId = driverId;
+      }
+      if (status) {
+        params.status = status;
+      }
+
+      const response = await axios.get(`${API_BASE_URL}/deliveries`, {
+        params,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 10000,
+      });
+      
+      const result = Array.isArray(response.data) ? response.data : [];
+      console.log(`✅ Completed deliveries (${status || 'all'}) fetched:`, result.length);
+      return result;
+    } catch (error: any) {
+      console.error(`❌ Error fetching ${status || 'all'} deliveries:`, error.message);
+      return [];
     }
   }
 }

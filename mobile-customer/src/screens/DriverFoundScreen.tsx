@@ -10,6 +10,7 @@ import {
   Alert,
   Dimensions,
   StatusBar,
+  Modal,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { MaterialIcons } from '@expo/vector-icons'
@@ -22,6 +23,7 @@ import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
 import { rideService } from '../services/rideService'
 import MapViewComponent from '../components/MapView'
+import ChatScreen from './ChatScreen'
 
 const { height } = Dimensions.get('window')
 
@@ -55,7 +57,6 @@ export default function DriverFoundScreen() {
   const route = useRoute()
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
-  const user = useSelector((state: RootState) => state.auth.user) // Get current user
 
   // Safe params extraction
   const params = route.params as any
@@ -66,6 +67,7 @@ export default function DriverFoundScreen() {
   const [routeData, setRouteData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showChatScreen, setShowChatScreen] = useState(false)
   const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const locationInterval = useRef<NodeJS.Timeout | null>(null)
 
@@ -94,18 +96,12 @@ export default function DriverFoundScreen() {
     }
   }, [combinedTripId])
 
-  // Load route when request starts (status = in_progress) or driver location changes
+  // Load route when trip starts (status = in_progress) or driver location changes
   useEffect(() => {
-    if (tripData && driverLocation) {
-      // Get current customer's request status
-      const currentRequest = tripData?.customerId?.find(
-        (customer: any) => customer._id === user?.id || customer._id === user?._id
-      )
-      if (currentRequest?.status === 'in_progress') {
-        loadRoute()
-      }
+    if (tripData?.status === 'in_progress' && driverLocation) {
+      loadRoute()
     }
-  }, [tripData, driverLocation, user?.id, user?._id])
+  }, [tripData?.status, driverLocation])
 
   const loadTripDetails = async () => {
     try {
@@ -118,13 +114,10 @@ export default function DriverFoundScreen() {
       console.log('[DriverFoundScreen] Trip updated - Full data:', {
         _id: trip?._id,
         status: trip?.status,
-        statusFromAPI: trip?.status,
         pickupLocation: trip?.pickupLocation,
         dropoffLocation: trip?.dropoffLocation,
         driverId: trip?.driverId?.firstName,
-        allData: JSON.stringify(trip, null, 2),
       })
-      console.log('[DriverFoundScreen] ⚠️ Status value type:', typeof trip?.status, 'Value:', trip?.status)
       setTripData(trip)
       setLoading(false)
       setError(null)
@@ -178,10 +171,8 @@ export default function DriverFoundScreen() {
   }
 
   const handleChat = () => {
-    if (tripData?.driverId?._id) {
-      Alert.alert('Nhắn tin', `Nhắn cho tài xế ${tripData.driverId.firstName} ${tripData.driverId.lastName}`, [
-        { text: 'Đóng', onPress: () => {}, style: 'cancel' },
-      ])
+    if (tripData?.driverId) {
+      setShowChatScreen(true)
     }
   }
 
@@ -246,31 +237,17 @@ export default function DriverFoundScreen() {
     phoneNumber: 'N/A',
   }
   
-  // Get current customer's request status (not combined trip status)
-  const currentCustomerRequest = tripData?.customerId?.find(
-    (customer: any) => customer._id === user?.id || customer._id === user?._id
-  )
-  const requestStatus = currentCustomerRequest?.status || 'pending'
-  
-  console.log('[DriverFoundScreen] 📊 Request status vs Trip status:', {
-    requestStatus: requestStatus,
-    tripStatus: tripData?.status,
-    currentCustomerId: user?.id || user?._id,
-    foundCustomer: !!currentCustomerRequest,
-  })
-  
-  const statusLabel = getStatusLabel(requestStatus)
-  const estimatedTime = getEstimatedTime(requestStatus)
+  const tripStatus = tripData?.status || 'pending'
+  const statusLabel = getStatusLabel(tripStatus)
+  const estimatedTime = getEstimatedTime(tripStatus)
   
   // Debug log
   if (tripData) {
-    console.log('[DriverFoundScreen] 🔄 Rendering with request status:', {
-      requestStatus: requestStatus,
+    console.log('[DriverFoundScreen] Rendering with status:', {
+      tripStatus,
       statusLabel,
-      tripStatus: tripData?.status,
+      tripData_status: tripData.status,
       tripData_id: tripData._id,
-      currentCustomerRequest,
-      tripDataKeys: Object.keys(tripData || {}),
     })
   }
   
@@ -280,12 +257,12 @@ export default function DriverFoundScreen() {
   const dropoffCoords = tripData?.dropoffLocation?.coordinates || [105.8542, 21.0285]
   const tripId = tripData?._id || combinedTripId
 
-  // Determine what to show on map based on request status
+  // Determine what to show on map based on status
   let mapPickupCoords = null
   let mapDropoffCoords = null
   let mapRouteCoordinates = null
 
-  if (requestStatus === 'pending' || requestStatus === 'accepted' || requestStatus === 'arrived_at_pickup') {
+  if (tripStatus === 'pending' || tripStatus === 'accepted' || tripStatus === 'arrived_at_pickup') {
     // Show pickup location
     mapPickupCoords = {
       latitude: pickupCoords[1],
@@ -293,7 +270,7 @@ export default function DriverFoundScreen() {
     }
   }
 
-  if (requestStatus === 'in_progress') {
+  if (tripStatus === 'in_progress') {
     // Show route from driver to dropoff
     mapDropoffCoords = {
       latitude: dropoffCoords[1],
@@ -516,6 +493,34 @@ export default function DriverFoundScreen() {
           <View style={{ height: SPACING.xl }} />
         </ScrollView>
       </LinearGradient>
+
+      {/* Chat Modal */}
+      <Modal 
+        visible={showChatScreen} 
+        animationType="slide"
+        transparent={false}
+      >
+        {showChatScreen && tripData?.driverId && (
+          <ChatScreen
+            driver={{
+              id: tripData.driverId._id,
+              name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
+              avatar: tripData.driverId.avatar || '',
+              rating: tripData.driverId.rating || 5,
+              totalRides: tripData.driverId.totalRides || 0,
+              carType: tripData.driverId.carType || 'Unknown',
+              licensePlate: tripData.driverId.licensePlate || '',
+              carColor: tripData.driverId.carColor || '',
+              distance: tripData.driverId.distance || 0,
+              eta: tripData.driverId.eta || 0,
+              phone: tripData.driverId.phone,
+              email: tripData.driverId.email,
+            } as any}
+            rideId={tripData._id}
+            onClose={() => setShowChatScreen(false)}
+          />
+        )}
+      </Modal>
     </SafeAreaView>
   )
 }

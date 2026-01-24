@@ -124,32 +124,6 @@ export default function RideDetailRequestScreen() {
     }
   }
 
-  const handleStartJourney = async () => {
-    if (!combinedTripId || !selectedSeat) {
-      Alert.alert('Lỗi', 'Vui lòng chọn ghế ngồi trước')
-      return
-    }
-
-    setRequesting(true)
-    try {
-      console.log('[RideDetailRequestScreen] Starting journey:', {
-        combinedTripId,
-        requestId: selectedSeat, // Using selectedSeat as proxy, should be actual request ID
-      })
-
-      // In real scenario, we should have requestId from ride data
-      // For now, we'll need to fetch the request ID from the trip
-      // This is a workaround - ideally RideDetailRequestScreen should receive requestId in params
-      
-      Alert.alert('Thông báo', 'Tính năng này sẽ được cập nhật. Vui lòng thực hiện qua tài xế.')
-      setRequesting(false)
-    } catch (error: any) {
-      console.error('Error starting journey:', error)
-      Alert.alert('Lỗi', error.message || 'Không thể bắt đầu chuyến đi.')
-      setRequesting(false)
-    }
-  }
-
   const pollRequestStatus = (requestId: string) => {
     // Poll every 2 seconds
     statusCheckInterval.current = setInterval(async () => {
