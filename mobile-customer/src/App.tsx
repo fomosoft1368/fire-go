@@ -227,6 +227,7 @@ const RootNavigator = () => {
             <Stack.Screen name="FindingDelivery" component={FindingDelivery} />
             <Stack.Screen name="DeliveryTracking" component={DeliveryTracking} />
             <Stack.Screen name="DeliveryCompleted" component={DeliveryCompleted} />
+            <Stack.Screen name="DriverFoundScreen" component={DriverFoundScreen} />
           </Stack.Group>
         </>
       ) : (

@@ -115,18 +115,19 @@ export default function HomeScreen() {
         driverService.getMyCombinedTrips(),
       ])
 
-      console.log('📱 Rides từ API:', allRides)
-      console.log('📱 Combined trips từ API:', allCombinedTrips)
+      console.log('📱 Rides từ API:', JSON.stringify(allRides, null, 2))
+      console.log('📱 Combined trips từ API:', JSON.stringify(allCombinedTrips, null, 2))
       console.log('👤 User ID hiện tại:', user?.id)
 
       // Filter rides: show both my rides AND available rides (no driver assigned)
       const relevantRides = allRides.filter((ride: any) => {
         const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
-        const isMyRide = rideDriverId === user?.id
+        const isMyRide = String(rideDriverId) === String(user?.id)
         const isAvailable = !rideDriverId && ride.status === 'pending'
         const shouldShow = isMyRide || isAvailable
         console.log(`🚗 Ride ${ride._id}:`, {
           driverId: rideDriverId,
+          userId: user?.id,
           status: ride.status,
           isMyRide,
           isAvailable,
@@ -138,11 +139,12 @@ export default function HomeScreen() {
       // Filter combined trips: show both my trips AND available trips (no driver assigned)
       const relevantCombinedTrips = allCombinedTrips.filter((trip: any) => {
         const tripDriverId = typeof trip.driverId === 'string' ? trip.driverId : trip.driverId?._id
-        const isMyTrip = tripDriverId === user?.id
+        const isMyTrip = String(tripDriverId) === String(user?.id)
         const isAvailable = !tripDriverId && trip.status === 'pending'
         const shouldShow = isMyTrip || isAvailable
         console.log(`🛴 Combined trip ${trip._id}:`, {
           driverId: tripDriverId,
+          userId: user?.id,
           status: trip.status,
           isMyTrip,
           isAvailable,
@@ -184,6 +186,15 @@ export default function HomeScreen() {
 
     // Get pickup address (not mock)
     const pickupAddr = ride.pickupAddress || 'Điểm đón'
+    
+    console.log('📍 [formatRideData] Ride data:', {
+      _id: ride._id,
+      sourceType: ride.sourceType,
+      pickupAddress: ride.pickupAddress,
+      dropoffAddress: ride.dropoffAddress,
+      totalFare: ride.totalFare,
+      duration: ride.duration,
+    })
 
     // Handle dropoff location - could be string or GeoJSON object
     let dropoffAddr = ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến'
