@@ -13,10 +13,11 @@ import {
     Animated,
     TextInput,
 } from 'react-native'
-import { COLORS } from '../constants'
+import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { deliveryService } from '../services/deliveryService'
+import { mapsService } from '../services/mapsService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 interface DeliveryProps {
@@ -58,6 +59,90 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
     const [loading, setLoading] = useState(false)
     const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.8342, 21.0278]) // Default Hanoi
     const [dropoffCoordinates, setDropoffCoordinates] = useState<[number, number]>([105.8542, 21.0378])
+    const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
+    const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
+    const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
+    const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
+    const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+    const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+
+    const handlePickupLocationChange = (text: string) => {
+        setPickup(text)
+
+        if (pickupSearchTimeout) {
+            clearTimeout(pickupSearchTimeout)
+        }
+
+        if (text.trim().length >= 3) {
+            setShowPickupSuggestions(true)
+            const timeout = setTimeout(async () => {
+                try {
+                    console.log('[Delivery] Pickup search for:', text)
+                    const suggestions = await mapsService.searchPlaces(text)
+                    console.log('[Delivery] Pickup suggestions received:', suggestions.length)
+                    setPickupSuggestions(suggestions)
+                } catch (error) {
+                    console.error('Error searching pickup locations:', error)
+                    setPickupSuggestions([])
+                }
+            }, 500)
+            setPickupSearchTimeout(timeout)
+        } else {
+            setPickupSuggestions([])
+            if (text.trim().length === 0) {
+                setShowPickupSuggestions(false)
+            }
+        }
+    }
+
+    const handleDropoffLocationChange = (text: string) => {
+        setDropoff(text)
+
+        if (dropoffSearchTimeout) {
+            clearTimeout(dropoffSearchTimeout)
+        }
+
+        if (text.trim().length >= 3) {
+            setShowDropoffSuggestions(true)
+            const timeout = setTimeout(async () => {
+                try {
+                    console.log('[Delivery] Dropoff search for:', text)
+                    const suggestions = await mapsService.searchPlaces(text)
+                    console.log('[Delivery] Dropoff suggestions received:', suggestions.length)
+                    setDropoffSuggestions(suggestions)
+                } catch (error) {
+                    console.error('Error searching dropoff locations:', error)
+                    setDropoffSuggestions([])
+                }
+            }, 500)
+            setDropoffSearchTimeout(timeout)
+        } else {
+            setDropoffSuggestions([])
+            if (text.trim().length === 0) {
+                setShowDropoffSuggestions(false)
+            }
+        }
+    }
+
+    const handlePickupSuggestionSelect = (suggestion: any) => {
+        setPickup(suggestion.fullText)
+        setShowPickupSuggestions(false)
+        setPickupSuggestions([])
+    }
+
+    const handleDropoffSuggestionSelect = (suggestion: any) => {
+        setDropoff(suggestion.fullText)
+        setShowDropoffSuggestions(false)
+        setDropoffSuggestions([])
+    }
+
+    // Cleanup timeouts on unmount
+    useEffect(() => {
+        return () => {
+            if (pickupSearchTimeout) clearTimeout(pickupSearchTimeout)
+            if (dropoffSearchTimeout) clearTimeout(dropoffSearchTimeout)
+        }
+    }, [])
 
     // Calculate price based on selections
     useEffect(() => {
@@ -157,7 +242,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                 <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
                     {/* Location Inputs */}
                     <View style={styles.locationsContainer}>
-                        <View style={styles.inputGroup}>
+                        <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
                             <View style={styles.inputRow}>
                                 <View style={styles.iconWrapper}>
                                     <MaterialIcons name="radio-button-checked" size={20} color="#22C55E" />
@@ -167,16 +252,38 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     placeholder="Điểm lấy hàng"
                                     placeholderTextColor="#9CA3AF"
                                     value={pickup}
-                                    onChangeText={setPickup}
+                                    onChangeText={handlePickupLocationChange}
+                                    onFocus={() => setShowPickupSuggestions(true)}
                                 />
                             </View>
+                            
+                            {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                                <FlatList
+                                    data={pickupSuggestions}
+                                    keyExtractor={(item, index) => `pickup-${index}`}
+                                    style={styles.suggestionsDropdown}
+                                    keyboardShouldPersistTaps="handled"
+                                    renderItem={({ item }) => (
+                                        <TouchableOpacity
+                                            style={styles.suggestionItem}
+                                            onPress={() => handlePickupSuggestionSelect(item)}
+                                        >
+                                            <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                                            <View style={styles.suggestionContent}>
+                                                <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                                                <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    )}
+                                />
+                            )}
                         </View>
 
                         <View style={styles.locationDivider}>
                             <View style={styles.dashedLine} />
                         </View>
 
-                        <View style={styles.inputGroup}>
+                        <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
                             <View style={styles.inputRow}>
                                 <View style={styles.iconWrapper}>
                                     <MaterialIcons name="location-on" size={20} color="#EF4444" />
@@ -186,12 +293,34 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     placeholder="Điểm giao hàng"
                                     placeholderTextColor="#9CA3AF"
                                     value={dropoff}
-                                    onChangeText={setDropoff}
+                                    onChangeText={handleDropoffLocationChange}
+                                    onFocus={() => setShowDropoffSuggestions(true)}
                                 />
                             </View>
+                            
+                            {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+                                <FlatList
+                                    data={dropoffSuggestions}
+                                    keyExtractor={(item, index) => `dropoff-${index}`}
+                                    style={styles.suggestionsDropdown}
+                                    keyboardShouldPersistTaps="handled"
+                                    renderItem={({ item }) => (
+                                        <TouchableOpacity
+                                            style={styles.suggestionItem}
+                                            onPress={() => handleDropoffSuggestionSelect(item)}
+                                        >
+                                            <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                                            <View style={styles.suggestionContent}>
+                                                <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                                                <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    )}
+                                />
+                            )}
                         </View>
                     </View>
-
+                    
                     {/* Goods Type */}
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Loại hàng hóa</Text>
@@ -399,9 +528,12 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         borderWidth: 1,
         borderColor: '#F3F4F6',
+        overflow: 'visible',
     },
     inputGroup: {
         marginBottom: 0,
+        position: 'relative',
+        zIndex: 1,
     },
     inputRow: {
         flexDirection: 'row',
@@ -550,5 +682,45 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#FFFFFF',
         letterSpacing: 0.3,
+    },
+    suggestionsDropdown: {
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        right: 0,
+        borderRadius: BORDER_RADIUS.lg,
+        marginTop: SPACING.xs,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        maxHeight: 200,
+        zIndex: 1000,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 10,
+        backgroundColor: '#fff',
+    },
+    suggestionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        gap: SPACING.md,
+    },
+    suggestionContent: {
+        flex: 1,
+    },
+    suggestionMainText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#111827',
+        marginBottom: SPACING.xs,
+    },
+    suggestionSecondaryText: {
+        fontSize: 12,
+        color: '#6B7280',
     },
 })

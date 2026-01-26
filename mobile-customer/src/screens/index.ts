@@ -1,4 +1,5 @@
 export { default as LoginScreen } from './LoginScreen'
+export { default as Home } from './Home'
 export { default as HomeScreen } from './HomeScreen'
 export { default as HireDriverScreen } from './HireDriverScreen'
 export { default as FindingRideScreen } from './FindingRideScreen'
