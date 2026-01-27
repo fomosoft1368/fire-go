@@ -27,12 +27,28 @@ import { API_BASE_URL } from '../constants/config'
 import MapViewComponent from '../components/MapView'
 import FindingRideModal from '../components/FindingRideModal'
 import { rideService } from '../services/rideService'
-import { useDebounce } from '../hooks'
-import { placesService } from '../services/placesService'
+import { mapsService } from '../services/mapsService'
 
 const { height } = Dimensions.get('window')
+interface RideSharingProps {
+  isScheduled?: boolean
+  setIsScheduled?: (value: boolean) => void
+  carType?: 'sedan' | 'suv' | 'truck'
+  setCarType?: (type: 'sedan' | 'suv' | 'truck') => void
+  licensePlate?: string
+  setLicensePlate?: (value: string) => void
+  transmission?: 'auto' | 'manual'
+  setTransmission?: (type: 'auto' | 'manual') => void
+  driverNote?: string
+  setDriverNote?: (value: string) => void
+  pickupLocation?: string
+  setPickupLocation?: (value: string) => void
+  dropoffLocation?: string
+  setDropoffLocation?: (value: string) => void
+  setRideMode?: (mode: 'share' | 'hire') => void
+}
 
-export default function HomeScreen() {
+export default function RideSharing(props?: RideSharingProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
@@ -57,38 +73,18 @@ export default function HomeScreen() {
   // Places autocomplete states
   const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
   const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
-  const [isSearchingPickup, setIsSearchingPickup] = useState(false)
-  const [isSearchingDropoff, setIsSearchingDropoff] = useState(false)
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
+  const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
+  const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
 
-  // Debounce inputs - chỉ gọi API sau khi user dừng gõ 500ms
-  const debouncedPickupLocation = useDebounce(pickupLocation, 500)
-  const debouncedDropoffLocation = useDebounce(dropoffLocation, 500)
-
-  // Share ride additional states
-  // @ts-ignore - Used for future features
   const [fareEstimate, setFareEstimate] = useState<any>(null)
-  // @ts-ignore - Used for future features
-  const [calculating, setCalculating] = useState(false)
-
-  // Share ride - Driver finding states
-  // @ts-ignore - Used for future features
-  const [isSearching, setIsSearching] = useState(false)
-  // @ts-ignore - Used for future features
-  const [driverFound, setDriverFound] = useState(false)
-  // @ts-ignore - Used for future features
-  const [driver, setDriver] = useState<any>(null)
-  // @ts-ignore - Used for future features
-  const [driverLocation, setDriverLocation] = useState<any>(null)
-  // @ts-ignore - Used for future features
-  const [rideId, setRideId] = useState<string | null>(null)
-  // @ts-ignore - Used for future features
   const [drivers, setDrivers] = useState<any[]>([])
-
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
   const isMountedRef = useRef(true)
-
+  const setRideMode = props?.setRideMode
   useEffect(() => {
     return () => {
       isMountedRef.current = false
@@ -177,159 +173,6 @@ export default function HomeScreen() {
     }
     fetchAvailableDrivers()
   }, [])
-
-  // 🔍 Search pickup location when debounced value changes
-  useEffect(() => {
-    console.log('🔄 [HomeScreen] Debounced pickup changed:', debouncedPickupLocation);
-    if (debouncedPickupLocation && debouncedPickupLocation.length >= 3) {
-      console.log('🔍 [HomeScreen] Searching pickup:', debouncedPickupLocation);
-      searchPickupPlaces(debouncedPickupLocation);
-    } else {
-      console.log('⏭️ [HomeScreen] Skipping search - keyword too short:', debouncedPickupLocation?.length || 0);
-      setPickupSuggestions([]);
-    }
-  }, [debouncedPickupLocation]);
-
-  // 🔍 Search dropoff location when debounced value changes
-  useEffect(() => {
-    console.log('🔄 [HomeScreen] Debounced dropoff changed:', debouncedDropoffLocation);
-    if (debouncedDropoffLocation && debouncedDropoffLocation.length >= 3) {
-      console.log('🔍 [HomeScreen] Searching dropoff:', debouncedDropoffLocation);
-      searchDropoffPlaces(debouncedDropoffLocation);
-    } else {
-      console.log('⏭️ [HomeScreen] Skipping search - keyword too short:', debouncedDropoffLocation?.length || 0);
-      setDropoffSuggestions([]);
-    }
-  }, [debouncedDropoffLocation]);
-
-  // Search pickup places
-  const searchPickupPlaces = async (keyword: string) => {
-    try {
-      setIsSearchingPickup(true);
-      const response = await placesService.searchPlaces(keyword);
-      console.log(
-        `📍 Pickup search (${response.source}):`,
-        response.results.length,
-        'results'
-      );
-      setPickupSuggestions(response.results);
-    } catch (error) {
-      console.error('Error searching pickup places:', error);
-      setPickupSuggestions([]);
-    } finally {
-      setIsSearchingPickup(false);
-    }
-  };
-
-  // Search dropoff places
-  const searchDropoffPlaces = async (keyword: string) => {
-    try {
-      setIsSearchingDropoff(true);
-      const response = await placesService.searchPlaces(keyword);
-      console.log(
-        `📍 Dropoff search (${response.source}):`,
-        response.results.length,
-        'results'
-      );
-      setDropoffSuggestions(response.results);
-    } catch (error) {
-      console.error('Error searching dropoff places:', error);
-      setDropoffSuggestions([]);
-    } finally {
-      setIsSearchingDropoff(false);
-    }
-  };
-
-  // Select pickup place
-  const selectPickupPlace = async (place: any) => {
-    console.log('🎯 [HomeScreen] Selecting pickup place:', place);
-    if (!place) {
-      console.error('❌ Invalid place data:', place);
-      return;
-    }
-    const placeName = place.name || place.address;
-    if (!placeName) {
-      console.error('❌ Place has no name or address:', place);
-      return;
-    }
-
-    // Set location name immediately
-    setPickupLocation(placeName);
-    setPickupSuggestions([]);
-
-    // ⚡ Lazy load coordinates if not available
-    let coords: [number, number] = [place.lng || 0, place.lat || 0];
-    const hasValidCoords = place.lat && place.lng && place.lat !== 0 && place.lng !== 0;
-
-    if (!hasValidCoords && place.placeId) {
-      console.log('📡 [HomeScreen] Fetching coordinates for:', place.placeId);
-      try {
-        const details = await placesService.getPlaceDetails(place.placeId);
-        if (details && details.lat && details.lng && details.lat !== 0 && details.lng !== 0) {
-          coords = [details.lng, details.lat];
-          console.log('✅ Coordinates fetched:', coords);
-        } else {
-          console.warn('⚠️ No valid coordinates from API, using default');
-          coords = [105.8542, 21.0285];
-        }
-      } catch (error) {
-        console.error('❌ Error fetching place details:', error);
-        coords = [105.8542, 21.0285];
-      }
-    }
-
-    setPickupCoordinates(coords);
-    setIsPickupSelected(true);
-    console.log('✅ Pickup place selected:', placeName, coords);
-  };
-
-  // Select dropoff place
-  const selectDropoffPlace = async (place: any) => {
-    console.log('🎯 [HomeScreen] Selecting dropoff place:', place);
-    if (!place) {
-      console.error('❌ Invalid place data:', place);
-      return;
-    }
-    const placeName = place.name || place.address;
-    if (!placeName) {
-      console.error('❌ Place has no name or address:', place);
-      return;
-    }
-
-    // Set location name immediately
-    setDropoffLocation(placeName);
-    setDropoffSuggestions([]);
-
-    // ⚡ Lazy load coordinates if not available
-    let coords: [number, number] = [place.lng || 0, place.lat || 0];
-    const hasValidCoords = place.lat && place.lng && place.lat !== 0 && place.lng !== 0;
-
-    if (!hasValidCoords && place.placeId) {
-      console.log('📡 [HomeScreen] Fetching coordinates for:', place.placeId);
-      try {
-        const details = await placesService.getPlaceDetails(place.placeId);
-        if (details && details.lat && details.lng && details.lat !== 0 && details.lng !== 0) {
-          coords = [details.lng, details.lat];
-          console.log('✅ Coordinates fetched:', coords);
-        } else {
-          console.warn('⚠️ No valid coordinates from API, using default');
-          coords = [105.8542, 21.0285];
-        }
-      } catch (error) {
-        console.error('❌ Error fetching place details:', error);
-        coords = [105.8542, 21.0285];
-      }
-    }
-
-    setDropoffCoordinates(coords);
-    setIsDropoffSelected(true);
-    console.log('✅ Dropoff place selected:', placeName, coords);
-
-    // 🔄 Auto-calculate route when both locations are set
-    if (pickupLocation.trim()) {
-      await calculateRoute(pickupCoordinates, coords);
-    }
-  };
 
   const calculateRoute = async (startCoords: [number, number], endCoords: [number, number]) => {
     try {
@@ -478,7 +321,7 @@ export default function HomeScreen() {
         return
       }
 
-      console.log('[HomeScreen] Navigate to RideBooking with params:', {
+      console.log('[HomeScreen] Navigate to FindingRideScreen with params:', {
         distance: routeInfo.distance,
         duration: routeInfo.duration,
         startLng: pickupCoordinates[0],
@@ -489,8 +332,8 @@ export default function HomeScreen() {
         dropoffAddress: dropoffLocation,
       })
 
-      // Navigate to RideBookingScreen
-      navigation.navigate('RideBooking', {
+      // Navigate to FindingRideScreen
+      navigation.navigate('FindingRideScreen', {
         distance: routeInfo.distance,
         duration: routeInfo.duration,
         startLng: pickupCoordinates[0],
@@ -515,70 +358,123 @@ export default function HomeScreen() {
     setIsLoading(false)
   }
 
-  const handleExpandMap = () => {
-    navigation.navigate('FullscreenMap', {
-      pickupCoordinates,
-      dropoffCoordinates,
-      pickupCoords: isPickupSelected ? {
-        latitude: pickupCoordinates[1],
-        longitude: pickupCoordinates[0],
-      } : undefined,
-      dropoffCoords: isDropoffSelected ? {
-        latitude: dropoffCoordinates[1],
-        longitude: dropoffCoordinates[0],
-      } : undefined,
-      routeCoordinates: routeInfo?.routeCoordinates || [],
-      drivers,
-      routeInfo,
-    })
+  const handlePickupLocationChange = (text: string) => {
+    setPickupLocation(text)
+
+    if (pickupSearchTimeout) {
+      clearTimeout(pickupSearchTimeout)
+    }
+
+    if (text.trim().length >= 3) {
+      setShowPickupSuggestions(true)
+      const timeout = setTimeout(async () => {
+        try {
+          console.log('[Delivery] Pickup search for:', text)
+          const suggestions = await mapsService.searchPlaces(text)
+          console.log('[Delivery] Pickup suggestions received:', suggestions.length)
+          setPickupSuggestions(suggestions)
+        } catch (error) {
+          console.error('Error searching pickup locations:', error)
+          setPickupSuggestions([])
+        }
+      }, 500)
+      setPickupSearchTimeout(timeout)
+    } else {
+      setPickupSuggestions([])
+      if (text.trim().length === 0) {
+        setShowPickupSuggestions(false)
+      }
+    }
   }
-
-
-  const handleMapLocationSelect = async (location: { latitude: number; longitude: number }) => {
+  const handlePickupSuggestionSelect = async (suggestion: any) => {
+    setPickupLocation(suggestion.fullText)
+    setShowPickupSuggestions(false)
+    setPickupSuggestions([])
+    
+    // Gọi geocode API để lấy tọa độ thực tế
     try {
-      if (isSelectingPickupOnMap) {
-        setPickupCoordinates([location.longitude, location.latitude])
+      console.log('[RideSharing] Geocoding pickup location:', suggestion.fullText)
+      const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
+
+      if (geocodeResult && geocodeResult.coordinates) {
+        const coords: [number, number] = [
+          geocodeResult.coordinates.longitude,
+          geocodeResult.coordinates.latitude
+        ]
+        setPickupCoordinates(coords)
         setIsPickupSelected(true)
-        setIsSelectingPickupOnMap(false)
-        // Try to reverse geocode to get address
-        try {
-          const response = await placesService.reverseGeocode(location.latitude, location.longitude)
-          if (response && response.address) {
-            setPickupLocation(response.address)
-          } else {
-            setPickupLocation(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
-          }
-        } catch (error) {
-          setPickupLocation(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
-        }
-        Alert.alert('Thành công', 'Đã chọn điểm đón')
-      } else if (isSelectingDropoffOnMap) {
-        setDropoffCoordinates([location.longitude, location.latitude])
-        setIsDropoffSelected(true)
-        setIsSelectingDropoffOnMap(false)
-        // Try to reverse geocode to get address
-        try {
-          const response = await placesService.reverseGeocode(location.latitude, location.longitude)
-          if (response && response.address) {
-            setDropoffLocation(response.address)
-          } else {
-            setDropoffLocation(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
-          }
-        } catch (error) {
-          setDropoffLocation(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`)
-        }
-        Alert.alert('Thành công', 'Đã chọn điểm đến')
-        // Auto-calculate route
-        if (pickupLocation.trim()) {
-          await calculateRoute(pickupCoordinates, [location.longitude, location.latitude])
+        console.log('[RideSharing] Pickup coordinates set:', coords)
+
+        // Tự động tính tuyến đường nếu đã có điểm đến
+        if (dropoffLocation.trim() && isDropoffSelected) {
+          console.log('[RideSharing] Auto-calculating route...')
+          await calculateRoute(coords, dropoffCoordinates)
         }
       }
     } catch (error) {
-      console.error('Error selecting location on map:', error)
-      Alert.alert('Lỗi', 'Không thể chọn vị trí')
+      console.error('[RideSharing] Geocoding error:', error)
+      Alert.alert('Lỗi', 'Không thể lấy tọa độ điểm đón')
     }
   }
 
+  const handleDropoffLocationChange = (text: string) => {
+    setDropoffLocation(text)
+
+    if (dropoffSearchTimeout) {
+      clearTimeout(dropoffSearchTimeout)
+    }
+
+    if (text.trim().length >= 3) {
+      setShowDropoffSuggestions(true)
+      const timeout = setTimeout(async () => {
+        try {
+          console.log('[Delivery] Dropoff search for:', text)
+          const suggestions = await mapsService.searchPlaces(text)
+          console.log('[Delivery] Dropoff suggestions received:', suggestions.length)
+          setDropoffSuggestions(suggestions)
+        } catch (error) {
+          console.error('Error searching dropoff locations:', error)
+          setDropoffSuggestions([])
+        }
+      }, 500)
+      setDropoffSearchTimeout(timeout)
+    } else {
+      setDropoffSuggestions([])
+      if (text.trim().length === 0) {
+        setShowDropoffSuggestions(false)
+      }
+    }
+  }
+  const handleDropoffSuggestionSelect = async (suggestion: any) => {
+    setDropoffLocation(suggestion.fullText)
+    setShowDropoffSuggestions(false)
+    setDropoffSuggestions([])
+    
+    // Gọi geocode API để lấy tọa độ thực tế
+    try {
+      console.log('[RideSharing] Geocoding dropoff location:', suggestion.fullText)
+      const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
+
+      if (geocodeResult && geocodeResult.coordinates) {
+        const coords: [number, number] = [
+          geocodeResult.coordinates.longitude,
+          geocodeResult.coordinates.latitude
+        ]
+        setDropoffCoordinates(coords)
+        setIsDropoffSelected(true)
+        console.log('[RideSharing] Dropoff coordinates set:', coords)
+
+        // Tự động tính tuyến đường nếu đã có điểm đón
+        if (pickupLocation.trim() && isPickupSelected) {
+          console.log('[RideSharing] Auto-calculating route...')
+          await calculateRoute(pickupCoordinates, coords)
+        }
+      }
+    } catch (error) {
+      console.error('[RideSharing] Geocoding error:', error)
+      Alert.alert('Lỗi', 'Không thể lấy tọa độ điểm đến')
+    }
+  }
   return (
     <View style={styles.container}>
       <View style={StyleSheet.absoluteFillObject}>
@@ -601,14 +497,17 @@ export default function HomeScreen() {
           } : undefined}
           routeCoordinates={routeInfo?.routeCoordinates || []}
           drivers={drivers}
-          onLocationSelect={(location) => {
-            handleMapLocationSelect(location)
-          }}
         />
       </View>
       {/* Header with Map */}
       <View style={styles.header}>
-        <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => setRideMode('share')}>
+        <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => {
+          if (setRideMode) {
+            setRideMode('share')
+          } else {
+            navigation.goBack()
+          }
+        }}>
           <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
         </TouchableOpacity>
         <Text style={styles.logoText}>firego</Text>
@@ -746,120 +645,86 @@ export default function HomeScreen() {
                 <Text style={[styles.fareBreakdownItem, { color: colors.textSecondary }]}>
                 </Text>
               </View>
-            </View> 
+            </View>
           ) : null}
         </View>
+
         <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
           {/* Locations Section */}
           <View style={styles.locationsContainer}>
-            <View style={styles.inputGroup}>
+            <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
               <View style={styles.inputRow}>
                 <View style={styles.iconWrapper}>
                   <MaterialIcons name="radio-button-checked" size={20} color="#FF6B00" />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Nhập điểm đón..."
-                    placeholderTextColor={colors.textSecondary}
-                    value={pickupLocation}
-                    onChangeText={(text) => {
-                      setPickupLocation(text);
-                      // Clear old suggestions immediately when user starts typing
-                      if (debouncedPickupLocation && text.length < debouncedPickupLocation.length) {
-                        setPickupSuggestions([]);
-                      }
-                    }}
-                  />
-                  {isSearchingPickup && (
-                    <ActivityIndicator size="small" color="#FF6B00" style={{ marginLeft: SPACING.sm }} />
-                  )}
-                  <TouchableOpacity
-                    onPress={() => {
-                      setIsSelectingPickupOnMap(true)
-                      Alert.alert('Chọn điểm đón', 'Nhấp vào bản đồ để chọn điểm đón của bạn')
-                    }}
-                    style={{ borderWidth: 2, borderColor: '#FF6B00', borderRadius: 20, width: 35, height: 35, justifyContent: 'center', alignItems: 'center' }}
-                  >
-                    <MaterialIcons name="chevron-right" size={24} color="#FF6B00" />
-                  </TouchableOpacity>
                 </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Nhập điểm đón..."
+                  placeholderTextColor="#9CA3AF"
+                  value={pickupLocation}
+                  onChangeText={handlePickupLocationChange}
+                  onFocus={() => setShowPickupSuggestions(true)}
+                />
               </View>
-            </View>
-
-            {/* Pickup Suggestions */}
-            {pickupSuggestions.length > 0 && (
-              <View style={styles.suggestionsContainer}>
+              {showPickupSuggestions && pickupSuggestions.length > 0 && (
                 <FlatList
                   data={pickupSuggestions}
-                  scrollEnabled={false}
-                  keyExtractor={(item, index) => item.placeId + index}
+                  keyExtractor={(item, index) => `pickup-${index}`}
+                  style={styles.suggestionsDropdown}
+                  keyboardShouldPersistTaps="handled"
                   renderItem={({ item }) => (
                     <TouchableOpacity
                       style={styles.suggestionItem}
-                      onPress={() => selectPickupPlace(item)}
+                      onPress={() => handlePickupSuggestionSelect(item)}
                     >
-                      <MaterialIcons name="location-on" size={18} color="#94a3b8" />
-                      <View style={{ flex: 1, marginLeft: SPACING.md }}>
-                        <Text style={styles.suggestionName}>{item.name}</Text>
-                        <Text style={styles.suggestionAddress}>{item.address}</Text>
+                      <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                      <View style={styles.suggestionContent}>
+                        <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                        <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
                       </View>
                     </TouchableOpacity>
                   )}
                 />
-              </View>
-            )}
-            <View style={styles.inputGroup}>
+              )}
+            </View>
+
+            <View style={styles.locationDivider}>
+              <View style={styles.dashedLine} />
+            </View>
+
+            <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
               <View style={styles.inputRow}>
                 <View style={styles.iconWrapper}>
                   <MaterialIcons name="flag" size={20} color="#ef4444" />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Nhập điểm đến..."
-                    placeholderTextColor={colors.textSecondary}
-                    value={dropoffLocation}
-                    onChangeText={(text) => {
-                      setDropoffLocation(text);
-                      // Clear old suggestions immediately when user starts typing
-                      if (debouncedDropoffLocation && text.length < debouncedDropoffLocation.length) {
-                        setDropoffSuggestions([]);
-                      }
-                    }}
-                  />
                 </View>
-                {isSearchingDropoff && (
-                  <ActivityIndicator size="small" color="#ef4444" style={{ marginLeft: SPACING.sm }} />
-                )}
-                <TouchableOpacity
-                  onPress={() => {
-                    setIsSelectingDropoffOnMap(true)
-                    Alert.alert('Chọn điểm đến', 'Nhấp vào bản đồ để chọn điểm đến của bạn')
-                  }}
-                  style={{ borderWidth: 2, borderColor: '#ef4444', borderRadius: 20, width: 35, height: 35, justifyContent: 'center', alignItems: 'center' }}
-                >
-                  <MaterialIcons name="chevron-right" size={24} color="#ef4444" />
-                </TouchableOpacity>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Nhập điểm đến..."
+                  placeholderTextColor="#9CA3AF"
+                  value={dropoffLocation}
+                  onChangeText={handleDropoffLocationChange}
+                  onFocus={() => setShowDropoffSuggestions(true)}
+                />
               </View>
-
-              {/* Dropoff Suggestions */}
-              {dropoffSuggestions.length > 0 && (
-                <View style={styles.suggestionsContainer}>
-                  <FlatList
-                    data={dropoffSuggestions}
-                    scrollEnabled={false}
-                    keyExtractor={(item, index) => item.placeId + index}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={styles.suggestionItem}
-                        onPress={() => selectDropoffPlace(item)}
-                      >
-                        <MaterialIcons name="location-on" size={18} color="#94a3b8" />
-                        <View style={{ flex: 1, marginLeft: SPACING.md }}>
-                          <Text style={styles.suggestionName}>{item.name}</Text>
-                          <Text style={styles.suggestionAddress}>{item.address}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    )}
-                  />
-                </View>
+              {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+                <FlatList
+                  data={dropoffSuggestions}
+                  keyExtractor={(item, index) => `dropoff-${index}`}
+                  style={styles.suggestionsDropdown}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.suggestionItem}
+                      onPress={() => handleDropoffSuggestionSelect(item)}
+                    >
+                      <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                      <View style={styles.suggestionContent}>
+                        <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                        <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
               )}
             </View>
           </View>
@@ -1064,6 +929,18 @@ const styles = StyleSheet.create({
     color: '#111827',
     backgroundColor: 'transparent',
     paddingVertical: 0,
+  },
+  locationDivider: {
+    paddingVertical: 8,
+    paddingLeft: 10,
+  },
+  dashedLine: {
+    height: 20,
+    width: 2,
+    backgroundColor: '#D1D5DB',
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
   },
   confirmButton: {
     backgroundColor: '#FF6B00',
@@ -1297,5 +1174,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#000',
+  },
+  suggestionsDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    borderRadius: BORDER_RADIUS.lg,
+    marginTop: SPACING.xs,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    maxHeight: 200,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    backgroundColor: '#fff',
+  },
+  suggestionContent: {
+    flex: 1,
+  },
+  suggestionMainText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111827',
+    marginBottom: SPACING.xs,
+  },
+  suggestionSecondaryText: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 })

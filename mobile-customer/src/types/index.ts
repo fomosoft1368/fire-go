@@ -84,7 +84,7 @@ export type RootStackParamList = {
   BookingDetail: { bookingId: string }
   RideBooking: { distance: number; duration: number; startLng: number; startLat: number; endLng: number; endLat: number; pickupAddress: string; dropoffAddress: string }
   RideTracking: { rideId: string }
-  FindingRideScreen: undefined
+  FindingRideScreen: { distance: number; duration: number; startLng: number; startLat: number; endLng: number; endLat: number; pickupAddress: string; dropoffAddress: string }
   RideDetailRequest: { rideId: string; ride: NearbyRide }
   DriverFound: { rideId?: string; combinedTripId?: string; tripType?: 'ride' | 'combined_trip' }
   EditProfile: undefined

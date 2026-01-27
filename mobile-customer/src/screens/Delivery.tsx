@@ -18,11 +18,28 @@ import MapViewComponent from '../components/MapView'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { deliveryService } from '../services/deliveryService'
 import { mapsService } from '../services/mapsService'
+import { rideService } from '../services/rideService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import { useNavigation } from '@react-navigation/native'
+import type { RootStackParamList } from '../types'
 
 interface DeliveryProps {
-    setRideMode: (mode: 'share' | 'hire' | 'delivery') => void
-    onNavigateToConfirm?: (params: any) => void
+    isScheduled?: boolean
+    setIsScheduled?: (value: boolean) => void
+    carType?: 'sedan' | 'suv' | 'truck'
+    setCarType?: (type: 'sedan' | 'suv' | 'truck') => void
+    licensePlate?: string
+    setLicensePlate?: (value: string) => void
+    transmission?: 'auto' | 'manual'
+    setTransmission?: (type: 'auto' | 'manual') => void
+    driverNote?: string
+    setDriverNote?: (value: string) => void
+    pickupLocation?: string
+    setPickupLocation?: (value: string) => void
+    dropoffLocation?: string
+    setDropoffLocation?: (value: string) => void
+    setRideMode?: (mode: 'share' | 'hire') => void
 }
 
 interface Customer {
@@ -49,7 +66,7 @@ const VEHICLES = [
     { key: 'bike', label: 'Xe máy', desc: 'Phù hợp hàng nhỏ', icon: 'motorbike' },
     { key: 'truck', label: 'Xe tải nhỏ', desc: 'Sức tải 500kg', icon: 'truck-outline' },
 ];
-export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryProps) {
+export default function Delivery(props?: DeliveryProps) {
     const [pickup, setPickup] = useState('')
     const [dropoff, setDropoff] = useState('')
     const [goodsType, setGoodsType] = useState<string>('')
@@ -59,12 +76,17 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
     const [loading, setLoading] = useState(false)
     const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.8342, 21.0278]) // Default Hanoi
     const [dropoffCoordinates, setDropoffCoordinates] = useState<[number, number]>([105.8542, 21.0378])
+    const [isPickupSelected, setIsPickupSelected] = useState(false)
+    const [isDropoffSelected, setIsDropoffSelected] = useState(false)
+    const [routeInfo, setRouteInfo] = useState<any>(null)
     const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
     const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
     const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
     const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
     const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+    const setRideMode = props?.setRideMode
 
     const handlePickupLocationChange = (text: string) => {
         setPickup(text)
@@ -124,17 +146,146 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
         }
     }
 
-    const handlePickupSuggestionSelect = (suggestion: any) => {
+    const handlePickupSuggestionSelect = async (suggestion: any) => {
         setPickup(suggestion.fullText)
         setShowPickupSuggestions(false)
         setPickupSuggestions([])
+
+        // Gọi geocode API để lấy tọa độ thực tế
+        try {
+            console.log('[Delivery] Geocoding pickup location:', suggestion.fullText)
+            const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
+
+            if (geocodeResult && geocodeResult.coordinates) {
+                const coords: [number, number] = [
+                    geocodeResult.coordinates.longitude,
+                    geocodeResult.coordinates.latitude
+                ]
+                setPickupCoordinates(coords)
+                setIsPickupSelected(true)
+                console.log('[Delivery] Pickup coordinates set:', coords)
+
+                // Tự động tính tuyến đường nếu đã có điểm giao hàng
+                if (dropoff.trim() && isDropoffSelected) {
+                    console.log('[Delivery] Auto-calculating route...')
+                    await calculateRoute(coords, dropoffCoordinates)
+                }
+            }
+        } catch (error) {
+            console.error('[Delivery] Geocoding error:', error)
+            Alert.alert('Lỗi', 'Không thể lấy tọa độ điểm lấy hàng')
+        }
     }
 
-    const handleDropoffSuggestionSelect = (suggestion: any) => {
+    const handleDropoffSuggestionSelect = async (suggestion: any) => {
         setDropoff(suggestion.fullText)
         setShowDropoffSuggestions(false)
         setDropoffSuggestions([])
+
+        // Gọi geocode API để lấy tọa độ thực tế
+        try {
+            console.log('[Delivery] Geocoding dropoff location:', suggestion.fullText)
+            const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
+
+            if (geocodeResult && geocodeResult.coordinates) {
+                const coords: [number, number] = [
+                    geocodeResult.coordinates.longitude,
+                    geocodeResult.coordinates.latitude
+                ]
+                setDropoffCoordinates(coords)
+                setIsDropoffSelected(true)
+                console.log('[Delivery] Dropoff coordinates set:', coords)
+
+                // Tự động tính tuyến đường nếu đã có điểm lấy hàng
+                if (pickup.trim() && isPickupSelected) {
+                    console.log('[Delivery] Auto-calculating route...')
+                    await calculateRoute(pickupCoordinates, coords)
+                }
+            }
+        } catch (error) {
+            console.error('[Delivery] Geocoding error:', error)
+            Alert.alert('Lỗi', 'Không thể lấy tọa độ điểm giao hàng')
+        }
     }
+
+    const calculateRoute = async (startCoords: [number, number], endCoords: [number, number]) => {
+        try {
+            console.log('[Delivery] Calculating route...');
+            const directions = await rideService.getDirections(
+                startCoords[0],
+                startCoords[1],
+                endCoords[0],
+                endCoords[1],
+            );
+
+            console.log('[Delivery] Raw directions response:', directions);
+
+            // Handle different response formats from backend
+            let distance = 0;
+            let duration = 0;
+            let routeCoordinates: Array<{ latitude: number, longitude: number }> = [];
+
+            // Format: features[0].geometry.coordinates and properties.summary
+            if (directions.features?.[0]) {
+                const feature = directions.features[0];
+
+                // Get distance and duration
+                if (feature.properties?.summary) {
+                    distance = feature.properties.summary.distance;
+                    duration = feature.properties.summary.duration;
+                }
+
+                // Get route coordinates from geometry
+                if (feature.geometry?.coordinates) {
+                    // OSRM returns coordinates as [lng, lat] pairs
+                    routeCoordinates = feature.geometry.coordinates.map((coord: [number, number]) => ({
+                        latitude: coord[1],
+                        longitude: coord[0],
+                    }));
+                }
+            }
+            // Fallback: direct properties
+            else if (directions.distance !== undefined && directions.duration !== undefined) {
+                distance = directions.distance;
+                duration = directions.duration;
+            }
+            // Fallback: routes array
+            else if (directions.routes?.[0]) {
+                distance = directions.routes[0].distance;
+                duration = directions.routes[0].duration;
+                if (directions.routes[0].geometry?.coordinates) {
+                    routeCoordinates = directions.routes[0].geometry.coordinates.map((coord: [number, number]) => ({
+                        latitude: coord[1],
+                        longitude: coord[0],
+                    }));
+                }
+            }
+
+            console.log('[Delivery] Extracted:', { distance, duration, routeCoordinatesCount: routeCoordinates.length });
+
+            if (!distance || !duration || distance === 0 || duration === 0) {
+                console.error('[Delivery] Invalid distance or duration:', { distance, duration });
+                Alert.alert('Lỗi', 'Không thể tính tuyến đường. Vui lòng kiểm tra địa chỉ và thử lại.');
+                return;
+            }
+
+            // Convert distance from meters to km if needed
+            const distanceKm = distance > 500 ? distance / 1000 : distance;
+
+            setRouteInfo({
+                distance: distanceKm,
+                duration: duration,
+                distanceText: `${distanceKm.toFixed(1)} km`,
+                durationText: `~${Math.ceil(duration / 60)} phút`,
+                routeCoordinates: routeCoordinates,
+            });
+
+            console.log('[Delivery] Route info set:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length });
+        } catch (error: any) {
+            console.error('[Delivery] Route calculation error:', error);
+            Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
+        }
+    };
 
     // Cleanup timeouts on unmount
     useEffect(() => {
@@ -158,54 +309,20 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
             Alert.alert('Thiếu thông tin', 'Vui lòng điền đầy đủ thông tin giao hàng')
             return
         }
-        
-        try {
-            setLoading(true)
-            
-            // Get customer ID from AsyncStorage
-            const userJson = await AsyncStorage.getItem('user')
-            if (!userJson) {
-                Alert.alert('Lỗi', 'Vui lòng đăng nhập lại')
-                return
-            }
 
-            const user = JSON.parse(userJson)
-            const userId = user.id || user._id
-
-            // Create delivery order via API
-            const deliveryData = {
-                customerId: userId,
-                pickupAddress: pickup,
-                pickupCoordinates,
-                dropoffAddress: dropoff,
-                dropoffCoordinates,
-                goodsType: goodsType as 'light' | 'bulky' | 'food',
-                weight: weight as '<20' | '20-50' | '>50',
-                vehicle: vehicle as 'bike' | 'truck',
-                estimatedPrice,
-            }
-
-            const createdDelivery = await deliveryService.createDelivery(deliveryData)
-            console.log('[Delivery] Created delivery:', createdDelivery)
-            
-            // Navigate to confirm screen with delivery ID
-            if (onNavigateToConfirm) {
-                onNavigateToConfirm({
-                    deliveryId: createdDelivery._id,
-                    pickup,
-                    dropoff,
-                    goodsType,
-                    weight,
-                    vehicle,
-                    estimatedPrice
-                })
-            }
-        } catch (error: any) {
-            console.error('[Delivery] Create error:', error)
-            Alert.alert('Lỗi', error.message || 'Không thể tạo đơn hàng. Vui lòng thử lại.')
-        } finally {
-            setLoading(false)
-        }
+        // Navigate to ConfirmDelivery screen with all data
+        navigation.navigate('ConfirmDelivery', {
+            pickup,
+            dropoff,
+            pickupCoordinates,
+            dropoffCoordinates,
+            goodsType,
+            weight,
+            vehicle,
+            estimatedPrice,
+            distance: routeInfo?.distanceText || '0 km',
+            duration: routeInfo?.durationText || '0 phút',
+        })
     }
 
     return (
@@ -213,10 +330,32 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
             <View style={StyleSheet.absoluteFillObject}>
                 <MapViewComponent
                     height={'100%'}
+                    initialRegion={{
+                        latitude: pickupCoordinates[1],
+                        longitude: pickupCoordinates[0],
+                        latitudeDelta: 0.0922,
+                        longitudeDelta: 0.0421,
+                    }}
+                    markers={[]}
+                    pickupCoords={isPickupSelected ? {
+                        latitude: pickupCoordinates[1],
+                        longitude: pickupCoordinates[0],
+                    } : undefined}
+                    dropoffCoords={isDropoffSelected ? {
+                        latitude: dropoffCoordinates[1],
+                        longitude: dropoffCoordinates[0],
+                    } : undefined}
+                    routeCoordinates={routeInfo?.routeCoordinates || []}
                 />
             </View>
             <View style={styles.header}>
-                <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => setRideMode('share')}>
+                <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => {
+                    if (setRideMode) {
+                        setRideMode('share')
+                    } else {
+                        navigation.goBack()
+                    }
+                }}>
                     <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
                 </TouchableOpacity>
                 <Text style={styles.logoText}>firego</Text>
@@ -224,7 +363,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
 
             <View style={styles.card}>
                 <View style={styles.handleBar} />
-                
+
                 {/* Title Section */}
                 <View style={styles.cardHeader}>
                     <MaterialCommunityIcons name="truck-delivery" size={28} color="#FF6B00" />
@@ -256,7 +395,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     onFocus={() => setShowPickupSuggestions(true)}
                                 />
                             </View>
-                            
+
                             {showPickupSuggestions && pickupSuggestions.length > 0 && (
                                 <FlatList
                                     data={pickupSuggestions}
@@ -286,7 +425,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                         <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
                             <View style={styles.inputRow}>
                                 <View style={styles.iconWrapper}>
-                                    <MaterialIcons name="location-on" size={20} color="#EF4444" />
+                                    <MaterialIcons name="flag" size={20} color="#EF4444" />
                                 </View>
                                 <TextInput
                                     style={styles.input}
@@ -297,7 +436,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     onFocus={() => setShowDropoffSuggestions(true)}
                                 />
                             </View>
-                            
+
                             {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
                                 <FlatList
                                     data={dropoffSuggestions}
@@ -320,7 +459,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                             )}
                         </View>
                     </View>
-                    
+
                     {/* Goods Type */}
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Loại hàng hóa</Text>
@@ -335,10 +474,10 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     onPress={() => setGoodsType(type.key)}
                                     activeOpacity={0.7}
                                 >
-                                    <MaterialCommunityIcons 
-                                        name={type.icon as any} 
-                                        size={18} 
-                                        color={goodsType === type.key ? '#FF6B00' : '#6B7280'} 
+                                    <MaterialCommunityIcons
+                                        name={type.icon as any}
+                                        size={18}
+                                        color={goodsType === type.key ? '#FF6B00' : '#6B7280'}
                                     />
                                     <Text style={[
                                         styles.optionBtnText,
@@ -390,10 +529,10 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     onPress={() => setVehicle(v.key)}
                                     activeOpacity={0.7}
                                 >
-                                    <MaterialCommunityIcons 
-                                        name={v.icon as any} 
-                                        size={32} 
-                                        color={vehicle === v.key ? '#FF6B00' : '#6B7280'} 
+                                    <MaterialCommunityIcons
+                                        name={v.icon as any}
+                                        size={32}
+                                        color={vehicle === v.key ? '#FF6B00' : '#6B7280'}
                                     />
                                     <Text style={[
                                         styles.vehicleLabel,
@@ -409,7 +548,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                 </ScrollView>
 
                 {/* Confirm Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.confirmButton}
                     onPress={handleConfirm}
                     activeOpacity={0.8}
