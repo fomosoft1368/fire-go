@@ -50,6 +50,8 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [assignedRide, setAssignedRide] = useState<any>(null)
   const [dismissCountdown, setDismissCountdown] = useState(15)
+  const [currentCombinedTripId, setCurrentCombinedTripId] = useState<string | null>(null)
+  
   const { user } = useSelector((state: RootState) => state.auth)
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
 
@@ -57,6 +59,9 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchAvailableRides()
   }, [])
+
+  // ✅ REMOVED: Modal logic moved to GlobalRequestModal component in App.js
+  // This ensures modal shows on ALL screens, not just HomeScreen
 
   // Countdown timer cho assigned ride notification
   useEffect(() => {
@@ -276,6 +281,12 @@ export default function HomeScreen() {
         ? { combinedTripId: rideId, sourceType: 'combined_trip' }
         : { rideId, sourceType: 'ride' }
 
+      // Start polling for pending requests if combined trip
+      if (isCombinedTrip) {
+        setCurrentCombinedTripId(rideId)
+        console.log('🔄 Starting polling for combined trip:', rideId)
+      }
+
       console.log('📍 Navigating to RideRequestsScreen for POOL ride')
       navigation.navigate('RideRequestsScreen', params)
     } catch (error: any) {
@@ -375,6 +386,8 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* ✅ REMOVED: RequestNotificationModal moved to GlobalRequestModal in App.js */}
+
       {/* Assigned Ride Notification Card */}
       {assignedRide && (
         <View style={styles.assignedRideNotification}>
@@ -992,6 +1005,17 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assignedRideClose: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -180,6 +180,36 @@ export const combinedTripsService = {
   },
 
   /**
+   * Get all ride requests for a combined trip
+   */
+  async getCombinedTripRequests(combinedTripId: string) {
+    try {
+      console.log('[CombinedTripsService] Getting combined trip requests:', combinedTripId)
+
+      const response = await fetch(`${API_BASE_URL}/combined-trips/${combinedTripId}/requests`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[CombinedTripsService] Get combined trip requests failed:', result)
+        throw new Error(result.message || 'Failed to get combined trip requests')
+      }
+
+      const requestsArray = Array.isArray(result) ? result : (result?.data || [])
+      console.log('[CombinedTripsService] Found combined trip requests:', requestsArray.length)
+      return requestsArray
+    } catch (error: any) {
+      console.error('[CombinedTripsService] Get combined trip requests error:', error)
+      throw error
+    }
+  },
+
+  /**
    * Get driver's real-time location for a trip
    */
   async getDriverLocation(combinedTripId: string) {

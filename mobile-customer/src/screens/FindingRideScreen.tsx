@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { useRoute } from '@react-navigation/native'
 import { MaterialIcons } from '@expo/vector-icons'
+import * as Location from 'expo-location'
 import { useSelector } from 'react-redux'
 import type { RootState } from '../redux/store'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
@@ -43,6 +44,7 @@ export default function FindingRideScreen({ navigation }: any) {
   const [error, setError] = useState('')
   const [isScanning, setIsScanning] = useState(true)
   const [activeFilter, setActiveFilter] = useState('all')
+  const [currentLocation, setCurrentLocation] = useState<{ lng: number; lat: number } | null>(null)
   
   // Animation
   const scanAnim = useRef(new Animated.Value(0)).current
@@ -52,15 +54,9 @@ export default function FindingRideScreen({ navigation }: any) {
   // Fetch SHARE rides on mount
   useEffect(() => {
     isMountedRef.current = true
-    fetchShareRides()
     
-    // Setup auto-refresh every 30 seconds
-    refreshIntervalRef.current = setInterval(() => {
-      if (isMountedRef.current) {
-        console.log('[FindingRideScreen] Auto-refreshing rides...')
-        fetchShareRides(false)
-      }
-    }, 30000)
+    // Get current GPS location first
+    getCurrentLocation()
     
     // Scanning animation
     startScanAnimation()
@@ -72,6 +68,21 @@ export default function FindingRideScreen({ navigation }: any) {
       }
     }
   }, [])
+
+  // Fetch rides when location is obtained
+  useEffect(() => {
+    if (currentLocation) {
+      fetchShareRides()
+      
+      // Setup auto-refresh every 30 seconds
+      refreshIntervalRef.current = setInterval(() => {
+        if (isMountedRef.current) {
+          console.log('[FindingRideScreen] Auto-refreshing rides...')
+          fetchShareRides(false)
+        }
+      }, 30000)
+    }
+  }, [currentLocation])
 
   const startScanAnimation = () => {
     Animated.loop(
@@ -88,6 +99,44 @@ export default function FindingRideScreen({ navigation }: any) {
         }),
       ])
     ).start()
+  }
+
+  const getCurrentLocation = async () => {
+    try {
+      console.log('[FindingRideScreen] Getting current GPS location...')
+      
+      // Request permission
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        console.warn('[FindingRideScreen] Location permission denied')
+        // Fallback to startLng, startLat from params
+        if (isMountedRef.current) {
+          setCurrentLocation({ lng: startLng, lat: startLat })
+        }
+        return
+      }
+      
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      })
+      
+      const { longitude, latitude } = location.coords
+      console.log('[FindingRideScreen] ✅ Current location:', {
+        lng: longitude,
+        lat: latitude,
+      })
+      
+      if (isMountedRef.current) {
+        setCurrentLocation({ lng: longitude, lat: latitude })
+      }
+    } catch (error: any) {
+      console.error('[FindingRideScreen] ❌ Location error:', error)
+      if (isMountedRef.current) {
+        // Fallback to startLng, startLat from params
+        setCurrentLocation({ lng: startLng, lat: startLat })
+      }
+    }
   }
 
   const scanOpacity = scanAnim.interpolate({
@@ -109,21 +158,51 @@ export default function FindingRideScreen({ navigation }: any) {
 
       if (!pickupAddress.trim()) {
         setError('Vui lòng nhập điểm đón')
-setLoading(false)
+        setLoading(false)
         return
       }
 
-      console.log('[FindingRideScreen] Fetching COMBINED TRIPS for:', {
-        pickupAddress,
-        latitude: startLat,
-        longitude: startLng,
-      })
+      if (!currentLocation) {
+        setError('Đang lấy vị trí của bạn...')
+        return
+      }
 
-      const result = await combinedTripsService.findCombinedTrips(startLng, startLat, pickupAddress, 10000)
-      console.log('[FindingRideScreen] Found combined trips:', result.length)
+      console.log('[FindingRideScreen] Fetching COMBINED TRIPS from BOTH locations:')
+      console.log('  1️⃣  Pickup address:', { pickupAddress, lng: startLng, lat: startLat })
+      console.log('  2️⃣  Current GPS:', { lng: currentLocation.lng, lat: currentLocation.lat })
+
+      // Fetch from BOTH locations
+      const [ridesFromPickup, ridesFromGPS] = await Promise.all([
+        // Search near PICKUP address (user selected on map)
+        combinedTripsService.findCombinedTrips(
+          startLng,
+          startLat,
+          pickupAddress,
+          10000  // 10km radius
+        ),
+        // Search near CURRENT GPS location (where user is right now)
+        combinedTripsService.findCombinedTrips(
+          currentLocation.lng,
+          currentLocation.lat,
+          pickupAddress,
+          10000  // 10km radius
+        ),
+      ])
+
+      console.log('[FindingRideScreen] Results:')
+      console.log('  - From pickup address:', ridesFromPickup.length)
+      console.log('  - From GPS location:', ridesFromGPS.length)
+
+      // Merge and remove duplicates
+      const allRides = [...ridesFromPickup, ...ridesFromGPS]
+      const uniqueRides = Array.from(
+        new Map(allRides.map((trip: any) => [trip._id, trip])).values()
+      )
+
+      console.log('[FindingRideScreen] Total unique trips:', uniqueRides.length)
 
       // Map and enrich ride data with safe defaults
-      const enrichedRides = result.map((trip: any) => ({
+      const enrichedRides = uniqueRides.map((trip: any) => ({
         ...trip,
         pickupAddress: trip.pickupAddress || trip.pickup || pickupAddress,
         dropoffAddress: trip.dropoffAddress || 'Địa điểm đến',

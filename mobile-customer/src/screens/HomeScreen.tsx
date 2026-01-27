@@ -55,23 +55,23 @@ export default function HomeScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [showTimePicker, setShowTimePicker] = useState(false)
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
-  
+
   // Places autocomplete states
   const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
   const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
   const [isSearchingPickup, setIsSearchingPickup] = useState(false)
   const [isSearchingDropoff, setIsSearchingDropoff] = useState(false)
-  
+
   // Debounce inputs - chỉ gọi API sau khi user dừng gõ 500ms
   const debouncedPickupLocation = useDebounce(pickupLocation, 500)
   const debouncedDropoffLocation = useDebounce(dropoffLocation, 500)
-  
+
   // Share ride additional states
   // @ts-ignore - Used for future features
   const [fareEstimate, setFareEstimate] = useState<any>(null)
   // @ts-ignore - Used for future features
   const [calculating, setCalculating] = useState(false)
-  
+
   // Share ride - Driver finding states
   // @ts-ignore - Used for future features
   const [isSearching, setIsSearching] = useState(false)
@@ -85,14 +85,14 @@ export default function HomeScreen() {
   const [rideId, setRideId] = useState<string | null>(null)
   // @ts-ignore - Used for future features
   const [drivers, setDrivers] = useState<any[]>([])
-  
+
   // Hire driver mode states
   const [carType, setCarType] = useState<'sedan' | 'suv' | 'truck'>('sedan')
   const [licensePlate, setLicensePlate] = useState('')
   const [transmission, setTransmission] = useState<'auto' | 'manual'>('auto')
   const [driverNote, setDriverNote] = useState('')
   const [isScheduled, setIsScheduled] = useState(false)
-  
+
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -131,32 +131,32 @@ export default function HomeScreen() {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         })
-        
+
         console.log('[HomeScreen] Response status:', response.status)
-        
+
         if (response.ok) {
           const data = await response.json()
           console.log('✅ [HomeScreen] Raw API response:', JSON.stringify(data, null, 2))
           console.log('✅ [HomeScreen] Total drivers from API:', data?.length)
-          
+
           if (!data || data.length === 0) {
             console.warn('⚠️ [HomeScreen] No drivers returned from API')
             setDrivers([])
             return
           }
-          
+
           // Format drivers data from API response
           const driversForMap = data.map((driver: any, index: number) => {
             // Extract coordinates from GeoJSON format
             const coordinates = driver.currentLocation?.coordinates || []
             const fullName = `${driver.firstName || 'Tài'} ${driver.lastName || 'xế'}`
-            
+
             console.log(`[HomeScreen] Driver ${index + 1}:`, {
               name: fullName,
               currentLocation: driver.currentLocation,
               coordinates: coordinates,
             })
-            
+
             const formattedDriver = {
               id: driver._id,
               latitude: coordinates[1], // GeoJSON: [longitude, latitude]
@@ -167,11 +167,11 @@ export default function HomeScreen() {
               vehicleModel: driver.vehicleModel || '',
               totalRides: driver.totalRides || 0,
             }
-            
+
             console.log('[HomeScreen] 🚗 Formatted driver:', formattedDriver)
             return formattedDriver
           })
-          
+
           console.log('✅ [HomeScreen] Formatted drivers for map (total):', driversForMap.length)
           setDrivers(driversForMap)
         } else {
@@ -261,15 +261,15 @@ export default function HomeScreen() {
       console.error('❌ Place has no name or address:', place);
       return;
     }
-    
+
     // Set location name immediately
     setPickupLocation(placeName);
     setPickupSuggestions([]);
-    
+
     // ⚡ Lazy load coordinates if not available
     let coords: [number, number] = [place.lng || 0, place.lat || 0];
     const hasValidCoords = place.lat && place.lng && place.lat !== 0 && place.lng !== 0;
-    
+
     if (!hasValidCoords && place.placeId) {
       console.log('📡 [HomeScreen] Fetching coordinates for:', place.placeId);
       try {
@@ -286,7 +286,7 @@ export default function HomeScreen() {
         coords = [105.8542, 21.0285];
       }
     }
-    
+
     setPickupCoordinates(coords);
     setIsPickupSelected(true);
     console.log('✅ Pickup place selected:', placeName, coords);
@@ -304,15 +304,15 @@ export default function HomeScreen() {
       console.error('❌ Place has no name or address:', place);
       return;
     }
-    
+
     // Set location name immediately
     setDropoffLocation(placeName);
     setDropoffSuggestions([]);
-    
+
     // ⚡ Lazy load coordinates if not available
     let coords: [number, number] = [place.lng || 0, place.lat || 0];
     const hasValidCoords = place.lat && place.lng && place.lat !== 0 && place.lng !== 0;
-    
+
     if (!hasValidCoords && place.placeId) {
       console.log('📡 [HomeScreen] Fetching coordinates for:', place.placeId);
       try {
@@ -329,11 +329,11 @@ export default function HomeScreen() {
         coords = [105.8542, 21.0285];
       }
     }
-    
+
     setDropoffCoordinates(coords);
     setIsDropoffSelected(true);
     console.log('✅ Dropoff place selected:', placeName, coords);
-    
+
     // 🔄 Auto-calculate route when both locations are set
     if (pickupLocation.trim()) {
       await calculateRoute(pickupCoordinates, coords);
@@ -349,24 +349,24 @@ export default function HomeScreen() {
         endCoords[0],
         endCoords[1],
       );
-      
+
       console.log('[HomeScreen] Raw directions response:', directions);
-      
+
       // Handle different response formats from backend
       let distance = 0;
       let duration = 0;
-      let routeCoordinates: Array<{latitude: number, longitude: number}> = [];
-      
+      let routeCoordinates: Array<{ latitude: number, longitude: number }> = [];
+
       // Format: features[0].geometry.coordinates and properties.summary (from backend)
       if (directions.features?.[0]) {
         const feature = directions.features[0];
-        
+
         // Get distance and duration
         if (feature.properties?.summary) {
           distance = feature.properties.summary.distance;
           duration = feature.properties.summary.duration;
         }
-        
+
         // Get route coordinates from geometry
         if (feature.geometry?.coordinates) {
           // OSRM returns coordinates as [lng, lat] pairs
@@ -392,18 +392,18 @@ export default function HomeScreen() {
           }));
         }
       }
-      
+
       console.log('[HomeScreen] Extracted:', { distance, duration, routeCoordinatesCount: routeCoordinates.length });
-      
+
       if (!distance || !duration || distance === 0 || duration === 0) {
         console.error('[HomeScreen] Invalid distance or duration:', { distance, duration });
         Alert.alert('Lỗi', 'Không thể tính tuyến đường. Vui lòng kiểm tra địa chỉ và thử lại.');
         return;
       }
-      
+
       // Convert distance from meters to km if needed
       const distanceKm = distance > 500 ? distance / 1000 : distance;
-      
+
       // Calculate fare in realtime
       let fareEstimate = null;
       try {
@@ -418,9 +418,9 @@ export default function HomeScreen() {
         console.error('[HomeScreen] Fare calculation threw error:', fareError);
         // Continue without fare calculation
       }
-      
+
       console.log('[HomeScreen] Final fareEstimate before setState:', fareEstimate);
-      
+
       setRouteInfo({
         distance: distanceKm,
         duration: duration,
@@ -429,12 +429,12 @@ export default function HomeScreen() {
         routeCoordinates: routeCoordinates,
         fareEstimate: fareEstimate,
       });
-      
+
       // Also set the fareEstimate state
       if (fareEstimate) {
         setFareEstimate(fareEstimate);
       }
-      
+
       console.log('[HomeScreen] Route info set:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length, fare: fareEstimate });
     } catch (error: any) {
       console.error('[HomeScreen] Route calculation error:', error);
@@ -487,7 +487,7 @@ export default function HomeScreen() {
         return
       }
 
-      console.log('[HomeScreen] Navigate to RideBooking with params:', {
+      console.log('[HomeScreen] Navigate to FindingRideScreen with params:', {
         distance: routeInfo.distance,
         duration: routeInfo.duration,
         startLng: pickupCoordinates[0],
@@ -497,23 +497,33 @@ export default function HomeScreen() {
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
       })
+ // Validate params with fallbacks
+  const distance = routeInfo?.distance ?? 0
+  const duration = routeInfo?.duration ?? 0
+  const startLng = pickupCoordinates ? pickupCoordinates[0] : 0
+  const startLat = pickupCoordinates ? pickupCoordinates[1] : 0
+  const endLng = dropoffCoordinates ? dropoffCoordinates[0] : 0
+  const endLat = dropoffCoordinates ? dropoffCoordinates[1] : 0
+  const pickupAddress = pickupLocation ?? 'Unknown'
+  const dropoffAddress = dropoffLocation ?? 'Unknown'
 
-      // Navigate to RideBookingScreen
-      navigation.navigate('RideBooking', {
-        distance: routeInfo.distance,
-        duration: routeInfo.duration,
-        startLng: pickupCoordinates[0],
-        startLat: pickupCoordinates[1],
-        endLng: dropoffCoordinates[0],
-        endLat: dropoffCoordinates[1],
-        pickupAddress: pickupLocation,
-        dropoffAddress: dropoffLocation,
+      // Navigate to FindingRideScreen with ride details
+      // @ts-ignore - FindingRideScreen accepts params
+      navigation.navigate('FindingRideScreen', {
+        pickupAddress,
+        dropoffAddress,
+        distance,
+        duration,
+        startLng,
+        startLat,
+        endLng,
+        endLat,
       })
 
       setIsLoading(false)
     } catch (error: any) {
       if (!isMountedRef.current) return
-      
+
       setIsLoading(false)
       console.error('[HomeScreen] handleFindRide error:', error)
       Alert.alert('Lỗi', error.message || 'Không thể xử lý yêu cầu')
@@ -598,7 +608,7 @@ export default function HomeScreen() {
 
   if (rideMode === 'delivery') {
     return (
-      <Delivery 
+      <Delivery
         setRideMode={setRideMode}
         onNavigateToConfirm={(params) => {
           navigation.navigate('ConfirmDelivery', params)
@@ -641,7 +651,7 @@ export default function HomeScreen() {
 
             {/* Date and Time Display */}
             <View style={styles.dateTimeDisplayContainer}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.dateTimeButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
                 onPress={() => setShowDatePicker(true)}
               >
@@ -651,7 +661,7 @@ export default function HomeScreen() {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.dateTimeButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
                 onPress={() => setShowTimePicker(true)}
               >
@@ -694,14 +704,14 @@ export default function HomeScreen() {
             )}
 
             <View style={[styles.modalFooter, { borderTopColor: colors.border, backgroundColor: colors.bgSecondary }]}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => setSelectedDateTime(new Date())}
               >
                 <Text style={[styles.modalButtonText, { color: colors.text }]}>Bây giờ</Text>
               </TouchableOpacity>
               <View style={[styles.modalButtonDivider, { backgroundColor: colors.border }]} />
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonPrimary]}
                 onPress={() => {
                   const dateStr = `${String(selectedDateTime.getDate()).padStart(2, '0')}/${String(selectedDateTime.getMonth() + 1).padStart(2, '0')} ${String(selectedDateTime.getHours()).padStart(2, '0')}:${String(selectedDateTime.getMinutes()).padStart(2, '0')}`
@@ -808,7 +818,7 @@ export default function HomeScreen() {
               Lái xe hộ
             </Text>
           </TouchableOpacity>
-                    <TouchableOpacity
+          <TouchableOpacity
             style={[
               styles.rideTypeButton,
               {
@@ -888,7 +898,7 @@ export default function HomeScreen() {
             </View>
           )}
 
-          <Text style={[styles.sectionLabel,  { color: colors.textSecondary, marginTop: SPACING.lg }]}>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: SPACING.lg }]}>
             ĐIỂM ĐẾN
           </Text>
           <View style={[styles.inputLocationWrapper, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
@@ -1028,7 +1038,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Find Ride Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.findButton, (isLoading || calculating) && styles.findButtonDisabled]}
           onPress={handleFindRide}
           disabled={isLoading || calculating}
@@ -1124,8 +1134,8 @@ const styles = StyleSheet.create({
   },
   mapPlaceholder: {
     ...StyleSheet.absoluteFillObject,
-  //   backgroundImage: 'linear-gradient(45deg, #4b5563 25%, #374151 25%, #374151 50%, #4b5563 50%, #4b5563 75%, #374151 75%, #374151)',
-   },
+    //   backgroundImage: 'linear-gradient(45deg, #4b5563 25%, #374151 25%, #374151 50%, #4b5563 50%, #4b5563 75%, #374151 75%, #374151)',
+  },
   routeInfoOld: {
     position: 'absolute',
     bottom: SPACING.lg,

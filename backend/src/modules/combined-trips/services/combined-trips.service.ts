@@ -59,28 +59,22 @@ export class CombinedTripsService {
         maxDistance,
       });
 
-      // Extract location hierarchy from pickup address
-      const locationHierarchy = extractLocationHierarchy(pickupAddress);
-      console.log('📍 Extracted location hierarchy:', locationHierarchy);
-
-      // Build query based on location hierarchy
+      // Build query with both geospatial filter AND address filter
       const query: any = {
         status: { $in: [CombinedTripStatus.PENDING, CombinedTripStatus.ACCEPTED] },
+        // Geospatial query: find trips with pickup location within maxDistance from user
+        pickupLocation: {
+          $near: {
+            $geometry: {
+              type: 'Point',
+              coordinates: [lng, lat],
+            },
+            $maxDistance: maxDistance, // in meters
+          },
+        },
       };
 
-      // Filter by location hierarchy (most specific to least specific)
-      if (locationHierarchy.ward && locationHierarchy.ward !== 'Unknown') {
-        console.log('🔎 Filtering by ward:', locationHierarchy.ward);
-        query.pickupWard = locationHierarchy.ward;
-      } else if (locationHierarchy.district && locationHierarchy.district !== 'Unknown') {
-        console.log('🔎 Filtering by district:', locationHierarchy.district);
-        query.pickupDistrict = locationHierarchy.district;
-      } else if (locationHierarchy.province && locationHierarchy.province !== 'Unknown') {
-        console.log('🔎 Filtering by province:', locationHierarchy.province);
-        query.pickupProvince = locationHierarchy.province;
-      }
-
-      console.log('📋 Query:', query);
+      console.log('📋 Geospatial query:', { lng, lat, maxDistance });
 
       const trips = await this.combinedTripModel
         .find(query)
@@ -89,7 +83,7 @@ export class CombinedTripsService {
         .sort({ requestedAt: -1 })
         .limit(10);
 
-      console.log('✅ Found trips:', trips.length);
+      console.log('✅ Found trips within radius:', trips.length);
       return trips;
     } catch (error) {
       console.error('❌ Error finding share rides:', error);
