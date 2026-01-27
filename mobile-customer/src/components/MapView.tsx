@@ -223,7 +223,7 @@ const MapViewComponent = ({
             <Polyline
               coordinates={routeCoordinates}
               strokeColor="#1e293b"
-              strokeWidth={8}
+              strokeWidth={6}
               lineJoin="round"
               lineCap="round"
             />
@@ -231,7 +231,7 @@ const MapViewComponent = ({
             <Polyline
               coordinates={routeCoordinates}
               strokeColor="#f97316"
-              strokeWidth={9}
+              strokeWidth={8}
               lineJoin="round"
               lineCap="round"
             />

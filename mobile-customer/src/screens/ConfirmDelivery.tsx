@@ -23,7 +23,18 @@ type ConfirmDeliveryNavigationProp = NativeStackNavigationProp<RootStackParamLis
 export default function ConfirmDelivery() {
   const route = useRoute<ConfirmDeliveryRouteProp>()
   const navigation = useNavigation<ConfirmDeliveryNavigationProp>()
-  const { deliveryId, pickup, dropoff, goodsType, weight, vehicle, estimatedPrice } = route.params || {}
+  const {
+    pickup,
+    dropoff,
+    pickupCoordinates,
+    dropoffCoordinates,
+    goodsType,
+    weight,
+    vehicle,
+    estimatedPrice,
+    distance,
+    duration
+  } = route.params || {}
   const [loading, setLoading] = useState(false)
 
   const getGoodsTypeLabel = () => {
@@ -96,36 +107,55 @@ export default function ConfirmDelivery() {
 
       {/* Bottom Buttons */}
       <View style={styles.bottom}>
-        <TouchableOpacity 
-          style={styles.confirmBtn} 
+        <TouchableOpacity
+          style={styles.confirmBtn}
           onPress={async () => {
             try {
-              if (!deliveryId) {
-                Alert.alert('Lỗi', 'Không tìm thấy thông tin đơn hàng')
+              setLoading(true)
+
+              // Get customer ID from AsyncStorage
+              const AsyncStorage = require('@react-native-async-storage/async-storage').default
+              const userJson = await AsyncStorage.getItem('user')
+              if (!userJson) {
+                Alert.alert('Lỗi', 'Vui lòng đăng nhập lại')
+                setLoading(false)
                 return
               }
 
-              setLoading(true)
-              
-              // Update delivery status to finding_driver
-              await deliveryService.updateDelivery(deliveryId, {
-                status: 'finding_driver'
-              })
+              const user = JSON.parse(userJson)
+              const userId = user.id || user._id
+
+              // Create delivery order via API
+              const deliveryData = {
+                customerId: userId,
+                pickupAddress: pickup,
+                pickupCoordinates,
+                dropoffAddress: dropoff,
+                dropoffCoordinates,
+                goodsType: goodsType as 'light' | 'bulky' | 'food',
+                weight: weight as '<20' | '20-50' | '>50',
+                vehicle: vehicle as 'bike' | 'truck',
+                estimatedPrice,
+              }
+
+              console.log('[ConfirmDelivery] Creating delivery:', deliveryData)
+              const createdDelivery = await deliveryService.createDelivery(deliveryData)
+              console.log('[ConfirmDelivery] Created delivery:', createdDelivery)
 
               // Navigate to FindingDelivery screen
               navigation.navigate('FindingDelivery', {
-                deliveryId,
+                deliveryId: createdDelivery._id,
                 pickup,
                 dropoff,
                 goodsType,
                 weight,
                 vehicle,
                 estimatedPrice,
-                distance: '5km'
+                distance: distance || '0 km'
               })
             } catch (error: any) {
               console.error('[ConfirmDelivery] Error:', error)
-              Alert.alert('Lỗi', error.message || 'Không thể tìm tài xế. Vui lòng thử lại.')
+              Alert.alert('Lỗi', error.message || 'Không thể tạo đơn hàng. Vui lòng thử lại.')
             } finally {
               setLoading(false)
             }

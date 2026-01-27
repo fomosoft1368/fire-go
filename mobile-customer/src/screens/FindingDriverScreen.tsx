@@ -61,92 +61,104 @@ export default function FindingDriverScreen({
         </TouchableOpacity>
         <Text style={styles.logoText}>firego</Text>
       </View>
-      <View
-        style={[
-          styles.professionalStatusCard,
-          { backgroundColor: colors.bgSecondary, borderTopColor: colors.border },
-        ]}
-      >
+      <View style={styles.professionalStatusCard}>
         {/* Handle Bar */}
-        <View style={styles.handleBar} />
+        <View style={styles.handleBarContainer}>
+          <View style={styles.handleBar} />
+        </View>
 
         {/* Status Content */}
         <View style={styles.statusContentWrapper}>
-          {/* Header */}
+          {/* Header with Status */}
           <View style={styles.statusHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.statusTitleLarge, { color: colors.text }]}>
-                Đang tìm tài xế cho bạn...
+            <View style={styles.statusHeaderLeft}>
+              <Text style={styles.statusTitleLarge}>
+                Đang tìm tài xế
               </Text>
-              <Text style={[styles.statusSubtitle, { color: colors.textSecondary }]}>
+              <Text style={styles.statusSubtitle}>
                 Vui lòng đợi trong giây lát
               </Text>
             </View>
-            <TouchableOpacity style={styles.minimizeButton} onPress={onCancel}>
-              <MaterialIcons name="edit" size={18} color={colors.text} />
-            </TouchableOpacity>
+            <View style={styles.statusBadge}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>Đang tìm</Text>
+            </View>
           </View>
+
           {/* Progress Bar */}
           <View style={styles.progressSection}>
-            <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-              <View style={[styles.progressFill, { backgroundColor: '#FF6B00' }]} />
+            <View style={styles.progressBar}>
+              <View style={styles.progressFill} />
             </View>
+            <Text style={styles.progressText}>Đang kết nối với tài xế gần bạn...</Text>
           </View>
 
-          {/* Trip Locations */}
-          <View style={styles.tripInfo}>
-            <View style={styles.locationRow}>
-              <View style={styles.locationDot}>
+          {/* Route Section */}
+          <View style={styles.routeSection}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="route" size={20} color="#9CA3AF" />
+              <Text style={styles.sectionTitle}>Lộ trình</Text>
+            </View>
+
+            <View style={styles.locationItem}>
+              <View style={styles.locationIconWrapper}>
                 <View style={styles.pickupDot} />
+                <View style={styles.routeLine} />
               </View>
-              <Text
-                style={[styles.locationText, { color: colors.text }]}
-                numberOfLines={1}
-              >
-                {pickupAddress}
-              </Text>
+              <View style={styles.locationContent}>
+                <Text style={styles.locationLabel}>Điểm đón</Text>
+                <Text style={styles.locationAddress} numberOfLines={1}>
+                  {pickupAddress}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.locationRow}>
-              <View style={styles.locationDot}>
-                <View style={styles.dropoffDot} />
+            <View style={styles.locationItem}>
+              <View style={styles.locationIconWrapper}>
+                <MaterialIcons name="location-on" size={20} color="#EF4444" />
               </View>
-              <Text
-                style={[styles.locationText, { color: colors.text }]}
-                numberOfLines={1}
-              >
-                {dropoffAddress}
-              </Text>
+              <View style={styles.locationContent}>
+                <Text style={styles.locationLabel}>Điểm trả</Text>
+                <Text style={styles.locationAddress} numberOfLines={1}>
+                  {dropoffAddress}
+                </Text>
+              </View>
             </View>
           </View>
 
-          {/* Price */}
+          {/* Trip Info */}
           {fareEstimate && (
-            <View style={[styles.priceContainer, { backgroundColor: 'rgba(255, 107, 0, 0.08)', borderColor: 'rgba(255, 107, 0, 0.2)' }]}>
-              <MaterialIcons name="payments" size={20} color="#FF6B00" />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
-                  Giá ước tính
-                </Text>
-                <Text style={[styles.price, { color: colors.text }]}>
-                  {fareEstimate.total?.toLocaleString('vi-VN')}đ
-                </Text>
+            <View style={styles.tripInfoSection}>
+              <View style={styles.sectionHeader}>
+                <MaterialIcons name="info-outline" size={20} color="#9CA3AF" />
+                <Text style={styles.sectionTitle}>Thông tin chuyến đi</Text>
               </View>
-              <View style={[styles.paymentBadge, { backgroundColor: colors.bg }]}>
-                <Text style={[styles.paymentBadgeText, { color: colors.textSecondary }]}>
-                  Tiền mặt
-                </Text>
+              <View style={styles.infoGrid}>
+                <View style={styles.infoCard}>
+                  <MaterialIcons name="payments" size={18} color="#FF6B00" />
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>Giá ước tính</Text>
+                    <Text style={styles.infoValue}>
+                      {fareEstimate.total?.toLocaleString('vi-VN')}đ
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.infoCard}>
+                  <MaterialIcons name="account-balance-wallet" size={18} color="#9CA3AF" />
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>Thanh toán</Text>
+                    <Text style={styles.infoValue}>Tiền mặt</Text>
+                  </View>
+                </View>
               </View>
             </View>
           )}
         </View>
 
         {/* Cancel Button */}
-        <TouchableOpacity
-          style={[styles.cancelButtonLarge, { borderColor: colors.border }]}
-          onPress={onCancel}
-        >
-          <Text style={styles.cancelButtonLargeText}>Hủy</Text>
+        <TouchableOpacity style={styles.cancelButtonLarge} onPress={onCancel}>
+          <MaterialIcons name="close" size={20} color="#EF4444" />
+          <Text style={styles.cancelButtonLargeText}>Hủy tìm kiếm</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -163,24 +175,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    paddingTop: SPACING.sm,
-    paddingBottom: SPACING.xl,
+    backgroundColor: '#1a202c',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 12,
+    paddingBottom: SPACING.lg,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.2,
     shadowRadius: 12,
-    elevation: 10,
+    elevation: 15,
+  },
+  handleBarContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 12,
   },
   handleBar: {
-    width: 50,
+    width: 40,
     height: 5,
-    backgroundColor: '#ccc',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: SPACING.md,
+    backgroundColor: '#4B5563',
+    borderRadius: 3,
   },
   statusContentWrapper: {
     paddingHorizontal: SPACING.lg,
@@ -189,89 +204,169 @@ const styles = StyleSheet.create({
   statusHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusHeaderLeft: {
+    flex: 1,
   },
   statusTitleLarge: {
     fontSize: 18,
     fontWeight: '700',
-    marginBottom: SPACING.xs,
+    color: '#fff',
+    marginBottom: 4,
   },
   statusSubtitle: {
     fontSize: 12,
     fontWeight: '500',
-    marginTop: SPACING.xs,
+    color: '#9CA3AF',
   },
-  minimizeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  infoGrid: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  infoCard: {
-    flex: 1,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 0, 0.1)',
+    gap: 6,
+    backgroundColor: '#374151',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  infoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFB800',
   },
-  infoText: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginBottom: SPACING.xs,
-  },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '700',
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
   },
   progressSection: {
-    gap: SPACING.sm,
+    gap: 8,
+    marginBottom: 8,
   },
   progressBar: {
     height: 6,
+    backgroundColor: '#374151',
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     width: '60%',
+    backgroundColor: '#FF6B00',
     borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+  routeSection: {
+    backgroundColor: '#374151',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+  },
+  locationItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  locationIconWrapper: {
+    width: 24,
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  pickupDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#22C55E',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  routeLine: {
+    width: 2,
+    height: 30,
+    backgroundColor: '#4B5563',
+    marginTop: 4,
+  },
+  locationContent: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    marginBottom: 4,
+  },
+  locationAddress: {
+    fontSize: 14,
+    color: '#fff',
+    lineHeight: 20,
+  },
+  tripInfoSection: {
+    marginBottom: 12,
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  infoCard: {
+    flex: 1,
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
   },
   cancelButtonLarge: {
     marginTop: SPACING.lg,
     marginHorizontal: SPACING.lg,
     height: 56,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: 14,
     borderWidth: 2,
-    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    borderColor: '#EF4444',
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: 6,
   },
   cancelButtonLargeText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#ef4444',
+    color: '#EF4444',
   },
   header: {
     position: 'absolute',
@@ -280,6 +375,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
+    zIndex: 10,
   },
   backButton: {
     width: 44,
@@ -298,68 +394,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
     color: '#FF6B00',
-  },
-  tripInfo: {
-    gap: SPACING.sm,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  locationDot: {
-    width: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pickupDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#ef4444',
-    borderWidth: 2,
-    borderColor: '#fff',
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  dropoffDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 2,
-    backgroundColor: '#10b981',
-  },
-  locationText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-  },
-  price: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  priceLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  paymentBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  paymentBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
   },
 })

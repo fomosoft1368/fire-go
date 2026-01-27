@@ -13,15 +13,33 @@ import {
     Animated,
     TextInput,
 } from 'react-native'
-import { COLORS } from '../constants'
+import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { deliveryService } from '../services/deliveryService'
+import { mapsService } from '../services/mapsService'
+import { rideService } from '../services/rideService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import { useNavigation } from '@react-navigation/native'
+import type { RootStackParamList } from '../types'
 
 interface DeliveryProps {
-    setRideMode: (mode: 'share' | 'hire' | 'delivery') => void
-    onNavigateToConfirm?: (params: any) => void
+    isScheduled?: boolean
+    setIsScheduled?: (value: boolean) => void
+    carType?: 'sedan' | 'suv' | 'truck'
+    setCarType?: (type: 'sedan' | 'suv' | 'truck') => void
+    licensePlate?: string
+    setLicensePlate?: (value: string) => void
+    transmission?: 'auto' | 'manual'
+    setTransmission?: (type: 'auto' | 'manual') => void
+    driverNote?: string
+    setDriverNote?: (value: string) => void
+    pickupLocation?: string
+    setPickupLocation?: (value: string) => void
+    dropoffLocation?: string
+    setDropoffLocation?: (value: string) => void
+    setRideMode?: (mode: 'share' | 'hire') => void
 }
 
 interface Customer {
@@ -48,7 +66,7 @@ const VEHICLES = [
     { key: 'bike', label: 'Xe máy', desc: 'Phù hợp hàng nhỏ', icon: 'motorbike' },
     { key: 'truck', label: 'Xe tải nhỏ', desc: 'Sức tải 500kg', icon: 'truck-outline' },
 ];
-export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryProps) {
+export default function Delivery(props?: DeliveryProps) {
     const [pickup, setPickup] = useState('')
     const [dropoff, setDropoff] = useState('')
     const [goodsType, setGoodsType] = useState<string>('')
@@ -58,6 +76,224 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
     const [loading, setLoading] = useState(false)
     const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.8342, 21.0278]) // Default Hanoi
     const [dropoffCoordinates, setDropoffCoordinates] = useState<[number, number]>([105.8542, 21.0378])
+    const [isPickupSelected, setIsPickupSelected] = useState(false)
+    const [isDropoffSelected, setIsDropoffSelected] = useState(false)
+    const [routeInfo, setRouteInfo] = useState<any>(null)
+    const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
+    const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
+    const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
+    const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
+    const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+    const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+    const setRideMode = props?.setRideMode
+
+    const handlePickupLocationChange = (text: string) => {
+        setPickup(text)
+
+        if (pickupSearchTimeout) {
+            clearTimeout(pickupSearchTimeout)
+        }
+
+        if (text.trim().length >= 3) {
+            setShowPickupSuggestions(true)
+            const timeout = setTimeout(async () => {
+                try {
+                    console.log('[Delivery] Pickup search for:', text)
+                    const suggestions = await mapsService.searchPlaces(text)
+                    console.log('[Delivery] Pickup suggestions received:', suggestions.length)
+                    setPickupSuggestions(suggestions)
+                } catch (error) {
+                    console.error('Error searching pickup locations:', error)
+                    setPickupSuggestions([])
+                }
+            }, 500)
+            setPickupSearchTimeout(timeout)
+        } else {
+            setPickupSuggestions([])
+            if (text.trim().length === 0) {
+                setShowPickupSuggestions(false)
+            }
+        }
+    }
+
+    const handleDropoffLocationChange = (text: string) => {
+        setDropoff(text)
+
+        if (dropoffSearchTimeout) {
+            clearTimeout(dropoffSearchTimeout)
+        }
+
+        if (text.trim().length >= 3) {
+            setShowDropoffSuggestions(true)
+            const timeout = setTimeout(async () => {
+                try {
+                    console.log('[Delivery] Dropoff search for:', text)
+                    const suggestions = await mapsService.searchPlaces(text)
+                    console.log('[Delivery] Dropoff suggestions received:', suggestions.length)
+                    setDropoffSuggestions(suggestions)
+                } catch (error) {
+                    console.error('Error searching dropoff locations:', error)
+                    setDropoffSuggestions([])
+                }
+            }, 500)
+            setDropoffSearchTimeout(timeout)
+        } else {
+            setDropoffSuggestions([])
+            if (text.trim().length === 0) {
+                setShowDropoffSuggestions(false)
+            }
+        }
+    }
+
+    const handlePickupSuggestionSelect = async (suggestion: any) => {
+        setPickup(suggestion.fullText)
+        setShowPickupSuggestions(false)
+        setPickupSuggestions([])
+
+        // Gọi geocode API để lấy tọa độ thực tế
+        try {
+            console.log('[Delivery] Geocoding pickup location:', suggestion.fullText)
+            const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
+
+            if (geocodeResult && geocodeResult.coordinates) {
+                const coords: [number, number] = [
+                    geocodeResult.coordinates.longitude,
+                    geocodeResult.coordinates.latitude
+                ]
+                setPickupCoordinates(coords)
+                setIsPickupSelected(true)
+                console.log('[Delivery] Pickup coordinates set:', coords)
+
+                // Tự động tính tuyến đường nếu đã có điểm giao hàng
+                if (dropoff.trim() && isDropoffSelected) {
+                    console.log('[Delivery] Auto-calculating route...')
+                    await calculateRoute(coords, dropoffCoordinates)
+                }
+            }
+        } catch (error) {
+            console.error('[Delivery] Geocoding error:', error)
+            Alert.alert('Lỗi', 'Không thể lấy tọa độ điểm lấy hàng')
+        }
+    }
+
+    const handleDropoffSuggestionSelect = async (suggestion: any) => {
+        setDropoff(suggestion.fullText)
+        setShowDropoffSuggestions(false)
+        setDropoffSuggestions([])
+
+        // Gọi geocode API để lấy tọa độ thực tế
+        try {
+            console.log('[Delivery] Geocoding dropoff location:', suggestion.fullText)
+            const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
+
+            if (geocodeResult && geocodeResult.coordinates) {
+                const coords: [number, number] = [
+                    geocodeResult.coordinates.longitude,
+                    geocodeResult.coordinates.latitude
+                ]
+                setDropoffCoordinates(coords)
+                setIsDropoffSelected(true)
+                console.log('[Delivery] Dropoff coordinates set:', coords)
+
+                // Tự động tính tuyến đường nếu đã có điểm lấy hàng
+                if (pickup.trim() && isPickupSelected) {
+                    console.log('[Delivery] Auto-calculating route...')
+                    await calculateRoute(pickupCoordinates, coords)
+                }
+            }
+        } catch (error) {
+            console.error('[Delivery] Geocoding error:', error)
+            Alert.alert('Lỗi', 'Không thể lấy tọa độ điểm giao hàng')
+        }
+    }
+
+    const calculateRoute = async (startCoords: [number, number], endCoords: [number, number]) => {
+        try {
+            console.log('[Delivery] Calculating route...');
+            const directions = await rideService.getDirections(
+                startCoords[0],
+                startCoords[1],
+                endCoords[0],
+                endCoords[1],
+            );
+
+            console.log('[Delivery] Raw directions response:', directions);
+
+            // Handle different response formats from backend
+            let distance = 0;
+            let duration = 0;
+            let routeCoordinates: Array<{ latitude: number, longitude: number }> = [];
+
+            // Format: features[0].geometry.coordinates and properties.summary
+            if (directions.features?.[0]) {
+                const feature = directions.features[0];
+
+                // Get distance and duration
+                if (feature.properties?.summary) {
+                    distance = feature.properties.summary.distance;
+                    duration = feature.properties.summary.duration;
+                }
+
+                // Get route coordinates from geometry
+                if (feature.geometry?.coordinates) {
+                    // OSRM returns coordinates as [lng, lat] pairs
+                    routeCoordinates = feature.geometry.coordinates.map((coord: [number, number]) => ({
+                        latitude: coord[1],
+                        longitude: coord[0],
+                    }));
+                }
+            }
+            // Fallback: direct properties
+            else if (directions.distance !== undefined && directions.duration !== undefined) {
+                distance = directions.distance;
+                duration = directions.duration;
+            }
+            // Fallback: routes array
+            else if (directions.routes?.[0]) {
+                distance = directions.routes[0].distance;
+                duration = directions.routes[0].duration;
+                if (directions.routes[0].geometry?.coordinates) {
+                    routeCoordinates = directions.routes[0].geometry.coordinates.map((coord: [number, number]) => ({
+                        latitude: coord[1],
+                        longitude: coord[0],
+                    }));
+                }
+            }
+
+            console.log('[Delivery] Extracted:', { distance, duration, routeCoordinatesCount: routeCoordinates.length });
+
+            if (!distance || !duration || distance === 0 || duration === 0) {
+                console.error('[Delivery] Invalid distance or duration:', { distance, duration });
+                Alert.alert('Lỗi', 'Không thể tính tuyến đường. Vui lòng kiểm tra địa chỉ và thử lại.');
+                return;
+            }
+
+            // Convert distance from meters to km if needed
+            const distanceKm = distance > 500 ? distance / 1000 : distance;
+
+            setRouteInfo({
+                distance: distanceKm,
+                duration: duration,
+                distanceText: `${distanceKm.toFixed(1)} km`,
+                durationText: `~${Math.ceil(duration / 60)} phút`,
+                routeCoordinates: routeCoordinates,
+            });
+
+            console.log('[Delivery] Route info set:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length });
+        } catch (error: any) {
+            console.error('[Delivery] Route calculation error:', error);
+            Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
+        }
+    };
+
+    // Cleanup timeouts on unmount
+    useEffect(() => {
+        return () => {
+            if (pickupSearchTimeout) clearTimeout(pickupSearchTimeout)
+            if (dropoffSearchTimeout) clearTimeout(dropoffSearchTimeout)
+        }
+    }, [])
 
     // Calculate price based on selections
     useEffect(() => {
@@ -73,54 +309,20 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
             Alert.alert('Thiếu thông tin', 'Vui lòng điền đầy đủ thông tin giao hàng')
             return
         }
-        
-        try {
-            setLoading(true)
-            
-            // Get customer ID from AsyncStorage
-            const userJson = await AsyncStorage.getItem('user')
-            if (!userJson) {
-                Alert.alert('Lỗi', 'Vui lòng đăng nhập lại')
-                return
-            }
 
-            const user = JSON.parse(userJson)
-            const userId = user.id || user._id
-
-            // Create delivery order via API
-            const deliveryData = {
-                customerId: userId,
-                pickupAddress: pickup,
-                pickupCoordinates,
-                dropoffAddress: dropoff,
-                dropoffCoordinates,
-                goodsType: goodsType as 'light' | 'bulky' | 'food',
-                weight: weight as '<20' | '20-50' | '>50',
-                vehicle: vehicle as 'bike' | 'truck',
-                estimatedPrice,
-            }
-
-            const createdDelivery = await deliveryService.createDelivery(deliveryData)
-            console.log('[Delivery] Created delivery:', createdDelivery)
-            
-            // Navigate to confirm screen with delivery ID
-            if (onNavigateToConfirm) {
-                onNavigateToConfirm({
-                    deliveryId: createdDelivery._id,
-                    pickup,
-                    dropoff,
-                    goodsType,
-                    weight,
-                    vehicle,
-                    estimatedPrice
-                })
-            }
-        } catch (error: any) {
-            console.error('[Delivery] Create error:', error)
-            Alert.alert('Lỗi', error.message || 'Không thể tạo đơn hàng. Vui lòng thử lại.')
-        } finally {
-            setLoading(false)
-        }
+        // Navigate to ConfirmDelivery screen with all data
+        navigation.navigate('ConfirmDelivery', {
+            pickup,
+            dropoff,
+            pickupCoordinates,
+            dropoffCoordinates,
+            goodsType,
+            weight,
+            vehicle,
+            estimatedPrice,
+            distance: routeInfo?.distanceText || '0 km',
+            duration: routeInfo?.durationText || '0 phút',
+        })
     }
 
     return (
@@ -128,10 +330,32 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
             <View style={StyleSheet.absoluteFillObject}>
                 <MapViewComponent
                     height={'100%'}
+                    initialRegion={{
+                        latitude: pickupCoordinates[1],
+                        longitude: pickupCoordinates[0],
+                        latitudeDelta: 0.0922,
+                        longitudeDelta: 0.0421,
+                    }}
+                    markers={[]}
+                    pickupCoords={isPickupSelected ? {
+                        latitude: pickupCoordinates[1],
+                        longitude: pickupCoordinates[0],
+                    } : undefined}
+                    dropoffCoords={isDropoffSelected ? {
+                        latitude: dropoffCoordinates[1],
+                        longitude: dropoffCoordinates[0],
+                    } : undefined}
+                    routeCoordinates={routeInfo?.routeCoordinates || []}
                 />
             </View>
             <View style={styles.header}>
-                <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => setRideMode('share')}>
+                <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => {
+                    if (setRideMode) {
+                        setRideMode('share')
+                    } else {
+                        navigation.goBack()
+                    }
+                }}>
                     <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
                 </TouchableOpacity>
                 <Text style={styles.logoText}>firego</Text>
@@ -139,7 +363,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
 
             <View style={styles.card}>
                 <View style={styles.handleBar} />
-                
+
                 {/* Title Section */}
                 <View style={styles.cardHeader}>
                     <MaterialCommunityIcons name="truck-delivery" size={28} color="#FF6B00" />
@@ -157,7 +381,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                 <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
                     {/* Location Inputs */}
                     <View style={styles.locationsContainer}>
-                        <View style={styles.inputGroup}>
+                        <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
                             <View style={styles.inputRow}>
                                 <View style={styles.iconWrapper}>
                                     <MaterialIcons name="radio-button-checked" size={20} color="#22C55E" />
@@ -167,28 +391,72 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     placeholder="Điểm lấy hàng"
                                     placeholderTextColor="#9CA3AF"
                                     value={pickup}
-                                    onChangeText={setPickup}
+                                    onChangeText={handlePickupLocationChange}
+                                    onFocus={() => setShowPickupSuggestions(true)}
                                 />
                             </View>
+
+                            {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                                <FlatList
+                                    data={pickupSuggestions}
+                                    keyExtractor={(item, index) => `pickup-${index}`}
+                                    style={styles.suggestionsDropdown}
+                                    keyboardShouldPersistTaps="handled"
+                                    renderItem={({ item }) => (
+                                        <TouchableOpacity
+                                            style={styles.suggestionItem}
+                                            onPress={() => handlePickupSuggestionSelect(item)}
+                                        >
+                                            <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                                            <View style={styles.suggestionContent}>
+                                                <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                                                <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    )}
+                                />
+                            )}
                         </View>
 
                         <View style={styles.locationDivider}>
                             <View style={styles.dashedLine} />
                         </View>
 
-                        <View style={styles.inputGroup}>
+                        <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
                             <View style={styles.inputRow}>
                                 <View style={styles.iconWrapper}>
-                                    <MaterialIcons name="location-on" size={20} color="#EF4444" />
+                                    <MaterialIcons name="flag" size={20} color="#EF4444" />
                                 </View>
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Điểm giao hàng"
                                     placeholderTextColor="#9CA3AF"
                                     value={dropoff}
-                                    onChangeText={setDropoff}
+                                    onChangeText={handleDropoffLocationChange}
+                                    onFocus={() => setShowDropoffSuggestions(true)}
                                 />
                             </View>
+
+                            {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+                                <FlatList
+                                    data={dropoffSuggestions}
+                                    keyExtractor={(item, index) => `dropoff-${index}`}
+                                    style={styles.suggestionsDropdown}
+                                    keyboardShouldPersistTaps="handled"
+                                    renderItem={({ item }) => (
+                                        <TouchableOpacity
+                                            style={styles.suggestionItem}
+                                            onPress={() => handleDropoffSuggestionSelect(item)}
+                                        >
+                                            <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                                            <View style={styles.suggestionContent}>
+                                                <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                                                <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    )}
+                                />
+                            )}
                         </View>
                     </View>
 
@@ -206,10 +474,10 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     onPress={() => setGoodsType(type.key)}
                                     activeOpacity={0.7}
                                 >
-                                    <MaterialCommunityIcons 
-                                        name={type.icon as any} 
-                                        size={18} 
-                                        color={goodsType === type.key ? '#FF6B00' : '#6B7280'} 
+                                    <MaterialCommunityIcons
+                                        name={type.icon as any}
+                                        size={18}
+                                        color={goodsType === type.key ? '#FF6B00' : '#6B7280'}
                                     />
                                     <Text style={[
                                         styles.optionBtnText,
@@ -261,10 +529,10 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                                     onPress={() => setVehicle(v.key)}
                                     activeOpacity={0.7}
                                 >
-                                    <MaterialCommunityIcons 
-                                        name={v.icon as any} 
-                                        size={32} 
-                                        color={vehicle === v.key ? '#FF6B00' : '#6B7280'} 
+                                    <MaterialCommunityIcons
+                                        name={v.icon as any}
+                                        size={32}
+                                        color={vehicle === v.key ? '#FF6B00' : '#6B7280'}
                                     />
                                     <Text style={[
                                         styles.vehicleLabel,
@@ -280,7 +548,7 @@ export default function Delivery({ setRideMode, onNavigateToConfirm }: DeliveryP
                 </ScrollView>
 
                 {/* Confirm Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.confirmButton}
                     onPress={handleConfirm}
                     activeOpacity={0.8}
@@ -399,9 +667,12 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         borderWidth: 1,
         borderColor: '#F3F4F6',
+        overflow: 'visible',
     },
     inputGroup: {
         marginBottom: 0,
+        position: 'relative',
+        zIndex: 1,
     },
     inputRow: {
         flexDirection: 'row',
@@ -550,5 +821,45 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#FFFFFF',
         letterSpacing: 0.3,
+    },
+    suggestionsDropdown: {
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        right: 0,
+        borderRadius: BORDER_RADIUS.lg,
+        marginTop: SPACING.xs,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        maxHeight: 200,
+        zIndex: 1000,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 10,
+        backgroundColor: '#fff',
+    },
+    suggestionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        gap: SPACING.md,
+    },
+    suggestionContent: {
+        flex: 1,
+    },
+    suggestionMainText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#111827',
+        marginBottom: SPACING.xs,
+    },
+    suggestionSecondaryText: {
+        fontSize: 12,
+        color: '#6B7280',
     },
 })

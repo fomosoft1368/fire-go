@@ -82,7 +82,7 @@ const MainNavigator = () => (
       tabBarActiveTintColor: COLORS.primary,
       tabBarInactiveTintColor: COLORS.textSecondary,
       tabBarStyle: {
-        backgroundColor: '#101922',
+backgroundColor: '#101922',
       },
       tabBarLabelStyle: {
         fontSize: 11,
@@ -193,7 +193,7 @@ const RootNavigator = () => {
           // Get user profile using token
           const authService = require('./src/services/authService')
           try {
-            console.log('[App] Fetching user profile with token...')
+console.log('[App] Fetching user profile with token...')
             const user = await authService.getCurrentUser()
             console.log('[App] User restored successfully:', user ? `${user.email || user.phone}` : 'null')
             
