@@ -141,6 +141,21 @@ export class DriversController {
   }
 
   /**
+   * PATCH /api/drivers/me/status
+   * Cập nhật trạng thái tài xế hiện tại (available | offline)
+   */
+  @Patch('me/status')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async updateMyStatus(
+    @Request() req: any,
+    @Body('status') status: DriverStatus,
+  ) {
+    console.log('[DriversController] Updating driver status:', req.user.id, 'to:', status);
+    return this.driversService.updateStatus(req.user.id, status);
+  }
+
+  /**
    * PATCH /api/drivers/:id/status
    * Cập nhật trạng thái tài xế
    */

@@ -22,8 +22,14 @@ export class RideRequest extends Document {
   @Prop({ type: String, enum: ['ride', 'combined_trip'], default: 'ride' })
   tripType: 'ride' | 'combined_trip'
 
+  @Prop({ type: String, enum: ['driver', 'customer'] })
+  createdBy?: 'driver' | 'customer' // Who created the trip: driver (existing trip) or customer (new request)
+
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
   customerId: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: 'Driver' })
+  driverId?: Types.ObjectId
 
   @Prop({ type: String, enum: RequestStatus, default: RequestStatus.PENDING })
   status: RequestStatus

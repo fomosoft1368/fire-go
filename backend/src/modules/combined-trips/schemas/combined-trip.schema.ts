@@ -160,6 +160,26 @@ export class CombinedTrip {
 
   @Prop()
   cancellationBy?: 'driver' | 'customer';
+
+  // ===== NEW FIELDS FOR CUSTOMER-INITIATED TRIPS (GRAB-LIKE FLOW) =====
+  
+  @Prop()
+  createdBy?: 'driver' | 'customer'; // Who created this trip
+  
+  @Prop({ type: [Types.ObjectId], ref: 'Driver', default: [] })
+  driverQueue?: Types.ObjectId[]; // Queue of nearby drivers
+  
+  @Prop({ default: 0 })
+  currentDriverIndex?: number; // Current driver index in queue
+  
+  @Prop({ type: Types.ObjectId, ref: 'Driver' })
+  currentDriverId?: Types.ObjectId; // Current driver being notified
+  
+  @Prop()
+  notificationSentAt?: Date; // When notification was sent to current driver
+  
+  @Prop({ default: 1 })
+  availableSeats?: number; // Number of seats customer needs
 }
 
 export const CombinedTripSchema = SchemaFactory.createForClass(CombinedTrip);

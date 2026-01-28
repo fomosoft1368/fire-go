@@ -105,6 +105,34 @@ export class DriverService {
   }
 
   /**
+   * Cập nhật trạng thái tài xế (lấy ID từ token)
+   * @param status Trạng thái mới: 'online' | 'offline'
+   */
+  async updateDriverStatus(status: 'online' | 'offline'): Promise<any> {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      
+      if (!token) {
+        throw new Error('No auth token found');
+      }
+
+      console.log('[DriverService] Updating driver status to:', status);
+      
+      const response = await this.api.patch('/me/status', { status }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('[DriverService] ✅ Driver status updated:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[DriverService] ❌ Error updating driver status:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Cập nhật trạng thái tài xế
    * @param driverId ID của tài xế
    * @param status Trạng thái mới (online|offline|on_trip|break)

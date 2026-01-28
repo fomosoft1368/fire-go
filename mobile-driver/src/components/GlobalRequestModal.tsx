@@ -28,10 +28,29 @@ const GlobalRequestModal: React.FC = () => {
   const [combinedTripId, setCombinedTripId] = useState<string>('')
   const [accepting, setAccepting] = useState(false)
   const [rejecting, setRejecting] = useState(false)
+  const [countdown, setCountdown] = useState(15) // 15 seconds countdown
   const navigation = useNavigation<NavigationProp<any>>()
   
-  // Track displayed requests to avoid duplicates
+  // Track displayed requests to avoid duplicates (persisted in AsyncStorage)
   const displayedRequestsRef = useRef<Set<string>>(new Set())
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Load displayed requests from AsyncStorage on mount
+  useEffect(() => {
+    const loadDisplayedRequests = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('displayedRequests')
+        if (stored) {
+          const requestIds = JSON.parse(stored)
+          displayedRequestsRef.current = new Set(requestIds)
+          console.log('[GlobalRequestModal] Loaded displayed requests:', requestIds.length)
+        }
+      } catch (error) {
+        console.error('[GlobalRequestModal] Error loading displayed requests:', error)
+      }
+    }
+    loadDisplayedRequests()
+  }, [])
 
   useEffect(() => {
     const checkForNotification = async () => {
@@ -45,11 +64,37 @@ const GlobalRequestModal: React.FC = () => {
           if (!displayedRequestsRef.current.has(requestId)) {
             console.log('[GlobalRequestModal] 📬 New request:', requestId)
             displayedRequestsRef.current.add(requestId)
+            
+            // Persist to AsyncStorage
+            const displayedArray = Array.from(displayedRequestsRef.current)
+            await AsyncStorage.setItem('displayedRequests', JSON.stringify(displayedArray))
+            
             setPendingRequest(notification.request)
             setCombinedTripId(notification.combinedTripId)
             setShowModal(true)
+            setCountdown(15) // Reset countdown
 
             // Clear notification from storage immediately after showing
+            await AsyncStorage.removeItem('pendingRequestNotification')
+
+            // Start countdown
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current)
+            }
+
+            countdownIntervalRef.current = setInterval(() => {
+              setCountdown(prev => {
+                if (prev <= 1) {
+                  // Auto-reject when countdown reaches 0
+                  handleAutoReject()
+                  return 0
+                }
+                return prev - 1
+              })
+            }, 1000)
+          } else {
+            console.log('[GlobalRequestModal] ⏭️ Skipping already displayed request:', requestId)
+            // Clear stale notification
             await AsyncStorage.removeItem('pendingRequestNotification')
           }
         }
@@ -64,11 +109,19 @@ const GlobalRequestModal: React.FC = () => {
 
     return () => {
       clearInterval(interval)
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+      }
     }
   }, [])
 
   const handleAccept = async () => {
     if (!pendingRequest || !combinedTripId) return
+
+    // Clear countdown
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+    }
 
     setAccepting(true)
     try {
@@ -102,6 +155,11 @@ const GlobalRequestModal: React.FC = () => {
   const handleReject = async () => {
     if (!pendingRequest || !combinedTripId) return
 
+    // Clear countdown
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+    }
+
     setRejecting(true)
     try {
       console.log('[GlobalRequestModal] Rejecting request:', pendingRequest._id)
@@ -121,6 +179,30 @@ const GlobalRequestModal: React.FC = () => {
     }
   }
 
+  const handleAutoReject = async () => {
+    console.log('[GlobalRequestModal] ⏰ Auto-rejecting due to timeout')
+    
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+    }
+
+    if (!pendingRequest || !combinedTripId) {
+      setShowModal(false)
+      return
+    }
+
+    try {
+      await axios.patch(
+        `${API_URL}/combined-trips/${combinedTripId}/requests/${pendingRequest._id}/reject`
+      )
+      console.log('[GlobalRequestModal] Auto-rejected successfully')
+    } catch (error) {
+      console.error('[GlobalRequestModal] Auto-reject error:', error)
+    } finally {
+      setShowModal(false)
+    }
+  }
+
   const handleDismiss = () => {
     setShowModal(false)
   }
@@ -136,9 +218,22 @@ const GlobalRequestModal: React.FC = () => {
     >
       <View style={styles.overlay}>
         <View style={styles.modalContent}>
+          {/* Countdown Timer */}
+          <View style={[styles.countdownContainer, countdown <= 5 && styles.countdownUrgent]}>
+            <Text style={[styles.countdownText, countdown <= 5 && styles.countdownTextUrgent]}>
+              {countdown}s
+            </Text>
+          </View>
+
           <View style={styles.header}>
-            <MaterialIcons name="person-add" size={32} color={COLORS.primary} />
-            <Text style={styles.title}>Yêu cầu ghép xe mới!</Text>
+            <MaterialIcons 
+              name={pendingRequest.createdBy === 'customer' ? 'local-taxi' : 'person-add'} 
+              size={32} 
+              color={COLORS.primary} 
+            />
+            <Text style={styles.title}>
+              {pendingRequest.createdBy === 'customer' ? 'Nhận cuốc mới!' : 'Yêu cầu ghép xe mới!'}
+            </Text>
           </View>
 
           <View style={styles.customerInfo}>
@@ -237,6 +332,32 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderWidth: 1,
     borderColor: COLORS.primary,
+    position: 'relative',
+  },
+  countdownContainer: {
+    position: 'absolute',
+    top: -20,
+    right: -20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#FFF',
+    zIndex: 10,
+  },
+  countdownUrgent: {
+    backgroundColor: '#f44336',
+  },
+  countdownText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  countdownTextUrgent: {
+    fontSize: 22,
   },
   header: {
     alignItems: 'center',
