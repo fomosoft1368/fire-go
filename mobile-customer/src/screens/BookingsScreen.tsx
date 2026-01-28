@@ -96,25 +96,41 @@ export default function BookingsScreen() {
       console.log('[BookingsScreen] Fetch completed:')
       console.log('  - HIRE rides:', rideHistory?.length || 0)
       console.log('  - SHARE combined-trips:', combinedTrips?.length || 0)
+      if (combinedTrips && combinedTrips.length > 0) {
+        console.log('[BookingsScreen] First combined trip data:', JSON.stringify(combinedTrips[0], null, 2))
+      }
 
       // Format combined trips thành RideBooking structure
-      const formattedCombinedTrips = (combinedTrips || []).map((trip: any) => ({
-        id: trip._id || trip.id,
-        rideType: 'share',
-        estimatedFare: trip.totalFare || 0,
-        bookingTime: trip.createdAt 
-          ? new Date(trip.createdAt).toLocaleString('vi-VN')
-          : 'N/A',
-        pickupLocation: trip.pickupLocationAddress || trip.pickupAddress || 'N/A',
-        dropoffLocation: trip.dropoffLocationAddress || trip.dropoffAddress || 'N/A',
-        pickupDistrict: 'Hà Nội',
-        dropoffDistrict: 'Hà Nội',
-        status: trip.status?.toLowerCase() || 'pending',
-        driverName: trip.driverId?.firstName + ' ' + trip.driverId?.lastName || 'N/A',
-        carPlate: trip.driverId?.vehiclePlate || 'N/A',
-        // Thêm trường để track combined trip ID
-        combinedTripId: trip._id || trip.id,
-      }))
+      // Use customer's specific pickup/dropoff from RideRequest, not driver's route
+      const formattedCombinedTrips = (combinedTrips || []).map((trip: any) => {
+        const formatted = {
+          id: trip._id || trip.id,
+          rideType: 'share',
+          estimatedFare: trip.customerFare || trip.totalFare || 0,
+          bookingTime: trip.createdAt 
+            ? new Date(trip.createdAt).toLocaleString('vi-VN')
+            : 'N/A',
+          // Use CUSTOMER's pickup/dropoff, not driver's route
+          pickupLocation: trip.customerPickupAddress || trip.pickupLocationAddress || trip.pickupAddress || 'Điểm đón',
+          dropoffLocation: trip.customerDropoffAddress || trip.dropoffLocationAddress || trip.dropoffAddress || 'Điểm đến',
+          pickupDistrict: 'Hà Nội',
+          dropoffDistrict: 'Hà Nội',
+          status: trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase() || 'pending',
+          driverName: trip.driverId?.firstName + ' ' + trip.driverId?.lastName || 'N/A',
+          carPlate: trip.driverId?.vehiclePlate || 'N/A',
+          // Thêm trường để track combined trip ID
+          combinedTripId: trip._id || trip.id,
+        }
+        console.log('[BookingsScreen] Formatted trip:', {
+          pickupLocation: formatted.pickupLocation,
+          dropoffLocation: formatted.dropoffLocation,
+          customerPickupAddress: trip.customerPickupAddress,
+          customerDropoffAddress: trip.customerDropoffAddress,
+          pickupAddress: trip.pickupAddress,
+          dropoffAddress: trip.dropoffAddress,
+        })
+        return formatted
+      })
 
       // Merge rides + combined trips
       const allBookings = [...rideHistory, ...formattedCombinedTrips]

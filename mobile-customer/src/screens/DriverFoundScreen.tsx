@@ -57,12 +57,14 @@ export default function DriverFoundScreen() {
   const route = useRoute()
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
+  const user = useSelector((state: RootState) => state.auth.user)
 
   // Safe params extraction
   const params = route.params as any
   const combinedTripId = params?.combinedTripId ?? ''
 
   const [tripData, setTripData] = useState<any>(null)
+  const [rideRequest, setRideRequest] = useState<any>(null)
   const [driverLocation, setDriverLocation] = useState<any>(null)
   const [routeData, setRouteData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -81,10 +83,10 @@ export default function DriverFoundScreen() {
       loadTripDetails()
     }, 2000)
 
-    // Poll driver location every 3 seconds (faster updates)
+    // Poll driver location every 2 seconds (same as trip polling) to stay in sync
     locationInterval.current = setInterval(() => {
       loadDriverLocation()
-    }, 3000)
+    }, 2000)
 
     return () => {
       if (pollingInterval.current) {
@@ -96,12 +98,112 @@ export default function DriverFoundScreen() {
     }
   }, [combinedTripId])
 
-  // Load route when trip starts (status = in_progress) or driver location changes
+  // Poll request status when rideRequest changes
   useEffect(() => {
-    if (tripData?.status === 'in_progress' && driverLocation) {
+    console.log('[DriverFoundScreen] useEffect: Poll request status triggered', {
+      rideRequestId: rideRequest?._id,
+      combinedTripId,
+      hasIds: !!(rideRequest?._id && combinedTripId),
+    })
+
+    if (!rideRequest?._id || !combinedTripId) {
+      console.log('[DriverFoundScreen] ❌ Skipping request status poll - missing IDs:', {
+        rideRequestId: rideRequest?._id,
+        combinedTripId,
+      })
+      return
+    }
+
+    console.log('[DriverFoundScreen] ✅ Starting request status polling for:', {
+      combinedTripId,
+      rideRequestId: rideRequest._id,
+      currentStatus: rideRequest?.status,
+    })
+
+    // Poll request status every 2 seconds
+    let pollCount = 0
+    const statusPollingInterval = setInterval(async () => {
+      pollCount++
+      console.log(`[DriverFoundScreen] 📡 Poll #${pollCount} - Fetching status...`, {
+        combinedTripId,
+        rideRequestId: rideRequest._id,
+        currentStatus: rideRequest?.status,
+      })
+      
+      try {
+        const response = await combinedTripsService.getCombinedTripRequestStatus(
+          combinedTripId,
+          rideRequest._id
+        )
+        
+        console.log(`[DriverFoundScreen] 📡 Poll #${pollCount} - Response received:`, {
+          status: response?.status,
+          requestId: response?._id,
+          fullResponse: response,
+        })
+        
+        if (response?.status) {
+          setRideRequest((prev: any) => {
+            const hasStatusChanged = prev?.status !== response?.status
+            console.log(`[DriverFoundScreen] 📡 Poll #${pollCount} - Updating state:`, {
+              oldStatus: prev?.status,
+              newStatus: response?.status,
+              hasChanged: hasStatusChanged,
+            })
+            if (hasStatusChanged) {
+              console.log('[DriverFoundScreen] ⚠️⚠️ Request status CHANGED!', {
+                oldStatus: prev?.status,
+                newStatus: response?.status,
+                requestId: response?._id,
+              })
+              
+              // Handle deleted/rejected status
+              if (response?.status === 'deleted' || response?.status === 'rejected') {
+                Alert.alert(
+                  'Yêu cầu bị từ chối',
+                  'Tài xế đã từ chối yêu cầu của bạn.',
+                  [{ text: 'OK', onPress: () => navigation.goBack() }]
+                )
+              }
+            }
+            // IMPORTANT: Merge response with existing rideRequest to preserve _id
+            // Backend may only return partial data (status), so merge it
+            const merged = { ...prev, ...response }
+            console.log(`[DriverFoundScreen] 📡 Poll #${pollCount} - Merged state:`, {
+              prevId: prev?._id,
+              responseId: response?._id,
+              mergedId: merged?._id,
+              finalStatus: merged?.status,
+            })
+            return merged
+          })
+        } else {
+          console.warn(`[DriverFoundScreen] 📡 Poll #${pollCount} - No status in response!`, response)
+        }
+      } catch (err: any) {
+        console.error(`[DriverFoundScreen] 📡 Poll #${pollCount} - Error:`, {
+          message: err.message,
+          error: err,
+          combinedTripId,
+          rideRequestId: rideRequest._id,
+        })
+      }
+    }, 2000)
+
+    return () => {
+      console.log(`[DriverFoundScreen] 🛑 Clearing polling interval after ${pollCount} polls`)
+      clearInterval(statusPollingInterval)
+    }
+  }, [rideRequest?._id, combinedTripId])
+
+  // Load route when trip starts (status = in_progress) or driver location changes
+  // Check BOTH RideRequest status (customer's status) and CombinedTrip status
+  useEffect(() => {
+    const currentStatus = rideRequest?.status || tripData?.status
+    if (currentStatus === 'in_progress' && driverLocation) {
       loadRoute()
     }
-  }, [tripData?.status, driverLocation])
+  }, [rideRequest?.status, tripData?.status, driverLocation])
 
   const loadTripDetails = async () => {
     try {
@@ -110,15 +212,97 @@ export default function DriverFoundScreen() {
         return
       }
 
+      // Fetch CombinedTrip details (driver, locations, route)
       const trip = await combinedTripsService.getCombinedTripDetail(combinedTripId)
-      console.log('[DriverFoundScreen] Trip updated - Full data:', {
-        _id: trip?._id,
-        status: trip?.status,
+      
+      // Fetch RideRequest for this customer (status, fare, seats)
+      // RideRequest contains customer's specific booking info
+      let request = null
+      try {
+        // Get all ride requests for this combined trip
+        console.log('[DriverFoundScreen] Starting to fetch requests for trip:', combinedTripId)
+        const requests = await combinedTripsService.getCombinedTripRequests(combinedTripId)
+        
+        console.log('[DriverFoundScreen] All RideRequests fetched:', {
+          count: requests?.length || 0,
+          rawRequests: requests, // Log full object
+          requests: requests?.map((r: any) => ({
+            _id: r._id,
+            customerId: r.customerId,
+            customerId_id: r.customerId?._id,
+            status: r.status,
+            fare: r.fare,
+            tripType: r.tripType,
+          })),
+        })
+
+        // Find the ride request for CURRENT USER
+        // Match by user ID from Redux
+        const currentUserId = user?._id || user?.id
+        console.log('[DriverFoundScreen] Current user ID from Redux:', {
+          userId: currentUserId,
+          type: typeof currentUserId,
+          user: user,
+        })
+
+        if (currentUserId && Array.isArray(requests) && requests.length > 0) {
+          console.log('[DriverFoundScreen] Starting to match', requests.length, 'requests')
+          request = requests.find((req: any) => {
+            const reqCustomerId = req.customerId?._id || req.customerId
+            const isMatch = String(reqCustomerId) === String(currentUserId)
+            console.log('[DriverFoundScreen] Matching request:', {
+              reqCustomerId,
+              reqCustomerId_type: typeof reqCustomerId,
+              currentUserId,
+              currentUserId_type: typeof currentUserId,
+              isMatch,
+              status: req.status,
+              reqFullObj: req,
+            })
+            return isMatch
+          })
+          console.log('[DriverFoundScreen] Found RideRequest for current user:', {
+            currentUserId,
+            requestFound: !!request,
+            requestStatus: request?.status,
+            requestId: request?._id,
+            requestFullObj: request,
+          })
+        } else {
+          // Fallback: use first request if no user ID available
+          request = requests?.[0] || null
+          console.log('[DriverFoundScreen] Using fallback request:', {
+            reason: !currentUserId ? 'no user ID' : !Array.isArray(requests) ? 'requests not array' : 'empty requests',
+            requestStatus: request?.status,
+            requestId: request?._id,
+            currentUserId,
+            requestsCount: requests?.length || 0,
+            requestFullObj: request,
+          })
+        }
+      } catch (err) {
+        console.warn('[DriverFoundScreen] Could not fetch RideRequest:', {
+          error: err,
+          combinedTripId,
+        })
+      }
+
+      console.log('[DriverFoundScreen] Trip & Request updated:', {
+        tripId: trip?._id,
+        tripStatus: trip?.status,
+        requestStatus: request?.status,
+        requestId: request?._id,
         pickupLocation: trip?.pickupLocation,
         dropoffLocation: trip?.dropoffLocation,
         driverId: trip?.driverId?.firstName,
+        driverCurrentLocation: trip?.driverId?.currentLocation ? {
+          type: trip.driverId.currentLocation.type,
+          coordinates: trip.driverId.currentLocation.coordinates,
+        } : 'NOT_FOUND',
       })
+      
       setTripData(trip)
+      setRideRequest(request)
       setLoading(false)
       setError(null)
     } catch (err: any) {
@@ -132,26 +316,85 @@ export default function DriverFoundScreen() {
     try {
       if (!combinedTripId) return
 
+      // PRIORITY 1: Try to get location from cached tripData first (updated every 2 seconds)
+      if (tripData?.driverId?.currentLocation?.coordinates) {
+        const coords = tripData.driverId.currentLocation.coordinates
+        const [lng, lat] = coords
+
+        // Only use if not fallback [0, 0]
+        if (!(lng === 0 && lat === 0)) {
+          console.log('[DriverFoundScreen] ✅ Using location from tripData.driverId:', {
+            lng,
+            lat,
+            source: 'tripData.driverId.currentLocation',
+          })
+          setDriverLocation(tripData.driverId.currentLocation)
+          return
+        }
+      }
+
+      // PRIORITY 2: Fetch from dedicated endpoint if tripData location is not available
+      console.log('[DriverFoundScreen] Fetching location from dedicated endpoint...')
       const response = await combinedTripsService.getDriverLocation(combinedTripId)
-      console.log('[DriverFoundScreen] Driver location updated:', response.currentLocation)
+      
+      console.log('[DriverFoundScreen] Full driver location response:', {
+        response,
+        currentLocation: response?.currentLocation,
+        coordinates: response?.currentLocation?.coordinates,
+        type: response?.currentLocation?.type,
+      })
+
+      if (!response?.currentLocation) {
+        console.warn('[DriverFoundScreen] ⚠️ No currentLocation in response')
+        return
+      }
+
+      // Check if coordinates are [0, 0] (fallback/not updated)
+      const [lng, lat] = response.currentLocation.coordinates || [0, 0]
+      if (lng === 0 && lat === 0) {
+        console.warn('[DriverFoundScreen] ⚠️ Driver location is [0, 0] - driver has not updated location yet')
+        // Try to use tripData location as fallback
+        if (tripData?.driverId?.currentLocation?.coordinates) {
+          console.log('[DriverFoundScreen] Falling back to tripData location')
+          setDriverLocation(tripData.driverId.currentLocation)
+        }
+        return
+      }
+
       setDriverLocation(response.currentLocation)
+      console.log('[DriverFoundScreen] ✅ Driver location set from endpoint:', {
+        lng,
+        lat,
+        type: response.currentLocation.type,
+      })
     } catch (err: any) {
       console.error('Error loading driver location:', err)
+      // Fallback to tripData location on error
+      if (tripData?.driverId?.currentLocation?.coordinates) {
+        const [lng, lat] = tripData.driverId.currentLocation.coordinates
+        if (!(lng === 0 && lat === 0)) {
+          console.log('[DriverFoundScreen] Error fallback: Using tripData location')
+          setDriverLocation(tripData.driverId.currentLocation)
+        }
+      }
     }
   }
 
   const loadRoute = async () => {
     try {
-      if (!combinedTripId || !driverLocation || !tripData?.dropoffLocation) return
-
-      console.log('[DriverFoundScreen] Loading route for trip in progress')
+      // Use customer's dropoff coordinates from RideRequest
+      const customerDropoffCoords = rideRequest?.dropoffCoordinates || tripData?.dropoffLocation?.coordinates
       
-      // Fetch route from OSRM
+      if (!combinedTripId || !driverLocation || !customerDropoffCoords) return
+
+      console.log('[DriverFoundScreen] Loading route for trip in progress to customer dropoff')
+      
+      // Fetch route from OSRM - from driver location to CUSTOMER's dropoff
       const directions = await rideService.getDirections(
         driverLocation.coordinates[0],
         driverLocation.coordinates[1],
-        tripData.dropoffLocation.coordinates[0],
-        tripData.dropoffLocation.coordinates[1],
+        customerDropoffCoords[0],
+        customerDropoffCoords[1],
       )
 
       console.log('[DriverFoundScreen] Route fetched')
@@ -237,9 +480,23 @@ export default function DriverFoundScreen() {
     phoneNumber: 'N/A',
   }
   
-  const tripStatus = tripData?.status || 'pending'
+  // Use RideRequest status (customer's booking status) instead of CombinedTrip status
+  // RideRequest.status reflects customer's actual position in the trip
+  const tripStatus = rideRequest?.status || 'pending'
   const statusLabel = getStatusLabel(tripStatus)
   const estimatedTime = getEstimatedTime(tripStatus)
+  
+  console.log('[DriverFoundScreen] Current trip status:', {
+    rideRequest: rideRequest ? {
+      _id: rideRequest._id,
+      status: rideRequest.status,
+      customerId: rideRequest.customerId,
+      fare: rideRequest.fare,
+    } : null,
+    displayStatus: tripStatus,
+    statusLabel,
+    estimatedTime,
+  })
   
   // Debug log
   if (tripData) {
@@ -248,14 +505,46 @@ export default function DriverFoundScreen() {
       statusLabel,
       tripData_status: tripData.status,
       tripData_id: tripData._id,
+      rideRequestId: rideRequest?._id,
+      rideRequestStatus: rideRequest?.status,
     })
   }
   
   // Use driver location if available (real-time), else use stored coordinates
   const displayDriverLocation = driverLocation || tripData?.driverId?.currentLocation
-  const pickupCoords = tripData?.pickupLocation?.coordinates || [105.8542, 21.0285]
-  const dropoffCoords = tripData?.dropoffLocation?.coordinates || [105.8542, 21.0285]
+  
+  // ✅ Use customer's pickup/dropoff from RideRequest, NOT driver's route from CombinedTrip
+  const pickupCoords = rideRequest?.pickupCoordinates || tripData?.pickupLocation?.coordinates || [105.8542, 21.0285]
+  const dropoffCoords = rideRequest?.dropoffCoordinates || tripData?.dropoffLocation?.coordinates || [105.8542, 21.0285]
   const tripId = tripData?._id || combinedTripId
+
+  // Validate driver location - skip if it's fallback [0, 0]
+  let validDriverLocation = null
+  if (displayDriverLocation?.coordinates) {
+    const [lng, lat] = displayDriverLocation.coordinates
+    if (!(lng === 0 && lat === 0)) {
+      validDriverLocation = displayDriverLocation
+    }
+  }
+
+  // Debug: Log driver location status
+  if (displayDriverLocation) {
+    const [drvLng, drvLat] = displayDriverLocation?.coordinates || [null, null]
+    console.log('[DriverFoundScreen] Driver location to display:', {
+      source: driverLocation ? 'polling' : 'tripData.driverId',
+      lng: drvLng,
+      lat: drvLat,
+      isZero: drvLng === 0 && drvLat === 0,
+      isValid: validDriverLocation !== null,
+      fullLocation: displayDriverLocation,
+    })
+  } else {
+    console.warn('[DriverFoundScreen] ❌ NO driver location available:', {
+      driverLocation: driverLocation ? 'exists' : 'missing',
+      tripDataDriverLocation: tripData?.driverId?.currentLocation ? 'exists' : 'missing',
+      tripData_driverId: tripData?.driverId ? 'exists' : 'missing',
+    })
+  }
 
   // Determine what to show on map based on status
   let mapPickupCoords = null
@@ -300,12 +589,12 @@ export default function DriverFoundScreen() {
           dropoffCoords={mapDropoffCoords ?? undefined}
           routeCoordinates={mapRouteCoordinates}
           markers={
-            displayDriverLocation
+            validDriverLocation?.coordinates
               ? [
                   {
                     id: 'driver',
-                    latitude: displayDriverLocation.coordinates[1],
-                    longitude: displayDriverLocation.coordinates[0],
+                    latitude: validDriverLocation.coordinates[1],
+                    longitude: validDriverLocation.coordinates[0],
                     title: 'Tài xế',
                     description: 'Vị trí tài xế',
                   },
@@ -478,7 +767,7 @@ export default function DriverFoundScreen() {
             <View style={styles.tripDetailRow}>
               <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Giá cước</Text>
               <Text style={[styles.tripDetailValue, { color: colors.text }]}>
-                ₫{(tripData?.totalFare || 0).toLocaleString()}
+                ₫{(rideRequest?.fare || 0).toLocaleString()}
               </Text>
             </View>
             <View style={styles.tripDetailRow}>

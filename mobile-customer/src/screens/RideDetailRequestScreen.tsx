@@ -21,6 +21,7 @@ import type { RootState } from '../redux/store'
 import type { RootStackParamList, NearbyRide } from '../types'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
+import { rideService } from '../services/rideService'
 import MapViewComponent from '../components/MapView'
 
 const { height, width } = Dimensions.get('window')
@@ -52,7 +53,10 @@ export default function RideDetailRequestScreen() {
 
   const [requesting, setRequesting] = useState(false)
   const [requestStatus, setRequestStatus] = useState<'pending' | 'accepted' | 'rejected' | null>(null)
-  const [selectedSeat, setSelectedSeat] = useState<number | null>(null)
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([])
+  const [customerFare, setCustomerFare] = useState<number | null>(null)
+  const [customerDistance, setCustomerDistance] = useState<number | null>(null)
+  const [calculatingFare, setCalculatingFare] = useState(false)
   const statusCheckInterval = useRef<NodeJS.Timeout | null>(null)
 
   // Validate ride data
@@ -62,6 +66,72 @@ export default function RideDetailRequestScreen() {
       navigation.goBack()
     }
   }, [])
+
+  // Calculate customer's fare based on their pickup/dropoff locations
+  useEffect(() => {
+    const calculateCustomerFare = async () => {
+      try {
+        setCalculatingFare(true)
+        console.log('[RideDetailRequestScreen] Calculating customer fare:', {
+          pickup: pickupCoordinates,
+          dropoff: dropoffCoordinates,
+        })
+
+        // Get route from customer's pickup to dropoff
+        const directions = await rideService.getDirections(
+          pickupCoordinates[0],
+          pickupCoordinates[1],
+          dropoffCoordinates[0],
+          dropoffCoordinates[1],
+        )
+
+        // Extract distance and duration
+        let distance = 0
+        let duration = 0
+
+        if (directions.features?.[0]) {
+          const feature = directions.features[0]
+          if (feature.properties?.summary) {
+            distance = feature.properties.summary.distance
+            duration = feature.properties.summary.duration
+          }
+        } else if (directions.distance !== undefined) {
+          distance = directions.distance
+          duration = directions.duration
+        }
+
+        // Convert to km if needed
+        const distanceKm = distance > 500 ? distance / 1000 : distance
+        setCustomerDistance(distanceKm)
+
+        // Calculate fare
+        const fareEstimate = await rideService.calculateFare(
+          distanceKm,
+          duration / 60,
+          'basic'
+        )
+
+        const calculatedFare = fareEstimate?.totalFare || fareEstimate?.total || 0
+        setCustomerFare(calculatedFare)
+
+        console.log('[RideDetailRequestScreen] Customer fare calculated:', {
+          distance: distanceKm,
+          duration: duration / 60,
+          fare: calculatedFare,
+        })
+      } catch (error) {
+        console.error('[RideDetailRequestScreen] Error calculating fare:', error)
+        // Fallback to ride totalFare if calculation fails
+        setCustomerFare(ride?.totalFare || 0)
+      } finally {
+        setCalculatingFare(false)
+      }
+    }
+
+    if (pickupCoordinates && dropoffCoordinates && ride) {
+      calculateCustomerFare()
+    }
+  }, [pickupCoordinates, dropoffCoordinates, ride])
 
   useEffect(() => {
     return () => {
@@ -85,7 +155,13 @@ export default function RideDetailRequestScreen() {
         dropoffCoordinates,
         pickupAddress,
         dropoffAddress,
+        customerFare,
+        customerDistance,
       })
+
+      // Use calculated customer fare, not driver's total fare
+      const fareToUse = customerFare || ride.totalFare
+      const distanceToUse = customerDistance || ride.distance
 
       // Create combined trip request
       const request = await combinedTripsService.createCombinedTripRequest(
@@ -95,9 +171,9 @@ export default function RideDetailRequestScreen() {
         dropoffAddress,
         pickupCoordinates,
         dropoffCoordinates,
-        ride.distance,
-        ride.totalFare,
-        1
+        distanceToUse,
+        fareToUse * selectedSeats.length,
+        selectedSeats.length
       )
 
       console.log('Request created:', request._id)
@@ -155,7 +231,7 @@ export default function RideDetailRequestScreen() {
               ]
             )
           }, 500)
-        } else if (status.status === 'rejected') {
+        } else if (status.status === 'rejected' || status.status === 'deleted') {
           setRequestStatus('rejected')
           setRequesting(false)
           clearInterval(statusCheckInterval.current!)
@@ -325,29 +401,35 @@ export default function RideDetailRequestScreen() {
                       <View style={{ width: 48 }} /> {/* Empty space for driver side */}
                       <TouchableOpacity
                         disabled={seatsState[0] === 'occupied'}
-                        onPress={() => setSelectedSeat(seatsState[0] === 'available' ? 0 : null)}
+                        onPress={() => {
+                          if (selectedSeats.includes(0)) {
+                            setSelectedSeats(selectedSeats.filter(s => s !== 0))
+                          } else {
+                            setSelectedSeats([...selectedSeats, 0])
+                          }
+                        }}
                         style={[
                           styles.seatButtonCar,
                           {
                             backgroundColor:
                               seatsState[0] === 'occupied'
                                 ? colors.border
-                                : selectedSeat === 0
+                                : selectedSeats.includes(0)
                                   ? '#53d22d'
                                   : 'transparent',
                             borderColor:
                               seatsState[0] === 'occupied'
                                 ? colors.border
-                                : selectedSeat === 0
+                                : selectedSeats.includes(0)
                                   ? '#53d22d'
                                   : colors.border,
                           },
                         ]}
                       >
                         <MaterialIcons
-                          name={seatsState[0] === 'occupied' ? 'person' : selectedSeat === 0 ? 'check' : 'chair'}
+                          name={seatsState[0] === 'occupied' ? 'person' : selectedSeats.includes(0) ? 'check' : 'chair'}
                           size={20}
-                          color={seatsState[0] === 'occupied' ? colors.textSecondary : selectedSeat === 0 ? 'black' : colors.textSecondary}
+                          color={seatsState[0] === 'occupied' ? colors.textSecondary : selectedSeats.includes(0) ? 'black' : colors.textSecondary}
                         />
                       </TouchableOpacity>
                     </View>
@@ -356,85 +438,103 @@ export default function RideDetailRequestScreen() {
                     <View style={styles.seatsRow}>
                       <TouchableOpacity
                         disabled={seatsState[1] === 'occupied'}
-                        onPress={() => setSelectedSeat(seatsState[1] === 'available' ? 1 : null)}
+                        onPress={() => {
+                          if (selectedSeats.includes(1)) {
+                            setSelectedSeats(selectedSeats.filter(s => s !== 1))
+                          } else {
+                            setSelectedSeats([...selectedSeats, 1])
+                          }
+                        }}
                         style={[
                           styles.seatButtonCar,
                           {
                             backgroundColor:
                               seatsState[1] === 'occupied'
                                 ? colors.border
-                                : selectedSeat === 1
+                                : selectedSeats.includes(1)
                                   ? '#53d22d'
                                   : 'transparent',
                             borderColor:
                               seatsState[1] === 'occupied'
                                 ? colors.border
-                                : selectedSeat === 1
+                                : selectedSeats.includes(1)
                                   ? '#53d22d'
                                   : colors.border,
                           },
                         ]}
                       >
                         <MaterialIcons
-                          name={seatsState[1] === 'occupied' ? 'person' : selectedSeat === 1 ? 'check' : 'chair'}
+                          name={seatsState[1] === 'occupied' ? 'person' : selectedSeats.includes(1) ? 'check' : 'chair'}
                           size={20}
-                          color={seatsState[1] === 'occupied' ? colors.textSecondary : selectedSeat === 1 ? 'black' : colors.textSecondary}
+                          color={seatsState[1] === 'occupied' ? colors.textSecondary : selectedSeats.includes(1) ? 'black' : colors.textSecondary}
                         />
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         disabled={seatsState[2] === 'occupied'}
-                        onPress={() => setSelectedSeat(seatsState[2] === 'available' ? 2 : null)}
+                        onPress={() => {
+                          if (selectedSeats.includes(2)) {
+                            setSelectedSeats(selectedSeats.filter(s => s !== 2))
+                          } else {
+                            setSelectedSeats([...selectedSeats, 2])
+                          }
+                        }}
                         style={[
                           styles.seatButtonCar,
                           {
                             backgroundColor:
                               seatsState[2] === 'occupied'
                                 ? colors.border
-                                : selectedSeat === 2
+                                : selectedSeats.includes(2)
                                   ? '#53d22d'
                                   : 'transparent',
                             borderColor:
                               seatsState[2] === 'occupied'
                                 ? colors.border
-                                : selectedSeat === 2
+                                : selectedSeats.includes(2)
                                   ? '#53d22d'
                                   : colors.border,
                           },
                         ]}
                       >
                         <MaterialIcons
-                          name={seatsState[2] === 'occupied' ? 'person' : selectedSeat === 2 ? 'check' : 'chair'}
+                          name={seatsState[2] === 'occupied' ? 'person' : selectedSeats.includes(2) ? 'check' : 'chair'}
                           size={20}
-                          color={seatsState[2] === 'occupied' ? colors.textSecondary : selectedSeat === 2 ? 'black' : colors.textSecondary}
+                          color={seatsState[2] === 'occupied' ? colors.textSecondary : selectedSeats.includes(2) ? 'black' : colors.textSecondary}
                         />
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         disabled={seatsState[3] === 'occupied'}
-                        onPress={() => setSelectedSeat(seatsState[3] === 'available' ? 3 : null)}
+                        onPress={() => {
+                          if (selectedSeats.includes(3)) {
+                            setSelectedSeats(selectedSeats.filter(s => s !== 3))
+                          } else {
+                            setSelectedSeats([...selectedSeats, 3])
+                          }
+                        }}
                         style={[
                           styles.seatButtonCar,
                           {
                             backgroundColor:
                               seatsState[3] === 'occupied'
                                 ? colors.border
-                                : selectedSeat === 3
+                                : selectedSeats.includes(3)
                                   ? '#53d22d'
                                   : 'transparent',
                             borderColor:
                               seatsState[3] === 'occupied'
                                 ? colors.border
-                                : selectedSeat === 3
+                                : selectedSeats.includes(3)
                                   ? '#53d22d'
                                   : colors.border,
                           },
                         ]}
                       >
                         <MaterialIcons
-                          name={seatsState[3] === 'occupied' ? 'person' : selectedSeat === 3 ? 'check' : 'chair'}
+                          name={seatsState[3] === 'occupied' ? 'person' : selectedSeats.includes(3) ? 'check' : 'chair'}
                           size={20}
-                          color={seatsState[3] === 'occupied' ? colors.textSecondary : selectedSeat === 3 ? 'black' : colors.textSecondary}
+                          color={seatsState[3] === 'occupied' ? colors.textSecondary : selectedSeats.includes(3) ? 'black' : colors.textSecondary}
                         />
                       </TouchableOpacity>
                     </View>
@@ -477,15 +577,21 @@ export default function RideDetailRequestScreen() {
           {/* Sticky Footer */}
           <View style={[styles.footer, { backgroundColor: colors.bgSecondary, borderTopColor: colors.border }]}>
             <View style={styles.priceSection}>
-              <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Tổng cộng (1 ghế)</Text>
+              <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Tổng cộng ({selectedSeats.length} ghế)</Text>
               <View style={styles.priceValue}>
-                <Text style={[styles.price, { color: colors.text }]}>₫{ride.totalFare.toLocaleString()}</Text>
+                {calculatingFare ? (
+                  <ActivityIndicator size="small" color="#53d22d" />
+                ) : (
+                  <Text style={[styles.price, { color: colors.text }]}>
+                    ₫{((customerFare || ride.totalFare) * (selectedSeats.length || 1)).toLocaleString()}
+                  </Text>
+                )}
               </View>
             </View>
             <TouchableOpacity
               style={[styles.bookButton, { backgroundColor: '#53d22d' }]}
               onPress={handleRequestRide}
-              disabled={requesting || availableSeats <= 0}
+              disabled={requesting || availableSeats <= 0 || calculatingFare || selectedSeats.length === 0}
             >
               {requesting ? (
                 <ActivityIndicator color="black" size={20} />

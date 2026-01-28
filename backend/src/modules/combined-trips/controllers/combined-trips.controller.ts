@@ -159,8 +159,8 @@ export class CombinedTripsController {
 
   /**
    * GET /combined-trips/customer/:customerId
-   * Get all combined trips (history) for a specific customer
-   * Using regex to match exactly 'customer/:customerId'
+   * Get all combined trips (history) for a specific customer with their specific pickup/dropoff locations
+   * Returns combined trips with embedded customer's RideRequest data
    */
   @Get('customer/:customerId')
   async getCustomerTrips(
@@ -179,45 +179,70 @@ export class CombinedTripsController {
       const customerIdObj = new Types.ObjectId(customerId);
       console.log('[CombinedTripsController] Converted to ObjectId:', customerIdObj);
 
-      // Find all combined trips where this customer is in customerId array
-      const combinedTripModel = this.combinedTripsService.getCombinedTripsModel();
-      console.log('[CombinedTripsController] Got model, querying...');
-
-      const trips = await combinedTripModel
+      // Step 1: Get all RideRequests for this customer (to get combined trips they booked)
+      const rideRequests = await this.rideRequestModel
         .find({
-          customerId: { $in: [customerIdObj] },
+          customerId: customerIdObj,
+          tripType: 'combined_trip',
         })
-        .populate('driverId', 'firstName lastName phone avatar rating vehicleModel vehicleColor vehiclePlate currentLocation')
+        .populate({
+          path: 'combinedTripId',
+          populate: {
+            path: 'driverId',
+            select: 'firstName lastName phone avatar rating vehicleModel vehiclePlate',
+          }
+        })
         .sort({ createdAt: -1 })
         .exec();
 
-      console.log('[CombinedTripsController] ✅ Found customer trips:', trips.length);
-      return trips || [];
+      console.log('[CombinedTripsController] Found ride requests:', rideRequests.length);
+
+      // Step 2: Extract combined trip IDs and enrich with customer's specific pickup/dropoff
+      const enrichedTrips = rideRequests.map((request: any) => {
+        const trip = request.combinedTripId;
+        if (!trip) return null;
+
+        console.log('[CombinedTripsController] Processing trip:', {
+          tripId: trip._id,
+          customerPickupAddress: request.pickupAddress,
+          customerDropoffAddress: request.dropoffAddress,
+          driverId: trip.driverId,
+          tripPickupAddress: trip.pickupAddress,
+          tripDropoffAddress: trip.dropoffAddress,
+        });
+
+        const tripObj = trip.toObject ? trip.toObject() : trip;
+
+        // IMPORTANT: Customer's locations must override driver's route
+        // This is why we set customer fields AFTER spreading trip object
+        return {
+          ...tripObj,
+          // Override with customer's specific locations from RideRequest (these take priority)
+          pickupAddress: request.pickupAddress,  // Customer's pickup, not driver's route
+          dropoffAddress: request.dropoffAddress,  // Customer's dropoff, not driver's route
+          pickupLocationAddress: request.pickupAddress,
+          dropoffLocationAddress: request.dropoffAddress,
+          customerPickupAddress: request.pickupAddress,
+          customerDropoffAddress: request.dropoffAddress,
+          customerPickupCoordinates: request.pickupCoordinates,
+          customerDropoffCoordinates: request.dropoffCoordinates,
+          customerFare: request.fare,
+          customerSeats: request.seats,
+          requestStatus: request.status,
+          // Keep original driver route for reference (for debugging)
+          driverPickupAddress: tripObj.pickupAddress,
+          driverDropoffAddress: tripObj.dropoffAddress,
+        };
+      }).filter(t => t !== null);
+
+      console.log('[CombinedTripsController] ✅ Found enriched customer trips:', enrichedTrips.length);
+      return enrichedTrips || [];
     } catch (error: any) {
       console.error('[CombinedTripsController] ❌ Error getting customer trips:', {
         message: error.message,
         stack: error.stack
       });
       throw new BadRequestException('Failed to get customer trips: ' + error.message);
-    }
-  }
-
-  /**
-   * GET /combined-trips/:combinedTripId
-   * Get combined trip detail with enriched customer data
-   * Route order ensures specific routes (customer/, find-share-rides) match first
-   */
-  @Get(':combinedTripId')
-  async getCombinedTripDetail(@Param('combinedTripId') combinedTripId: string) {
-    try {
-      console.log('[CombinedTripsController] Getting combined trip detail:', combinedTripId);
-
-      const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
-
-      return trip;
-    } catch (error: any) {
-      console.error('[CombinedTripsController] Error:', error);
-      throw error;
     }
   }
 
@@ -230,21 +255,46 @@ export class CombinedTripsController {
     @Param('combinedTripId') combinedTripId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] Getting requests for combinedTripId:', combinedTripId);
+      console.log('');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('[CombinedTripsController] 🔴 ENDPOINT /requests GỌI');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('[CombinedTripsController] 🔍 Getting requests for combinedTripId:', combinedTripId);
 
       const combinedTripIdObj = new Types.ObjectId(combinedTripId);
+      console.log('[CombinedTripsController] ✅ Converted to ObjectId:', combinedTripIdObj.toString());
 
+      console.log('[CombinedTripsController] 🔄 About to query database...');
       const requests = await this.rideRequestModel.find({
         combinedTripId: combinedTripIdObj,
-        status: 'pending',
+        // ✅ BỎ FILTER status: 'pending' - LẤY TẤT CẢ REQUESTS BẤT KỂ STATUS
+        // Lý do: Status có thể thay đổi (pending → accepted → in_progress → completed)
+        // Frontend cần lấy request của user bất kể status hiện tại là gì
       })
         .populate('customerId', 'name phone rating')
         .sort({ createdAt: -1 });
 
-      console.log('[CombinedTripsController] Found requests:', requests.length);
+      console.log('[CombinedTripsController] ✅ Query completed successfully');
+      console.log('[CombinedTripsController] ✅ Found requests:', {
+        count: requests.length,
+        combinedTripId,
+        requestDetails: requests.map(r => ({ 
+          _id: r._id.toString(), 
+          status: r.status,
+          customerId: r.customerId,
+          fare: r.fare,
+          createdAt: r.createdAt,
+        })),
+      });
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('');
       return requests;
     } catch (error: any) {
-      console.error('[CombinedTripsController] Error getting requests:', error);
+      console.error('[CombinedTripsController] ❌ Error getting requests:', {
+        message: error.message,
+        stack: error.stack,
+        error: error,
+      });
       throw error;
     }
   }
@@ -273,6 +323,7 @@ export class CombinedTripsController {
       throw error;
     }
   }
+  
 
   /**
    * POST /combined-trips/:combinedTripId/requests
@@ -347,7 +398,7 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] Getting request status:', {
+      console.log('[CombinedTripsController] 🔍 Getting request status:', {
         combinedTripId,
         requestId,
       });
@@ -355,12 +406,27 @@ export class CombinedTripsController {
       const request = await this.rideRequestModel.findById(requestId);
 
       if (!request) {
-        throw new BadRequestException('Request not found');
+        console.warn('[CombinedTripsController] ⚠️ Request not found (possibly deleted):', requestId);
+        // Return a response indicating the request was deleted/rejected
+        return {
+          _id: requestId,
+          status: 'deleted',
+          message: 'Request not found - may have been deleted or rejected',
+        };
       }
 
-      return { status: request.status };
+      console.log('[CombinedTripsController] ✅ Request tìm thấy:', {
+        _id: request._id,
+        status: request.status,
+        combinedTripId: request.combinedTripId,
+        customerId: request.customerId,
+        fare: request.fare,
+        all: JSON.stringify(request),
+      });
+
+      return request;
     } catch (error: any) {
-      console.error('[CombinedTripsController] Error:', error);
+      console.error('[CombinedTripsController] Lỗi:', error);
       throw error;
     }
   }
@@ -440,6 +506,35 @@ export class CombinedTripsController {
       throw error;
     }
   }
+
+  /**
+   * DELETE /combined-trips/:combinedTripId/requests/:requestId
+   * Delete request completely from database
+   */
+  // @Patch(':combinedTripId/requests/:requestId/delete')
+  // async deleteRequest(
+  //   @Param('combinedTripId') combinedTripId: string,
+  //   @Param('requestId') requestId: string,
+  // ) {
+  //   try {
+  //     console.log('[CombinedTripsController] Deleting request:', {
+  //       combinedTripId,
+  //       requestId,
+  //     });
+
+  //     const deletedRequest = await this.rideRequestModel.findByIdAndDelete(requestId);
+
+  //     if (!deletedRequest) {
+  //       throw new BadRequestException('Request not found');
+  //     }
+
+  //     console.log('[CombinedTripsController] ✅ Request deleted:', requestId);
+  //     return { message: 'Request deleted successfully', deletedId: requestId };
+  //   } catch (error: any) {
+  //     console.error('[CombinedTripsController] Error deleting request:', error);
+  //     throw error;
+  //   }
+  // }
 
   /**
    * PATCH /combined-trips/:combinedTripId/requests/:requestId/mark-arrived
@@ -626,6 +721,25 @@ export class CombinedTripsController {
         distance: 0,
         duration: 0,
       };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /combined-trips/:combinedTripId
+   * Get combined trip detail with enriched customer data
+   * Route order: This route MUST be last to avoid matching specific routes
+   */
+  @Get(':combinedTripId')
+  async getCombinedTripDetail(@Param('combinedTripId') combinedTripId: string) {
+    try {
+      console.log('[CombinedTripsController] Getting combined trip detail:', combinedTripId);
+
+      const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
+
+      return trip;
     } catch (error: any) {
       console.error('[CombinedTripsController] Error:', error);
       throw error;

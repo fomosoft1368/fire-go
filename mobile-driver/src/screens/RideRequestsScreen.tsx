@@ -22,7 +22,7 @@ interface CustomerRequest {
     rating: number
   }
   rideId: string
-  status: 'pending' | 'accepted' | 'rejected'
+  status: 'pending' | 'accepted' | 'rejected' | 'refuse'
   pickupAddress: string
   dropoffAddress: string
   pickupCoordinates: [number, number]
@@ -43,11 +43,24 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const combinedTripId = route?.params?.combinedTripId
   const sourceType = route?.params?.sourceType // 'ride' or 'combined_trip'
 
+  // Load requests on mount
   useEffect(() => {
     const tripId = combinedTripId || rideId
     if (tripId) {
       loadRequests()
     }
+  }, [combinedTripId, rideId])
+
+  // Auto-refresh requests every 3 seconds to sync with modal actions
+  useEffect(() => {
+    const tripId = combinedTripId || rideId
+    if (!tripId) return
+
+    const interval = setInterval(() => {
+      loadRequests()
+    }, 3000) // Refresh every 3 seconds
+
+    return () => clearInterval(interval)
   }, [combinedTripId, rideId])
 
   const loadRequests = async () => {
@@ -72,7 +85,10 @@ export default function RideRequestsScreen({ navigation, route }: any) {
       if (!response.ok) throw new Error(`Failed: ${response.status}`)
 
       const data = await response.json()
-      setRequests(data || [])
+      // Only show pending requests (accepted/rejected will be hidden)
+      const pendingRequests = (data || []).filter((req: CustomerRequest) => req.status === 'pending')
+      setRequests(pendingRequests)
+      console.log('✅ Loaded requests:', pendingRequests.length, 'pending')
     } catch (error: any) {
       console.error('❌ Error loading requests:', error)
       Alert.alert('Lỗi', 'Không thể tải yêu cầu')
@@ -170,6 +186,7 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   }
 
   const acceptedCount = requests.filter(r => r.status === 'accepted').length
+  const pendingCount = requests.filter(r => r.status === 'pending').length
 
   return (
     <SafeAreaView style={styles.container}>
@@ -202,11 +219,11 @@ export default function RideRequestsScreen({ navigation, route }: any) {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Headline */}
         <View style={styles.headline}>
-          <Text style={styles.headlineText}>Yêu cầu mới ({requests.length})</Text>
+          <Text style={styles.headlineText}>Yêu cầu mới ({pendingCount})</Text>
           <Text style={styles.autoText}>Tự động nhận</Text>
         </View>
 
-        {requests.length === 0 ? (
+        {pendingCount === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons name="inbox" size={48} color={COLORS.textSecondary} />
             <Text style={styles.emptyText}>Không có yêu cầu nào</Text>
@@ -217,7 +234,7 @@ export default function RideRequestsScreen({ navigation, route }: any) {
         ) : (
           <>
             <FlatList
-              data={requests.filter(r => r.status === 'pending')}
+              data={requests}
               keyExtractor={item => item._id}
               scrollEnabled={false}
               renderItem={({ item, index }) => (

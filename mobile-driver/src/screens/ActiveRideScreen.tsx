@@ -18,6 +18,9 @@ import * as Location from 'expo-location'
 import { COLORS } from '../constants'
 import { API_BASE_URL } from '../constants/config'
 import ChatScreen from './ChatScreen'
+import { driverService } from '../services/driverService'
+import { useSelector } from 'react-redux'
+import type { RootState } from '../redux/store'
 
 // Google Maps API Key from .env
 const GOOGLE_MAPS_API_KEY = 'AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY'
@@ -50,6 +53,8 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
   const [fetchAttempts, setFetchAttempts] = useState(0)
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{latitude: number, longitude: number}>>([])
   
+  // Get driver from Redux
+  const driver = useSelector((state: RootState) => state.auth.user)
   const statusFadeAnim = useRef(new Animated.Value(0)).current
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isMountedRef = useRef(true)
@@ -170,6 +175,46 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       }
     }
   }, [])
+
+  // Update driver location on server when currentLocation changes
+  useEffect(() => {
+    if (!currentLocation || !driver?._id) {
+      console.log('[ActiveRideScreen] ⏭️ Skipping location update:', {
+        hasLocation: !!currentLocation,
+        hasDriver: !!driver?._id,
+      })
+      return
+    }
+
+    const updateServerLocation = async () => {
+      try {
+        const [lng, lat] = currentLocation
+        console.log('[ActiveRideScreen] 📤 Updating driver location on server:', {
+          lng,
+          lat,
+          driverId: driver._id,
+        })
+
+        const response = await driverService.updateLocation(driver._id, {
+          coordinates: [lng, lat],
+        })
+
+        console.log('[ActiveRideScreen] ✅ Location updated on server:', {
+          lng,
+          lat,
+          response: response ? 'success' : 'no response',
+        })
+      } catch (error: any) {
+        console.warn('[ActiveRideScreen] ⚠️ Failed to update location on server:', {
+          error: error.message,
+          location: currentLocation,
+        })
+      }
+    }
+
+    updateServerLocation()
+  }, [currentLocation, driver?._id])
+
 
   // Fetch ride detail từ API
   useEffect(() => {

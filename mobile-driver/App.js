@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { StyleSheet, ActivityIndicator, View } from 'react-native'
+import { Audio } from 'expo-av'
 import 'react-native-gesture-handler'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
@@ -26,6 +27,7 @@ import CreateRideScreen from './src/screens/CreateRideScreen'
 import TripActivities from './src/screens/TripActivities'
 import DeliveryRequestsScreen from './src/screens/DeliveryRequestsScreen'
 import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
+import GlobalRequestModal from './src/components/GlobalRequestModal'
 //
 
 
@@ -63,7 +65,7 @@ const MainNavigator = () => (
     screenOptions={({ route }) => ({
       headerShown: false,
       tabBarIcon: ({ color, size }) => {
-        let iconName: any
+        let iconName
 
         if (route.name === 'HomeTab') {
           iconName = 'route'
@@ -218,6 +220,82 @@ console.log('[App] Fetching user profile with token...')
     checkAuth()
   }, [dispatch])
 
+  // Global polling for pending requests (runs on all screens)
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    console.log('[App] 📬 Starting global pending requests polling...')
+    let isMounted = true
+
+    const pollPendingRequests = async () => {
+      try {
+        // Get all my combined trips to poll for requests
+        const driverService = require('./src/services/driverService').driverService
+        const allCombinedTrips = await driverService.getMyCombinedTrips()
+
+        for (const trip of allCombinedTrips) {
+          if (!isMounted) return
+
+          const API_URL = 'http://192.168.1.18:3000/api'
+          try {
+            const response = await fetch(
+              `${API_URL}/combined-trips/${trip._id}/requests`,
+              { headers: { 'Content-Type': 'application/json' } }
+            )
+
+            if (!response.ok) continue
+
+            const requests = await response.json()
+
+            if (requests && requests.length > 0) {
+              // Get the first (most recent) pending request
+              const firstRequest = requests[0]
+
+              // Show modal notification via listener pattern
+              // (We'll emit this to HomeScreen via global state or listener)
+              console.log('[App] 📬 Found pending request:', firstRequest._id)
+
+              // Store in AsyncStorage for any screen to access
+              await AsyncStorage.setItem(
+                'pendingRequestNotification',
+                JSON.stringify({
+                  request: firstRequest,
+                  combinedTripId: trip._id,
+                  timestamp: Date.now(),
+                })
+              )
+
+              // Play notification sound
+              try {
+                const { sound } = await Audio.Sound.createAsync(
+                  require('./src/assets/sounds/notification.mp3')
+                )
+                await sound.setPositionAsync(0)
+                await sound.setVolumeAsync(1.0)
+                await sound.playAsync()
+              } catch (e) {
+                console.log('[App] Notification sound error:', e)
+              }
+            }
+          } catch (error) {
+            console.error('[App] Poll error for trip:', trip._id, error)
+          }
+        }
+      } catch (error) {
+        console.error('[App] ❌ Global polling error:', error)
+      }
+    }
+
+    // Poll every 5 seconds
+    const interval = setInterval(pollPendingRequests, 5000)
+    pollPendingRequests() // Initial poll
+
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, [isAuthenticated])
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#101922' }}>
@@ -259,6 +337,7 @@ export default function App() {
     <Provider store={store}>
       <NavigationContainer>
         <RootNavigator />
+        <GlobalRequestModal />
       </NavigationContainer>
     </Provider>
   )
