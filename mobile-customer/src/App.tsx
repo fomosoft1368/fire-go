@@ -9,13 +9,14 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted,DriverFoundScreen } from './screens'
+import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen } from './screens'
 import { View, Text } from 'react-native'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
 import type { RootStackParamList } from './types'
 import { notificationService } from './services/notificationService'
+import RideTracking from './screens/RideTracking'
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 const Tab = createBottomTabNavigator()
@@ -218,6 +219,8 @@ const RootNavigator = () => {
             <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} />
             <Stack.Screen name="BookRide" component={RideSharing} />
             <Stack.Screen name="HireDriver" component={HireDriverScreen} />
+            <Stack.Screen name="RideTracking" component={RideTracking} />
+            <Stack.Screen name="RatingDriver" component={RatingDriverScreen} />
             <Stack.Screen name="Delivery" component={Delivery} />
             <Stack.Screen name="RideDetailRequest" component={RideDetailRequestScreen} />
             <Stack.Screen name="FindingRideScreen" component={FindingRideScreen} />

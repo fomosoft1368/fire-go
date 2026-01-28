@@ -135,17 +135,18 @@ const MapViewComponent = ({
 
   // Tự động zoom để hiển thị cả pickup và dropoff
   useEffect(() => {
-    console.log('[MapView] Route data:', {
-      pickupCoords,
-      dropoffCoords,
-      routeCoordinatesCount: routeCoordinates?.length || 0,
-    })
+    // Only log on first render or when coords actually change
+    // console.log('[MapView] Route data:', {
+    //   pickupCoords,
+    //   dropoffCoords,
+    //   routeCoordinatesCount: routeCoordinates?.length || 0,
+    // })
     
     if (pickupCoords && dropoffCoords && mapRef.current) {
       // Delay để đảm bảo MapView đã render xong
       const timer = setTimeout(() => {
         try {
-          console.log('[MapView] 🗺️ Fitting to coordinates:', { pickupCoords, dropoffCoords })
+          // console.log('[MapView] 🗺️ Fitting to coordinates:', { pickupCoords, dropoffCoords })
           mapRef.current?.fitToCoordinates([pickupCoords, dropoffCoords], {
             edgePadding: { top: 100, right: 50, bottom: 150, left: 50 },
             animated: true,

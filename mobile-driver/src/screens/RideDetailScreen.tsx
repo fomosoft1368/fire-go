@@ -14,6 +14,9 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import MapView, { Marker, Polyline } from 'react-native-maps'
+import { useSelector } from 'react-redux'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { RootState } from '../redux/store'
 import { COLORS } from '../constants'
 import MapViewComponent from '../components/MapView'
 interface RideDetailScreenProps {
@@ -33,6 +36,7 @@ interface Customer {
 }
 
 export default function RideDetailScreen({ navigation, route }: RideDetailScreenProps) {
+  const { user } = useSelector((state: RootState) => state.auth)
   const [ride, setRide] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
@@ -210,8 +214,50 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     )
   }
 
-  const handleEditRide = () => {
-    navigation.navigate('TripActivities', { rideId, isEdit: true })
+  const handleAcceptRide = async () => {
+    if (!user || !user.id) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin tài xế. Vui lòng đăng nhập lại.')
+      return
+    }
+
+    setUpdating(true)
+    try {
+      // Get token from AsyncStorage
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
+      }
+
+      const API_URL = 'http://192.168.1.16:3000/api'
+      console.log('🚗 Accepting ride:', { rideId, driverId: user.id })
+      console.log('🔑 Using token:', token.substring(0, 20) + '...')
+
+      const response = await fetch(`${API_URL}/rides/${rideId}/accept`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ driverId: user.id }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `Failed: ${response.status}`)
+      }
+
+      const updated = await response.json()
+      console.log('✅ Ride accepted:', updated)
+      setRide(updated)
+
+      // Navigate to TripActivities after successfully accepting
+      navigation.navigate('TripActivities', { rideId, isEdit: false })
+    } catch (error: any) {
+      console.error('❌ Error accepting ride:', error.message)
+      Alert.alert('Lỗi', error.message || 'Không thể nhận chuyến đi')
+    } finally {
+      setUpdating(false)
+    }
   }
   const handleCancelRide = () => {
     Alert.alert(
@@ -314,101 +360,115 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           style={styles.cardContent}
           contentContainerStyle={styles.cardContentContainer}
         >
-            {/* Trip Header */}
-            <View style={styles.tripHeader}>
-              <View style={styles.tripHeaderLeft}>
-                <Text style={styles.tripTitle}>Yêu cầu chuyến đi</Text>
-                <Text style={styles.tripCode}>#{ride?._id?.substring(0, 8) || '...'}</Text>
+          {/* Trip Header */}
+          <View style={styles.tripHeader}>
+            <View style={styles.tripHeaderLeft}>
+              <Text style={styles.tripTitle}>Yêu cầu chuyến đi</Text>
+              <Text style={styles.tripCode}>#{ride?._id?.substring(0, 8) || '...'}</Text>
+            </View>
+            <View style={styles.statusBadge}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>Chờ nhận</Text>
+            </View>
+          </View>
+
+          {/* Distance to Pickup */}
+          <View style={styles.distanceToPickupCard}>
+            <View style={styles.distanceToPickupLeft}>
+              <MaterialIcons name="navigation" size={24} color="#FF6B00" />
+              <View style={styles.distanceToPickupInfo}>
+                <Text style={styles.distanceToPickupLabel}>Khoảng cách đến điểm đón</Text>
+                <Text style={styles.distanceToPickupValue}>2.3 km • 8 phút</Text>
               </View>
-              <View style={styles.statusBadge}>
-                <View style={styles.statusDot} />
-                <Text style={styles.statusText}>Chờ nhận</Text>
+            </View>
+            <TouchableOpacity style={styles.navigationButton}>
+              <MaterialIcons name="directions" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Trip Details */}
+          <View style={styles.tripDetailsSection}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="info-outline" size={20} color="#9CA3AF" />
+              <Text style={styles.sectionTitle}>Chi tiết chuyến đi</Text>
+            </View>
+            <View style={styles.detailsGrid}>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Giá cước</Text>
+                <Text style={styles.detailValue}>{ride?.price || '75.000'}đ</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Khoảng cách</Text>
+                <Text style={styles.detailValue}>8.5 km</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Thời gian</Text>
+                <Text style={styles.detailValue}>25 phút</Text>
+              </View>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Thanh toán</Text>
+                <Text style={styles.detailValue}>Tiền mặt</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Route Section */}
+          <View style={styles.routeSection}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="route" size={20} color="#9CA3AF" />
+              <Text style={styles.sectionTitle}>Lộ trình</Text>
+            </View>
+
+            <View style={styles.locationItem}>
+              <View style={styles.locationIconWrapper}>
+                <View style={styles.pickupDot} />
+                <View style={styles.routeLine} />
+              </View>
+              <View style={styles.locationContent}>
+                <Text style={styles.locationLabel}>Điểm đón</Text>
+                <Text style={styles.locationAddress}>
+                  {ride?.pickupAddress || 'Đang tải...'}
+                </Text>
               </View>
             </View>
 
-            {/* Distance to Pickup */}
-            <View style={styles.distanceToPickupCard}>
-              <View style={styles.distanceToPickupLeft}>
-                <MaterialIcons name="navigation" size={24} color="#FF6B00" />
-                <View style={styles.distanceToPickupInfo}>
-                  <Text style={styles.distanceToPickupLabel}>Khoảng cách đến điểm đón</Text>
-                  <Text style={styles.distanceToPickupValue}>2.3 km • 8 phút</Text>
-                </View>
+            <View style={styles.locationItem}>
+              <View style={styles.locationIconWrapper}>
+                <MaterialIcons name="location-on" size={20} color="#EF4444" />
               </View>
-              <TouchableOpacity style={styles.navigationButton}>
-                <MaterialIcons name="directions" size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Trip Details */}
-            <View style={styles.tripDetailsSection}>
-              <View style={styles.sectionHeader}>
-                <MaterialIcons name="info-outline" size={20} color="#9CA3AF" />
-                <Text style={styles.sectionTitle}>Chi tiết chuyến đi</Text>
-              </View>
-              <View style={styles.detailsGrid}>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Giá cước</Text>
-                  <Text style={styles.detailValue}>{ride?.price || '75.000'}đ</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Khoảng cách</Text>
-                  <Text style={styles.detailValue}>8.5 km</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Thời gian</Text>
-                  <Text style={styles.detailValue}>25 phút</Text>
-                </View>
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailLabel}>Thanh toán</Text>
-                  <Text style={styles.detailValue}>Tiền mặt</Text>
-                </View>
+              <View style={styles.locationContent}>
+                <Text style={styles.locationLabel}>Điểm trả</Text>
+                <Text style={styles.locationAddress}>
+                  {ride?.dropoffAddress || 'Đang tải...'}
+                </Text>
               </View>
             </View>
-
-            {/* Route Section */}
-            <View style={styles.routeSection}>
-              <View style={styles.sectionHeader}>
-                <MaterialIcons name="route" size={20} color="#9CA3AF" />
-                <Text style={styles.sectionTitle}>Lộ trình</Text>
-              </View>
-
-              <View style={styles.locationItem}>
-                <View style={styles.locationIconWrapper}>
-                  <View style={styles.pickupDot} />
-                  <View style={styles.routeLine} />
-                </View>
-                <View style={styles.locationContent}>
-                  <Text style={styles.locationLabel}>Điểm đón</Text>
-                  <Text style={styles.locationAddress}>
-                    {ride?.pickupAddress || 'Đang tải...'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.locationItem}>
-                <View style={styles.locationIconWrapper}>
-                  <MaterialIcons name="location-on" size={20} color="#EF4444" />
-                </View>
-                <View style={styles.locationContent}>
-                  <Text style={styles.locationLabel}>Điểm trả</Text>
-                  <Text style={styles.locationAddress}>
-                    {ride?.dropoffAddress || 'Đang tải...'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
+          </View>
+        </ScrollView>
 
         {/* Action Buttons */}
         <View style={styles.actionContainer}>
-          <TouchableOpacity style={styles.rejectButton} onPress={handleCancelRide}>
+          <TouchableOpacity
+            style={styles.rejectButton}
+            onPress={handleCancelRide}
+            disabled={updating}
+          >
             <MaterialIcons name="close" size={20} color="#EF4444" />
             <Text style={styles.rejectButtonText}>Từ chối</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.acceptButton} onPress={handleEditRide}>
-            <MaterialIcons name="check-circle" size={20} color="#000" />
-            <Text style={styles.acceptButtonText}>Nhận cuốc</Text>
+          <TouchableOpacity
+            style={[styles.acceptButton, updating && styles.acceptButtonDisabled]}
+            onPress={handleAcceptRide}
+            disabled={updating}
+          >
+            {updating ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <>
+                <MaterialIcons name="check-circle" size={20} color="#000" />
+                <Text style={styles.acceptButtonText}>Nhận cuốc</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -693,5 +753,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#000',
+  },
+  acceptButtonDisabled: {
+    opacity: 0.6,
   },
 })

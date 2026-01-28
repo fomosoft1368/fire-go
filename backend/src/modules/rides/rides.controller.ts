@@ -18,212 +18,6 @@ export class RidesController {
     @InjectModel(Pricing.name) private pricingModel: Model<Pricing>,
     @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
   ) {}
-
-  // Seed test data route
-  @Post('seed-test-data')
-  async seedTestData() {
-    // Xóa tất cả rides cũ
-    await this.rideModel.deleteMany({});
-    
-    // Tạo 30 ride test từ các vị trí Hà Nội để customer có thể tìm thấy
-    // Các vị trí test: Hà Nội và xung quanh (trong bán kính 10km)
-    const locations = [
-      { // Hà Nội - Thủ Đức
-        pickup: [105.8542, 21.0285],
-        dropoff: [105.9000, 21.0500]
-      },
-      { // Hà Nội - Ba Đình
-        pickup: [105.8340, 21.0369],
-        dropoff: [105.8500, 21.0400]
-      },
-      { // Hà Nội - Đống Đa
-        pickup: [105.8250, 21.0100],
-        dropoff: [105.8400, 21.0300]
-      },
-      { // Hà Nội - Hai Bà Trưng
-        pickup: [105.8550, 20.9950],
-        dropoff: [105.8700, 21.0100]
-      },
-      { // Hà Nội - Hoàn Kiếm
-        pickup: [105.8450, 21.0276],
-        dropoff: [105.8600, 21.0450]
-      },
-    ];
-
-    const rides = [];
-    const now = new Date();
-
-    for (let i = 0; i < 30; i++) {
-      // Pick random location pair
-      const location = locations[i % locations.length];
-
-      const pickupCoords = { type: 'Point', coordinates: location.pickup };
-      const dropoffCoords = { type: 'Point', coordinates: location.dropoff };
-
-      rides.push({
-        customerId: [], // No customers yet (available to join)
-        driverId: new Types.ObjectId(),
-        rideType: RideType.SHARE, // Create SHARE rides only for customer to find
-        status: RideStatus.PENDING, // PENDING status so it appears in nearby search
-        pickupAddress: `Hà Nội - Điểm đón ${i + 1}`,
-        dropoffAddress: `Hà Nội - Điểm trả ${i + 1}`,
-        pickupLocation: pickupCoords,
-        dropoffLocation: dropoffCoords,
-        distance: 3 + Math.random() * 10,
-        duration: 10 + Math.random() * 30,
-        baseFare: 10000,
-        distanceFare: (3 + Math.random() * 10) * 5000,
-        timeFare: (10 + Math.random() * 30) * 500,
-        surgePricing: 0,
-        totalFare: 30000 + Math.random() * 50000,
-        paymentMethod: 'cash',
-        isPaid: false,
-        passengers: 0,
-        totalSeats: 2 + Math.floor(Math.random() * 3), // 2-4 seats available
-        requestedAt: now,
-      });
-    }
-
-    await this.rideModel.insertMany(rides);
-    return { message: 'Seeded 30 new PENDING SHARE rides around Hà Nội for customer discovery', count: 30 };
-  }
-
-  // Seed RideRequest test data
-  @Post('seed-ride-requests')
-  async seedRideRequests() {
-    try {
-      // Get first ride
-      const ride = await this.rideModel.findOne().lean();
-      if (!ride) {
-        return { message: 'No rides found. Run seed-test-data first', count: 0 };
-      }
-
-      // Create test customers
-      const User = this.rideModel.db.collection('users');
-      const RideReq = this.rideModel.db.collection('riderequests');
-
-      // Clear existing requests
-      await RideReq.deleteMany({ rideId: ride._id });
-
-      // Create 2 test customers
-      const customers = [
-        {
-          name: 'Nguyễn Văn A',
-          phone: '0901234567',
-          email: `nguyenvana${Date.now()}@test.com`,
-          role: 'customer',
-          rating: 4.8,
-          createdAt: new Date(),
-        },
-        {
-          name: 'Trần Thị B',
-          phone: '0902345678',
-          email: `tranthib${Date.now()}@test.com`,
-          role: 'customer',
-          rating: 4.5,
-          createdAt: new Date(),
-        },
-      ];
-
-      const customerDocs = await User.insertMany(customers);
-      const customerIds = Array.isArray(customerDocs) 
-        ? customerDocs.map(c => c._id) 
-        : Object.values(customerDocs.insertedIds);
-
-      // Create RideRequest records
-      const requests = [
-        {
-          rideId: ride._id,
-          customerId: customerIds[0],
-          status: 'pending',
-          seats: 1,
-          fare: 85000,
-          distance: 8.5,
-          pickupAddress: 'Tầng 1, Tòa nhà Keangnam, Phạm Hùng, Hà Nội',
-          dropoffAddress: 'Phố Huế, Hoàn Kiếm, Hà Nội',
-          pickupCoordinates: [105.78, 21.03],
-          dropoffCoordinates: [105.85, 21.03],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          rideId: ride._id,
-          customerId: customerIds[1],
-          status: 'pending',
-          seats: 1,
-          fare: 62000,
-          distance: 6.2,
-          pickupAddress: 'Bộ Quốc Phòng, Ba Đình, Hà Nội',
-          dropoffAddress: 'Lotte Center, Hai Bà Trưng, Hà Nội',
-          pickupCoordinates: [105.81, 21.05],
-          dropoffCoordinates: [105.84, 21.01],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ];
-
-      await RideReq.insertMany(requests);
-
-      // Update ride to include customer IDs
-      await this.rideModel.updateOne(
-        { _id: ride._id },
-        { customerId: customerIds, totalSeats: 4 }
-      );
-
-      return {
-        message: 'Seeded RideRequest test data',
-        rideId: ride._id,
-        customers: customerIds.length,
-        requests: requests.length,
-      };
-    } catch (error: any) {
-      return { error: error.message };
-    }
-  }
-
-  // Seed pricing data
-  @Post('seed-pricing')
-  async seedPricing() {
-    const pricingData = [
-      {
-        vehicleType: 'basic',
-        baseFare: 10000,        // Giá mở cửa 10.000 VND
-        pricePerKm: 5000,       // 5.000 VND/km
-        pricePerMinute: 1000,   // 1.000 VND/phút
-        minimumFare: 25000,     // Giá tối thiểu 25.000 VND
-        peakHourSurge: 20,      // Phụ phí giờ cao điểm 20%
-        rainyDaySurge: 15,      // Phụ phí mưa 15%
-        isActive: true,
-      },
-      {
-        vehicleType: 'comfort',
-        baseFare: 15000,        // Giá mở cửa 15.000 VND
-        pricePerKm: 7000,       // 7.000 VND/km
-        pricePerMinute: 1500,   // 1.500 VND/phút
-        minimumFare: 35000,     // Giá tối thiểu 35.000 VND
-        peakHourSurge: 25,      // Phụ phí giờ cao điểm 25%
-        rainyDaySurge: 20,      // Phụ phí mưa 20%
-        isActive: true,
-      },
-      {
-        vehicleType: 'premium',
-        baseFare: 20000,        // Giá mở cửa 20.000 VND
-        pricePerKm: 10000,      // 10.000 VND/km
-        pricePerMinute: 2000,   // 2.000 VND/phút
-        minimumFare: 50000,     // Giá tối thiểu 50.000 VND
-        peakHourSurge: 30,      // Phụ phí giờ cao điểm 30%
-        rainyDaySurge: 25,      // Phụ phí mưa 25%
-        isActive: true,
-      },
-    ];
-
-    // Delete existing pricing
-    await this.pricingModel.deleteMany({});
-
-    // Create new pricing
-    const created = await this.pricingModel.insertMany(pricingData);
-    return { message: 'Seeded pricing data for basic, comfort, and premium vehicle types', data: created };
-  }
   @Get('analytics/revenue')
   async getRevenueStats(
     @Query('startDate') startDate?: string,
@@ -482,124 +276,6 @@ export class RidesController {
     return this.ridesService.rateRide(rideId, rating, review, ratedBy);
   }
 
-  // Add passenger to ride (when driver accepts customer)
-  @Patch(':rideId/add-passenger')
-  async addPassengerToRide(
-    @Param('rideId') rideId: string,
-    @Body('customerId') customerId: string,
-    @Body('pickupCoordinates') pickupCoordinates?: [number, number],
-    @Body('dropoffCoordinates') dropoffCoordinates?: [number, number],
-    @Body('pickupAddress') pickupAddress?: string,
-    @Body('dropoffAddress') dropoffAddress?: string,
-  ) {
-    try {
-      console.log('👥 Adding passenger to ride:', { rideId, customerId, pickupCoordinates, dropoffCoordinates });
-      
-      // Find the ride
-      const ride = await this.rideModel.findById(rideId)
-        .populate('driverId')
-        .populate({
-          path: 'customerId',
-          model: 'Customer',
-          select: 'name phone rating firstName lastName avatar'
-        });
-
-      if (!ride) {
-        throw new BadRequestException('Ride not found');
-      }
-
-      // Check if customer already in ride
-      const customerObjectId = new Types.ObjectId(customerId);
-      const alreadyExists = ride.customerId?.some(c => 
-        c._id?.toString() === customerObjectId.toString()
-      );
-
-      if (!alreadyExists) {
-        ride.customerId = ride.customerId || [];
-        ride.customerId.push(customerObjectId);
-        await ride.save();
-        console.log('✅ Passenger added to ride');
-        
-        // Auto-create RideRequest for this customer if not exists
-        const RideRequestModel = this.rideModel.db.model('RideRequest');
-        const rideIdObj = new Types.ObjectId(rideId);
-        console.log('🔍 Checking for existing RideRequest:', {
-          rideId: rideIdObj.toString(),
-          customerId: customerObjectId.toString(),
-        });
-        
-        try {
-          const existingRequest = await RideRequestModel.findOne({
-            rideId: rideIdObj,
-            customerId: customerObjectId
-          });
-          
-          console.log('📋 Existing request found:', !!existingRequest, existingRequest?._id);
-          
-          if (!existingRequest) {
-            console.log('📝 Creating RideRequest for new passenger...');
-            
-            // Use customer's coordinates if provided, otherwise fallback to ride's
-            const finalPickupCoordinates = pickupCoordinates || ride.pickupLocation?.coordinates || [0, 0];
-            const finalDropoffCoordinates = dropoffCoordinates || ride.dropoffLocation?.coordinates || [0, 0];
-            const finalPickupAddress = pickupAddress || ride.pickupAddress || '';
-            const finalDropoffAddress = dropoffAddress || ride.dropoffAddress || '';
-            
-            console.log('   Final Coordinates - pickup:', finalPickupCoordinates, 'dropoff:', finalDropoffCoordinates);
-            console.log('   Final Addresses - pickup:', finalPickupAddress, 'dropoff:', finalDropoffAddress);
-            
-            const newRequest = await RideRequestModel.create({
-              rideId: rideIdObj,
-              customerId: customerObjectId,
-              pickupAddress: finalPickupAddress,
-              dropoffAddress: finalDropoffAddress,
-              pickupCoordinates: finalPickupCoordinates,
-              dropoffCoordinates: finalDropoffCoordinates,
-              distance: ride.distance || 0,
-              fare: ride.totalFare || 0,
-              status: 'pending',
-              createdAt: new Date(),
-              updatedAt: new Date()
-            });
-            console.log('✅ RideRequest created successfully:', newRequest._id.toString());
-            console.log('✅ RideRequest details:', {
-              _id: newRequest._id.toString(),
-              rideId: newRequest.rideId.toString(),
-              customerId: newRequest.customerId.toString(),
-              pickupCoordinates: newRequest.pickupCoordinates,
-              dropoffCoordinates: newRequest.dropoffCoordinates,
-              status: newRequest.status,
-            });
-            
-            // Verify it was actually saved
-            const verifyRequest = await RideRequestModel.findById(newRequest._id);
-            console.log('✅ Verification: RideRequest found in DB:', !!verifyRequest, verifyRequest?._id.toString());
-          } else {
-            console.log('⚠️ RideRequest already exists:', existingRequest._id.toString());
-          }
-        } catch (error) {
-          console.error('❌ Error creating RideRequest:', error);
-          throw error;
-        }
-      } else {
-        console.log('⚠️ Passenger already in ride');
-      }
-
-      // Return enriched ride data with all customer details
-      const updatedRide = await this.rideModel.findById(rideId)
-        .populate('driverId')
-        .populate({
-          path: 'customerId',
-          model: 'Customer',
-          select: 'name phone rating firstName lastName avatar'
-        });
-
-      return this.ridesService.getRideWithEnrichedCustomers(rideId, updatedRide);
-    } catch (error: any) {
-      throw new BadRequestException(`Failed to add passenger: ${error.message}`);
-    }
-  }
-
   // Ride Requests Management
   @Post(':rideId/requests')
   async createRideRequest(
@@ -685,78 +361,11 @@ export class RidesController {
       .sort({ createdAt: -1 })
   }
 
-  // Test endpoint to create sample RideRequest
-  @Post(':rideId/requests/test')
-  async createTestRideRequest(
-    @Param('rideId') rideId: string,
-    @Body() body?: { customerId?: string; [key: string]: any }
-  ) {
-    try {
-      console.log('🧪 [TEST] Creating test RideRequest for rideId:', rideId);
-      
-      // Get the ride to ensure it exists
-      const ride = await this.rideModel.findById(rideId);
-      if (!ride) {
-        throw new BadRequestException('Ride not found');
-      }
-
-      // Use provided customerId or first customer in ride
-      let customerId = body?.customerId;
-      if (!customerId) {
-        if (ride.customerId && ride.customerId.length > 0) {
-          customerId = ride.customerId[0].toString();
-        } else {
-          throw new BadRequestException('No customer ID provided and ride has no customers');
-        }
-      }
-
-      const testRequest = new this.rideRequestModel({
-        rideId: new Types.ObjectId(rideId),
-        customerId: new Types.ObjectId(customerId),
-        status: 'pending',
-        seats: 1,
-        fare: 50000,
-        pickupAddress: 'Hà Nội, Việt Nam',
-        dropoffAddress: 'Hồ Chí Minh, Việt Nam',
-        pickupCoordinates: [105.8386, 21.0722],
-        dropoffCoordinates: [106.6885, 10.8231],
-        distance: 1500,
-      });
-
-      console.log('💾 [TEST] Saving test request...');
-      const saved = await testRequest.save();
-      console.log('✅ [TEST] Test request saved:', {
-        _id: saved._id,
-        rideId: saved.rideId,
-        customerId: saved.customerId,
-      });
-
-      // Verify it can be found
-      const found = await this.rideRequestModel.findById(saved._id);
-      console.log('✅ [TEST] Verified request exists in DB:', !!found);
-
-      // Now test enrichment
-      const enrichedRide = await this.ridesService.getRideWithEnrichedCustomers(rideId, ride);
-      console.log('✅ [TEST] Enriched ride returned with', enrichedRide.customerId?.length || 0, 'customers');
-
-      return {
-        success: true,
-        message: 'Test RideRequest created successfully',
-        request: saved,
-        enrichedRide: enrichedRide,
-      };
-    } catch (error: any) {
-      console.error('❌ [TEST] Error:', error.message);
-      throw new BadRequestException(`Test failed: ${error.message}`);
-    }
-  }
-
   @Patch(':rideId/requests/:requestId/accept')
   async acceptRideRequest(
     @Param('rideId') rideId: string,
     @Param('requestId') requestId: string,
   ) {
-    // Update request status to accepted
     const request = await this.rideRequestModel.findByIdAndUpdate(
       requestId,
       { status: 'accepted' },
@@ -764,18 +373,8 @@ export class RidesController {
     )
 
     if (!request) {
-      throw new Error('Request not found')
+      throw new BadRequestException('Request not found')
     }
-
-    // Add customer to ride's customerId array
-    await this.rideModel.findByIdAndUpdate(
-      rideId,
-      {
-        $addToSet: { customerId: request.customerId },
-        $inc: { passengers: 1 },
-      },
-      { new: true },
-    )
 
     return request
   }
@@ -800,7 +399,6 @@ export class RidesController {
     @Param('rideId') rideId: string,
     @Param('requestId') requestId: string,
   ) {
-    // Update request status to arrived_at_pickup
     const request = await this.rideRequestModel.findByIdAndUpdate(
       requestId,
       { status: 'arrived_at_pickup' },
@@ -811,21 +409,7 @@ export class RidesController {
       throw new BadRequestException('Request not found')
     }
 
-    // Return enriched ride data
-    const ride = await this.rideModel.findById(rideId)
-      .populate('driverId')
-      .populate({
-        path: 'customerId',
-        model: 'Customer',
-        select: 'name phone rating firstName lastName avatar'
-      })
-      .exec()
-    
-    if (!ride) {
-      throw new BadRequestException('Ride not found')
-    }
-    
-    return this.ridesService.getRideWithEnrichedCustomers(rideId, ride)
+    return request
   }
 
   @Patch(':rideId/requests/:requestId/start-journey')
@@ -833,7 +417,6 @@ export class RidesController {
     @Param('rideId') rideId: string,
     @Param('requestId') requestId: string,
   ) {
-    // Update request status to in_progress
     const request = await this.rideRequestModel.findByIdAndUpdate(
       requestId,
       { status: 'in_progress' },
@@ -844,21 +427,7 @@ export class RidesController {
       throw new BadRequestException('Request not found')
     }
 
-    // Return enriched ride data
-    const ride = await this.rideModel.findById(rideId)
-      .populate('driverId')
-      .populate({
-        path: 'customerId',
-        model: 'Customer',
-        select: 'name phone rating firstName lastName avatar'
-      })
-      .exec()
-    
-    if (!ride) {
-      throw new BadRequestException('Ride not found')
-    }
-    
-    return this.ridesService.getRideWithEnrichedCustomers(rideId, ride)
+    return request
   }
 
   @Patch(':rideId/requests/:requestId/complete')
@@ -866,7 +435,6 @@ export class RidesController {
     @Param('rideId') rideId: string,
     @Param('requestId') requestId: string,
   ) {
-    // Update request status to completed
     const request = await this.rideRequestModel.findByIdAndUpdate(
       requestId,
       { status: 'completed' },
@@ -877,20 +445,6 @@ export class RidesController {
       throw new BadRequestException('Request not found')
     }
 
-    // Return enriched ride data
-    const ride = await this.rideModel.findById(rideId)
-      .populate('driverId')
-      .populate({
-        path: 'customerId',
-        model: 'Customer',
-        select: 'name phone rating firstName lastName avatar'
-      })
-      .exec()
-    
-    if (!ride) {
-      throw new BadRequestException('Ride not found')
-    }
-    
-    return this.ridesService.getRideWithEnrichedCustomers(rideId, ride)
+    return request
   }
 }

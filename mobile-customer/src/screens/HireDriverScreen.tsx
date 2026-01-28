@@ -25,8 +25,8 @@ import { SPACING, BORDER_RADIUS, COLORS_DARK, COLORS_LIGHT } from '../constants'
 import MapViewComponent from '../components/MapView'
 import ScheduleDateTimeModal from '../components/ScheduleDateTimeModal'
 import ChatScreen from './ChatScreen'
-import DriverFoundScreen from './DriverFoundScreen'
 import FindingDriverScreen from './FindingDriverScreen'
+import RideTracking from './RideTracking'
 
 interface HireDriverScreenProps {
   isScheduled?: boolean
@@ -429,11 +429,9 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   // Show driver found screen
   if (driverFound && routeInfo && driver) {
     return (
-      <DriverFoundScreen
-        driver={driver}
-        routeInfo={routeInfo}
-        onChat={() => setShowChat(true)}
-        onCancel={resetRideState}
+      <RideTracking
+        route={{ params: { rideId } }}
+        navigation={navigation}
       />
     )
   }

@@ -29,19 +29,215 @@ interface Customer {
     rating: number
     avatar?: string
     address?: string
+    totalFares?: number
 }
 
-export default function TripActivities({ }: TripActivitiesProps) {
+export default function TripActivities({ navigation, route }: TripActivitiesProps) {
+    const [ride, setRide] = useState<any>(null)
+    const [customer, setCustomer] = useState<Customer | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [updating, setUpdating] = useState(false)
+    const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+    const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+    const [tripStatus, setTripStatus] = useState<'going_to_pickup' | 'arrived_at_pickup' | 'in_progress'>('going_to_pickup')
+
+    const rideId = route?.params?.rideId
+
+    useEffect(() => {
+        if (rideId) {
+            fetchRideDetail()
+        }
+    }, [rideId])
+
+    const fetchRideDetail = async () => {
+        setLoading(true)
+        try {
+            const API_URL = 'http://192.168.1.16:3000/api'
+            const response = await fetch(`${API_URL}/rides/${rideId}`)
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch ride details')
+            }
+
+            const data = await response.json()
+            console.log('🚗 Trip data:', data)
+            setRide(data)
+            
+            // Set trip status based on ride status
+            if (data.status === 'in_progress') {
+                setTripStatus('in_progress')
+            } else if (data.status === 'accepted') {
+                setTripStatus('going_to_pickup')
+            }
+
+            // Set coordinates
+            if (data.pickupCoordinates) {
+                setPickupCoords({
+                    latitude: data.pickupCoordinates[0],
+                    longitude: data.pickupCoordinates[1],
+                })
+            }
+            if (data.dropoffCoordinates) {
+                setDropoffCoords({
+                    latitude: data.dropoffCoordinates[0],
+                    longitude: data.dropoffCoordinates[1],
+                })
+            }
+
+            // Set customer info if available
+            if (data.customerId) {
+                const customerData = Array.isArray(data.customerId) ? data.customerId[0] : data.customerId
+                if (typeof customerData === 'object') {
+                    setCustomer({
+                        _id: customerData._id || customerData.id,
+                        firstName: customerData.firstName,
+                        lastName: customerData.lastName,
+                        name: `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim() || 'Khách hàng',
+                        phone: customerData.phone || '',
+                        rating: customerData.rating || 4.5,
+                        avatar: customerData.avatar,
+                        totalFares: customerData.totalFares,
+                    })
+                }
+            }
+        } catch (error: any) {
+            console.error('❌ Error fetching ride detail:', error.message)
+            Alert.alert('Lỗi', 'Không thể tải thông tin chuyến đi')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleGoBack = () => {
+        navigation?.goBack()
+    }
+
+    const handleCall = () => {
+        if (customer?.phone) {
+            // Implement call functionality
+            Alert.alert('Gọi điện', `Gọi đến ${customer.phone}`)
+        }
+    }
+
+    const handleArrivedAtPickup = async () => {
+        setUpdating(true)
+        try {
+            // In real app, you might want to update status on backend
+            // For now, just update local state
+            setTripStatus('arrived_at_pickup')
+            Alert.alert('Thành công', 'Đã đến điểm đón. Hãy chờ khách hàng.')
+        } catch (error: any) {
+            console.error('❌ Error updating status:', error.message)
+            Alert.alert('Lỗi', 'Không thể cập nhật trạng thái')
+        } finally {
+            setUpdating(false)
+        }
+    }
+
+    const handleStartTrip = async () => {
+        setUpdating(true)
+        try {
+            // Get token from AsyncStorage
+            const AsyncStorage = require('@react-native-async-storage/async-storage').default
+            const token = await AsyncStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
+            }
+
+            const API_URL = 'http://192.168.1.16:3000/api'
+            console.log('🚗 Starting trip:', rideId)
+            
+            const response = await fetch(`${API_URL}/rides/${rideId}/start`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.message || `Failed: ${response.status}`)
+            }
+
+            const updated = await response.json()
+            console.log('✅ Trip started:', updated)
+            setRide(updated)
+            setTripStatus('in_progress')
+        } catch (error: any) {
+            console.error('❌ Error starting trip:', error.message)
+            Alert.alert('Lỗi', error.message || 'Không thể bắt đầu chuyến đi')
+        } finally {
+            setUpdating(false)
+        }
+    }
+
+    const handleCompleteTrip = async () => {
+        // Check if ride is actually in progress on backend
+        if (ride?.status !== 'in_progress') {
+            Alert.alert('Lỗi', 'Chuyến đi chưa được bắt đầu. Vui lòng bấm "Bắt đầu" trước.')
+            return
+        }
+
+        setUpdating(true)
+        try {
+            // Get token from AsyncStorage
+            const AsyncStorage = require('@react-native-async-storage/async-storage').default
+            const token = await AsyncStorage.getItem('token')
+            if (!token) {
+                throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
+            }
+
+            const API_URL = 'http://192.168.1.16:3000/api'
+            console.log('🏁 Completing trip:', rideId)
+            console.log('🔍 Current ride status:', ride?.status)
+            
+            const response = await fetch(`${API_URL}/rides/${rideId}/complete`, {
+                method: 'PATCH',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.message || `Failed: ${response.status}`)
+            }
+
+            const updated = await response.json()
+            console.log('✅ Trip completed:', updated)
+            
+            // Navigate back to home screen (MainNavigator with tabs)
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'HomeScreen' }],
+            })
+        } catch (error: any) {
+            console.error('❌ Error completing trip:', error.message)
+            Alert.alert('Lỗi', error.message || 'Không thể hoàn thành chuyến đi')
+        } finally {
+            setUpdating(false)
+        }
+    }
 
     return (
         <View style={styles.container}>
             <View style={StyleSheet.absoluteFillObject}>
                 <MapViewComponent
                     height={'100%'}
+                    initialRegion={pickupCoords ? {
+                        latitude: pickupCoords.latitude,
+                        longitude: pickupCoords.longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                    } : undefined}
+                    pickupCoords={pickupCoords}
+                    dropoffCoords={dropoffCoords}
                 />
             </View>
             <View style={styles.header}>
-                <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]}>
+                <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={handleGoBack}>
                     <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
                 </TouchableOpacity>
                 <Text style={styles.logoText}>firego</Text>
@@ -61,16 +257,16 @@ export default function TripActivities({ }: TripActivitiesProps) {
                                 <MaterialIcons name="person" size={36} color="#fff" />
                             </View>
                             <View style={styles.customerDetails}>
-                                <Text style={styles.customerName}>Nguyễn Văn A</Text>
+                                <Text style={styles.customerName}>{customer?.name || 'Khách hàng'}</Text>
                                 <View style={styles.ratingRow}>
                                     <MaterialIcons name="star" size={14} color="#FFB800" />
-                                    <Text style={styles.ratingText}>4.8</Text>
-                                    <Text style={styles.tripCount}>• 127 chuyến</Text>
+                                    <Text style={styles.ratingText}>{customer?.rating?.toFixed(1) || '4.8'}</Text>
+                                    <Text style={styles.tripCount}>• chuyến đi</Text>
                                 </View>
                             </View>
                         </View>
                         <View style={styles.actionButtons}>
-                            <TouchableOpacity style={styles.actionBtnCall}>
+                            <TouchableOpacity style={styles.actionBtnCall} onPress={handleCall}>
                                 <MaterialIcons name="call" size={20} color="#fff" />
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.actionBtnChat}>
@@ -83,7 +279,11 @@ export default function TripActivities({ }: TripActivitiesProps) {
                     <View style={styles.statusSection}>
                         <View style={styles.statusBadge}>
                             <View style={styles.statusDot} />
-                            <Text style={styles.statusText}>Đang đến điểm đón</Text>
+                            <Text style={styles.statusText}>
+                                {tripStatus === 'going_to_pickup' && 'Đang đến điểm đón'}
+                                {tripStatus === 'arrived_at_pickup' && 'Đã đến điểm đón'}
+                                {tripStatus === 'in_progress' && 'Đang trong chuyến'}
+                            </Text>
                         </View>
                         <Text style={styles.etaText}>Còn 5 phút</Text>
                     </View>
@@ -111,11 +311,11 @@ export default function TripActivities({ }: TripActivitiesProps) {
                         <View style={styles.tripInfoGrid}>
                             <View style={styles.tripInfoItem}>
                                 <Text style={styles.tripInfoLabel}>Mã chuyến</Text>
-                                <Text style={styles.tripInfoValue}>#ABC123</Text>
+                                <Text style={styles.tripInfoValue}>#{ride?._id?.substring(0, 8) || 'ABC123'}</Text>
                             </View>
                             <View style={styles.tripInfoItem}>
                                 <Text style={styles.tripInfoLabel}>Cước phí</Text>
-                                <Text style={[styles.tripInfoValue, { color: '#FF6B00' }]}>75.000đ</Text>
+                                <Text style={[styles.tripInfoValue, { color: '#FF6B00' }]}>{ride?.totalFare?.toLocaleString('vi-VN') || '75.000'}đ</Text>
                             </View>
                         </View>
                         <View style={styles.paymentBadge}>
@@ -140,12 +340,14 @@ export default function TripActivities({ }: TripActivitiesProps) {
                             <View style={styles.locationContent}>
                                 <View style={styles.locationHeader}>
                                     <Text style={styles.locationLabel}>Điểm đón</Text>
-                                    <View style={styles.distanceBadge}>
-                                        <MaterialIcons name="straighten" size={12} color="#9CA3AF" />
-                                        <Text style={styles.distanceText}>2.3 km</Text>
-                                    </View>
+                                    {ride?.distance && (
+                                        <View style={styles.distanceBadge}>
+                                            <MaterialIcons name="straighten" size={12} color="#9CA3AF" />
+                                            <Text style={styles.distanceText}>{(ride.distance / 1000).toFixed(1)} km</Text>
+                                        </View>
+                                    )}
                                 </View>
-                                <Text style={styles.locationAddress}>123 Đường Láng, Đống Đa, Hà Nội</Text>
+                                <Text style={styles.locationAddress}>{ride?.pickupAddress || 'Đang tải...'}</Text>
                             </View>
                         </View>
 
@@ -156,7 +358,7 @@ export default function TripActivities({ }: TripActivitiesProps) {
                             </View>
                             <View style={styles.locationContent}>
                                 <Text style={styles.locationLabel}>Điểm trả</Text>
-                                <Text style={styles.locationAddress}>456 Giải Phóng, Hai Bà Trưng, Hà Nội</Text>
+                                <Text style={styles.locationAddress}>{ride?.dropoffAddress || 'Đang tải...'}</Text>
                             </View>
                         </View>
                     </View>
@@ -165,12 +367,12 @@ export default function TripActivities({ }: TripActivitiesProps) {
                     <View style={styles.metricsGrid}>
                         <View style={styles.metricCard}>
                             <MaterialIcons name="straighten" size={18} color="#9CA3AF" />
-                            <Text style={styles.metricValue}>8.5 km</Text>
+                            <Text style={styles.metricValue}>{ride?.distance ? `${(ride.distance / 1000).toFixed(1)} km` : '8.5 km'}</Text>
                             <Text style={styles.metricLabel}>Tổng quãng đường</Text>
                         </View>
                         <View style={styles.metricCard}>
                             <MaterialIcons name="schedule" size={18} color="#9CA3AF" />
-                            <Text style={styles.metricValue}>25 phút</Text>
+                            <Text style={styles.metricValue}>{ride?.duration ? `${Math.round(ride.duration / 60)} phút` : '25 phút'}</Text>
                             <Text style={styles.metricLabel}>Thời gian dự kiến</Text>
                         </View>
                     </View>
@@ -178,13 +380,37 @@ export default function TripActivities({ }: TripActivitiesProps) {
 
                 {/* Fixed Bottom Actions */}
                 <View style={styles.actionContainer}>
-                    <TouchableOpacity style={styles.secondaryButton}>
+                    <TouchableOpacity 
+                        style={styles.secondaryButton}
+                        onPress={handleCall}
+                        disabled={updating}
+                    >
                         <MaterialIcons name="phone" size={20} color="#fff" />
                         <Text style={styles.secondaryButtonText}>Gọi khách</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.primaryButton}>
-                        <MaterialIcons name="check-circle" size={20} color="#000" />
-                        <Text style={styles.primaryButtonText}>Đã đến điểm đón</Text>
+                    <TouchableOpacity 
+                        style={[styles.primaryButton, updating && { opacity: 0.6 }]}
+                        onPress={
+                            tripStatus === 'going_to_pickup' 
+                                ? handleArrivedAtPickup 
+                                : tripStatus === 'arrived_at_pickup'
+                                ? handleStartTrip
+                                : handleCompleteTrip
+                        }
+                        disabled={updating}
+                    >
+                        {updating ? (
+                            <ActivityIndicator size="small" color="#000" />
+                        ) : (
+                            <>
+                                <MaterialIcons name="check-circle" size={20} color="#000" />
+                                <Text style={styles.primaryButtonText}>
+                                    {tripStatus === 'going_to_pickup' && 'Đã đến điểm đón'}
+                                    {tripStatus === 'arrived_at_pickup' && 'Bắt đầu'}
+                                    {tripStatus === 'in_progress' && 'Hoàn Thành'}
+                                </Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>

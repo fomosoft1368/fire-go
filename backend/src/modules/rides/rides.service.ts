@@ -116,7 +116,9 @@ export class RidesService {
       throw new BadRequestException('Chỉ tài xế mới có thể tạo chuyến ghép');
     }
     
-    const driverId = createRideDto.driverId || customerId;
+    // For HIRE: driverId should be null (customer creates, driver assigned later)
+    // For SHARE: driverId is the person creating (driver)
+    const driverId = rideType === RideType.HIRE ? null : (createRideDto.driverId || customerId);
 
     // Extract location hierarchy for filtering
     const pickupLoc = extractLocationHierarchy(createRideDto.pickupAddress);
@@ -136,8 +138,8 @@ export class RidesService {
     const ride = await this.rideModel.create({
       ...createRideDto,
       rideType,
-      driverId: driverId ? new Types.ObjectId(driverId) : undefined, // Only set if provided (SHARE rides)
-      customerId: [], // Khởi tạo rỗng, chỉ add khi có ride request được accept
+      driverId: driverId ? new Types.ObjectId(driverId) : null, // null for HIRE, ObjectId for SHARE
+      customerId: rideType === RideType.HIRE && customerId ? [new Types.ObjectId(customerId)] : [], // [customerId] for HIRE, [] for SHARE
       pickupLocation: {
         type: 'Point',
         coordinates: createRideDto.pickupCoordinates,

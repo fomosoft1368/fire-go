@@ -35,11 +35,11 @@ export enum RideType {
 
 @Schema({ timestamps: true })
 export class Ride {
-  @Prop({ type: [Types.ObjectId], ref: 'Customer', default: [] })
-  customerId: Types.ObjectId[];
+  @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
+  customerId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Driver' })
-  driverId?: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Driver', default: null })
+  driverId: Types.ObjectId;
 
   @Prop({
     type: String,
