@@ -369,7 +369,7 @@ export class CombinedTripsController {
    * TEMPORARY: Auth disabled for testing - will re-enable after mobile-driver fixes
    */
   @Get(':combinedTripId/requests')
-  // @UseGuards(JwtAuthGuard) // TODO: Re-enable after mobile-driver sends token
+  @UseGuards(JwtAuthGuard) // TODO: Re-enable after mobile-driver sends token
   async getCombinedTripRequests(
     @Param('combinedTripId') combinedTripId: string,
     @Query('driverId') driverId: string, // Pass driverId via query for now
