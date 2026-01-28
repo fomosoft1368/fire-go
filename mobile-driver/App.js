@@ -247,13 +247,21 @@ console.log('[App] Fetching user profile with token...')
 
             const requests = await response.json()
 
-            if (requests && requests.length > 0) {
+            // Log ALL requests to debug
+            console.log('[App] 🔍 All requests:', requests.map(r => ({ id: r._id, status: r.status })))
+
+            // Filter for PENDING requests only (not accepted/rejected/refuse)
+            const pendingRequests = (requests || []).filter(req => req.status === 'pending')
+
+            console.log('[App] ✅ Pending only:', pendingRequests.length)
+
+            if (pendingRequests && pendingRequests.length > 0) {
               // Get the first (most recent) pending request
-              const firstRequest = requests[0]
+              const firstRequest = pendingRequests[0]
 
               // Show modal notification via listener pattern
               // (We'll emit this to HomeScreen via global state or listener)
-              console.log('[App] 📬 Found pending request:', firstRequest._id)
+              console.log('[App] 📬 Found pending request:', firstRequest._id, 'Status:', firstRequest.status)
 
               // Store in AsyncStorage for any screen to access
               await AsyncStorage.setItem(

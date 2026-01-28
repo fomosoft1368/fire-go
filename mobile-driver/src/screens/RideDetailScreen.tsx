@@ -101,7 +101,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const fetchRideDetail = async () => {
     setLoading(true)
     try {
-      const API_URL = 'http://192.168.1.16:3000/api'
+      const API_URL = 'http://192.168.1.18:3000/api'
       console.log('🚗 Fetching ride detail from:', `${API_URL}/rides/${rideId}`)
       const response = await fetch(`${API_URL}/rides/${rideId}`, {
         method: 'GET',
@@ -151,7 +151,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
-              const API_URL = 'http://192.168.1.16:3000/api'
+              const API_URL = 'http://192.168.1.18:3000/api'
               const response = await fetch(`${API_URL}/rides/${rideId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -186,7 +186,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
-              const API_URL = 'http://192.168.1.16:3000/api'
+              const API_URL = 'http://192.168.1.18:3000/api'
               const response = await fetch(`${API_URL}/rides/${rideId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -225,7 +225,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
-              const API_URL = 'http://192.168.1.16:3000/api'
+              const API_URL = 'http://192.168.1.18:3000/api'
               const response = await fetch(`${API_URL}/rides/${rideId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -251,7 +251,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     if (!requestingCustomer) return
     try {
       setUpdating(true)
-      const API_URL = 'http://192.168.1.16:3000/api'
+      const API_URL = 'http://192.168.1.18:3000/api'
       const response = await fetch(`${API_URL}/rides/${rideId}/add-passenger`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

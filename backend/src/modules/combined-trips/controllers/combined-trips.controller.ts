@@ -86,6 +86,119 @@ export class CombinedTripsController {
   }
 
   /**
+   * POST /combined-trips/customer-request
+   * Customer requests a new combined trip (like Grab)
+   * System finds nearby drivers and sends notification
+   */
+  @Post('customer-request')
+  @UseGuards(JwtAuthGuard)
+  async customerRequest(@Body() requestDto: any, @Request() req: any) {
+    try {
+      const customerId = req.user?.id || req.user?.sub;
+
+      if (!customerId) {
+        throw new BadRequestException('Customer ID not found in authentication token');
+      }
+
+      console.log('🚗 [CombinedTripsController] Customer requesting combined trip:', customerId);
+      console.log('📍 Request data:', {
+        pickupAddress: requestDto.pickupAddress,
+        dropoffAddress: requestDto.dropoffAddress,
+        pickupCoordinates: requestDto.pickupCoordinates,
+        dropoffCoordinates: requestDto.dropoffCoordinates,
+        seats: requestDto.seats,
+      });
+
+      // ✅ Check if customer already has an active trip (check in CombinedTrip)
+      const activeTrip = await this.combinedTripsService.getCombinedTripsModel().findOne({
+        customerId: new Types.ObjectId(customerId),
+        status: { $in: ['pending', 'accepted', 'in_progress'] },
+      });
+
+      if (activeTrip) {
+        throw new BadRequestException('Bạn đang có chuyến đi đang hoạt động. Vui lòng hoàn thành hoặc hủy chuyến trước khi tạo chuyến mới.');
+      }
+
+      // Create combined trip from customer
+      const trip = await this.combinedTripsService.createCustomerCombinedTrip({
+        ...requestDto,
+        customerId: new Types.ObjectId(customerId),
+      });
+
+      console.log('✅ Customer combined trip created:', (trip as any)._id);
+
+      // Find nearby available drivers and send notification
+      await this.combinedTripsService.findAndNotifyDrivers((trip as any)._id.toString(), requestDto.pickupCoordinates);
+
+      return {
+        success: true,
+        trip,
+        message: 'Đang tìm tài xế gần bạn...',
+      };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error creating customer trip:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * PATCH /combined-trips/:id/cancel
+   * Cancel a trip (customer cancellation)
+   */
+  @Patch(':id/cancel')
+  @UseGuards(JwtAuthGuard)
+  async cancelTrip(
+    @Param('id') tripId: string,
+    @Request() req: any,
+  ) {
+    try {
+      // Use same pattern as customer-request endpoint
+      const customerId = req.user?.id || req.user?.sub;
+      
+      console.log('[CombinedTripsController] Cancel request - user:', req.user);
+      console.log('[CombinedTripsController] Extracted customerId:', customerId);
+      
+      if (!customerId) {
+        throw new BadRequestException('Customer ID not found in authentication token');
+      }
+
+      console.log('❌ [CombinedTripsController] Cancelling trip:', tripId, 'by customer:', customerId);
+
+      const trip = await this.combinedTripsService.findById(tripId);
+      if (!trip) {
+        throw new BadRequestException('Trip not found');
+      }
+
+      // Check if customer owns this trip
+      const customerOwnsTrip = (trip as any).customerId?.some(
+        (id: any) => id.toString() === customerId
+      );
+
+      if (!customerOwnsTrip) {
+        throw new BadRequestException('You are not authorized to cancel this trip');
+      }
+
+      // Update trip status to cancelled
+      const updatedTrip = await this.combinedTripsService.update(tripId, {
+        status: CombinedTripStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelledBy: 'customer',
+      });
+
+      console.log('✅ Trip cancelled successfully:', tripId);
+
+      return {
+        success: true,
+        trip: updatedTrip,
+        message: 'Chuyến đi đã được hủy',
+      };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error cancelling trip:', error);
+      throw error;
+    }
+  }
+
+  /**
    * GET /combined-trips
    * Get all combined trips with optional filtering
    */
@@ -446,20 +559,36 @@ export class CombinedTripsController {
         requestId,
       });
 
-      const request = await this.rideRequestModel.findByIdAndUpdate(
-        requestId,
-        { status: 'accepted' },
-        { new: true },
-      );
+      const request = await this.rideRequestModel.findById(requestId);
 
       if (!request) {
         throw new BadRequestException('Request not found');
       }
 
-      // Update combined trip status
-      await this.combinedTripsService.updateCombinedTripStatus(
+      // ✅ Check if driver already has an active trip (check in CombinedTrip by driverId)
+      const activeDriverTrip = await this.combinedTripsService.getCombinedTripsModel().findOne({
+        driverId: request.driverId,
+        status: { $in: ['pending', 'accepted', 'in_progress'] },
+      });
+
+      if (activeDriverTrip) {
+        throw new BadRequestException('Tài xế đang có chuyến đi đang hoạt động.');
+      }
+
+      // Update request status
+      await this.rideRequestModel.findByIdAndUpdate(
+        requestId,
+        { status: 'accepted' },
+        { new: true },
+      );
+
+      // Update combined trip status AND set driverId (single value)
+      await this.combinedTripsService.getCombinedTripsModel().findByIdAndUpdate(
         combinedTripId,
-        CombinedTripStatus.ACCEPTED,
+        { 
+          status: CombinedTripStatus.ACCEPTED,
+          driverId: request.driverId, // ✅ Set driverId when driver accepts
+        },
       );
 
       return { status: request.status };
@@ -664,8 +793,18 @@ export class CombinedTripsController {
       
       const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
       
-      if (!trip?.driverId) {
-        throw new BadRequestException('Trip or driver not found');
+      if (!trip) {
+        throw new BadRequestException('Trip not found');
+      }
+
+      // If trip is pending (no driver assigned yet), return pending status
+      if (trip.status === 'pending' || !trip.driverId) {
+        console.log('[CombinedTripsController] Trip is pending - no driver assigned yet');
+        return {
+          status: 'pending',
+          message: 'Waiting for driver acceptance',
+          currentLocation: null,
+        };
       }
 
       // Return driver's current location (if available from real-time service)

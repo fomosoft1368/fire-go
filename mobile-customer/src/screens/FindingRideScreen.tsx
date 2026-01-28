@@ -13,6 +13,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useRoute } from '@react-navigation/native'
 import { MaterialIcons } from '@expo/vector-icons'
 import * as Location from 'expo-location'
@@ -20,6 +21,7 @@ import { useSelector } from 'react-redux'
 import type { RootState } from '../redux/store'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
+import { API_BASE_URL } from '../constants/config'
 
 export default function FindingRideScreen({ navigation }: any) {
   const route = useRoute()
@@ -33,6 +35,8 @@ export default function FindingRideScreen({ navigation }: any) {
   const startLat = params?.startLat ?? 21.0285
   const endLng = params?.endLng ?? 105.8542  // Customer's dropoff longitude
   const endLat = params?.endLat ?? 21.0285  // Customer's dropoff latitude
+  const totalFare = params?.totalFare ?? 0
+  const seats = params?.seats ?? 1
 
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -45,11 +49,22 @@ export default function FindingRideScreen({ navigation }: any) {
   const [isScanning, setIsScanning] = useState(true)
   const [activeFilter, setActiveFilter] = useState('all')
   const [currentLocation, setCurrentLocation] = useState<{ lng: number; lat: number } | null>(null)
+  const [creatingNewTrip, setCreatingNewTrip] = useState(false)
+  const [newTripId, setNewTripId] = useState<string | null>(null)
+  const [showVehicleModal, setShowVehicleModal] = useState(false)
+  const [selectedVehicleType, setSelectedVehicleType] = useState<'basic' | 'comfort' | 'premium'>('basic')
+  const [vehiclePrices, setVehiclePrices] = useState({
+    basic: totalFare,
+    comfort: Math.round(totalFare * 1.3),
+    premium: Math.round(totalFare * 1.6),
+  })
   
   // Animation
   const scanAnim = useRef(new Animated.Value(0)).current
+  const modalSlideAnim = useRef(new Animated.Value(0)).current
   const isMountedRef = useRef(true)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch SHARE rides on mount
   useEffect(() => {
@@ -65,6 +80,9 @@ export default function FindingRideScreen({ navigation }: any) {
       isMountedRef.current = false
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current)
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
       }
     }
   }, [])
@@ -232,6 +250,236 @@ export default function FindingRideScreen({ navigation }: any) {
         setLoading(false)
       }
     }
+  }
+
+  const openVehicleModal = () => {
+    setShowVehicleModal(true)
+    Animated.spring(modalSlideAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start()
+  }
+
+  const closeVehicleModal = () => {
+    Animated.timing(modalSlideAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowVehicleModal(false)
+    })
+  }
+
+  const handleCreateNewTrip = async () => {
+    try {
+      setCreatingNewTrip(true)
+
+      // Get auth token - use 'authToken' key like other services
+      const token = await AsyncStorage.getItem('authToken')
+
+      if (!token) {
+        Alert.alert('Lỗi', 'Vui lòng đăng nhập lại')
+        setCreatingNewTrip(false)
+        return
+      }
+
+      console.log('[FindingRideScreen] 🚀 Creating customer combined trip request...')
+      console.log('[FindingRideScreen] Request data:', {
+        pickupAddress,
+        dropoffAddress,
+        pickupCoordinates: [startLng, startLat],
+        dropoffCoordinates: [endLng, endLat],
+        distance,
+        duration,
+        totalFare: vehiclePrices[selectedVehicleType],
+        seats,
+        vehicleType: selectedVehicleType,
+      })
+      console.log('[FindingRideScreen] API URL:', `${API_BASE_URL}/combined-trips/customer-request`)
+      console.log('[FindingRideScreen] Token:', token ? 'EXISTS' : 'MISSING')
+
+      // Create combined trip from customer
+      const response = await fetch(`${API_BASE_URL}/combined-trips/customer-request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          pickupAddress,
+          dropoffAddress,
+          pickupCoordinates: [startLng, startLat],
+          dropoffCoordinates: [endLng, endLat],
+          distance,
+          duration,
+          totalFare: vehiclePrices[selectedVehicleType],
+          seats,
+          vehicleType: selectedVehicleType,
+        }),
+      })
+
+      console.log('[FindingRideScreen] Response status:', response.status, response.ok ? 'OK' : 'FAILED')
+
+      const data = await response.json()
+      console.log('[FindingRideScreen] Response data:', data)
+
+      if (!response.ok) {
+        console.error('[FindingRideScreen] ❌ Create trip failed:', data)
+        throw new Error(data.message || 'Không thể tạo yêu cầu')
+      }
+
+      console.log('[FindingRideScreen] ✅ Trip created successfully:', {
+        tripId: data.trip?._id,
+        fullResponse: data,
+      })
+      
+      if (!data.trip?._id) {
+        throw new Error('Trip ID not found in response')
+      }
+      
+      setNewTripId(data.trip._id)
+
+      // Poll trip status to check if driver accepted - no timeout, poll forever
+      const tripId = data.trip._id
+      console.log('[FindingRideScreen] Starting polling for trip:', tripId)
+
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          console.log('[FindingRideScreen] Polling trip status for ID:', tripId)
+          
+          const statusResponse = await fetch(`${API_BASE_URL}/combined-trips/${tripId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          })
+
+          if (!statusResponse.ok) {
+            const errorData = await statusResponse.json()
+            console.error('[FindingRideScreen] ❌ Status poll failed:', {
+              status: statusResponse.status,
+              error: errorData,
+              tripId: tripId,
+            })
+            
+            // If trip not found, stop polling
+            if (statusResponse.status === 404) {
+              console.error('[FindingRideScreen] Trip not found - stopping poll')
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current)
+                pollIntervalRef.current = null
+              }
+              setCreatingNewTrip(false)
+              setNewTripId(null)
+              closeVehicleModal()
+              Alert.alert('Lỗi', 'Không tìm thấy chuyến đi. Vui lòng thử lại.')
+            }
+            return
+          }
+
+          const tripData = await statusResponse.json()
+          console.log('[FindingRideScreen] ✅ Trip status:', tripData.status)
+
+          if (tripData.status === 'accepted') {
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            setCreatingNewTrip(false)
+            setNewTripId(null)
+            closeVehicleModal()
+            
+            // Navigate to DriverFoundScreen
+            navigation.navigate('DriverFound', {
+              combinedTripId: tripId,
+            })
+          } else if (tripData.status === 'cancelled') {
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            setCreatingNewTrip(false)
+            setNewTripId(null)
+          }
+        } catch (error) {
+          console.error('[FindingRideScreen] ❌ Error polling trip status:', error)
+        }
+      }, 1000) // Poll every 1 second
+
+    } catch (error: any) {
+      console.error('[FindingRideScreen] Error creating trip:', error)
+      Alert.alert('Lỗi', error.message || 'Không thể tạo chuyến đi')
+      setCreatingNewTrip(false)
+    }
+  }
+
+  const handleCancelTrip = async () => {
+    console.log('[FindingRideScreen] 🚫 Cancel trip requested, tripId:', newTripId)
+    
+    if (!newTripId) {
+      console.warn('[FindingRideScreen] ⚠️ No trip ID to cancel')
+      Alert.alert('Lỗi', 'Không tìm thấy chuyến đi để hủy')
+      return
+    }
+
+    Alert.alert(
+      'Hủy chuyến đi',
+      'Bạn có chắc muốn hủy chuyến đi này không?',
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hủy chuyến',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('[FindingRideScreen] User confirmed cancellation')
+              
+              const token = await AsyncStorage.getItem('authToken')
+              if (!token) {
+                console.error('[FindingRideScreen] ❌ No auth token found')
+                Alert.alert('Lỗi', 'Vui lòng đăng nhập lại')
+                return
+              }
+
+              console.log('[FindingRideScreen] Calling cancel API:', `${API_BASE_URL}/combined-trips/${newTripId}/cancel`)
+
+              const response = await fetch(`${API_BASE_URL}/combined-trips/${newTripId}/cancel`, {
+                method: 'PATCH',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              })
+
+              console.log('[FindingRideScreen] Cancel response status:', response.status)
+
+              if (response.ok) {
+                console.log('[FindingRideScreen] ✅ Trip cancelled successfully')
+                
+                // Clear polling interval
+                if (pollIntervalRef.current) {
+                  clearInterval(pollIntervalRef.current)
+                  pollIntervalRef.current = null
+                  console.log('[FindingRideScreen] Polling stopped')
+                }
+                
+                setCreatingNewTrip(false)
+                setNewTripId(null)
+                closeVehicleModal()
+                Alert.alert('Đã hủy', 'Chuyến đi đã được hủy thành công')
+              } else {
+                const errorData = await response.json()
+                console.error('[FindingRideScreen] ❌ Cancel failed:', errorData)
+                Alert.alert('Lỗi', errorData.message || 'Không thể hủy chuyến đi')
+              }
+            } catch (error: any) {
+              console.error('[FindingRideScreen] ❌ Error cancelling trip:', error)
+              Alert.alert('Lỗi', 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.')
+            }
+          },
+        },
+      ]
+    )
   }
 
   const handleSelectRide = (trip: any) => {
@@ -508,6 +756,80 @@ export default function FindingRideScreen({ navigation }: any) {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           scrollEnabled={true}
+          ListHeaderComponent={
+            <View>
+              {/* Create New Trip Card - Grab-like flow */}
+              <View style={[styles.createTripCard, { backgroundColor: colors.bgSecondary, borderColor: '#38e07b' }]}>
+                <View style={styles.createTripHeader}>
+                  <View style={styles.createTripIcon}>
+                    <MaterialIcons name="add-circle" size={28} color="#38e07b" />
+                  </View>
+                  <View style={styles.createTripInfo}>
+                    <Text style={[styles.createTripTitle, { color: colors.text }]}>
+                      Tạo chuyến mới
+                    </Text>
+                    <Text style={[styles.createTripSubtitle, { color: colors.textSecondary }]}>
+                      Quét liên tục cho đến khi tìm thấy tài xế
+                    </Text>
+                  </View>
+                  {creatingNewTrip && (
+                    <ActivityIndicator color="#38e07b" />
+                  )}
+                </View>
+
+                {creatingNewTrip ? (
+                  <View style={styles.searchingContainer}>
+                    <Text style={[styles.searchingText, { color: '#38e07b' }]}>
+                      🔍 Đang tìm tài xế gần bạn...
+                    </Text>
+                    <Text style={[styles.searchingSubtext, { color: colors.textSecondary }]}>
+                      Quét liên tục mỗi 30 giây
+                    </Text>
+                    <View style={styles.searchingProgress}>
+                      <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+                        <Animated.View
+                          style={[
+                            styles.progressFill,
+                            {
+                              backgroundColor: '#38e07b',
+                              transform: [
+                                {
+                                  scaleX: scanAnim,
+                                },
+                              ],
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.cancelTripButton, { backgroundColor: colors.bg, borderColor: '#ff4444' }]}
+                      onPress={handleCancelTrip}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.cancelTripButtonText, { color: '#ff4444' }]}>Hủy chuyến</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.createTripButton, { backgroundColor: '#38e07b' }]}
+                    onPress={openVehicleModal}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.createTripButtonText}>Tạo chuyến & Chờ tài xế</Text>
+                    <MaterialIcons name="flash-on" size={20} color="#000" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Divider */}
+              <View style={[styles.divider, { backgroundColor: colors.border }]}>
+                <Text style={[styles.dividerText, { color: colors.textSecondary }]}>
+                  HOẶC THAM GIA CHUYẾN CÓ SẴN
+                </Text>
+              </View>
+            </View>
+          }
           ListFooterComponent={
             rides.length === 0 ? (
               <View style={styles.emptyState}>
@@ -542,6 +864,239 @@ export default function FindingRideScreen({ navigation }: any) {
             )
           }
         />
+      )}
+
+      {/* Vehicle Type Selection Modal */}
+      {showVehicleModal && (
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={creatingNewTrip ? undefined : closeVehicleModal}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.bgSecondary,
+                transform: [
+                  {
+                    translateY: modalSlideAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [600, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHandle} />
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {creatingNewTrip ? 'Đang tìm tài xế...' : 'Chọn loại xe'}
+              </Text>
+              {!creatingNewTrip && (
+                <TouchableOpacity onPress={closeVehicleModal} style={styles.modalCloseButton}>
+                  <MaterialIcons name="close" size={24} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Creating Trip State */}
+            {creatingNewTrip ? (
+              <View style={styles.creatingTripContainer}>
+                <View style={styles.scanningAnimation}>
+                  <Animated.View
+                    style={[
+                      styles.scanRing,
+                      {
+                        opacity: scanAnim.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [0.3, 0.8, 0.3],
+                        }),
+                        transform: [
+                          {
+                            scale: scanAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.8, 1.4],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <View style={[styles.scanRingInner, { borderColor: '#38e07b' }]} />
+                  </Animated.View>
+                  <MaterialIcons name="search" size={48} color="#38e07b" />
+                </View>
+
+                <Text style={[styles.scanningTitle, { color: colors.text }]}>
+                   Đang quét tài xế gần bạn
+                </Text>
+                <Text style={[styles.scanningSubtitle, { color: colors.textSecondary }]}>
+                  Quét mỗi 30 giây cho đến khi tìm thấy tài xế
+                </Text>
+
+                <View style={styles.tripInfoBox}>
+                  <View style={styles.tripInfoRow}>
+                    <MaterialIcons name="directions-car" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
+                      Loại xe:
+                    </Text>
+                    <Text style={[styles.tripInfoValue, { color: colors.text }]}>
+                      {selectedVehicleType === 'basic' ? 'Tiêu chuẩn' : selectedVehicleType === 'comfort' ? 'Thoải mái' : 'Cao cấp'}
+                    </Text>
+                  </View>
+                  <View style={styles.tripInfoRow}>
+                    <MaterialIcons name="attach-money" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
+                      Giá cước:
+                    </Text>
+                    <Text style={[styles.tripInfoValue, { color: '#38e07b' }]}>
+                      ₫{vehiclePrices[selectedVehicleType].toLocaleString('vi-VN')}
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.cancelModalButton, { backgroundColor: colors.bg, borderColor: '#ff4444' }]}
+                  onPress={handleCancelTrip}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="close" size={20} color="#ff4444" />
+                  <Text style={[styles.cancelModalButtonText, { color: '#ff4444' }]}>Hủy chuyến</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                {/* Vehicle Type Options */}
+                <View style={styles.vehicleOptions}>
+                  {/* Basic */}
+                  <TouchableOpacity
+                    style={[
+                      styles.vehicleOption,
+                      {
+                        backgroundColor: selectedVehicleType === 'basic' ? '#38e07b20' : colors.bg,
+                        borderColor: selectedVehicleType === 'basic' ? '#38e07b' : colors.border,
+                      },
+                    ]}
+                    onPress={() => setSelectedVehicleType('basic')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.vehicleIconContainer}>
+                      <MaterialIcons
+                        name="directions-car"
+                        size={32}
+                        color={selectedVehicleType === 'basic' ? '#38e07b' : colors.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.vehicleDetails}>
+                      <Text style={[styles.vehicleName, { color: colors.text }]}>Tiêu chuẩn</Text>
+                      <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
+                        Xe 4-5 chỗ • Tiết kiệm
+                      </Text>
+                    </View>
+                    <View style={styles.vehiclePriceContainer}>
+                      <Text style={[styles.vehiclePrice, { color: colors.text }]}>
+                        ₫{vehiclePrices.basic.toLocaleString('vi-VN')}
+                      </Text>
+                      {selectedVehicleType === 'basic' && (
+                        <View style={styles.selectedBadge}>
+                          <MaterialIcons name="check-circle" size={20} color="#38e07b" />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Comfort */}
+                  <TouchableOpacity
+                    style={[
+                      styles.vehicleOption,
+                      {
+                        backgroundColor: selectedVehicleType === 'comfort' ? '#38e07b20' : colors.bg,
+                        borderColor: selectedVehicleType === 'comfort' ? '#38e07b' : colors.border,
+                      },
+                    ]}
+                    onPress={() => setSelectedVehicleType('comfort')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.vehicleIconContainer}>
+                      <MaterialIcons
+                        name="airport-shuttle"
+                        size={32}
+                        color={selectedVehicleType === 'comfort' ? '#38e07b' : colors.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.vehicleDetails}>
+                      <Text style={[styles.vehicleName, { color: colors.text }]}>Thoải mái</Text>
+                      <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
+                        Xe 5-7 chỗ • Rộng rãi
+                      </Text>
+                    </View>
+                    <View style={styles.vehiclePriceContainer}>
+                      <Text style={[styles.vehiclePrice, { color: colors.text }]}>
+                        ₫{vehiclePrices.comfort.toLocaleString('vi-VN')}
+                      </Text>
+                      {selectedVehicleType === 'comfort' && (
+                        <View style={styles.selectedBadge}>
+                          <MaterialIcons name="check-circle" size={20} color="#38e07b" />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Premium */}
+                  <TouchableOpacity
+                    style={[
+                      styles.vehicleOption,
+                      {
+                        backgroundColor: selectedVehicleType === 'premium' ? '#38e07b20' : colors.bg,
+                        borderColor: selectedVehicleType === 'premium' ? '#38e07b' : colors.border,
+                      },
+                    ]}
+                    onPress={() => setSelectedVehicleType('premium')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.vehicleIconContainer}>
+                      <MaterialIcons
+                        name="car-rental"
+                        size={32}
+                        color={selectedVehicleType === 'premium' ? '#38e07b' : colors.textSecondary}
+                      />
+                    </View>
+                    <View style={styles.vehicleDetails}>
+                      <Text style={[styles.vehicleName, { color: colors.text }]}>Cao cấp</Text>
+                      <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
+                        Xe sang • Dịch vụ VIP
+                      </Text>
+                    </View>
+                    <View style={styles.vehiclePriceContainer}>
+                      <Text style={[styles.vehiclePrice, { color: colors.text }]}>
+                        ₫{vehiclePrices.premium.toLocaleString('vi-VN')}
+                      </Text>
+                      {selectedVehicleType === 'premium' && (
+                        <View style={styles.selectedBadge}>
+                          <MaterialIcons name="check-circle" size={20} color="#38e07b" />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Confirm Button */}
+                <TouchableOpacity
+                  style={[styles.confirmButton, { backgroundColor: '#38e07b' }]}
+                  onPress={handleCreateNewTrip}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.confirmButtonText}>Xác nhận tạo chuyến</Text>
+                  <MaterialIcons name="arrow-forward" size={20} color="#000" />
+                </TouchableOpacity>
+              </>
+            )}
+          </Animated.View>
+        </View>
       )}
     </SafeAreaView>
   )
@@ -783,8 +1338,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: {
+    width: '100%',
     height: '100%',
     borderRadius: 3,
+    transformOrigin: 'left',
   },
   metricsDivider: {
     width: 1,
@@ -983,4 +1540,273 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ff6b35',
   },
+
+  /* Create New Trip Card */
+  createTripCard: {
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    borderWidth: 2,
+  },
+  createTripHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  createTripIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#38e07b20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  createTripInfo: {
+    flex: 1,
+  },
+  createTripTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  createTripSubtitle: {
+    fontSize: 12,
+  },
+  createTripButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  createTripButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#000',
+  },
+  searchingContainer: {
+    gap: SPACING.md,
+  },
+  searchingText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  searchingSubtext: {
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  searchingProgress: {
+    paddingVertical: SPACING.xs,
+  },
+  cancelTripButton: {
+    marginTop: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  cancelTripButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    marginVertical: SPACING.xl,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dividerText: {
+    fontSize: 11,
+    fontWeight: '700',
+    backgroundColor: '#131315',
+    paddingHorizontal: SPACING.md,
+    letterSpacing: 0.5,
+  },
+
+  /* Vehicle Selection Modal */
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  modalContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: BORDER_RADIUS.xxl,
+    borderTopRightRadius: BORDER_RADIUS.xxl,
+    paddingBottom: SPACING.xl,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    paddingTop: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ffffff10',
+    alignItems: 'center',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#ffffff30',
+    borderRadius: 2,
+    marginBottom: SPACING.md,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    right: SPACING.lg,
+    top: SPACING.lg,
+  },
+
+  /* Vehicle Options */
+  vehicleOptions: {
+    padding: SPACING.lg,
+    gap: SPACING.md,
+  },
+  vehicleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderRadius: BORDER_RADIUS.xl,
+    borderWidth: 2,
+    gap: SPACING.md,
+  },
+  vehicleIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#ffffff10',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vehicleDetails: {
+    flex: 1,
+  },
+  vehicleName: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  vehicleDesc: {
+    fontSize: 12,
+  },
+  vehiclePriceContainer: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  vehiclePrice: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  selectedBadge: {
+    marginTop: 2,
+  },
+
+  /* Confirm Button */
+  confirmButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    borderRadius: BORDER_RADIUS.xl,
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000',
+  },
+
+  /* Creating Trip State */
+  creatingTripContainer: {
+    padding: SPACING.xxl,
+    alignItems: 'center',
+  },
+  scanningAnimation: {
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.xl,
+  },
+  scanRing: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanRingInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60,
+    borderWidth: 3,
+  },
+  scanningTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
+  },
+  scanningSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: SPACING.xl,
+  },
+  tripInfoBox: {
+    width: '100%',
+    backgroundColor: '#ffffff08',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+    marginBottom: SPACING.xl,
+  },
+  tripInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  tripInfoLabel: {
+    fontSize: 14,
+    flex: 1,
+  },
+  tripInfoValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  cancelModalButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 2,
+    width: '100%',
+  },
+  cancelModalButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
 })
+
+

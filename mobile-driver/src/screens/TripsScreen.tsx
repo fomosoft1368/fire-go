@@ -88,12 +88,17 @@ export default function TripsScreen() {
       console.log('✅ My deliveries:', myDeliveries.length)
       console.log('✅ Total my trips:', allTripsData.length)
       
-      // Double-check: filter by driverId on client-side as well
+      // STRICT filter: ONLY trips where I am THE driver
+      // For combined trips: customer creates trip -> driverId is NULL
+      //                     driver accepts -> driverId is SET to driver's ID
+      // So we ONLY see combined trips we've accepted (driverId === user.id)
       const filteredTripsData = allTripsData.filter((trip: any) => {
         const tripDriverId = typeof trip.driverId === 'string' ? trip.driverId : trip.driverId?._id
-        const isMyTrip = String(tripDriverId) === String(user.id)
+        // MUST have driverId AND must match current user
+        const isMyTrip = tripDriverId && String(tripDriverId) === String(user.id)
+        
         if (!isMyTrip) {
-          console.warn(`⚠️ Trip ${trip._id} has different driverId: ${tripDriverId}, user: ${user.id}`)
+          console.warn(`⚠️ Trip ${trip._id} filtered out - driverId: ${tripDriverId}, user: ${user.id}, sourceType: ${trip.sourceType}`)
         }
         return isMyTrip
       })

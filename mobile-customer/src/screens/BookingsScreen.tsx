@@ -202,7 +202,7 @@ export default function BookingsScreen() {
   const handleViewDetail = (booking: RideBooking) => {
     // Nếu là combined trip (share ride)
     if (booking.rideType === 'share' && booking.combinedTripId) {
-      console.log('[BookingsScreen] Navigating to DriverFound:', booking.combinedTripId)
+      console.log('[BookingsScreen] Navigating to DriverFoundScreen:', booking.combinedTripId)
       navigation.navigate('DriverFound', {
         combinedTripId: booking.combinedTripId,
       })
