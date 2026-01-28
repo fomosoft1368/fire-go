@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useNavigation, NavigationProp } from '@react-navigation/native'
 import axios from 'axios'
 
-const API_URL = 'http://192.168.1.18:3000/api'
+const API_URL = 'http://192.168.1.16:3000/api'
 
 interface PendingNotification {
   request: any

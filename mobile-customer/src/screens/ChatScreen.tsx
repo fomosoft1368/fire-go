@@ -27,18 +27,7 @@ interface ChatScreenProps {
   driver: {
     id: string
     name: string
-    avatar: string
-    rating: number
-    totalRides: number
-    carType: string
-    licensePlate: string
-    carColor: string
-    distance: number
-    eta: number
-    currentLat?: number
-    currentLng?: number
     phone?: string
-    email?: string
   }
   rideId?: string
   onClose: () => void

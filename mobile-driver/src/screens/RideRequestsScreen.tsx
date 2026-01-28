@@ -66,7 +66,7 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const loadRequests = async () => {
     setLoading(true)
     try {
-      const API_URL = 'http://192.168.1.18:3000/api'
+      const API_URL = 'http://192.168.1.16:3000/api'
       const tripId = combinedTripId || rideId
       
       // Determine endpoint based on source type or ID
@@ -100,7 +100,7 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const handleAcceptRequest = async (requestId: string) => {
     setAccepting(requestId)
     try {
-      const API_URL = 'http://192.168.1.18:3000/api'
+      const API_URL = 'http://192.168.1.16:3000/api'
       const tripId = combinedTripId || rideId
       
       // Determine endpoint based on source type
@@ -130,7 +130,7 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const handleRejectRequest = async (requestId: string) => {
     setRejecting(requestId)
     try {
-      const API_URL = 'http://192.168.1.18:3000/api'
+      const API_URL = 'http://192.168.1.16:3000/api'
       const tripId = combinedTripId || rideId
       
       // Determine endpoint based on source type

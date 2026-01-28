@@ -22,6 +22,7 @@ interface MapViewComponentProps {
   }>
   pickupCoords?: { latitude: number; longitude: number }
   dropoffCoords?: { latitude: number; longitude: number }
+  driverCoords?: { latitude: number; longitude: number }
   routeCoordinates?: Array<{ latitude: number; longitude: number }>
   drivers?: Array<{
     id: string
@@ -40,6 +41,7 @@ const MapViewComponent = ({
   markers = [],
   pickupCoords,
   dropoffCoords,
+  driverCoords,
   routeCoordinates = [],
   drivers = [],
 }: MapViewComponentProps) => {
@@ -267,6 +269,19 @@ const MapViewComponent = ({
           </Marker>
         )}
 
+        {/* Vị trí tài xế */}
+        {driverCoords && (
+          <Marker
+            coordinate={driverCoords}
+            title="Vị trí của bạn"
+            identifier="driver-current"
+          >
+            <View style={styles.driverCurrentMarker}>
+              <MaterialCommunityIcons name="car" size={28} color="#fff" />
+            </View>
+          </Marker>
+        )}
+
         {/* Các markers khác */}
         {markers.map((marker) => (
           <Marker
@@ -446,6 +461,21 @@ const styles = StyleSheet.create({
   driverMarker: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  driverCurrentMarker: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   pickupMarker: {
     width: 50,
