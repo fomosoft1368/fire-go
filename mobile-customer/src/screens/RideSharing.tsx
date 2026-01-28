@@ -479,7 +479,7 @@ export default function RideSharing(props?: RideSharingProps) {
     <View style={styles.container}>
       <View style={StyleSheet.absoluteFillObject}>
         <MapViewComponent
-          height={"100%"}
+          height={height}
           initialRegion={{
             latitude: pickupCoordinates[1],
             longitude: pickupCoordinates[0],

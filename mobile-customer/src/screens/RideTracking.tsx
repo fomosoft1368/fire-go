@@ -12,6 +12,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons'
 import MapViewComponent from '../components/MapView'
 import { SPACING } from '../constants'
+import { mapsService } from '../services/mapsService'
 
 interface RideTrackingProps {
   navigation?: any
@@ -52,44 +53,48 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
   const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
+  const [routeFetched, setRouteFetched] = useState(false);
 
-  // Poll ride status every 3 seconds
   useEffect(() => {
-    console.log('🔍 [RideTracking] useEffect mounted, rideId:', rideId)
-    
+    if (pickupCoords && dropoffCoords && !routeFetched) {
+      fetchRouteFromPickupDropoff()
+      setRouteFetched(true)
+    }
+  }, [pickupCoords, dropoffCoords, routeFetched])
+
+  const fetchRouteFromPickupDropoff = async () => {
+    if (!pickupCoords || !dropoffCoords) return
+
+    try {
+      const pickupAddress = `${pickupCoords.latitude},${pickupCoords.longitude}`
+      const dropoffAddress = `${dropoffCoords.latitude},${dropoffCoords.longitude}`
+      
+      const routeInfo = await mapsService.getRouteInfo(pickupAddress, dropoffAddress)
+      
+      if (routeInfo.routeCoordinates && routeInfo.routeCoordinates.length > 0) {
+        setRouteCoordinates(routeInfo.routeCoordinates)
+      }
+    } catch (error) {
+      console.error('Error fetching route:', error)
+    }
+  }
+
+  useEffect(() => {
     if (!rideId) {
-      console.log('⚠️ [RideTracking] No rideId, stopping')
       setLoading(false)
       return
     }
 
     const fetchRideStatus = async () => {
       try {
-        const startTime = Date.now()
         const API_URL = 'http://192.168.1.16:3000/api'
         const url = `${API_URL}/rides/${rideId}`
         
-        console.log('📡 [RideTracking] Fetching from:', url)
         const response = await fetch(url)
-        const fetchTime = Date.now() - startTime
-        
-        console.log(`⏱️ [RideTracking] Fetch completed in ${fetchTime}ms, status: ${response.status}`)
         
         if (response.ok) {
-          const parseStartTime = Date.now()
           const data = await response.json()
-          const parseTime = Date.now() - parseStartTime
-          const totalTime = Date.now() - startTime
-          
-          console.log(`⏱️ [RideTracking] JSON parse took ${parseTime}ms`)
-          console.log(`⏱️ [RideTracking] Total time: ${totalTime}ms`)
-          console.log('✅ [RideTracking] Data received:', {
-            id: data._id,
-            status: data.status,
-            hasPickup: !!data.pickupLocation,
-            hasDropoff: !!data.dropoffLocation,
-            hasDriver: !!data.driverId,
-          })
           
           // Only update if data changed
           setRide(prevRide => {
@@ -100,13 +105,13 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
           })
           setLoading(false)
           
-          // Set coordinates for map (only once)
           if (data.pickupLocation?.coordinates && data.pickupLocation.coordinates.length === 2) {
+            const newPickupLat = data.pickupLocation.coordinates[1]
+            const newPickupLng = data.pickupLocation.coordinates[0]
+            
             setPickupCoords(prev => {
-              const newLat = data.pickupLocation.coordinates[1]
-              const newLng = data.pickupLocation.coordinates[0]
-              if (!prev || prev.latitude !== newLat || prev.longitude !== newLng) {
-                return { latitude: newLat, longitude: newLng }
+              if (!prev || prev.latitude !== newPickupLat || prev.longitude !== newPickupLng) {
+                return { latitude: newPickupLat, longitude: newPickupLng }
               }
               return prev
             })
@@ -161,11 +166,9 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
             }
           }
         } else {
-          console.log('❌ [RideTracking] Failed response:', response.status, response.statusText)
           setLoading(false)
         }
       } catch (error) {
-        console.error('❌ [RideTracking] Fetch error:', error)
         setLoading(false)
       }
     }
@@ -175,10 +178,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
     // Poll every 5 seconds (reduced from 3s to reduce load)
     const interval = setInterval(fetchRideStatus, 5000)
 
-    return () => {
-      console.log('🧹 [RideTracking] Cleaning up interval')
-      clearInterval(interval)
-    }
+    return () => clearInterval(interval)
   }, [rideId, navigation])
 
 
@@ -233,6 +233,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
           }}
           pickupCoords={pickupCoords || undefined}
           dropoffCoords={dropoffCoords || undefined}
+          routeCoordinates={routeCoordinates}
         />
       </View>
 

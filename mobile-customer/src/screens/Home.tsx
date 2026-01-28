@@ -10,14 +10,53 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
+import type { RootState } from '../redux/store';
 
 const Home = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const user = useSelector((state: RootState) => state.auth.user);
 
     const handleOpenNotifications = () => {
         navigation.navigate('Notification')
+    }
+
+    // Get user's display name
+    const getDisplayName = () => {
+        if (!user) return 'Khách hàng';
+        
+        // Display full name (firstName + lastName)
+        if (user.firstName && user.lastName) {
+            return `${user.firstName} ${user.lastName}`;
+        }
+        
+        if (user.firstName) {
+            return user.firstName;
+        }
+        
+        if (user.lastName) {
+            return user.lastName;
+        }
+        
+        // Fallback to email username
+        if (user.email) {
+            return user.email.split('@')[0];
+        }
+        
+        return 'Khách hàng';
+    }
+
+    const getUserAvatar = () => {
+        if (user?.avatar) return user.avatar;
+        
+        // Create avatar with full name
+        const fullName = user?.firstName && user?.lastName 
+            ? `${user.firstName} ${user.lastName}` 
+            : user?.email || 'User';
+            
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=FF6B35&color=fff`;
     }
 
     return (
@@ -27,12 +66,12 @@ const Home = () => {
                 <View style={styles.header}>
                     <View style={styles.headerLeft}>
                         <Image
-                            source={{ uri: 'https://via.placeholder.com/40' }}
+                            source={{ uri: getUserAvatar() }}
                             style={styles.avatar}
                         />
                         <View>
                             <Text style={styles.greeting}>Xin chào,</Text>
-                            <Text style={styles.userName}>Nguyễn An</Text>
+                            <Text style={styles.userName}>{getDisplayName()}</Text>
                         </View>
                     </View>
                     <TouchableOpacity style={styles.notificationButton} onPress={handleOpenNotifications}>
