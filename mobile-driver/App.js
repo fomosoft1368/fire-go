@@ -179,7 +179,7 @@ const HomeStackNavigator = () => {
 
 const RootNavigator = () => {
   const dispatch = useDispatch()
-  const { isAuthenticated } = useSelector((state) => state.auth)
+  const { isAuthenticated, user } = useSelector((state) => state.auth)
   const [isLoading, setIsLoading] = React.useState(true)
 
   useEffect(() => {
@@ -230,24 +230,42 @@ console.log('[App] Fetching user profile with token...')
     let isMounted = true
 
     const pollPendingRequests = async () => {
+      console.log('🔥 POLLING START - Code version: 2.0')
+      console.log('👤 User from Redux:', user?.id || 'NULL')
+      
       try {
         // Get all my combined trips to poll for requests
         const driverService = require('./src/services/driverService').driverService
         const allCombinedTrips = await driverService.getMyCombinedTrips()
+
+        console.log('🚗 My trips count:', allCombinedTrips.length)
 
         for (const trip of allCombinedTrips) {
           if (!isMounted) return
 
           const API_URL = 'http://192.168.1.16:3000/api'
           try {
-            const response = await fetch(
-              `${API_URL}/combined-trips/${trip._id}/requests`,
-              { headers: { 'Content-Type': 'application/json' } }
-            )
+            // ✅ Add driverId to filter requests for THIS driver only
+            const driverId = user?.id
+            const endpoint = driverId 
+              ? `${API_URL}/combined-trips/${trip._id}/requests?driverId=${driverId}`
+              : `${API_URL}/combined-trips/${trip._id}/requests`
+            
+            console.log('[App] 🔗 Polling endpoint:', endpoint)
+            
+            const response = await fetch(endpoint, {
+              headers: { 'Content-Type': 'application/json' }
+            })
 
-            if (!response.ok) continue
+            console.log('[App] 📡 Response status:', response.status)
+            
+            if (!response.ok) {
+              console.warn('[App] ⚠️ Response not OK, skipping...')
+              continue
+            }
 
             const requests = await response.json()
+            console.log('[App] 📦 Raw response:', requests)
 
             // Log ALL requests to debug
             console.log('[App] 🔍 All requests:', requests.map(r => ({ id: r._id, status: r.status })))

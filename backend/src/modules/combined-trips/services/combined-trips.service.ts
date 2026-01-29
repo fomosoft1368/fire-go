@@ -477,7 +477,18 @@ export class CombinedTripsService {
       // For customer-created trips: Only send to ONE driver at a time (no queue)
       // Pick the closest driver
       const targetDriver = drivers[0];
+      
+      console.log('');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('📬 [findAndNotifyDrivers] CREATING RIDE REQUEST');
+      console.log('═══════════════════════════════════════════════════════════');
       console.log('📬 Sending notification to closest driver:', targetDriver._id);
+      console.log('📬 Driver name:', `${targetDriver.firstName} ${targetDriver.lastName}`);
+      console.log('📬 Trip ID:', combinedTripId);
+      console.log('📬 Customer ID:', customerId);
+      console.log('📬 🎯 THIS IS THE ONLY DRIVER WHO WILL RECEIVE THIS REQUEST');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('');
 
       // Update trip with current driver being notified (NOT a queue)
       await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
@@ -506,7 +517,15 @@ export class CombinedTripsService {
       });
 
       await rideRequest.save();
-      console.log('✅ Ride request created for driver:', targetDriver._id);
+      
+      console.log('');
+      console.log('✅✅✅ RIDE REQUEST CREATED ✅✅✅');
+      console.log('Request ID:', rideRequest._id);
+      console.log('For Driver ID:', targetDriver._id);
+      console.log('Trip ID:', combinedTripId);
+      console.log('Status:', rideRequest.status);
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('');
 
       // Schedule auto-timeout after 15 seconds
       setTimeout(async () => {

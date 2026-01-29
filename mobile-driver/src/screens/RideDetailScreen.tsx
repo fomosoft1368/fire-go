@@ -228,7 +228,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
         throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
       }
 
-      const API_URL = 'http://192.168.1.16:3000/api'
+      const API_URL = 'http://192.168.1.18:3000/api'
       console.log('🚗 Accepting ride:', { rideId, driverId: user.id })
       console.log('🔑 Using token:', token.substring(0, 20) + '...')
 

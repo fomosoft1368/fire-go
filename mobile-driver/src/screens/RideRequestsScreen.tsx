@@ -11,6 +11,8 @@ import {
   FlatList,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useSelector } from 'react-redux'
 import { COLORS } from '../constants'
 
 interface CustomerRequest {
@@ -39,6 +41,9 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const [accepting, setAccepting] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<string | null>(null)
 
+  // Get logged in user
+  const user = useSelector((state: any) => state.auth.user)
+
   const rideId = route?.params?.rideId
   const combinedTripId = route?.params?.combinedTripId
   const sourceType = route?.params?.sourceType // 'ride' or 'combined_trip'
@@ -64,6 +69,9 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   }, [combinedTripId, rideId])
 
   const loadRequests = async () => {
+    console.log('🚀 loadRequests() CALLED')
+    console.log('📊 State:', { combinedTripId, rideId, sourceType, userId: user?.id })
+    
     setLoading(true)
     try {
       const API_URL = 'http://192.168.1.16:3000/api'
@@ -77,9 +85,27 @@ export default function RideRequestsScreen({ navigation, route }: any) {
       
       console.log('📍 Loading requests from:', endpoint)
       
+      // Add driverId to query params for filtering
+      const driverId = user?.id
+      if (driverId && (sourceType === 'combined_trip' || combinedTripId)) {
+        endpoint += `?driverId=${driverId}`
+        console.log('🔗 Updated endpoint with driverId:', endpoint)
+        console.log('👤 Driver ID:', driverId)
+      } else {
+        console.warn('⚠️ No driver ID found - requests may not be filtered')
+      }
+      
+      const token = await AsyncStorage.getItem('token')
+      const headers: any = { 
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+      
       const response = await fetch(endpoint, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
       })
 
       if (!response.ok) throw new Error(`Failed: ${response.status}`)
