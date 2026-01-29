@@ -245,7 +245,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             const token = await AsyncStorage.getItem('token')
             if (!token) return
 
-            const API_URL = 'http://192.168.1.16:3000/api'
+            const API_URL = 'http://192.168.1.18:3000/api'
             const response = await fetch(`${API_URL}/messages/ride/${rideId}/unread-count`, {
                 headers: { Authorization: `Bearer ${token}` }
             })

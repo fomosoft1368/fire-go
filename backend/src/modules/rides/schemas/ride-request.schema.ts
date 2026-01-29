@@ -63,6 +63,9 @@ export class RideRequest extends Document {
 
   @Prop({ type: Date, default: Date.now })
   updatedAt: Date
+
+  @Prop({ type: Date })
+  expiresAt?: Date // When this request expires (for timeout logic)
 }
 
 export type RideRequestDocument = RideRequest & Document

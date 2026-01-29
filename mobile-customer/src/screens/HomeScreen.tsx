@@ -497,15 +497,27 @@ export default function HomeScreen() {
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
       })
- // Validate params with fallbacks
-  const distance = routeInfo?.distance ?? 0
-  const duration = routeInfo?.duration ?? 0
-  const startLng = pickupCoordinates ? pickupCoordinates[0] : 0
-  const startLat = pickupCoordinates ? pickupCoordinates[1] : 0
-  const endLng = dropoffCoordinates ? dropoffCoordinates[0] : 0
-  const endLat = dropoffCoordinates ? dropoffCoordinates[1] : 0
-  const pickupAddress = pickupLocation ?? 'Unknown'
-  const dropoffAddress = dropoffLocation ?? 'Unknown'
+
+      // ✅ Calculate fare before navigating
+      const distanceKm = routeInfo.distance > 500 ? routeInfo.distance / 1000 : routeInfo.distance
+      const durationMin = routeInfo.duration / 60
+
+      console.log('[HomeScreen] Calculating fare:', { distanceKm, durationMin })
+      
+      const fareEstimate = await rideService.calculateFare(distanceKm, durationMin, 'basic')
+      const totalFare = fareEstimate?.totalFare || fareEstimate?.total || 50000
+
+      console.log('[HomeScreen] ✅ Calculated totalFare:', totalFare)
+
+      // Validate params with fallbacks
+      const distance = routeInfo?.distance ?? 0
+      const duration = routeInfo?.duration ?? 0
+      const startLng = pickupCoordinates ? pickupCoordinates[0] : 0
+      const startLat = pickupCoordinates ? pickupCoordinates[1] : 0
+      const endLng = dropoffCoordinates ? dropoffCoordinates[0] : 0
+      const endLat = dropoffCoordinates ? dropoffCoordinates[1] : 0
+      const pickupAddress = pickupLocation ?? 'Unknown'
+      const dropoffAddress = dropoffLocation ?? 'Unknown'
 
       // Navigate to FindingRideScreen with ride details
       // @ts-ignore - FindingRideScreen accepts params
@@ -518,6 +530,8 @@ export default function HomeScreen() {
         startLat,
         endLng,
         endLat,
+        totalFare,  // ✅ Add calculated fare
+        seats: 1,   // ✅ Add default seats
       })
 
       setIsLoading(false)

@@ -9,12 +9,120 @@ import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 
 @Injectable()
 export class CombinedTripsService {
+  private timeoutCheckInterval: NodeJS.Timeout | null = null;
+  private processingTrips: Set<string> = new Set(); // Track trips being processed
+
   constructor(
     @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTripDocument>,
     @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     private eventEmitter: EventEmitter2,
-  ) {}
+  ) {
+    // Start checking for expired requests every 5 seconds
+    this.startTimeoutChecker();
+  }
+
+  /**
+   * Start interval to check for expired requests every 5 seconds
+   */
+  private startTimeoutChecker() {
+    console.log('⏰ Starting timeout checker - will check expired requests every 5 seconds');
+    
+    this.timeoutCheckInterval = setInterval(async () => {
+      try {
+        const now = new Date();
+        const expiredRequests = await this.rideRequestModel.find({
+          status: 'pending',
+          expiresAt: { $lt: now },
+        });
+
+        if (expiredRequests.length > 0) {
+          console.log('⏰ [Timeout Checker] Found', expiredRequests.length, 'expired requests');
+          
+          for (const expiredReq of expiredRequests) {
+            console.log('⏰ Processing expired request:', expiredReq._id, 'for trip:', expiredReq.combinedTripId);
+            
+            // Find next driver for the trip
+            const combinedTripId = expiredReq.combinedTripId?.toString();
+            if (combinedTripId) {
+              // ✅ PREVENT DUPLICATE PROCESSING - skip if already processing this trip
+              if (this.processingTrips.has(combinedTripId)) {
+                console.log('⚠️ [Timeout Checker] Trip', combinedTripId, 'already being processed, skipping');
+                continue;
+              }
+              
+              // Mark trip as being processed
+              this.processingTrips.add(combinedTripId);
+              console.log('🔒 [Timeout Checker] Locked trip', combinedTripId, 'for processing');
+              
+              // ✅ DELETE expired request instead of just marking as rejected
+              await this.rideRequestModel.findByIdAndDelete(expiredReq._id);
+              console.log('🗑️ [Timeout Checker] Deleted expired request:', expiredReq._id);
+              
+              const trip = await this.combinedTripModel.findById(combinedTripId);
+              if (trip && trip.status === 'pending') {
+                const pickupCoordinates = trip.pickupLocation?.coordinates as [number, number];
+                if (pickupCoordinates) {
+                  // ✅ ALWAYS delay 15 seconds from when request expired before finding next driver
+                  const expiredAt = expiredReq.expiresAt.getTime();
+                  const targetTime = expiredAt + 15000; // 15s after expiry
+                  const delayNeeded = targetTime - now.getTime();
+                  
+                  if (delayNeeded > 0) {
+                    console.log(`⏰ [Timeout Checker] Request expired at ${expiredReq.expiresAt.toISOString()}`);
+                    console.log(`⏰ [Timeout Checker] Will find next driver in ${delayNeeded}ms (15s from expiry)`);
+                    setTimeout(() => {
+                      console.log('🔄 [Timeout Checker] 15 seconds passed, finding next driver for trip:', combinedTripId);
+                      this.findAndNotifyDrivers(combinedTripId, pickupCoordinates)
+                        .catch(err => {
+                          console.error('❌ Error finding next driver:', err);
+                        })
+                        .finally(() => {
+                          // Release lock after processing
+                          this.processingTrips.delete(combinedTripId);
+                          console.log('🔓 [Timeout Checker] Unlocked trip', combinedTripId);
+                        });
+                    }, delayNeeded);
+                  } else {
+                    // Already more than 15s since expiry (shouldn't happen with 5s interval)
+                    console.log('🔄 [Timeout Checker] Finding next driver immediately (>15s since expiry)');
+                    this.findAndNotifyDrivers(combinedTripId, pickupCoordinates)
+                      .catch(err => {
+                        console.error('❌ Error finding next driver:', err);
+                      })
+                      .finally(() => {
+                        // Release lock after processing
+                        this.processingTrips.delete(combinedTripId);
+                        console.log('🔓 [Timeout Checker] Unlocked trip', combinedTripId);
+                      });
+                  }
+                } else {
+                  // No coordinates, release lock
+                  this.processingTrips.delete(combinedTripId);
+                }
+              } else {
+                // Trip no longer pending, release lock
+                this.processingTrips.delete(combinedTripId);
+                console.log('🔓 [Timeout Checker] Trip not pending, unlocked', combinedTripId);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error in timeout checker:', error);
+      }
+    }, 5000); // Check every 5 seconds
+  }
+
+  /**
+   * Stop the timeout checker (for cleanup)
+   */
+  onModuleDestroy() {
+    if (this.timeoutCheckInterval) {
+      clearInterval(this.timeoutCheckInterval);
+      console.log('⏰ Timeout checker stopped');
+    }
+  }
 
   /**
    * Get the combined trip model for direct queries
@@ -397,10 +505,19 @@ export class CombinedTripsService {
    * Find nearby available drivers and send notification
    * Implements Grab-like queue system: send to closest driver, if timeout, send to next
    */
+  // hàm tìm và thông báo cho tài xế
   async findAndNotifyDrivers(combinedTripId: string, pickupCoordinates: [number, number]): Promise<void> {
     try {
-      console.log('🔍 [CombinedTripsService] Finding nearby drivers for trip:', combinedTripId);
+      const callId = Date.now();
+      const stack = new Error().stack;
+      console.log('');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('🆔 [findAndNotifyDrivers] CALL ID:', callId);
+      console.log('🔍 [findAndNotifyDrivers] Trip:', combinedTripId);
       console.log('📍 Pickup coordinates:', pickupCoordinates);
+      console.log('📞 Called from:', stack?.split('\n')[2]?.trim() || 'unknown');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('');
 
       // Get the combined trip to get customerId
       const combinedTrip = await this.combinedTripModel.findById(combinedTripId);
@@ -424,6 +541,18 @@ export class CombinedTripsService {
         currentLocation: { $exists: true, $ne: null } 
       });
       console.log('📊 Drivers with location:', driversWithLocation.length);
+      
+      // 🔍 DEBUG: Print ALL driver locations
+      console.log('');
+      console.log('🗺️ ALL DRIVER LOCATIONS:');
+      for (const d of availableDrivers) {
+        console.log(`  Driver ${d._id} (${d.firstName} ${d.lastName}):`);
+        console.log(`    Status: ${d.status}`);
+        console.log(`    Location:`, d.currentLocation?.coordinates || 'NO LOCATION');
+        console.log('');
+      }
+      console.log('🎯 Customer pickup:', pickupCoordinates);
+      console.log('');
 
       // Get list of drivers who already have active trips
       const activeTrips = await this.combinedTripModel.find({
@@ -433,10 +562,22 @@ export class CombinedTripsService {
       const busyDriverIds = activeTrips.map(trip => trip.driverId?.toString()).filter(Boolean);
       console.log('📊 Busy drivers (already have active trips):', busyDriverIds.length);
 
+      // ✅ NEW: Get list of drivers who already REJECTED or TIMED OUT for THIS trip
+      const rejectedRequests = await this.rideRequestModel.find({
+        combinedTripId: new Types.ObjectId(combinedTripId),
+        status: 'rejected', // status is 'rejected' for both manual reject and timeout
+      });
+      const rejectedDriverIds = rejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
+      console.log('📊 Rejected/timeout drivers for this trip:', rejectedDriverIds.length, rejectedDriverIds);
+
+      // Combine exclusion lists: busy drivers + rejected drivers
+      const excludedDriverIds = [...busyDriverIds, ...rejectedDriverIds];
+      console.log('📊 Total excluded drivers:', excludedDriverIds.length);
+
       // Find available drivers within 10km radius, sorted by distance
-      // Exclude drivers who already have active trips
+      // Exclude drivers who already have active trips OR rejected/timeout this trip
       const drivers = await this.driverModel.find({
-        _id: { $nin: busyDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy drivers
+        _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
         status: 'online',
         currentLocation: {
           $near: {
@@ -444,7 +585,7 @@ export class CombinedTripsService {
               type: 'Point',
               coordinates: pickupCoordinates,
             },
-            $maxDistance: 10000, // 10km
+            $maxDistance: 50000, // 50km (increased for testing - adjust based on your city size)
           },
         },
       }).limit(10); // Get top 10 nearest drivers
@@ -491,6 +632,7 @@ export class CombinedTripsService {
       console.log('');
 
       // Update trip with current driver being notified (NOT a queue)
+      // sửa lại để chỉ có 1 tài xế được thông báo
       await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
         currentDriverId: targetDriver._id,
         notificationSentAt: new Date(),
@@ -524,13 +666,12 @@ export class CombinedTripsService {
       console.log('For Driver ID:', targetDriver._id);
       console.log('Trip ID:', combinedTripId);
       console.log('Status:', rideRequest.status);
+      console.log('Expires at:', rideRequest.expiresAt);
+      console.log('⏰ Timeout will be checked by polling endpoint');
       console.log('═══════════════════════════════════════════════════════════');
       console.log('');
 
-      // Schedule auto-timeout after 15 seconds
-      setTimeout(async () => {
-        await this.handleDriverTimeout(combinedTripId, rideRequest._id.toString());
-      }, 15000);
+      // ✅ NO setTimeout - timeout is handled by polling endpoint checking expiresAt
 
     } catch (error) {
       console.error('❌ Error finding and notifying drivers:', error);
@@ -581,9 +722,17 @@ export class CombinedTripsService {
       });
       const busyDriverIds = activeTrips.map(trip => trip.driverId?.toString()).filter(Boolean);
       
-      // Add rejected driver to exclusion list
-      const excludedDriverIds = [...busyDriverIds, rejectedDriverId?.toString()].filter(Boolean);
-      console.log('📊 Excluded drivers (busy + rejected):', excludedDriverIds.length);
+      // ✅ CRITICAL FIX: Get ALL drivers who already rejected/timeout for THIS trip from database
+      const allRejectedRequests = await this.rideRequestModel.find({
+        combinedTripId: new Types.ObjectId(combinedTripId),
+        status: 'rejected',
+      });
+      const allRejectedDriverIds = allRejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
+      console.log('📊 All previously rejected drivers for this trip:', allRejectedDriverIds.length, allRejectedDriverIds);
+      
+      // Combine all exclusion lists: busy drivers + ALL rejected drivers (not just current one)
+      const excludedDriverIds = [...busyDriverIds, ...allRejectedDriverIds];
+      console.log('📊 Total excluded drivers (busy + all rejected):', excludedDriverIds.length);
 
       // Find another driver (excluding busy drivers and the one who timed out)
       const drivers = await this.driverModel.find({
@@ -595,7 +744,7 @@ export class CombinedTripsService {
               type: 'Point',
               coordinates: pickupCoordinates,
             },
-            $maxDistance: 10000, // 10km
+            $maxDistance: 50000, // 50km (increased for testing)
           },
         },
       }).limit(1); // Get only the closest driver
@@ -647,11 +796,11 @@ export class CombinedTripsService {
 
       await newRideRequest.save();
       console.log('✅ New ride request created for next driver');
+      console.log('📬 New request ID:', newRideRequest._id);
+      console.log('📬 Next driver ID:', nextDriver._id);
+      console.log('⏰ Timeout will be checked by polling endpoint');
 
-      // Schedule timeout for next driver
-      setTimeout(async () => {
-        await this.handleDriverTimeout(combinedTripId, newRideRequest._id.toString());
-      }, 15000);
+      // ✅ NO setTimeout - timeout is handled by polling endpoint checking expiresAt
 
     } catch (error) {
       console.error('❌ Error handling driver timeout:', error);

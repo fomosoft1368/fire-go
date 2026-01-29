@@ -22,6 +22,7 @@ import type { RootState } from '../redux/store'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
 import { API_BASE_URL } from '../constants/config'
+import { calculateFare } from '../utils/pricing'
 
 export default function FindingRideScreen({ navigation }: any) {
   const route = useRoute()
@@ -37,6 +38,18 @@ export default function FindingRideScreen({ navigation }: any) {
   const endLat = params?.endLat ?? 21.0285  // Customer's dropoff latitude
   const totalFare = params?.totalFare ?? 0
   const seats = params?.seats ?? 1
+
+  // 🔍 Debug params
+  console.log('[FindingRideScreen] 🔍 PARAMS RECEIVED:', {
+    pickupAddress,
+    dropoffAddress,
+    distance,
+    duration,
+    totalFare,
+    seats,
+    pickupCoords: [startLng, startLat],
+    dropoffCoords: [endLng, endLat],
+  })
 
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -86,6 +99,58 @@ export default function FindingRideScreen({ navigation }: any) {
       }
     }
   }, [])
+
+  // Calculate fare independently if not provided by params
+  useEffect(() => {
+    const calculateFareIfNeeded = () => {
+      // If totalFare already provided from params, use it
+      if (totalFare > 0) {
+        console.log('[FindingRideScreen] Updating vehicle prices from totalFare:', totalFare)
+        setVehiclePrices({
+          basic: totalFare,
+          comfort: Math.round(totalFare * 1.3),
+          premium: Math.round(totalFare * 1.6),
+        })
+        return
+      }
+
+      // Otherwise, calculate it here using pricing.ts
+      if (distance > 0 && duration > 0) {
+        console.log('[FindingRideScreen] Calculating fare independently...', { distance, duration })
+        try {
+          const distanceKm = distance > 500 ? distance / 1000 : distance
+          const durationMin = duration / 60
+
+          // Calculate for basic (sedan) type
+          const fareBreakdown = calculateFare(distanceKm, durationMin, 'sedan')
+          const basicFare = fareBreakdown.total
+
+          console.log('[FindingRideScreen] ✅ Calculated fare:', {
+            basic: basicFare,
+            comfort: Math.round(basicFare * 1.3),
+            premium: Math.round(basicFare * 1.6),
+            breakdown: fareBreakdown,
+          })
+
+          setVehiclePrices({
+            basic: basicFare,
+            comfort: Math.round(basicFare * 1.3),
+            premium: Math.round(basicFare * 1.6),
+          })
+        } catch (error) {
+          console.error('[FindingRideScreen] Error calculating fare:', error)
+          // Fallback prices
+          setVehiclePrices({
+            basic: 50000,
+            comfort: 65000,
+            premium: 80000,
+          })
+        }
+      }
+    }
+
+    calculateFareIfNeeded()
+  }, [totalFare, distance, duration])
 
   // Fetch rides when location is obtained
   useEffect(() => {
@@ -219,8 +284,12 @@ export default function FindingRideScreen({ navigation }: any) {
 
       console.log('[FindingRideScreen] Total unique trips:', uniqueRides.length)
 
+      // ✅ Filter: Only show trips created by DRIVERS
+      const driverTrips = uniqueRides.filter((trip: any) => trip.createdBy === 'driver')
+      console.log('[FindingRideScreen] Driver-created trips only:', driverTrips.length)
+
       // Map and enrich ride data with safe defaults
-      const enrichedRides = uniqueRides.map((trip: any) => ({
+      const enrichedRides = driverTrips.map((trip: any) => ({
         ...trip,
         pickupAddress: trip.pickupAddress || trip.pickup || pickupAddress,
         dropoffAddress: trip.dropoffAddress || 'Địa điểm đến',
@@ -273,8 +342,16 @@ export default function FindingRideScreen({ navigation }: any) {
   }
 
   const handleCreateNewTrip = async () => {
+    // ✅ Prevent duplicate calls
+    if (creatingNewTrip) {
+      console.log('[FindingRideScreen] ⚠️ Already creating trip, ignoring duplicate call');
+      return;
+    }
+    
     try {
       setCreatingNewTrip(true)
+      const requestId = Date.now(); // Unique ID for this request
+      console.log('[FindingRideScreen] 🆔 REQUEST ID:', requestId, '- STARTING');
 
       // Get auth token - use 'authToken' key like other services
       const token = await AsyncStorage.getItem('authToken')
@@ -285,20 +362,49 @@ export default function FindingRideScreen({ navigation }: any) {
         return
       }
 
-      console.log('[FindingRideScreen] 🚀 Creating customer combined trip request...')
-      console.log('[FindingRideScreen] Request data:', {
+      // 🔍 Debug: Check fare calculation
+      const fareToSend = vehiclePrices[selectedVehicleType]
+      console.log('[FindingRideScreen] 🆔', requestId, '🔍 FARE DEBUG:', {
+        totalFareFromParams: totalFare,
+        selectedVehicleType,
+        vehiclePrices,
+        fareToSend,
+      })
+
+      if (fareToSend === 0 || !fareToSend) {
+        Alert.alert('Lỗi', 'Không thể tính giá cước. Vui lòng thử lại từ màn hình trước.')
+        setCreatingNewTrip(false)
+        return
+      }
+
+      console.log('[FindingRideScreen] 🆔', requestId, '🚀 Creating customer combined trip request...')
+      console.log('[FindingRideScreen] 🆔', requestId, 'Request data:', {
         pickupAddress,
         dropoffAddress,
         pickupCoordinates: [startLng, startLat],
         dropoffCoordinates: [endLng, endLat],
         distance,
         duration,
-        totalFare: vehiclePrices[selectedVehicleType],
+        totalFare: fareToSend,
         seats,
         vehicleType: selectedVehicleType,
       })
-      console.log('[FindingRideScreen] API URL:', `${API_BASE_URL}/combined-trips/customer-request`)
-      console.log('[FindingRideScreen] Token:', token ? 'EXISTS' : 'MISSING')
+      console.log('[FindingRideScreen] 🆔', requestId, 'API URL:', `${API_BASE_URL}/combined-trips/customer-request`)
+      console.log('[FindingRideScreen] 🆔', requestId, 'Token:', token ? 'EXISTS' : 'MISSING')
+
+      const requestPayload = {
+        pickupAddress,
+        dropoffAddress,
+        pickupCoordinates: [startLng, startLat],
+        dropoffCoordinates: [endLng, endLat],
+        distance,
+        duration,
+        totalFare: fareToSend,
+        seats,
+        vehicleType: selectedVehicleType,
+      }
+
+      console.log('[FindingRideScreen] 🆔', requestId, '📤 SENDING REQUEST TO BACKEND')
 
       // Create combined trip from customer
       const response = await fetch(`${API_BASE_URL}/combined-trips/customer-request`, {
@@ -307,30 +413,20 @@ export default function FindingRideScreen({ navigation }: any) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          pickupAddress,
-          dropoffAddress,
-          pickupCoordinates: [startLng, startLat],
-          dropoffCoordinates: [endLng, endLat],
-          distance,
-          duration,
-          totalFare: vehiclePrices[selectedVehicleType],
-          seats,
-          vehicleType: selectedVehicleType,
-        }),
+        body: JSON.stringify(requestPayload),
       })
 
-      console.log('[FindingRideScreen] Response status:', response.status, response.ok ? 'OK' : 'FAILED')
+      console.log('[FindingRideScreen] 🆔', requestId, 'Response status:', response.status, response.ok ? 'OK' : 'FAILED')
 
       const data = await response.json()
-      console.log('[FindingRideScreen] Response data:', data)
+      console.log('[FindingRideScreen] 🆔', requestId, 'Response data:', data)
 
       if (!response.ok) {
-        console.error('[FindingRideScreen] ❌ Create trip failed:', data)
+        console.error('[FindingRideScreen] 🆔', requestId, '❌ Create trip failed:', data)
         throw new Error(data.message || 'Không thể tạo yêu cầu')
       }
 
-      console.log('[FindingRideScreen] ✅ Trip created successfully:', {
+      console.log('[FindingRideScreen] 🆔', requestId, '✅ Trip created successfully:', {
         tripId: data.trip?._id,
         fullResponse: data,
       })

@@ -293,6 +293,7 @@ export default function CreateRideScreen() {
         remainingSeats: parseInt(remainingSeats),
         driverId: user?.id,
         notes: notes,
+        createdBy: 'driver', //  Mark this trip as driver-created
         // Status sẽ được set bởi backend thành PENDING
       }
 

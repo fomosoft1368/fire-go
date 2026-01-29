@@ -186,10 +186,16 @@ export const combinedTripsService = {
     try {
       console.log('[CombinedTripsService] Getting combined trip requests:', combinedTripId)
 
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        console.warn('[CombinedTripsService] ⚠️ No token found - request may fail')
+      }
+
       const response = await fetch(`${API_BASE_URL}/combined-trips/${combinedTripId}/requests`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
         },
       })
 

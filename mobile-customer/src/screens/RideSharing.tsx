@@ -342,6 +342,7 @@ export default function RideSharing(props?: RideSharingProps) {
         endLat: dropoffCoordinates[1],
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
+       
       })
 
       setIsLoading(false)
@@ -1206,12 +1207,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
-})00',
-    color: '#111827',
-    marginBottom: SPACING.xs,
-  },
-  suggestionSecondaryText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
 })
+// 00',
+//     color: '#111827',
+//     marginBottom: SPACING.xs,
+//   },
+//   suggestionSecondaryText: {
+//     fontSize: 12,
+//     color: '#6B7280',
+//   },
+// })

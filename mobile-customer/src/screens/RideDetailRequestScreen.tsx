@@ -176,7 +176,11 @@ export default function RideDetailRequestScreen() {
         selectedSeats.length
       )
 
-      console.log('Request created:', request._id)
+      console.log('✅ Request created:', request._id)
+      console.log('📤 Request sent to driver ID:', ride.driverId?._id || ride.driverId)
+      console.log('👤 Driver name:', ride.driverId?.firstName, ride.driverId?.lastName)
+      console.log('🚗 Combined Trip ID:', combinedTripId)
+      console.log('📋 Full request data:', JSON.stringify(request, null, 2))
       setRequestStatus('pending')
 
       // Start polling for status changes

@@ -62,6 +62,7 @@ export class CombinedTripsController {
         customerId: [],
         requestedAt: new Date(),
         totalFare, // Include calculated totalFare
+        createdBy: 'driver', // ✅ Mark this trip as driver-created
         // Convert coordinates to GeoJSON format
         pickupLocation: {
           type: 'Point',
@@ -93,6 +94,11 @@ export class CombinedTripsController {
   @Post('customer-request')
   @UseGuards(JwtAuthGuard)
   async customerRequest(@Body() requestDto: any, @Request() req: any) {
+    const requestId = Date.now();
+    console.log('');
+    console.log('🆔🆔🆔 [CustomerRequest] REQUEST ID:', requestId, '- STARTED');
+    console.log('');
+    
     try {
       const customerId = req.user?.id || req.user?.sub;
 
@@ -100,8 +106,8 @@ export class CombinedTripsController {
         throw new BadRequestException('Customer ID not found in authentication token');
       }
 
-      console.log('🚗 [CombinedTripsController] Customer requesting combined trip:', customerId);
-      console.log('📍 Request data:', {
+      console.log('🆔', requestId, '🚗 [CombinedTripsController] Customer requesting combined trip:', customerId);
+      console.log('🆔', requestId, '📍 Request data:', {
         pickupAddress: requestDto.pickupAddress,
         dropoffAddress: requestDto.dropoffAddress,
         pickupCoordinates: requestDto.pickupCoordinates,
@@ -125,7 +131,9 @@ export class CombinedTripsController {
         customerId: new Types.ObjectId(customerId),
       });
 
-      console.log('✅ Customer combined trip created:', (trip as any)._id);
+      // 🔧 REMOVED DUPLICATE LOG - already logged in service at line 495
+      // console.log('✅ Customer combined trip created:', (trip as any)._id);
+      console.log('🆔', requestId, '📞 [CombinedTripsController] Calling findAndNotifyDrivers with tripId:', (trip as any)._id);
 
       // Find nearby available drivers and send notification
       await this.combinedTripsService.findAndNotifyDrivers((trip as any)._id.toString(), requestDto.pickupCoordinates);
@@ -136,7 +144,10 @@ export class CombinedTripsController {
         message: 'Đang tìm tài xế gần bạn...',
       };
     } catch (error: any) {
-      console.error('[CombinedTripsController] Error creating customer trip:', error);
+      console.error('🆔', requestId, '❌ [CombinedTripsController] Error creating customer trip:', error);
+      console.log('');
+      console.log('🆔🆔🆔 [CustomerRequest] REQUEST ID:', requestId, '- FAILED');
+      console.log('');
       throw error;
     }
   }
@@ -271,6 +282,64 @@ export class CombinedTripsController {
   }
 
   /**
+   * GET /combined-trips/driver/:driverId/pending-requests
+   * Get all pending ride requests for a specific driver
+   * Driver app polls this to discover new trip requests
+   */
+  @Get('driver/:driverId/pending-requests')
+  async getDriverPendingRequests(@Param('driverId') driverId: string) {
+    try {
+      console.log('🔔 [CombinedTripsController] Getting pending requests for driver:', driverId);
+
+      // ✅ CHECK FOR EXPIRED REQUESTS FIRST
+      const now = new Date();
+      const expiredRequests = await this.rideRequestModel.find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'pending',
+        expiresAt: { $lt: now },
+      });
+
+      // Auto-reject expired requests and trigger finding next driver
+      for (const expiredReq of expiredRequests) {
+        console.log('⏰ [Auto-Timeout] Found expired request for driver:', driverId, 'Request:', expiredReq._id);
+        await this.rideRequestModel.findByIdAndUpdate(expiredReq._id, {
+          status: 'rejected',
+        });
+        
+        // Trigger finding next driver for that trip
+        const combinedTripId = expiredReq.combinedTripId.toString();
+        const trip = await this.combinedTripsService.findById(combinedTripId);
+        if (trip && trip.status === 'pending') {
+          const pickupCoordinates = trip.pickupLocation?.coordinates as [number, number];
+          if (pickupCoordinates) {
+            console.log('🔄 [Auto-Timeout] Finding next driver for trip:', combinedTripId);
+            // Call asynchronously
+            this.combinedTripsService.findAndNotifyDrivers(combinedTripId, pickupCoordinates).catch(err => {
+              console.error('❌ Error finding next driver:', err);
+            });
+          }
+        }
+      }
+
+      // Get active pending requests for this driver
+      const pendingRequests = await this.rideRequestModel.find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'pending',
+        expiresAt: { $gte: now }, // Not expired yet
+      })
+        .populate('combinedTripId')
+        .populate('customerId', 'firstName lastName phone avatar rating')
+        .sort({ createdAt: -1 });
+
+      console.log('✅ Found pending requests for driver:', pendingRequests.length);
+      return pendingRequests;
+    } catch (error: any) {
+      console.error('[CombinedTripsController] ❌ Error getting driver pending requests:', error);
+      throw error;
+    }
+  }
+
+  /**
    * GET /combined-trips/customer/:customerId
    * Get all combined trips (history) for a specific customer with their specific pickup/dropoff locations
    * Returns combined trips with embedded customer's RideRequest data
@@ -376,29 +445,15 @@ export class CombinedTripsController {
     @Request() req: any,
   ) {
     try {
-      console.log('');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('[CombinedTripsController] 🔴 ENDPOINT /requests GỌI');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('[CombinedTripsController] 📋 Query driverId:', driverId || 'NONE');
-      console.log('[CombinedTripsController] 🔐 Auth object:', req.user);
+      // ✅ REMOVED AUTO-TIMEOUT LOGIC - Let timeout checker handle it exclusively
+      // This prevents duplicate findAndNotifyDrivers calls from polling
       
       // Temporarily allow without driverId to test
       if (!driverId) {
         console.warn('[CombinedTripsController] ⚠️ No driverId - will return ALL requests for this trip');
       }
 
-      console.log('');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('[CombinedTripsController] 🔴 ENDPOINT /requests GỌI');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('[CombinedTripsController] 🔍 Getting requests for combinedTripId:', combinedTripId);
-      console.log('[CombinedTripsController] 👤 Using Driver ID:', driverId || 'ALL (no filter)');
-
       const combinedTripIdObj = new Types.ObjectId(combinedTripId);
-      console.log('[CombinedTripsController] ✅ Converted to ObjectId:', combinedTripIdObj.toString());
-
-      console.log('[CombinedTripsController] 🔄 About to query database...');
       
       // Build query
       const query: any = {
@@ -409,9 +464,9 @@ export class CombinedTripsController {
       // Only filter by driverId if provided
       if (driverId) {
         query.driverId = new Types.ObjectId(driverId);
-        console.log('[CombinedTripsController] ✅ Filtering by driverId:', driverId);
+        
       } else {
-        console.log('[CombinedTripsController] ⚠️ NO FILTER - Returning ALL requests');
+        
       }
       
       // Query with optional driverId filter
@@ -419,21 +474,7 @@ export class CombinedTripsController {
         .populate('customerId', 'name phone rating')
         .sort({ createdAt: -1 });
 
-      console.log('[CombinedTripsController] ✅ Query completed successfully');
-      console.log('[CombinedTripsController] ✅ Found requests for this driver:', {
-        count: requests.length,
-        combinedTripId,
-        driverId,
-        requestDetails: requests.map(r => ({ 
-          _id: r._id.toString(), 
-          status: r.status,
-          customerId: r.customerId,
-          fare: r.fare,
-          createdAt: r.createdAt,
-        })),
-      });
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('');
+     
       return requests;
     } catch (error: any) {
       console.error('[CombinedTripsController] ❌ Error getting requests:', {
@@ -491,12 +532,7 @@ export class CombinedTripsController {
     },
   ) {
     try {
-      console.log('[CombinedTripsController] Creating request for combined trip:', {
-        combinedTripId,
-        customerId: body.customerId,
-        pickupAddress: body.pickupAddress,
-        dropoffAddress: body.dropoffAddress,
-      });
+     
 
       const combinedTripIdObj = new Types.ObjectId(combinedTripId);
       const customerIdObj = new Types.ObjectId(body.customerId);
@@ -504,11 +540,7 @@ export class CombinedTripsController {
       // ✅ Get the combined trip to find the driverId
       const combinedTrip = await this.combinedTripsService.getCombinedTripsModel().findById(combinedTripIdObj);
       
-      console.log('[CombinedTripsController] ⚠️ JOIN REQUEST - Trip details:', {
-        tripId: combinedTripId,
-        driverId: combinedTrip?.driverId?.toString() || 'NO DRIVER ID!',
-        status: combinedTrip?.status,
-      });
+    
       
       if (!combinedTrip) {
         throw new BadRequestException('Combined trip not found');
@@ -520,7 +552,7 @@ export class CombinedTripsController {
       }
       
       const driverIdToUse = combinedTrip.driverId;
-      console.log('[CombinedTripsController] ✅ Will send request to driver:', driverIdToUse.toString());
+      
 
       // ✅ Check if customer already has active trip
       const activeCustomerTrip = await this.combinedTripsService.getCombinedTripsModel().findOne({
@@ -540,7 +572,7 @@ export class CombinedTripsController {
       });
 
       if (existingRequest) {
-        console.log('⚠️ Customer already has pending request for this trip, returning existing:', existingRequest._id);
+      
         return existingRequest.populate('customerId', 'name phone rating');
       }
 
@@ -563,18 +595,7 @@ export class CombinedTripsController {
         updatedAt: new Date(),
       });
 
-      console.log('');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('✅✅✅ JOIN REQUEST CREATED SUCCESSFULLY');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('Request ID:', newRequest._id.toString());
-      console.log('Driver ID:', newRequest.driverId?.toString() || '❌ MISSING!');
-      console.log('Customer ID:', body.customerId);
-      console.log('Trip ID:', combinedTripId);
-      console.log('Status:', newRequest.status);
-      console.log('🎯 This request is sent to ONLY ONE driver, not broadcast to all');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('');
+     
       
       // VERIFY driverId was set
       if (!newRequest.driverId) {
@@ -604,10 +625,7 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] 🔍 Getting request status:', {
-        combinedTripId,
-        requestId,
-      });
+      
 
       const request = await this.rideRequestModel.findById(requestId);
 
@@ -621,14 +639,7 @@ export class CombinedTripsController {
         };
       }
 
-      console.log('[CombinedTripsController] ✅ Request tìm thấy:', {
-        _id: request._id,
-        status: request.status,
-        combinedTripId: request.combinedTripId,
-        customerId: request.customerId,
-        fare: request.fare,
-        all: JSON.stringify(request),
-      });
+    
 
       return request;
     } catch (error: any) {
@@ -647,10 +658,7 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] Accepting request:', {
-        combinedTripId,
-        requestId,
-      });
+      
 
       const request = await this.rideRequestModel.findById(requestId);
 
@@ -658,11 +666,7 @@ export class CombinedTripsController {
         throw new BadRequestException('Request not found');
       }
 
-      console.log('[CombinedTripsController] Request details:', {
-        createdBy: request.createdBy,
-        driverId: request.driverId?.toString(),
-        customerId: request.customerId?.toString(),
-      });
+      
 
       // Get the trip to check current state
       const trip = await this.combinedTripsService.getCombinedTripsModel().findById(combinedTripId);
@@ -671,17 +675,11 @@ export class CombinedTripsController {
         throw new BadRequestException('Trip not found');
       }
 
-      console.log('[CombinedTripsController] Trip current state:', {
-        tripId: combinedTripId,
-        hasDriverId: !!trip.driverId,
-        driverId: trip.driverId?.toString(),
-        currentCustomers: trip.customerId?.length || 0,
-      });
-
+     
       // Determine what to do based on request type
       if (request.createdBy === 'customer' && !trip.driverId) {
         // Case 1: Customer created new trip, driver accepting → Add driver to trip
-        console.log('[CombinedTripsController] ✅ Case 1: Adding driver to new customer trip');
+       
         
         // ✅ Check if driver already has an active trip
         const activeDriverTrip = await this.combinedTripsService.getCombinedTripsModel().findOne({
@@ -709,11 +707,11 @@ export class CombinedTripsController {
           },
         );
 
-        console.log('[CombinedTripsController] ✅ Driver added to trip successfully');
+       
 
       } else if (request.createdBy === 'customer' && trip.driverId) {
         // Case 2: Customer joining existing trip → Add customer to trip
-        console.log('[CombinedTripsController] ✅ Case 2: Adding customer to existing trip');
+        
 
         // Update request status
         await this.rideRequestModel.findByIdAndUpdate(
@@ -728,11 +726,11 @@ export class CombinedTripsController {
           request.customerId.toString(),
         );
 
-        console.log('[CombinedTripsController] ✅ Customer added to trip successfully');
+      
 
       } else {
         // Other cases (driver-created trips, etc.)
-        console.log('[CombinedTripsController] ℹ️ Other case: Standard accept');
+       
         
         // Update request status
         await this.rideRequestModel.findByIdAndUpdate(
@@ -770,10 +768,7 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] Rejecting request:', {
-        combinedTripId,
-        requestId,
-      });
+     
 
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
@@ -837,10 +832,7 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] Marking arrived:', {
-        combinedTripId,
-        requestId,
-      });
+      
 
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
@@ -869,10 +861,7 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] Starting journey:', {
-        combinedTripId,
-        requestId,
-      });
+      
 
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
@@ -901,10 +890,7 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] Completing request:', {
-        combinedTripId,
-        requestId,
-      });
+    
 
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
@@ -934,9 +920,9 @@ export class CombinedTripsController {
     @Body('driverId') driverId: string,
   ) {
     try {
-      console.log('[CombinedTripsController] Accepting combined trip:', { combinedTripId, driverId });
+     
       const result = await this.combinedTripsService.acceptCombinedTrip(combinedTripId, driverId);
-      console.log('[CombinedTripsController] Combined trip accepted successfully:', (result as any)._id);
+      
       return result;
     } catch (error) {
       console.error('[CombinedTripsController] Error accepting combined trip:', error.message);
@@ -951,7 +937,7 @@ export class CombinedTripsController {
   @Get(':combinedTripId/driver-location')
   async getDriverLocation(@Param('combinedTripId') combinedTripId: string) {
     try {
-      console.log('[CombinedTripsController] Getting driver location for trip:', combinedTripId);
+      
       
       const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
       
@@ -961,7 +947,7 @@ export class CombinedTripsController {
 
       // If trip is pending (no driver assigned yet), return pending status
       if (trip.status === 'pending' || !trip.driverId) {
-        console.log('[CombinedTripsController] Trip is pending - no driver assigned yet');
+        
         return {
           status: 'pending',
           message: 'Waiting for driver acceptance',
@@ -993,7 +979,7 @@ export class CombinedTripsController {
   @Get(':combinedTripId/route')
   async getRoute(@Param('combinedTripId') combinedTripId: string) {
     try {
-      console.log('[CombinedTripsController] Getting route for trip:', combinedTripId);
+     
       
       const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
       
@@ -1036,7 +1022,7 @@ export class CombinedTripsController {
   @Get(':combinedTripId')
   async getCombinedTripDetail(@Param('combinedTripId') combinedTripId: string) {
     try {
-      console.log('[CombinedTripsController] Getting combined trip detail:', combinedTripId);
+      
 
       const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
 
