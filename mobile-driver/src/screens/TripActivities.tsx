@@ -13,8 +13,11 @@ import {
     Animated,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import * as Location from 'expo-location'
 import { COLORS } from '../constants'
 import MapViewComponent from '../components/MapView'
+import ChatScreen from './ChatScreen'
+import { mapsService } from '../services/mapsService'
 interface TripActivitiesProps {
     navigation: any
     route: any
@@ -40,14 +43,86 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
     const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
     const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
     const [tripStatus, setTripStatus] = useState<'going_to_pickup' | 'arrived_at_pickup' | 'in_progress'>('going_to_pickup')
+    const [showChat, setShowChat] = useState(false)
+    const [unreadCount, setUnreadCount] = useState(0)
+    const [routeInfo, setRouteInfo] = useState<any>(null)
+    const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
 
     const rideId = route?.params?.rideId
 
     useEffect(() => {
         if (rideId) {
             fetchRideDetail()
+            fetchUnreadCount()
+            
+            // Poll unread count every 5 seconds
+            const interval = setInterval(fetchUnreadCount, 5000)
+            return () => clearInterval(interval)
         }
     }, [rideId])
+
+    // Lấy vị trí tài xế hiện tại
+    useEffect(() => {
+        let locationSubscription: Location.LocationSubscription | null = null
+        
+        const startLocationTracking = async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync()
+                if (status !== 'granted') {
+                    console.warn('⚠️ Location permission denied')
+                    return
+                }
+
+                // Lấy vị trí hiện tại ngay
+                const location = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.High,
+                })
+                const coords = {
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                }
+                console.log('📍 Driver location:', coords)
+                setDriverLocation(coords)
+
+                // Watch location updates
+                locationSubscription = await Location.watchPositionAsync(
+                    {
+                        accuracy: Location.Accuracy.High,
+                        timeInterval: 5000, // Update mỗi 5 giây
+                        distanceInterval: 10, // Hoặc khi di chuyển 10 mét
+                    },
+                    (newLocation) => {
+                        const newCoords = {
+                            latitude: newLocation.coords.latitude,
+                            longitude: newLocation.coords.longitude,
+                        }
+                        setDriverLocation(newCoords)
+                    }
+                )
+            } catch (error) {
+                console.error('❌ Error tracking location:', error)
+            }
+        }
+
+        startLocationTracking()
+
+        return () => {
+            if (locationSubscription) {
+                locationSubscription.remove()
+            }
+        }
+    }, [])
+
+    // Fetch route dựa theo trạng thái
+    useEffect(() => {
+        if (tripStatus === 'going_to_pickup' && driverLocation && pickupCoords) {
+            // Đang đến điểm đón: hiển thị route từ driver → pickup
+            fetchRoute()
+        } else if ((tripStatus === 'arrived_at_pickup' || tripStatus === 'in_progress') && pickupCoords && dropoffCoords) {
+            // Đã đến điểm đón hoặc đang trong chuyến: hiển thị route từ pickup → dropoff
+            fetchRoute()
+        }
+    }, [tripStatus, driverLocation, pickupCoords, dropoffCoords])
 
     const fetchRideDetail = async () => {
         setLoading(true)
@@ -70,14 +145,31 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                 setTripStatus('going_to_pickup')
             }
 
-            // Set coordinates
-            if (data.pickupCoordinates) {
+            // Set coordinates - GeoJSON format: [longitude, latitude]
+            if (data.pickupLocation?.coordinates && data.pickupLocation.coordinates.length === 2) {
+                const coords = {
+                    latitude: data.pickupLocation.coordinates[1],  // GeoJSON: [lng, lat]
+                    longitude: data.pickupLocation.coordinates[0],
+                }
+                console.log('📍 Pickup coords:', coords)
+                setPickupCoords(coords)
+            } else if (data.pickupCoordinates) {
+                // Fallback cho format cũ
                 setPickupCoords({
                     latitude: data.pickupCoordinates[0],
                     longitude: data.pickupCoordinates[1],
                 })
             }
-            if (data.dropoffCoordinates) {
+            
+            if (data.dropoffLocation?.coordinates && data.dropoffLocation.coordinates.length === 2) {
+                const coords = {
+                    latitude: data.dropoffLocation.coordinates[1],  // GeoJSON: [lng, lat]
+                    longitude: data.dropoffLocation.coordinates[0],
+                }
+                console.log('📍 Dropoff coords:', coords)
+                setDropoffCoords(coords)
+            } else if (data.dropoffCoordinates) {
+                // Fallback cho format cũ
                 setDropoffCoords({
                     latitude: data.dropoffCoordinates[0],
                     longitude: data.dropoffCoordinates[1],
@@ -108,6 +200,65 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         }
     }
 
+    const fetchRoute = async () => {
+        try {
+            let originAddress: string
+            let destinationAddress: string
+
+            if (tripStatus === 'going_to_pickup') {
+                // Đang đến điểm đón: route từ driver location → pickup
+                if (!driverLocation || !pickupCoords) return
+                
+                originAddress = `${driverLocation.latitude},${driverLocation.longitude}`
+                destinationAddress = `${pickupCoords.latitude},${pickupCoords.longitude}`
+                
+                console.log('🗺️ Fetching route: Driver → Pickup')
+            } else {
+                // Đã đến điểm đón hoặc đang trong chuyến: route từ pickup → dropoff
+                if (!pickupCoords || !dropoffCoords) return
+                
+                originAddress = `${pickupCoords.latitude},${pickupCoords.longitude}`
+                destinationAddress = `${dropoffCoords.latitude},${dropoffCoords.longitude}`
+                
+                console.log('🗺️ Fetching route: Pickup → Dropoff')
+            }
+            
+            const route = await mapsService.getRouteInfo(originAddress, destinationAddress)
+            setRouteInfo(route)
+            
+            console.log('✅ Route fetched:', {
+                status: tripStatus,
+                routePoints: route.routeCoordinates?.length || 0,
+                distance: route.distance,
+                duration: route.duration,
+            })
+        } catch (error: any) {
+            console.error('❌ Error fetching route:', error)
+        }
+    }
+
+    const fetchUnreadCount = async () => {
+        if (!rideId) return
+        
+        try {
+            const AsyncStorage = require('@react-native-async-storage/async-storage').default
+            const token = await AsyncStorage.getItem('token')
+            if (!token) return
+
+            const API_URL = 'http://192.168.1.16:3000/api'
+            const response = await fetch(`${API_URL}/messages/ride/${rideId}/unread-count`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            
+            if (response.ok) {
+                const result = await response.json()
+                setUnreadCount(result.data?.unreadCount || 0)
+            }
+        } catch (error) {
+            // Ignore errors silently
+        }
+    }
+
     const handleGoBack = () => {
         navigation?.goBack()
     }
@@ -119,12 +270,21 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         }
     }
 
+    const handleChat = () => {
+        setShowChat(true)
+        setUnreadCount(0)
+    }
+
     const handleArrivedAtPickup = async () => {
         setUpdating(true)
         try {
             // In real app, you might want to update status on backend
             // For now, just update local state
             setTripStatus('arrived_at_pickup')
+            
+            // Clear routeInfo để trigger re-fetch route mới (pickup → dropoff)
+            setRouteInfo(null)
+            
             Alert.alert('Thành công', 'Đã đến điểm đón. Hãy chờ khách hàng.')
         } catch (error: any) {
             console.error('❌ Error updating status:', error.message)
@@ -221,6 +381,21 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         }
     }
 
+    // Show chat screen
+    if (showChat && customer) {
+        return (
+            <ChatScreen
+                customer={{
+                    id: customer._id,
+                    name: customer.name || 'Khách hàng',
+                    phone: customer.phone,
+                }}
+                rideId={rideId}
+                onClose={() => setShowChat(false)}
+            />
+        )
+    }
+
     return (
         <View style={styles.container}>
             <View style={StyleSheet.absoluteFillObject}>
@@ -232,8 +407,10 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                         latitudeDelta: 0.01,
                         longitudeDelta: 0.01,
                     } : undefined}
-                    pickupCoords={pickupCoords}
-                    dropoffCoords={dropoffCoords}
+                    pickupCoords={pickupCoords || undefined}
+                    dropoffCoords={dropoffCoords || undefined}
+                    driverCoords={driverLocation || undefined}
+                    routeCoordinates={routeInfo?.routeCoordinates || []}
                 />
             </View>
             <View style={styles.header}>
@@ -269,8 +446,13 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                             <TouchableOpacity style={styles.actionBtnCall} onPress={handleCall}>
                                 <MaterialIcons name="call" size={20} color="#fff" />
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.actionBtnChat}>
+                            <TouchableOpacity style={styles.actionBtnChat} onPress={handleChat}>
                                 <MaterialIcons name="chat-bubble" size={20} color="#fff" />
+                                {unreadCount > 0 && (
+                                    <View style={styles.badge}>
+                                        <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                                    </View>
+                                )}
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -465,7 +647,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 12,
         elevation: 15,
-        maxHeight: '75%',
+        maxHeight: '50%',
     },
     cardContent: {
         flex: 1,
@@ -552,6 +734,26 @@ const styles = StyleSheet.create({
         backgroundColor: '#3B82F6',
         alignItems: 'center',
         justifyContent: 'center',
+        position: 'relative',
+    },
+    badge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        backgroundColor: '#EF4444',
+        borderRadius: 10,
+        minWidth: 20,
+        height: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 5,
+        borderWidth: 2,
+        borderColor: '#374151',
+    },
+    badgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#fff',
     },
     // Status Section
     statusSection: {

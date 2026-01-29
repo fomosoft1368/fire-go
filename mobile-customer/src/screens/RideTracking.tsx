@@ -13,6 +13,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import MapViewComponent from '../components/MapView'
 import { SPACING } from '../constants'
 import { mapsService } from '../services/mapsService'
+import ChatScreen from './ChatScreen'
 
 interface RideTrackingProps {
   navigation?: any
@@ -53,9 +54,11 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
   const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
-  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([]);
-  const [routeFetched, setRouteFetched] = useState(false);
-
+  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([])
+  const [routeFetched, setRouteFetched] = useState(false)
+  const [showChat, setShowChat] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  
   useEffect(() => {
     if (pickupCoords && dropoffCoords && !routeFetched) {
       fetchRouteFromPickupDropoff()
@@ -77,6 +80,28 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
       }
     } catch (error) {
       console.error('Error fetching route:', error)
+    }
+  }
+
+  const fetchUnreadCount = async () => {
+    if (!rideId) return
+    
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default
+      const token = await AsyncStorage.getItem('token')
+      if (!token) return
+
+      const API_URL = 'http://192.168.1.16:3000/api'
+      const response = await fetch(`${API_URL}/messages/ride/${rideId}/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setUnreadCount(result.data?.unreadCount || 0)
+      }
+    } catch (error) {
+      // Ignore errors silently
     }
   }
 
@@ -174,9 +199,13 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
     }
 
     fetchRideStatus() // Initial fetch
+    fetchUnreadCount() // Initial unread count fetch
     
     // Poll every 5 seconds (reduced from 3s to reduce load)
-    const interval = setInterval(fetchRideStatus, 5000)
+    const interval = setInterval(() => {
+      fetchRideStatus()
+      fetchUnreadCount()
+    }, 5000)
 
     return () => clearInterval(interval)
   }, [rideId, navigation])
@@ -187,7 +216,8 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
   }
 
   const handleChat = () => {
-    Alert.alert('Chat', 'Tính năng chat đang được phát triển')
+    setShowChat(true)
+    setUnreadCount(0)
   }
 
   const handleCancelRide = () => {
@@ -209,6 +239,21 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
   const handleHelp = () => {
     Alert.alert('Trợ giúp', 'Liên hệ hotline: 1900-xxxx')
+  }
+
+  // Show chat screen
+  if (showChat && driver) {
+    return (
+      <ChatScreen
+        driver={{
+          id: driver.id,
+          name: driver.name,
+          phone: driver.phone,
+        }}
+        rideId={rideId}
+        onClose={() => setShowChat(false)}
+      />
+    )
   }
 
   return (
@@ -294,6 +339,11 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
           <View style={styles.actionButtons}>
             <TouchableOpacity style={styles.chatButton} onPress={handleChat}>
               <MaterialIcons name="chat-bubble-outline" size={20} color="#fff" />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.callButton} onPress={handleCall}>
               <MaterialIcons name="phone" size={20} color="#000" />
@@ -509,6 +559,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#4B5563',
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: '#1a202c',
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
   },
   callButton: {
     width: 44,

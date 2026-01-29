@@ -15,7 +15,6 @@ import {
   StatusBar,
   Modal,
 } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useSelector } from 'react-redux'
@@ -310,19 +309,19 @@ export default function RideSharing(props?: RideSharingProps) {
       // Validate coordinates exist and are valid
       if (!pickupCoordinates || !Array.isArray(pickupCoordinates) || pickupCoordinates.length !== 2) {
         Alert.alert('Lỗi', 'Vị trí đón khách không hợp lệ')
-        console.error('[RideSharing] Invalid pickupCoordinates:', pickupCoordinates)
+        console.error('[HomeScreen] Invalid pickupCoordinates:', pickupCoordinates)
         setIsLoading(false)
         return
       }
 
       if (!dropoffCoordinates || !Array.isArray(dropoffCoordinates) || dropoffCoordinates.length !== 2) {
         Alert.alert('Lỗi', 'Vị trí trả khách không hợp lệ')
-        console.error('[RideSharing] Invalid dropoffCoordinates:', dropoffCoordinates)
+        console.error('[HomeScreen] Invalid dropoffCoordinates:', dropoffCoordinates)
         setIsLoading(false)
         return
       }
 
-      console.log('[RideSharing] Navigate to FindingRideScreen with params:', {
+      console.log('[HomeScreen] Navigate to FindingRideScreen with params:', {
         distance: routeInfo.distance,
         duration: routeInfo.duration,
         startLng: pickupCoordinates[0],
@@ -331,13 +330,9 @@ export default function RideSharing(props?: RideSharingProps) {
         endLat: dropoffCoordinates[1],
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
-        totalFare: fareEstimate?.totalFare || fareEstimate?.total || 0,
-        seats: passengerCount,
       })
 
-      // Navigate to FindingRideScreen - Customer will choose between:
-      // 1. Create new trip (wait for driver to accept - Grab-like)
-      // 2. Join existing trip (request to join available rides)
+      // Navigate to FindingRideScreen
       navigation.navigate('FindingRideScreen', {
         distance: routeInfo.distance,
         duration: routeInfo.duration,
@@ -347,8 +342,6 @@ export default function RideSharing(props?: RideSharingProps) {
         endLat: dropoffCoordinates[1],
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
-        totalFare: fareEstimate?.totalFare || fareEstimate?.total || 0,
-        seats: passengerCount,
       })
 
       setIsLoading(false)
@@ -356,7 +349,7 @@ export default function RideSharing(props?: RideSharingProps) {
       if (!isMountedRef.current) return
 
       setIsLoading(false)
-      console.error('[RideSharing] handleFindRide error:', error)
+      console.error('[HomeScreen] handleFindRide error:', error)
       Alert.alert('Lỗi', error.message || 'Không thể xử lý yêu cầu')
     }
   }
@@ -486,7 +479,7 @@ export default function RideSharing(props?: RideSharingProps) {
     <View style={styles.container}>
       <View style={StyleSheet.absoluteFillObject}>
         <MapViewComponent
-          height={height}
+          height={"100%"}
           initialRegion={{
             latitude: pickupCoordinates[1],
             longitude: pickupCoordinates[0],
@@ -1206,6 +1199,14 @@ const styles = StyleSheet.create({
   suggestionMainText: {
     fontSize: 14,
     fontWeight: '500',
+    color: '#111827',
+    marginBottom: SPACING.xs,
+  },
+  suggestionSecondaryText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+})00',
     color: '#111827',
     marginBottom: SPACING.xs,
   },

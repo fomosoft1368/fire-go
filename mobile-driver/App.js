@@ -241,7 +241,7 @@ console.log('[App] Fetching user profile with token...')
         for (const trip of allCombinedTrips) {
           if (!isMounted) return
 
-          const API_URL = 'http://192.168.1.18:3000/api'
+          const API_URL = 'http://192.168.1.16:3000/api'
           try {
             // ✅ Add driverId to filter requests for THIS driver only
             const driverId = user?.id

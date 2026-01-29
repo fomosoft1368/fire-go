@@ -26,7 +26,7 @@ import type { RideItem } from '../types'
 async function playNotificationSound() {
   try {
     const { sound } = await Audio.Sound.createAsync(
-      require('../assets/sounds')
+      require('../assets/sounds/notification.mp3')
     )
     await sound.setPositionAsync(0)
     await sound.setVolumeAsync(1.0)
@@ -59,23 +59,6 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchAvailableRides()
   }, [])
-
-  // Handle toggle online/offline status
-  const handleToggleOnline = async (newStatus: boolean) => {
-    try {
-      console.log('🔄 Toggling driver status to:', newStatus ? 'online' : 'offline')
-      
-      // Update backend first
-      await driverService.updateDriverStatus(newStatus ? 'online' : 'offline')
-      
-      // Update local state
-      setIsOnline(newStatus)
-      console.log('✅ Driver status updated successfully')
-    } catch (error) {
-      console.error('❌ Error updating driver status:', error)
-      Alert.alert('Lỗi', 'Không thể cập nhật trạng thái')
-    }
-  }
 
   // ✅ REMOVED: Modal logic moved to GlobalRequestModal component in App.js
   // This ensures modal shows on ALL screens, not just HomeScreen
@@ -141,36 +124,38 @@ export default function HomeScreen() {
       console.log('📱 Combined trips từ API:', JSON.stringify(allCombinedTrips, null, 2))
       console.log('👤 User ID hiện tại:', user?.id)
 
-      // Filter rides: ONLY show MY rides (must have driverId = user.id)
+      // Filter rides: show both my rides AND available rides (no driver assigned)
       const relevantRides = allRides.filter((ride: any) => {
         const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
-        const isMyRide = rideDriverId && String(rideDriverId) === String(user?.id)
-        
+        const isMyRide = String(rideDriverId) === String(user?.id)
+        const isAvailable = !rideDriverId && ride.status === 'pending'
+        const shouldShow = isMyRide || isAvailable
         console.log(`🚗 Ride ${ride._id}:`, {
           driverId: rideDriverId,
           userId: user?.id,
           status: ride.status,
           isMyRide,
+          isAvailable,
+          shouldShow,
         })
-        return isMyRide
+        return shouldShow
       })
 
-      // Filter combined trips: STRICT - ONLY show trips where I am THE driver
-      // Customer-created trips: driverId is set ONLY when driver accepts
-      // So we only see trips we've accepted (driverId === user.id)
+      // Filter combined trips: show both my trips AND available trips (no driver assigned)
       const relevantCombinedTrips = allCombinedTrips.filter((trip: any) => {
         const tripDriverId = typeof trip.driverId === 'string' ? trip.driverId : trip.driverId?._id
-        // MUST have driverId AND must match current user
-        const isMyTrip = tripDriverId && String(tripDriverId) === String(user?.id)
-        
+        const isMyTrip = String(tripDriverId) === String(user?.id)
+        const isAvailable = !tripDriverId && trip.status === 'pending'
+        const shouldShow = isMyTrip || isAvailable
         console.log(`🛴 Combined trip ${trip._id}:`, {
           driverId: tripDriverId,
           userId: user?.id,
           status: trip.status,
           isMyTrip,
-          note: isMyTrip ? 'MY TRIP ✅' : 'NOT MY TRIP ❌',
+          isAvailable,
+          shouldShow,
         })
-        return isMyTrip
+        return shouldShow
       })
 
       // Merge both arrays
@@ -485,7 +470,7 @@ export default function HomeScreen() {
           dailyAmount={1200000}
           increase={2}
           isOnline={isOnline}
-          onToggleOnline={handleToggleOnline}
+          onToggleOnline={setIsOnline}
         />
 
         {/* Auto-Assign Card */}
