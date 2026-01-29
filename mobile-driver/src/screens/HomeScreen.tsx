@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { Audio } from 'expo-av'
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
   SafeAreaView,
   Alert,
   ActivityIndicator,
@@ -16,30 +14,12 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
-import { COLORS, SPACING, BORDER_RADIUS, FILTER_TYPES } from '../constants'
+import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { RideCard, BalanceCard } from '../components'
 import { driverService } from '../services/driverService'
+import { locationTrackingService } from '../services/locationTrackingService'
 import type { RootState } from '../redux/store'
 import type { RideItem } from '../types'
-
-// Hàm phát âm thanh notification
-async function playNotificationSound() {
-  try {
-    const { sound } = await Audio.Sound.createAsync(
-      require('../assets/sounds/notification.mp3')
-    )
-    await sound.setPositionAsync(0)
-    await sound.setVolumeAsync(1.0)
-    await sound.playAsync()
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound.unloadAsync()
-      }
-    })
-  } catch (e) {
-    console.log('Lỗi phát âm thanh:', e)
-  }
-}
 
 export default function HomeScreen() {
   const [isOnline, setIsOnline] = useState(true)
@@ -48,12 +28,25 @@ export default function HomeScreen() {
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [assignedRide, setAssignedRide] = useState<any>(null)
-  const [dismissCountdown, setDismissCountdown] = useState(15)
-  const [currentCombinedTripId, setCurrentCombinedTripId] = useState<string | null>(null)
   
   const { user } = useSelector((state: RootState) => state.auth)
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
+
+  // Start/stop location tracking based on online status
+  useEffect(() => {
+    if (isOnline && user?.id) {
+      console.log('[HomeScreen] 🟢 Driver is online, starting location tracking')
+      locationTrackingService.startTracking(user.id)
+    } else if (!isOnline) {
+      console.log('[HomeScreen] 🔴 Driver is offline, stopping location tracking')
+      locationTrackingService.stopTracking()
+    }
+
+    return () => {
+      // Don't stop tracking on unmount, let it continue in background
+      console.log('[HomeScreen] Component unmounting, but keeping location tracking active')
+    }
+  }, [isOnline, user?.id])
 
   // Lấy danh sách cuốc từ API
   useEffect(() => {
@@ -61,55 +54,7 @@ export default function HomeScreen() {
   }, [])
 
   // ✅ REMOVED: Modal logic moved to GlobalRequestModal component in App.js
-  // This ensures modal shows on ALL screens, not just HomeScreen
-
-  // Countdown timer cho assigned ride notification
-  useEffect(() => {
-    if (!assignedRide) return
-
-    const timer = setTimeout(() => {
-      setDismissCountdown(dismissCountdown - 1)
-      if (dismissCountdown <= 0) {
-        setAssignedRide(null)
-        setDismissCountdown(15)
-      }
-    }, 1000)
-
-    return () => clearTimeout(timer)
-  }, [assignedRide, dismissCountdown])
-
-  // Kiểm tra xem có cuốc nào được assign cho tài xế này không
-  useEffect(() => {
-    const assignedRideData = rides.find((ride) => {
-      return (
-        ride.driverId === user?.id &&
-        (ride.status === 'assigned' || ride.status === 'accepted')
-      )
-    })
-
-    if (assignedRideData && !assignedRide) {
-      setAssignedRide(assignedRideData)
-      setDismissCountdown(15);
-      // Play sound when a new assigned ride appears (improved)
-      (async () => {
-        try {
-          const { sound } = await Audio.Sound.createAsync(
-            require('../assets/sounds/notification.mp3')
-          )
-          await sound.setPositionAsync(0)
-          await sound.setVolumeAsync(1.0)
-          await sound.playAsync()
-          sound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded && status.didJustFinish) {
-              sound.unloadAsync()
-            }
-          })
-        } catch (e) {
-          console.log('Lỗi phát âm thanh:', e)
-        }
-      })()
-    }
-  }, [rides, user?.id])
+  // Assignment request modal also moved to App.js (global AssignmentRequestModal)
 
   const fetchAvailableRides = async () => {
     setLoading(true)
@@ -283,8 +228,7 @@ export default function HomeScreen() {
 
       // Start polling for pending requests if combined trip
       if (isCombinedTrip) {
-        setCurrentCombinedTripId(rideId)
-        console.log('🔄 Starting polling for combined trip:', rideId)
+        console.log('🔄 Navigating to combined trip:', rideId)
       }
 
       console.log('📍 Navigating to RideRequestsScreen for POOL ride')
@@ -297,20 +241,6 @@ export default function HomeScreen() {
       }
       Alert.alert('Lỗi', msg)
     }
-  }
-  // Test: Mock assigned ride notification
-  const handleTestAssignedRide = async () => {
-    const mockRide = {
-      _id: 'test-ride-123',
-      status: 'assigned',
-      driverId: user?.id,
-      pickupAddress: '123 Đường Lê Lợi, Quận 1, TP.HCM',
-      totalFare: 125000,
-      rideType: 'share',
-    }
-    setAssignedRide(mockRide)
-    setDismissCountdown(15)
-    await playNotificationSound()
   }
   // Update ride status (cancel, start, complete)
   const handleUpdateRideStatus = async (rideId: string, newStatus: string) => {
@@ -340,40 +270,8 @@ export default function HomeScreen() {
     )
   }
 
-  const handleAcceptAssignedRide = async () => {
-    if (!assignedRide || !user?.id) return
-    try {
-      await driverService.acceptRide(assignedRide._id, user.id)
-      Alert.alert('Thành công', 'Bạn đã nhận cuốc')
-      setAssignedRide(null)
-      setDismissCountdown(15)
-      // Navigate to ride requests screen (manage incoming requests)
-      navigation.navigate('RideRequestsScreen', { rideId: assignedRide._id })
-    } catch (error: any) {
-      console.error('Lỗi khi nhận cuốc:', error)
-      let msg = 'Không thể nhận cuốc. Vui lòng thử lại.'
-      if (error && error.message) {
-        msg = Array.isArray(error.message) ? error.message.join(', ') : String(error.message)
-      }
-      Alert.alert('Lỗi', msg)
-    }
-  }
-  const handleEditRide = () => {
-    navigation.navigate('TripActivities')
-  }
-  const handleRejectRide = () => {
-    Alert.alert('Từ chối cuốc', 'Bạn chắc chắn muốn từ chối cuốc này?', [
-      { text: 'Hủy', onPress: () => { }, style: 'cancel' },
-      {
-        text: 'Từ chối',
-        onPress: () => {
-          setAssignedRide(null)
-          setDismissCountdown(15)
-        },
-        style: 'destructive',
-      },
-    ])
-  }
+  // ✅ REMOVED: handleAcceptAssignedRide, handleEditRide, handleRejectRide
+  // Now handled by global AssignmentRequestModal in App.js
 
   const filteredRides = rides
     .map(formatRideData)
@@ -386,66 +284,9 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* ✅ REMOVED: RequestNotificationModal moved to GlobalRequestModal in App.js */}
-
-      {/* Assigned Ride Notification Card */}
-      {assignedRide && (
-        <View style={styles.assignedRideNotification}>
-          <View style={styles.assignedRideContent}>
-            <View style={styles.assignedRideIconContainer}>
-              <MaterialIcons name="check-circle" size={28} color="#4caf50" />
-            </View>
-            <View style={styles.assignedRideInfo}>
-              <Text style={styles.assignedRideTitle}>🎉 Bạn nhận được cuốc xe!</Text>
-              <Text style={styles.assignedRideLocation}>
-                {assignedRide.pickupAddress?.substring(0, 40)}...
-              </Text>
-              <Text style={styles.assignedRideTime}>
-                Lương: {(assignedRide.totalFare || 0).toLocaleString('vi-VN')}đ
-              </Text>
-            </View>
-
-            <View style={styles.assignedRideTimer}>
-              <Text style={styles.timerText}>{dismissCountdown}s</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.assignedRideClose}
-            onPress={() => {
-              setAssignedRide(null)
-              setDismissCountdown(15)
-            }}
-          >
-            <MaterialIcons name="close" size={20} color="#fff" />
-          </TouchableOpacity>
-          {/* Progress Bar */}
-          <View style={styles.timerProgressBar}>
-            <View
-              style={[
-                styles.timerProgressFill,
-                { width: `${(dismissCountdown / 15) * 100}%` },
-              ]}
-            />
-          </View>
-          {/* Action Buttons */}
-          <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.rejectButton]}
-              onPress={handleRejectRide}
-            >
-              <MaterialIcons name="close" size={18} color="#fff" />
-              <Text style={styles.actionButtonText}>Từ chối</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.acceptButton]}
-              onPress={handleAcceptAssignedRide}
-            >
-              <MaterialIcons name="check" size={18} color="#fff" />
-              <Text style={styles.actionButtonText} onPress={handleEditRide}>Nhận cuốc</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      {/* ✅ REMOVED: All notification modals moved to App.js */}
+      {/* - GlobalRequestModal (for ride requests) */}
+      {/* - AssignmentRequestModal (for auto-assign driver confirmation) */}
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
@@ -616,14 +457,6 @@ export default function HomeScreen() {
 
           )}
         </View>
-        {/* TEST Button - Xóa khi không cần */}
-        <TouchableOpacity
-          style={styles.testButton}
-          onPress={handleTestAssignedRide}
-        >
-          <MaterialIcons name="bug-report" size={16} color="#fff" />
-          <Text style={styles.testButtonText}>TEST: Mock Assigned Ride</Text>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* Floating Map Button */}

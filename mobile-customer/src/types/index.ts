@@ -182,4 +182,5 @@ export interface CreateRideDto {
   driverNote?: string
   isScheduled?: boolean
   scheduledTime?: string
+  autoAssign?: boolean // Tự động chỉ định tài xế
 }

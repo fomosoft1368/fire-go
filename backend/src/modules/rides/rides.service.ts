@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -7,6 +7,7 @@ import { Pricing } from './schemas/pricing.schema';
 import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema';
 import { CreateRideDto } from './dto';
 import { extractLocationHierarchy } from '../../shared/utils/location.util';
+import { AutoAssignService } from './services/auto-assign.service';
 
 @Injectable()
 export class RidesService {
@@ -15,6 +16,8 @@ export class RidesService {
     @InjectModel(Pricing.name) private pricingModel: Model<any>,
     @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
     private eventEmitter: EventEmitter2,
+    @Inject(forwardRef(() => AutoAssignService))
+    private autoAssignService: AutoAssignService,
   ) {}
 
   /**
@@ -202,7 +205,8 @@ export class RidesService {
         id: ride._id, 
         status: ride.status,
         hasDriver: !!ride.driverId,
-        hasCustomer: !!ride.customerId
+        hasCustomer: !!ride.customerId,
+        driverLocation: ride.driverId?.['currentLocation']
       });
 
       return ride;
@@ -1204,4 +1208,13 @@ export class RidesService {
       location: driver.location,
       distance: Math.round(driver.distance / 1000 * 10) / 10, // Convert to km, round to 1 decimal
     }))
-  }}
+  }
+
+  /**
+   * Auto-assign driver to a ride using scoring algorithm
+   */
+  async autoAssignDriver(rideId: string): Promise<{ success: boolean; message: string; requestId?: string }> {
+    console.log('[RidesService] 🤖 Auto-assigning driver for ride:', rideId);
+    return this.autoAssignService.autoAssignDriver(rideId);
+  }
+}

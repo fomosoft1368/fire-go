@@ -150,7 +150,13 @@ export class DriversService {
   }
 
   async updateLocation(driverId: string, updateLocationDto: UpdateLocationDto): Promise<DriverDocument> {
-    return this.driverModel.findByIdAndUpdate(
+    console.log('[DriversService] 📍 Updating driver location:', {
+      driverId,
+      coordinates: updateLocationDto.coordinates,
+      timestamp: new Date().toISOString()
+    })
+    
+    const updatedDriver = await this.driverModel.findByIdAndUpdate(
       driverId,
       {
         currentLocation: {
@@ -160,7 +166,19 @@ export class DriversService {
         lastLocationUpdate: new Date(),
       },
       { new: true },
-    );
+    )
+    
+    if (updatedDriver) {
+      console.log('[DriversService] ✅ Location updated successfully:', {
+        driverId: updatedDriver._id,
+        name: `${updatedDriver.firstName} ${updatedDriver.lastName}`,
+        coordinates: updatedDriver.currentLocation?.coordinates
+      })
+    } else {
+      console.error('[DriversService] ❌ Driver not found:', driverId)
+    }
+    
+    return updatedDriver
   }
 
   async update(driverId: string, updateDriverDto: UpdateDriverDto): Promise<DriverDocument> {

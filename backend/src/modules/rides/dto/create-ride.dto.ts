@@ -124,4 +124,8 @@ export class CreateRideDto {
   @IsNumber()
   @Min(1)
   remainingSeats?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  autoAssign?: boolean; // Tự động chỉ định tài xế
 }

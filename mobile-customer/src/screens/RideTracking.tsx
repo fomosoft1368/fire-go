@@ -58,6 +58,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
   const [routeFetched, setRouteFetched] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   
   useEffect(() => {
     if (pickupCoords && dropoffCoords && !routeFetched) {
@@ -121,6 +122,8 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
         if (response.ok) {
           const data = await response.json()
           
+          console.log('🚗 [RideTracking] Full ride data from API:', JSON.stringify(data, null, 2))
+          
           // Only update if data changed
           setRide(prevRide => {
             if (!prevRide || prevRide.status !== data.status || prevRide._id !== data._id) {
@@ -170,11 +173,24 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
           // Update driver info if available (only once)
           if (data.driverId) {
             const driverData = Array.isArray(data.driverId) ? data.driverId[0] : data.driverId
+            console.log('🚗 [RideTracking] Driver data từ API:', {
+              driverId: driverData?._id || driverData?.id,
+              name: `${driverData?.firstName || ''} ${driverData?.lastName || ''}`.trim(),
+              hasCurrentLocation: !!driverData?.currentLocation,
+              currentLocation: driverData?.currentLocation,
+              coordinates: driverData?.currentLocation?.coordinates
+            })
+            
             if (typeof driverData === 'object') {
               setDriver(prev => {
                 const newId = driverData._id || driverData.id
                 // Only update if driver changed
                 if (prev.id !== newId && prev.id === '1') {
+                  console.log('✅ [RideTracking] Updating driver info:', {
+                    oldId: prev.id,
+                    newId: newId,
+                    name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim()
+                  })
                   return {
                     ...prev,
                     id: newId,
@@ -188,6 +204,25 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
                 }
                 return prev
               })
+              
+              // Update driver location from currentLocation
+              if (driverData.currentLocation?.coordinates && driverData.currentLocation.coordinates.length === 2) {
+                const newDriverLat = driverData.currentLocation.coordinates[1]
+                const newDriverLng = driverData.currentLocation.coordinates[0]
+                console.log('📍 [RideTracking] Updating driver location:', {
+                  lng: newDriverLng,
+                  lat: newDriverLat,
+                  driverName: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim()
+                })
+                setDriverLocation(prev => {
+                  if (!prev || prev.latitude !== newDriverLat || prev.longitude !== newDriverLng) {
+                    return { latitude: newDriverLat, longitude: newDriverLng }
+                  }
+                  return prev
+                })
+              } else {
+                console.warn('⚠️ [RideTracking] No currentLocation in driver data!')
+              }
             }
           }
         } else {
@@ -201,11 +236,11 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
     fetchRideStatus() // Initial fetch
     fetchUnreadCount() // Initial unread count fetch
     
-    // Poll every 5 seconds (reduced from 3s to reduce load)
+    // Poll every 3 seconds for real-time tracking
     const interval = setInterval(() => {
       fetchRideStatus()
       fetchUnreadCount()
-    }, 5000)
+    }, 3000)
 
     return () => clearInterval(interval)
   }, [rideId, navigation])
@@ -279,6 +314,14 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
           pickupCoords={pickupCoords || undefined}
           dropoffCoords={dropoffCoords || undefined}
           routeCoordinates={routeCoordinates}
+          drivers={driverLocation ? [{
+            id: driver.id,
+            latitude: driverLocation.latitude,
+            longitude: driverLocation.longitude,
+            name: driver.name,
+            rating: driver.rating,
+            vehicle: driver.carType,
+          }] : []}
         />
       </View>
 

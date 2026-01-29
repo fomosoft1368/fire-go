@@ -1206,12 +1206,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
-})00',
-    color: '#111827',
-    marginBottom: SPACING.xs,
-  },
-  suggestionSecondaryText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-})
+});
