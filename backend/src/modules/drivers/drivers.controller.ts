@@ -154,7 +154,35 @@ export class DriversController {
     console.log('[DriversController] Updating driver status:', req.user.id, 'to:', status);
     return this.driversService.updateStatus(req.user.id, status);
   }
+  /**
+   * PATCH /api/drivers/online-status
+   * Cập nhật online status (tài xế hiện tại)
+   */
+  @Patch('online-status')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async updateOnlineStatus(
+    @Request() req: any,
+    @Body('isOnline') isOnline: boolean,
+  ) {
+    console.log('[DriversController] Setting online status for driver:', req.user.id, 'to:', isOnline);
+    return this.driversService.updateOnlineStatus(req.user.id, isOnline);
+  }
 
+  /**
+   * PATCH /api/drivers/available-status
+   * Cập nhật available status (tài xế hiện tại)
+   */
+  @Patch('available-status')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async updateAvailableStatus(
+    @Request() req: any,
+    @Body('isAvailable') isAvailable: boolean,
+  ) {
+    console.log('[DriversController] Setting available status for driver:', req.user.id, 'to:', isAvailable);
+    return this.driversService.updateAvailableStatus(req.user.id, isAvailable);
+  }
   /**
    * PATCH /api/drivers/:id/status
    * Cập nhật trạng thái tài xế

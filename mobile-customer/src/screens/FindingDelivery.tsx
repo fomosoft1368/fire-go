@@ -105,6 +105,23 @@ export default function FindingDelivery() {
         const delivery = await deliveryService.getDelivery(deliveryId)
         console.log('[FindingDelivery] Delivery status:', delivery.status)
 
+        // Check if no driver available
+        if (delivery.status === 'no_driver_available') {
+          clearInterval(pollInterval)
+          
+          Alert.alert(
+            'Không tìm thấy tài xế',
+            'Hiện tại không có tài xế nào khả dụng trong khu vực của bạn. Vui lòng thử lại sau.',
+            [
+              {
+                text: 'Đóng',
+                onPress: () => navigation.goBack(),
+              },
+            ]
+          )
+          return
+        }
+
         // Check if driver has been assigned
         if (delivery.status === 'driver_assigned' && delivery.driverId) {
           clearInterval(pollInterval)

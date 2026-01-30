@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { RootState } from '../redux/store'
 import { rideService } from '../services/rideService'
 import { combinedTripsService } from '../services/combinedTripsService'
+import { deliveryService } from '../services/deliveryService'
 import {
   View,
   Text,
@@ -44,6 +45,7 @@ export default function BookingsScreen() {
     { key: 'all', label: 'Tất cả' },
     { key: 'share', label: 'Ghép xe' },
     { key: 'hire', label: 'Lái xe hộ' },
+    { key: 'delivery', label: 'Giao hàng' },
   ]
 
   // Fetch ride history on component mount and when user changes
@@ -81,8 +83,8 @@ export default function BookingsScreen() {
     try {
       console.log('[BookingsScreen] Starting fetch for user:', userId)
       
-      // Fetch cả HIRE rides và SHARE combined trips
-      const [rideHistory, combinedTrips] = await Promise.all([
+      // Fetch HIRE rides, SHARE combined trips, và DELIVERIES
+      const [rideHistory, combinedTrips, deliveries] = await Promise.all([
         rideService.getRideHistory(userId).catch((err) => {
           console.error('[BookingsScreen] Error fetching rides:', err)
           return []
@@ -91,11 +93,16 @@ export default function BookingsScreen() {
           console.error('[BookingsScreen] Error fetching combined trips:', err)
           return []
         }),
+        deliveryService.getMyDeliveries().catch((err) => {
+          console.error('[BookingsScreen] Error fetching deliveries:', err)
+          return []
+        }),
       ])
 
       console.log('[BookingsScreen] Fetch completed:')
       console.log('  - HIRE rides:', rideHistory?.length || 0)
       console.log('  - SHARE combined-trips:', combinedTrips?.length || 0)
+      console.log('  - DELIVERIES:', deliveries?.length || 0)
       if (combinedTrips && combinedTrips.length > 0) {
         console.log('[BookingsScreen] First combined trip data:', JSON.stringify(combinedTrips[0], null, 2))
       }
@@ -132,8 +139,28 @@ export default function BookingsScreen() {
         return formatted
       })
 
-      // Merge rides + combined trips
-      const allBookings = [...rideHistory, ...formattedCombinedTrips]
+      // Format deliveries thành RideBooking structure
+      const formattedDeliveries = (deliveries || []).map((delivery: any) => ({
+        id: delivery._id || delivery.id,
+        rideType: 'delivery',
+        estimatedFare: delivery.estimatedPrice || delivery.totalPrice || 0,
+        bookingTime: delivery.createdAt 
+          ? new Date(delivery.createdAt).toLocaleString('vi-VN')
+          : 'N/A',
+        pickupLocation: delivery.pickupAddress || 'Điểm lấy hàng',
+        dropoffLocation: delivery.dropoffAddress || 'Điểm giao hàng',
+        pickupDistrict: 'Hà Nội',
+        dropoffDistrict: 'Hà Nội',
+        status: delivery.status?.toLowerCase() || 'pending',
+        driverName: delivery.driverId?.firstName && delivery.driverId?.lastName
+          ? `${delivery.driverId.firstName} ${delivery.driverId.lastName}`
+          : 'N/A',
+        carPlate: delivery.driverId?.vehiclePlate || 'N/A',
+        deliveryId: delivery._id || delivery.id,
+      }))
+
+      // Merge rides + combined trips + deliveries
+      const allBookings = [...rideHistory, ...formattedCombinedTrips, ...formattedDeliveries]
       
       // Sort by booking time (newest first)
       allBookings.sort((a, b) => {
@@ -144,11 +171,13 @@ export default function BookingsScreen() {
 
       console.log('[BookingsScreen] Total bookings:', allBookings.length)
       
-      if (allBookings.length === 0) {
-        Alert.alert('Thông báo', 'Không có chuyến đi nào')
-      }
-      
       setBookings(allBookings)
+      
+      if (allBookings.length === 0) {
+        console.log('[BookingsScreen] No bookings found')
+      } else {
+        console.log('[BookingsScreen] First booking:', JSON.stringify(allBookings[0], null, 2))
+      }
     } catch (error: any) {
       console.error('[BookingsScreen] Error fetching rides:', {
         message: error.message,
@@ -206,6 +235,12 @@ export default function BookingsScreen() {
       navigation.navigate('DriverFound', {
         combinedTripId: booking.combinedTripId,
       })
+    } else if (booking.rideType === 'delivery' && booking.deliveryId) {
+      // Nếu là delivery
+      console.log('[BookingsScreen] Navigating to DeliveryTracking:', booking.deliveryId)
+      navigation.navigate('DeliveryTracking', {
+        deliveryId: booking.deliveryId,
+      })
     } else {
       // Nếu là hire ride
       Alert.alert('Chi tiết', `Chuyến đi ${booking.id}`)
@@ -228,11 +263,15 @@ export default function BookingsScreen() {
   }
 
   const getRideTypeIcon = (rideType: string) => {
-    return rideType === 'hire' ? 'person-apron' : 'commute'
+    if (rideType === 'hire') return 'person-apron'
+    if (rideType === 'delivery') return 'local-shipping'
+    return 'commute'
   }
 
   const getRideTypeLabel = (rideType: string) => {
-    return rideType === 'hire' ? 'Lái xe hộ' : 'Ghép xe'
+    if (rideType === 'hire') return 'Lái xe hộ'
+    if (rideType === 'delivery') return 'Giao hàng'
+    return 'Ghép xe'
   }
 
   return (
@@ -259,43 +298,62 @@ export default function BookingsScreen() {
             <ActivityIndicator size="large" color="#FF6B00" />
             <Text style={styles.loadingText}>Đang tải lịch sử chuyến đi...</Text>
           </View>
-        ) : filteredBookings.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <MaterialIcons name="history" size={48} color="#64748b" />
-            <Text style={styles.emptyText}>Không có chuyến đi nào</Text>
-          </View>
         ) : (
           <>
-      {/* Filter Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterContainer}
-          contentContainerStyle={styles.filterContent}
-        >
-          {filterOptions.map((option, index) => (
-            <TouchableOpacity
-              key={option.key}
-              style={[
-                styles.filterTab,
-                activeFilter === option.key && styles.filterTabActive,
-                index === 0 && styles.filterTabFirst,
-              ]}
-              onPress={() => setActiveFilter(option.key)}
-            >
-              <Text
-                style={[
-                  styles.filterTabText,
-                  activeFilter === option.key && styles.filterTabTextActive,
-                ]}
+            {/* Filter Tabs - Always show if we have any bookings */}
+            {bookings.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filterContainer}
+                contentContainerStyle={styles.filterContent}
               >
-                {option.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      {/* Bookings List */}
-        {filteredBookings.map((booking) => {
+                {filterOptions.map((option, index) => (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[
+                      styles.filterTab,
+                      activeFilter === option.key && styles.filterTabActive,
+                      index === 0 && styles.filterTabFirst,
+                    ]}
+                    onPress={() => setActiveFilter(option.key)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterTabText,
+                        activeFilter === option.key && styles.filterTabTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* Empty State */}
+            {filteredBookings.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="history" size={48} color="#64748b" />
+                <Text style={styles.emptyText}>
+                  {bookings.length === 0 
+                    ? 'Không có chuyến đi nào' 
+                    : `Không có chuyến đi loại "${filterOptions.find(f => f.key === activeFilter)?.label}"`
+                  }
+                </Text>
+                {bookings.length > 0 && (
+                  <TouchableOpacity 
+                    style={styles.resetFilterButton}
+                    onPress={() => setActiveFilter('all')}
+                  >
+                    <Text style={styles.resetFilterText}>Xem tất cả</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <>
+                {/* Bookings List */}
+                {filteredBookings.map((booking) => {
           const badge = getStatusBadge(booking.status)
           const isCompleted = booking.status === 'completed'
           const isCancelled = booking.status === 'cancelled'
@@ -458,6 +516,17 @@ export default function BookingsScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+              {booking.rideType === 'delivery' && (
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity 
+                    style={styles.detailButton}
+                    onPress={() => handleViewDetail(booking)}
+                  >
+                    <MaterialIcons name="info" size={14} color="#53d22d" />
+                    <Text style={styles.detailButtonText}>Chi tiết</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {isCompleted && booking.rideType === 'hire' && (
                 <TouchableOpacity 
                   style={styles.rateButton}
@@ -477,6 +546,8 @@ export default function BookingsScreen() {
         })}
 
         <View style={{ height: SPACING.xxl }} />
+              </>
+            )}
           </>
         )}
       </ScrollView>
@@ -685,6 +756,18 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: '#94a3b8',
+  },
+  resetFilterButton: {
+    marginTop: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    backgroundColor: '#FF6B00',
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  resetFilterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
   },
   bookingCard: {
     backgroundColor: '#1a202c',

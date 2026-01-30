@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { API_BASE_URL } from '../constants/config'
 
-const API_URL = 'http://10.0.2.2:3000/api'
+const API_URL = API_BASE_URL
 
 class AssignmentRequestPollingService {
   private intervalId: NodeJS.Timeout | null = null
@@ -47,7 +48,7 @@ class AssignmentRequestPollingService {
   }
 
   /**
-   * Check for pending assignment requests
+   * Check for pending assignment requests (both ride and delivery)
    */
   private async checkForRequests() {
     try {
@@ -58,25 +59,40 @@ class AssignmentRequestPollingService {
         return
       }
 
-      const response = await fetch(`${API_URL}/rides/assignment-requests/pending`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      console.log('[AssignmentPolling] Checking for requests...')
 
-      if (!response.ok) {
-        console.warn('[AssignmentPolling] Failed to fetch requests:', response.status)
-        return
-      }
+      // Check both ride and delivery requests in parallel
+      const [rideResponse, deliveryResponse] = await Promise.all([
+        fetch(`${API_URL}/rides/assignment-requests/pending`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_URL}/deliveries/assignment-requests/pending`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ])
 
-      const requests = await response.json()
+      console.log('[AssignmentPolling] Ride response:', rideResponse.status)
+      console.log('[AssignmentPolling] Delivery response:', deliveryResponse.status)
 
-      if (requests && requests.length > 0) {
-        console.log(`[AssignmentPolling] 🔔 Found ${requests.length} pending request(s)`)
+      const rideRequests = rideResponse.ok ? await rideResponse.json() : []
+      const deliveryRequests = deliveryResponse.ok ? await deliveryResponse.json() : []
+
+      console.log('[AssignmentPolling] Ride requests:', rideRequests.length)
+      console.log('[AssignmentPolling] Delivery requests:', deliveryRequests.length)
+
+      // Combine and sort by createdAt (newest first)
+      const allRequests = [
+        ...rideRequests.map((r: any) => ({ ...r, type: 'ride' })),
+        ...deliveryRequests.map((r: any) => ({ ...r, type: 'delivery' })),
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+      if (allRequests.length > 0) {
+        console.log(`[AssignmentPolling] 🔔 Found ${allRequests.length} pending request(s)`)
+        console.log('[AssignmentPolling] First request:', JSON.stringify(allRequests[0], null, 2))
         
         // Callback với request đầu tiên (mới nhất)
         if (this.onRequestCallback) {
-          this.onRequestCallback(requests[0])
+          this.onRequestCallback(allRequests[0])
         }
       }
     } catch (error) {
@@ -87,22 +103,23 @@ class AssignmentRequestPollingService {
   /**
    * Accept an assignment request
    */
-  async acceptRequest(requestId: string): Promise<any> {
+  async acceptRequest(requestId: string, type: 'ride' | 'delivery' = 'ride'): Promise<any> {
     const token = await AsyncStorage.getItem('token')
     if (!token) {
       throw new Error('No authentication token')
     }
 
-    const response = await fetch(
-      `${API_URL}/rides/assignment-requests/${requestId}/accept`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
+    const endpoint = type === 'delivery' 
+      ? `${API_URL}/deliveries/assignment-requests/${requestId}/accept`
+      : `${API_URL}/rides/assignment-requests/${requestId}/accept`
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    })
 
     if (!response.ok) {
       const error = await response.json()
@@ -115,23 +132,24 @@ class AssignmentRequestPollingService {
   /**
    * Reject an assignment request
    */
-  async rejectRequest(requestId: string, reason?: string): Promise<void> {
+  async rejectRequest(requestId: string, type: 'ride' | 'delivery' = 'ride', reason?: string): Promise<void> {
     const token = await AsyncStorage.getItem('token')
     if (!token) {
       throw new Error('No authentication token')
     }
 
-    const response = await fetch(
-      `${API_URL}/rides/assignment-requests/${requestId}/reject`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ reason }),
-      }
-    )
+    const endpoint = type === 'delivery'
+      ? `${API_URL}/deliveries/assignment-requests/${requestId}/reject`
+      : `${API_URL}/rides/assignment-requests/${requestId}/reject`
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ reason }),
+    })
 
     if (!response.ok) {
       const error = await response.json()

@@ -11,9 +11,17 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  SafeAreaView,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS } from '../constants'
+import { useNavigation, useRoute } from '@react-navigation/native'
+import type { RouteProp } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import type { RootStackParamList } from '../types'
+
+type ChatScreenRouteProp = RouteProp<RootStackParamList, 'ChatScreen'>
+type ChatScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ChatScreen'>
 
 interface Message {
   _id: string
@@ -23,17 +31,10 @@ interface Message {
   createdAt?: string
 }
 
-interface ChatScreenProps {
-  driver: {
-    id: string
-    name: string
-    phone?: string
-  }
-  rideId?: string
-  onClose: () => void
-}
-
-export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps) {
+export default function ChatScreen() {
+  const navigation = useNavigation<ChatScreenNavigationProp>()
+  const route = useRoute<ChatScreenRouteProp>()
+  const { driver, rideId, deliveryId } = route.params || {}
   const user = useSelector((state: RootState) => state.auth.user)
   const [chatMessages, setChatMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
@@ -44,8 +45,10 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
 
   // Load messages khi component mount
   useEffect(() => {
-    if (!rideId) {
-      Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
+    const tripId = rideId || deliveryId
+    if (!tripId) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID chuyến đi')
+      navigation.goBack()
       return
     }
 
@@ -57,20 +60,22 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
     }, 5000)
 
     return () => clearInterval(pollInterval)
-  }, [rideId])
+  }, [rideId, deliveryId])
 
   // Tải tin nhắn ban đầu
   const loadMessages = async () => {
-    if (!rideId) {
-      Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
+    const tripId = rideId || deliveryId
+    const tripType = rideId ? 'ride' : 'delivery'
+    if (!tripId) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID chuyến đi')
       return
     }
 
     setLoading(true)
     try {
-      console.log('[ChatScreen] Loading messages for rideId:', rideId)
+      console.log('[ChatScreen] Loading messages for tripId:', tripId, 'type:', tripType)
       
-      const data = await messageService.getMessagesByRide(rideId, 50, 0)
+      const data = await messageService.getMessagesByTrip(tripId, tripType, 50, 0)
       
       if (!data || !data.messages) {
         console.warn('[ChatScreen] No data returned from API')
@@ -93,7 +98,7 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
 
       // Đánh dấu tin nhắn là đã đọc
       try {
-        await messageService.markAsRead(rideId)
+        await messageService.markAsRead(tripId, tripType)
       } catch (markError) {
         console.warn('[ChatScreen] Mark as read failed:', markError)
       }
@@ -113,11 +118,14 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
 
   // Poll tin nhắn mới
   const pollNewMessages = async () => {
-    if (!rideId) return
+    const tripId = rideId || deliveryId
+    const tripType = rideId ? 'ride' : 'delivery'
+    if (!tripId) return
 
     try {
       const newMessages = await messageService.getNewMessages(
-        rideId,
+        tripId,
+        tripType,
         lastPollTime
       )
 
@@ -145,7 +153,7 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
 
         // Đánh dấu tin nhắn mới là đã đọc
         try {
-          await messageService.markAsRead(rideId)
+          await messageService.markAsRead(tripId, tripType)
         } catch (markError) {
           console.warn('[ChatScreen] Mark as read failed:', markError)
         }
@@ -162,8 +170,10 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
 
   // Gửi tin nhắn
   const sendMessage = useCallback(async () => {
+    const tripId = rideId || deliveryId
+    const tripType = rideId ? 'ride' : 'delivery'
     // Prevent multiple sends
-    if (sendingRef.current || !messageInput.trim() || !rideId || !user) {
+    if (sendingRef.current || !messageInput.trim() || !tripId || !user) {
       return
     }
 
@@ -174,9 +184,10 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
       console.log('[ChatScreen] Sending message:', messageInput)
       
       const message = await messageService.sendMessage(
-        rideId,
+        tripId,
         messageInput,
-        'customer'
+        'customer',
+        tripType
       )
 
       const newMessage: Message = {
@@ -205,17 +216,17 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
       sendingRef.current = false
       setSending(false)
     }
-  }, [messageInput, rideId, user])
+  }, [messageInput, rideId, deliveryId, user])
 
   return (
-    <View style={styles.chatContainer}>
+    <SafeAreaView style={styles.chatContainer}>
       {/* Chat Header */}
       <View style={styles.chatHeader}>
-        <TouchableOpacity onPress={onClose}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.chatHeaderInfo}>
-          <Text style={styles.chatHeaderName}>{driver.name}</Text>
+          <Text style={styles.chatHeaderName}>{driver?.name || 'Tài xế'}</Text>
           <Text style={styles.chatHeaderStatus}>Đang hoạt động</Text>
         </View>
         <View style={{ width: 24 }} />
@@ -287,7 +298,7 @@ export default function ChatScreen({ driver, rideId, onClose }: ChatScreenProps)
           )}
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   )
 }
 

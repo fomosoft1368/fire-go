@@ -43,6 +43,16 @@ export type RootStackParamList = {
   Earnings: undefined
   Profile: undefined
   RideDetail: { rideId: string }
+  ChatScreen: {
+    customer: {
+      id: string
+      name: string
+      phone?: string
+      email?: string
+    }
+    rideId?: string
+    deliveryId?: string
+  }
 }
 
 // API Response Types

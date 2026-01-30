@@ -14,6 +14,8 @@ import { SPACING, BORDER_RADIUS } from '../constants'
 import axios from 'axios'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { API_BASE_URL } from '../constants/config'
+import { NativeStackScreenProps } from '@react-navigation/native-stack'
+import { RootStackParamList } from '../types'
 
 interface Message {
   _id: string
@@ -23,18 +25,10 @@ interface Message {
   createdAt?: string
 }
 
-interface ChatScreenProps {
-  customer: {
-    id: string
-    name: string
-    phone?: string
-    email?: string
-  }
-  rideId?: string
-  onClose: () => void
-}
+type Props = NativeStackScreenProps<RootStackParamList, 'ChatScreen'>
 
-export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProps) {
+export default function ChatScreen({ route, navigation }: Props) {
+  const { customer, rideId, deliveryId } = route.params
   const [chatMessages, setChatMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,10 +36,13 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
   const [lastPollTime, setLastPollTime] = useState(Date.now())
   const sendingRef = useRef(false) // Prevent multiple sends
 
+  const tripId = rideId || deliveryId
+  const tripType = rideId ? 'ride' : 'delivery'
+
   // Load messages khi component mount
   useEffect(() => {
-    if (!rideId) {
-      Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
+    if (!tripId) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID chuyến đi')
       return
     }
 
@@ -57,18 +54,18 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
     }, 5000)
 
     return () => clearInterval(pollInterval)
-  }, [rideId])
+  }, [tripId])
 
   // Tải tin nhắn ban đầu
   const loadMessages = async () => {
-    if (!rideId) {
-      Alert.alert('Lỗi', 'Không tìm thấy ID cuốc xe')
+    if (!tripId) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID chuyến đi')
       return
     }
 
     setLoading(true)
     try {
-      console.log('[ChatScreen] Loading messages for rideId:', rideId)
+      console.log('[ChatScreen] Loading messages for', tripType, ':', tripId)
       
       const token = await AsyncStorage.getItem('token')
       if (!token) {
@@ -77,7 +74,7 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
       }
 
       const response = await axios.get(
-        `${API_BASE_URL}/messages/ride/${rideId}`,
+        `${API_BASE_URL}/messages/${tripType}/${tripId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -114,7 +111,7 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
       try {
         const markToken = await AsyncStorage.getItem('token')
         await axios.post(
-          `${API_BASE_URL}/messages/ride/${rideId}/mark-as-read`,
+          `${API_BASE_URL}/messages/${tripType}/${tripId}/mark-as-read`,
           {},
           {
             headers: {
@@ -141,14 +138,14 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
 
   // Poll tin nhắn mới
   const pollNewMessages = async () => {
-    if (!rideId) return
+    if (!tripId) return
 
     try {
       const token = await AsyncStorage.getItem('token')
       if (!token) return
 
       const response = await axios.get(
-        `${API_BASE_URL}/messages/ride/${rideId}/new`,
+        `${API_BASE_URL}/messages/${tripType}/${tripId}/new`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -187,7 +184,7 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
         try {
           const markToken = await AsyncStorage.getItem('token')
           await axios.post(
-            `${API_BASE_URL}/messages/ride/${rideId}/mark-as-read`,
+            `${API_BASE_URL}/messages/${tripType}/${tripId}/mark-as-read`,
             {},
             {
               headers: {
@@ -204,7 +201,8 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
       if (error.response?.status !== 401) {
         console.warn('[ChatScreen] Poll error:', {
           message: error.message,
-          rideId,
+          tripId,
+          tripType,
           status: error.response?.status,
         })
       }
@@ -214,7 +212,7 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
   // Gửi tin nhắn
   const sendMessage = useCallback(async () => {
     // Prevent multiple sends
-    if (sendingRef.current || !messageInput.trim() || !rideId) {
+    if (sendingRef.current || !messageInput.trim() || !tripId) {
       return
     }
 
@@ -235,7 +233,7 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
       const response = await axios.post(
         `${API_BASE_URL}/messages`,
         {
-          rideId,
+          ...(rideId ? { rideId } : { deliveryId }),
           text: messageInput,
           senderType: 'driver',
           type: 'text',
@@ -265,7 +263,8 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
       console.error('[ChatScreen] Send message error:', {
         message: error.message,
         response: error.response?.data,
-        rideId,
+        tripId,
+        tripType,
       })
       Alert.alert(
         'Lỗi',
@@ -275,13 +274,13 @@ export default function ChatScreen({ customer, rideId, onClose }: ChatScreenProp
       sendingRef.current = false
       setSending(false)
     }
-  }, [messageInput, rideId])
+  }, [messageInput, tripId, rideId, deliveryId])
 
   return (
     <View style={styles.chatContainer}>
       {/* Chat Header */}
       <View style={styles.chatHeader}>
-        <TouchableOpacity onPress={onClose}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.chatHeaderInfo}>

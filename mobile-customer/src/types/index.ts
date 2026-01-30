@@ -145,6 +145,15 @@ export type RootStackParamList = {
       totalTrips: number
     }
   }
+  ChatScreen: {
+    driver: {
+      id: string
+      name: string
+      phone?: string
+    }
+    rideId?: string
+    deliveryId?: string
+  }
 }
 
 // API Response Types

@@ -317,4 +317,40 @@ export class DriversService {
       { new: true },
     );
   }
-}
+
+  /**
+   * Set driver online status
+   */
+  async updateOnlineStatus(userId: string, isOnline: boolean): Promise<DriverDocument> {
+    const driver = await this.findByUserId(userId);
+
+    const updated = await this.driverModel.findByIdAndUpdate(
+      driver._id,
+      { 
+        isOnline,
+        // When going online, also make available for auto-assign
+        // When going offline, also mark unavailable
+        isAvailable: isOnline,
+      },
+      { new: true },
+    );
+
+    console.log(`[DriversService] Driver ${driver._id} online status updated to:`, isOnline, 'available:', isOnline);
+    return updated;
+  }
+
+  /**
+   * Set driver available status for auto-assign
+   */
+  async updateAvailableStatus(userId: string, isAvailable: boolean): Promise<DriverDocument> {
+    const driver = await this.findByUserId(userId);
+
+    const updated = await this.driverModel.findByIdAndUpdate(
+      driver._id,
+      { isAvailable },
+      { new: true },
+    );
+
+    console.log(`[DriversService] Driver ${driver._id} available status updated to:`, isAvailable);
+    return updated;
+  }}

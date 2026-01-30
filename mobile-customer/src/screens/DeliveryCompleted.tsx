@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { useNavigation, useRoute } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '../types'
-import { deliveryService } from '../services/deliveryService'
+import { deliveryService, type Delivery } from '../services/deliveryService'
 
 const ORANGE = '#FF6B00'
 
@@ -25,24 +25,63 @@ type DeliveryCompletedNavigationProp = NativeStackNavigationProp<RootStackParamL
 export default function DeliveryCompleted() {
   const navigation = useNavigation<DeliveryCompletedNavigationProp>()
   const route = useRoute<DeliveryCompletedRouteProp>()
-  const { 
-    deliveryId,
-    totalAmount, 
-    distance, 
-    duration, 
-    driver 
-  } = route.params || {}
+  const { deliveryId } = route.params || {}
 
   const [rating, setRating] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [fetchLoading, setFetchLoading] = useState(true)
+  const [delivery, setDelivery] = useState<Delivery | null>(null)
 
-  const driverInfo = driver || {
-    name: 'Nguyễn Văn Nam',
-    vehicle: 'Xe tải 1.5 tấn',
-    plate: '29C - 123.45',
-    rating: 5.0,
-    avatar: undefined,
+  useEffect(() => {
+    if (deliveryId) {
+      loadDeliveryData()
+    } else {
+      setFetchLoading(false)
+    }
+  }, [deliveryId])
+
+  const loadDeliveryData = async () => {
+    try {
+      setFetchLoading(true)
+      const data = await deliveryService.getDelivery(deliveryId!)
+      console.log('[DeliveryCompleted] Loaded delivery:', data)
+      setDelivery(data)
+    } catch (error: any) {
+      console.error('[DeliveryCompleted] Load error:', error)
+      Alert.alert('Lỗi', 'Không thể tải thông tin đơn hàng')
+    } finally {
+      setFetchLoading(false)
+    }
   }
+
+  // Extract driver info from delivery data
+  const getDriverInfo = () => {
+    if (!delivery?.driverId) {
+      return {
+        name: 'Tài xế',
+        vehicle: 'Xe tải',
+        plate: 'N/A',
+        rating: 5.0,
+        avatar: undefined,
+      }
+    }
+
+    const driver = delivery.driverId
+    const firstName = typeof driver === 'string' ? '' : (driver.firstName || '')
+    const lastName = typeof driver === 'string' ? '' : (driver.lastName || '')
+    const name = `${firstName} ${lastName}`.trim() || 'Tài xế'
+    const vehicle = typeof driver === 'string' ? 'Xe tải' : (driver.vehicleType || 'Xe tải')
+    const plate = typeof driver === 'string' ? 'N/A' : (driver.vehiclePlate || 'N/A')
+    const rating = typeof driver === 'string' ? 5.0 : (driver.averageRating || 5.0)
+    const avatar = typeof driver === 'string' ? undefined : driver.avatar
+
+    return { name, vehicle, plate, rating, avatar }
+  }
+
+  const driverInfo = getDriverInfo()
+  const totalAmount = delivery?.estimatedPrice || 0
+  const distance = delivery?.distance ? (delivery.distance / 1000).toFixed(1) : '0'
+  const duration = delivery?.estimatedDuration ? Math.round(delivery.estimatedDuration / 60) : 0
 
   const handleComplete = async () => {
     if (rating === 0) {
@@ -103,7 +142,13 @@ export default function DeliveryCompleted() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView 
+      {fetchLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={ORANGE} />
+          <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+        </View>
+      ) : (
+        <ScrollView 
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -123,7 +168,7 @@ export default function DeliveryCompleted() {
         <View style={styles.totalSection}>
           <Text style={styles.totalLabel}>Tổng cộng</Text>
           <Text style={styles.totalAmount}>
-            {(totalAmount || 250000).toLocaleString('vi-VN')}đ
+            {totalAmount.toLocaleString('vi-VN')}đ
           </Text>
         </View>
 
@@ -133,7 +178,7 @@ export default function DeliveryCompleted() {
             <MaterialCommunityIcons name="map-marker-distance" size={18} color={ORANGE} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>KHOẢNG CÁCH</Text>
-              <Text style={styles.infoValue}>{distance || '12.5'} km</Text>
+              <Text style={styles.infoValue}>{distance} km</Text>
             </View>
           </View>
 
@@ -143,7 +188,7 @@ export default function DeliveryCompleted() {
             <MaterialIcons name="access-time" size={18} color={ORANGE} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>THỜI GIAN</Text>
-              <Text style={styles.infoValue}>{duration || '45'} phút</Text>
+              <Text style={styles.infoValue}>{duration} phút</Text>
             </View>
           </View>
         </View>
@@ -212,6 +257,7 @@ export default function DeliveryCompleted() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      )}
     </SafeAreaView>
   )
 }
@@ -220,6 +266,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA',
+  },
+
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#666',
   },
 
   // Header

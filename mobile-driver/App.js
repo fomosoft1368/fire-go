@@ -13,6 +13,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS } from './src/constants'
 import { loginSuccess } from './src/redux/slices/authSlice'
 import { assignmentRequestPollingService } from './src/services/assignmentRequestPollingService'
+import { driverService } from './src/services/driverService'
 import AssignmentRequestModal from './src/components/AssignmentRequestModal'
 import LoginScreen from './src/screens/LoginScreen'
 import RegisterScreen from './src/screens/RegisterScreen'
@@ -29,6 +30,7 @@ import CreateRideScreen from './src/screens/CreateRideScreen'
 import TripActivities from './src/screens/TripActivities'
 import DeliveryRequestsScreen from './src/screens/DeliveryRequestsScreen'
 import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
+import ChatScreen from './src/screens/ChatScreen'
 import GlobalRequestModal from './src/components/GlobalRequestModal'
 //
 
@@ -173,6 +175,11 @@ const HomeStackNavigator = () => {
         component={ActiveDeliveryScreen}
         options={{ animationEnabled: true }}
       />
+      <Stack.Screen
+        name="ChatScreen"
+        component={ChatScreen}
+        options={{ animationEnabled: true }}
+      />
     </Stack.Navigator>
   )
 }
@@ -235,7 +242,6 @@ console.log('[App] Fetching user profile with token...')
       
       try {
         // Get all my combined trips to poll for requests
-        const driverService = require('./src/services/driverService').driverService
         const allCombinedTrips = await driverService.getMyCombinedTrips()
 
         console.log('🚗 My trips count:', allCombinedTrips.length)
@@ -376,8 +382,10 @@ export default function App() {
 
   // Start assignment request polling when app loads
   useEffect(() => {
+    console.log('[App] 🚀 Starting assignment request polling service...')
+    
     assignmentRequestPollingService.startPolling((request) => {
-      console.log('[App] 🔔 Assignment request received:', request)
+      console.log('[App] 🔔 Assignment request received:', JSON.stringify(request, null, 2))
       setAssignmentRequest(request)
       setShowAssignmentModal(true)
       setCountdown(15)
@@ -387,6 +395,7 @@ export default function App() {
     })
 
     return () => {
+      console.log('[App] 🛑 Stopping assignment request polling service...')
       assignmentRequestPollingService.stopPolling()
     }
   }, [])
@@ -426,33 +435,42 @@ export default function App() {
     if (!assignmentRequest) return
 
     try {
-      console.log('[App] ✅ Accepting assignment request:', assignmentRequest._id)
+      const requestType = assignmentRequest.type || 'ride'
+      console.log('[App] ✅ Accepting assignment request:', assignmentRequest._id, 'type:', requestType)
       
-      const ride = await assignmentRequestPollingService.acceptRequest(
-        assignmentRequest._id
+      const result = await assignmentRequestPollingService.acceptRequest(
+        assignmentRequest._id,
+        requestType
       )
 
-      console.log('[App] ✅ Ride accepted successfully:', ride)
+      console.log('[App] ✅ Request accepted successfully:', result)
       
       // Đóng modal
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(15)
 
-      // Navigate to TripActivities
-      if (navigationRef.current && ride?._id) {
-        console.log('[App] 🚀 Navigating to TripActivities with rideId:', ride._id)
-        navigationRef.current.navigate('TripActivities', { 
-          rideId: ride._id 
-        })
+      // Navigate based on type
+      if (navigationRef.current && result?._id) {
+        if (requestType === 'delivery') {
+          console.log('[App] 🚀 Navigating to ActiveDelivery with deliveryId:', result._id)
+          navigationRef.current.navigate('ActiveDelivery', { 
+            deliveryId: result._id 
+          })
+          Alert.alert('Thành công', 'Bạn đã nhận đơn giao hàng!')
+        } else {
+          console.log('[App] 🚀 Navigating to TripActivities with rideId:', result._id)
+          navigationRef.current.navigate('TripActivities', { 
+            rideId: result._id 
+          })
+          Alert.alert('Thành công', 'Bạn đã nhận cuốc xe!')
+        }
       } else {
-        console.error('[App] ❌ Cannot navigate: navigationRef or rideId not available')
+        console.error('[App] ❌ Cannot navigate: navigationRef or result._id not available')
       }
-
-      Alert.alert('Thành công', 'Bạn đã nhận cuốc xe!')
     } catch (error) {
       console.error('[App] Error accepting assignment:', error)
-      Alert.alert('Lỗi', error.message || 'Không thể nhận cuốc xe')
+      Alert.alert('Lỗi', error.message || 'Không thể nhận yêu cầu')
     }
   }
 
@@ -460,10 +478,12 @@ export default function App() {
     if (!assignmentRequest) return
 
     try {
-      console.log('[App] ❌ Rejecting assignment request:', assignmentRequest._id)
+      const requestType = assignmentRequest.type || 'ride'
+      console.log('[App] ❌ Rejecting assignment request:', assignmentRequest._id, 'type:', requestType)
       
       await assignmentRequestPollingService.rejectRequest(
         assignmentRequest._id,
+        requestType,
         'Tài xế từ chối'
       )
 

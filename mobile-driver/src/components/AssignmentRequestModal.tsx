@@ -41,10 +41,13 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
 
   if (!request || !visible) return null
 
-  const ride = request.rideId || {}
-  const pickupAddress = ride.pickupAddress || 'Địa điểm đón'
-  const dropoffAddress = ride.dropoffAddress || 'Địa điểm đến'
-  const fare = ride.totalFare || 0
+  // Check if this is a delivery or ride request
+  const isDelivery = request.type === 'delivery'
+  const data = isDelivery ? (request.deliveryId || {}) : (request.rideId || {})
+  
+  const pickupAddress = data.pickupAddress || 'Địa điểm đón'
+  const dropoffAddress = data.dropoffAddress || (isDelivery ? data.deliveryAddress : 'Địa điểm đến')
+  const fare = data.totalFare || data.deliveryFee || 0
 
   return (
     <Modal
@@ -58,13 +61,21 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <MaterialIcons name="local-taxi" size={32} color="#FF6B00" />
+              <MaterialIcons 
+                name={isDelivery ? "local-shipping" : "local-taxi"} 
+                size={32} 
+                color="#FF6B00" 
+              />
             </View>
-            <Text style={styles.title}>🎉 Cuốc xe mới!</Text>
-            <Text style={styles.subtitle}>Bạn nhận được yêu cầu đặt xe</Text>
+            <Text style={styles.title}>
+              {isDelivery ? '📦 Đơn giao hàng mới!' : '🎉 Cuốc xe mới!'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {isDelivery ? 'Bạn nhận được yêu cầu giao hàng' : 'Bạn nhận được yêu cầu đặt xe'}
+            </Text>
           </View>
 
-          {/* Ride Info */}
+          {/* Request Info */}
           <View style={styles.rideInfo}>
             {/* Pickup */}
             <View style={styles.locationRow}>
@@ -72,7 +83,9 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
                 <MaterialIcons name="trip-origin" size={20} color="#4caf50" />
               </View>
               <View style={styles.locationText}>
-                <Text style={styles.locationLabel}>Điểm đón</Text>
+                <Text style={styles.locationLabel}>
+                  {isDelivery ? 'Địa chỉ lấy hàng' : 'Điểm đón'}
+                </Text>
                 <Text style={styles.locationAddress} numberOfLines={2}>
                   {pickupAddress}
                 </Text>
@@ -88,7 +101,9 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
                 <MaterialIcons name="place" size={20} color="#f44336" />
               </View>
               <View style={styles.locationText}>
-                <Text style={styles.locationLabel}>Điểm đến</Text>
+                <Text style={styles.locationLabel}>
+                  {isDelivery ? 'Địa chỉ giao hàng' : 'Điểm đến'}
+                </Text>
                 <Text style={styles.locationAddress} numberOfLines={2}>
                   {dropoffAddress}
                 </Text>
@@ -132,7 +147,9 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
               activeOpacity={0.8}
             >
               <MaterialIcons name="check" size={20} color="#fff" />
-              <Text style={styles.buttonText}>Nhận cuốc</Text>
+              <Text style={styles.buttonText}>
+                {isDelivery ? 'Nhận đơn' : 'Nhận cuốc'}
+              </Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

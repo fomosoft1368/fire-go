@@ -18,6 +18,7 @@ import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { RideCard, BalanceCard } from '../components'
 import { driverService } from '../services/driverService'
 import { locationTrackingService } from '../services/locationTrackingService'
+import { assignmentRequestPollingService } from '../services/assignmentRequestPollingService'
 import type { RootState } from '../redux/store'
 import type { RideItem } from '../types'
 
@@ -32,19 +33,74 @@ export default function HomeScreen() {
   const { user } = useSelector((state: RootState) => state.auth)
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
 
+  // Handle online/offline toggle with API call
+  const handleToggleOnline = async (value: boolean) => {
+    try {
+      console.log('[HomeScreen] Toggling online status:', value)
+      setIsOnline(value)
+      
+      // Call API to update online status in database
+      await driverService.setOnlineStatus(value)
+      
+      // Also update available status
+      await driverService.setAvailableStatus(value)
+      
+      console.log('[HomeScreen] ✅ Online status updated in database')
+    } catch (error) {
+      console.error('[HomeScreen] Error updating online status:', error)
+      // Revert the local state if API call fails
+      setIsOnline(!value)
+    }
+  }
+
   // Start/stop location tracking based on online status
   useEffect(() => {
     if (isOnline && user?.id) {
       console.log('[HomeScreen] 🟢 Driver is online, starting location tracking')
       locationTrackingService.startTracking(user.id)
+      
+      // Start polling for assignment requests when online
+      console.log('[HomeScreen] 🔄 Starting assignment polling')
+      assignmentRequestPollingService.startPolling((request) => {
+        console.log('[HomeScreen] 📨 New assignment request:', request)
+        
+        // Show notification modal with request details
+        Alert.alert(
+          request.type === 'ride' ? 'Yêu cầu chuyến đi' : 'Yêu cầu giao hàng',
+          `${request.pickup} → ${request.dropoff}\nGiá: ${request.estimatedPrice}₫`,
+          [
+            {
+              text: 'Từ chối',
+              style: 'cancel',
+              onPress: () => {
+                // Navigate to reject screen or call reject API
+                console.log('[HomeScreen] Request rejected')
+              }
+            },
+            {
+              text: 'Chấp nhận',
+              onPress: () => {
+                // Navigate to accept screen
+                if (request.type === 'delivery') {
+                  navigation.navigate('DeliveryDetails', { deliveryId: request.deliveryId })
+                } else {
+                  navigation.navigate('RideDetails', { rideId: request.rideId })
+                }
+              }
+            }
+          ]
+        )
+      })
     } else if (!isOnline) {
-      console.log('[HomeScreen] 🔴 Driver is offline, stopping location tracking')
+      console.log('[HomeScreen] 🔴 Driver is offline, stopping location tracking and polling')
       locationTrackingService.stopTracking()
+      assignmentRequestPollingService.stopPolling()
     }
 
     return () => {
       // Don't stop tracking on unmount, let it continue in background
       console.log('[HomeScreen] Component unmounting, but keeping location tracking active')
+      // Note: Polling will continue until driver goes offline
     }
   }, [isOnline, user?.id])
 
@@ -311,7 +367,7 @@ export default function HomeScreen() {
           dailyAmount={1200000}
           increase={2}
           isOnline={isOnline}
-          onToggleOnline={setIsOnline}
+          onToggleOnline={handleToggleOnline}
         />
 
         {/* Auto-Assign Card */}

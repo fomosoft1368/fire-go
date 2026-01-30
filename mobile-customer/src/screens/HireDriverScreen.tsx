@@ -371,7 +371,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     setLoading(true)
     try {
       const rideData: CreateRideDto = {
-        rideType: 'hire', // Loại lái xe hộ
+        rideType: 'hire',
         pickupAddress: routeInfo.pickup.formattedAddress,
         pickupCoordinates: [
           routeInfo.pickup.coordinates.longitude,

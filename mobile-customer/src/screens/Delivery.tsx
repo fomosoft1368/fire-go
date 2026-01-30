@@ -295,14 +295,52 @@ export default function Delivery(props?: DeliveryProps) {
         }
     }, [])
 
-    // Calculate price based on selections
+    // Calculate price based on selections and distance
     useEffect(() => {
-        let basePrice = 20000
-        if (vehicle === 'truck') basePrice = 50000
-        if (weight === '>50') basePrice += 30000
-        else if (weight === '20-50') basePrice += 15000
-        setEstimatedPrice(basePrice)
-    }, [vehicle, weight])
+        if (!routeInfo?.distance) {
+            setEstimatedPrice(0)
+            return
+        }
+
+        const distanceKm = routeInfo.distance
+
+        // Base fare
+        let basePrice = vehicle === 'truck' ? 30000 : 15000
+
+        // Distance-based pricing
+        let distancePrice = 0
+        if (vehicle === 'bike') {
+            // Xe máy: 8,000đ/km cho 5km đầu, 6,000đ/km sau đó
+            if (distanceKm <= 5) {
+                distancePrice = distanceKm * 8000
+            } else {
+                distancePrice = 5 * 8000 + (distanceKm - 5) * 6000
+            }
+        } else {
+            // Xe tải: 15,000đ/km cho 5km đầu, 12,000đ/km sau đó
+            if (distanceKm <= 5) {
+                distancePrice = distanceKm * 15000
+            } else {
+                distancePrice = 5 * 15000 + (distanceKm - 5) * 12000
+            }
+        }
+
+        // Weight surcharge
+        let weightSurcharge = 0
+        if (weight === '>50') weightSurcharge = 30000
+        else if (weight === '20-50') weightSurcharge = 15000
+        else if (weight === '<20') weightSurcharge = 5000
+
+        // Goods type surcharge
+        let goodsSurcharge = 0
+        if (goodsType === 'bulky') goodsSurcharge = 10000
+        else if (goodsType === 'food') goodsSurcharge = 5000
+
+        // Total price
+        const totalPrice = basePrice + distancePrice + weightSurcharge + goodsSurcharge
+
+        setEstimatedPrice(Math.round(totalPrice / 1000) * 1000) // Round to nearest 1000
+    }, [vehicle, weight, goodsType, routeInfo])
 
     const handleConfirm = async () => {
         if (!pickup || !dropoff || !goodsType || !weight) {
@@ -397,24 +435,26 @@ export default function Delivery(props?: DeliveryProps) {
                             </View>
 
                             {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                                <FlatList
-                                    data={pickupSuggestions}
-                                    keyExtractor={(item, index) => `pickup-${index}`}
-                                    style={styles.suggestionsDropdown}
-                                    keyboardShouldPersistTaps="handled"
-                                    renderItem={({ item }) => (
-                                        <TouchableOpacity
-                                            style={styles.suggestionItem}
-                                            onPress={() => handlePickupSuggestionSelect(item)}
-                                        >
-                                            <MaterialIcons name="location-on" size={20} color="#6B7280" />
-                                            <View style={styles.suggestionContent}>
-                                                <Text style={styles.suggestionMainText}>{item.mainText}</Text>
-                                                <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
-                                            </View>
-                                        </TouchableOpacity>
-                                    )}
-                                />
+                                <View style={styles.suggestionsDropdown}>
+                                    <ScrollView
+                                        keyboardShouldPersistTaps="handled"
+                                        nestedScrollEnabled={true}
+                                    >
+                                        {pickupSuggestions.map((item, index) => (
+                                            <TouchableOpacity
+                                                key={`pickup-${index}`}
+                                                style={styles.suggestionItem}
+                                                onPress={() => handlePickupSuggestionSelect(item)}
+                                            >
+                                                <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                                                <View style={styles.suggestionContent}>
+                                                    <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                                                    <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </View>
                             )}
                         </View>
 
@@ -438,24 +478,26 @@ export default function Delivery(props?: DeliveryProps) {
                             </View>
 
                             {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
-                                <FlatList
-                                    data={dropoffSuggestions}
-                                    keyExtractor={(item, index) => `dropoff-${index}`}
-                                    style={styles.suggestionsDropdown}
-                                    keyboardShouldPersistTaps="handled"
-                                    renderItem={({ item }) => (
-                                        <TouchableOpacity
-                                            style={styles.suggestionItem}
-                                            onPress={() => handleDropoffSuggestionSelect(item)}
-                                        >
-                                            <MaterialIcons name="location-on" size={20} color="#6B7280" />
-                                            <View style={styles.suggestionContent}>
-                                                <Text style={styles.suggestionMainText}>{item.mainText}</Text>
-                                                <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
-                                            </View>
-                                        </TouchableOpacity>
-                                    )}
-                                />
+                                <View style={styles.suggestionsDropdown}>
+                                    <ScrollView
+                                        keyboardShouldPersistTaps="handled"
+                                        nestedScrollEnabled={true}
+                                    >
+                                        {dropoffSuggestions.map((item, index) => (
+                                            <TouchableOpacity
+                                                key={`dropoff-${index}`}
+                                                style={styles.suggestionItem}
+                                                onPress={() => handleDropoffSuggestionSelect(item)}
+                                            >
+                                                <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                                                <View style={styles.suggestionContent}>
+                                                    <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                                                    <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </View>
                             )}
                         </View>
                     </View>
@@ -616,7 +658,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 12,
         elevation: 15,
-        maxHeight: '65%',
+        maxHeight: '50%',
     },
     handleBar: {
         width: 40,

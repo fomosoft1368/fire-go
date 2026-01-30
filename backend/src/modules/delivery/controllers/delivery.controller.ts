@@ -11,6 +11,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { DeliveryService } from '../services/delivery.service';
+import { DeliveryAutoAssignService } from '../services/delivery-auto-assign.service';
 import { CreateDeliveryDto } from '../dto/create-delivery.dto';
 import { UpdateDeliveryDto } from '../dto/update-delivery.dto';
 import { RateDeliveryDto } from '../dto/rate-delivery.dto';
@@ -20,17 +21,34 @@ import { Types } from 'mongoose';
 
 @Controller('api/deliveries')
 export class DeliveryController {
-  constructor(private readonly deliveryService: DeliveryService) {}
+  constructor(
+    private readonly deliveryService: DeliveryService,
+    private readonly deliveryAutoAssignService: DeliveryAutoAssignService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(@Body() createDeliveryDto: CreateDeliveryDto, @Request() req) {
-    console.log('[DeliveryController] Creating delivery for user:', req.user.userId);
+  async create(@Body() createDeliveryDto: CreateDeliveryDto, @Request() req) {
+    console.log('[DeliveryController] Creating delivery for user:', req.user);
+    console.log('[DeliveryController] User ID:', req.user.id || req.user.sub);
     console.log('[DeliveryController] DTO:', createDeliveryDto);
-    return this.deliveryService.create({
+    
+    const delivery = await this.deliveryService.create({
       ...createDeliveryDto,
-      customerId: new Types.ObjectId(req.user.userId),
+      customerId: new Types.ObjectId(req.user.id || req.user.sub),
     });
+
+    // Auto-assign driver asynchronously (don't wait for it)
+    setTimeout(async () => {
+      try {
+        console.log('[DeliveryController] Auto-assigning driver for delivery:', delivery._id);
+        await this.deliveryAutoAssignService.autoAssignDriver(delivery._id.toString());
+      } catch (error) {
+        console.error('[DeliveryController] Auto-assign error:', error);
+      }
+    }, 1000); // Wait 1 second before auto-assign
+
+    return delivery;
   }
 
   @Get()
@@ -41,7 +59,7 @@ export class DeliveryController {
   @Get('my-deliveries')
   @UseGuards(JwtAuthGuard)
   findMyDeliveries(@Request() req) {
-    return this.deliveryService.findByCustomer(req.user.userId);
+    return this.deliveryService.findByCustomer(req.user.id || req.user.sub);
   }
 
   @Get('driver/:driverId')
@@ -69,7 +87,7 @@ export class DeliveryController {
   @Get('my-stats')
   @UseGuards(JwtAuthGuard)
   getMyStats(@Request() req) {
-    return this.deliveryService.getDeliveryStats(req.user.userId);
+    return this.deliveryService.getDeliveryStats(req.user.id || req.user.sub);
   }
 
   @Get(':id')
@@ -105,5 +123,43 @@ export class DeliveryController {
   @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string) {
     return this.deliveryService.remove(id);
+  }
+
+  // ============= ASSIGNMENT REQUEST ENDPOINTS =============
+
+  /**
+   * Get pending assignment requests for driver
+   * Used by driver app to poll for new delivery requests
+   */
+  @Get('assignment-requests/pending')
+  @UseGuards(JwtAuthGuard)
+  async getPendingAssignmentRequests(@Request() req) {
+    const driverId = req.user.id || req.user.sub;
+    return this.deliveryAutoAssignService.getPendingRequestsForDriver(driverId);
+  }
+
+  /**
+   * Accept an assignment request
+   */
+  @Post('assignment-requests/:requestId/accept')
+  @UseGuards(JwtAuthGuard)
+  async acceptAssignmentRequest(@Param('requestId') requestId: string, @Request() req) {
+    const driverId = req.user.id || req.user.sub;
+    return this.deliveryAutoAssignService.acceptAssignmentRequest(requestId, driverId);
+  }
+
+  /**
+   * Reject an assignment request
+   */
+  @Post('assignment-requests/:requestId/reject')
+  @UseGuards(JwtAuthGuard)
+  async rejectAssignmentRequest(
+    @Param('requestId') requestId: string,
+    @Request() req,
+    @Body('reason') reason?: string,
+  ) {
+    const driverId = req.user.id || req.user.sub;
+    await this.deliveryAutoAssignService.rejectAssignmentRequest(requestId, driverId, reason);
+    return { success: true, message: 'Request rejected' };
   }
 }

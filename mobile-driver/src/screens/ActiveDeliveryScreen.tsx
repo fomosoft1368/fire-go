@@ -11,21 +11,81 @@ import {
   ScrollView,
 } from 'react-native'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
-import MapView, { Marker, Polyline } from 'react-native-maps'
 import * as Location from 'expo-location'
-import { COLORS } from '../constants'
+import { COLORS, SPACING } from '../constants'
 import { deliveryService, type Delivery } from '../services/deliveryService'
+import { mapsService } from '../services/mapsService'
+import MapViewComponent from '@/components/MapView'
 
 export default function ActiveDeliveryScreen({ navigation, route }: any) {
   const { deliveryId } = route.params || {}
-  
+
   const [delivery, setDelivery] = useState<Delivery | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
   const [currentStatus, setCurrentStatus] = useState<'picking_up' | 'delivering' | 'delivered'>('picking_up')
+  const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([])
 
   const mapRef = useRef<any>(null)
+
+  // Calculate route based on delivery status
+  const calculateRoute = async (
+    status: string,
+    driverLoc: [number, number] | null,
+    pickup: { latitude: number; longitude: number } | null,
+    dropoff: { latitude: number; longitude: number } | null
+  ) => {
+    try {
+      let startCoords: { latitude: number; longitude: number } | null = null
+      let endCoords: { latitude: number; longitude: number } | null = null
+
+      // Determine route based on status
+      if (status === 'picking_up' && driverLoc && pickup) {
+        // Route from driver to pickup location
+        startCoords = { latitude: driverLoc[1], longitude: driverLoc[0] }
+        endCoords = pickup
+        console.log('[ActiveDelivery] Calculating route: driver -> pickup')
+      } else if ((status === 'delivering' || status === 'delivered') && pickup && dropoff) {
+        // Route from pickup to dropoff location
+        startCoords = pickup
+        endCoords = dropoff
+        console.log('[ActiveDelivery] Calculating route: pickup -> dropoff')
+      }
+
+      if (startCoords && endCoords) {
+        const startAddress = `${startCoords.latitude},${startCoords.longitude}`
+        const endAddress = `${endCoords.latitude},${endCoords.longitude}`
+
+        console.log('[ActiveDelivery] Route params:', { startAddress, endAddress, status })
+
+        const routeInfo = await mapsService.getRouteInfo(startAddress, endAddress)
+
+        console.log('[ActiveDelivery] Route info received:', {
+          hasRoute: !!routeInfo.routeCoordinates,
+          routeLength: routeInfo.routeCoordinates?.length || 0,
+          distance: routeInfo.distance,
+          duration: routeInfo.duration,
+        })
+
+        if (routeInfo.routeCoordinates && routeInfo.routeCoordinates.length > 0) {
+          setRouteCoordinates(routeInfo.routeCoordinates)
+          console.log('[ActiveDelivery] Route coordinates set:', routeInfo.routeCoordinates.length)
+        } else {
+          console.warn('[ActiveDelivery] No route coordinates in response')
+          setRouteCoordinates([])
+        }
+      } else {
+        console.warn('[ActiveDelivery] Missing coordinates for route calculation')
+        setRouteCoordinates([])
+      }
+    } catch (error) {
+      console.error('[ActiveDelivery] Route calculation error:', error)
+      setRouteCoordinates([])
+    }
+  }
 
   useEffect(() => {
     loadDelivery()
@@ -36,12 +96,27 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
     return () => clearInterval(interval)
   }, [deliveryId])
 
+  // Recalculate route when location, status, or coordinates change
+  useEffect(() => {
+    if (pickupCoords && dropoffCoords) {
+      console.log('[ActiveDelivery] Triggering route calculation from useEffect', {
+        hasCurrentLocation: !!currentLocation,
+        currentStatus,
+        pickup: pickupCoords,
+        dropoff: dropoffCoords
+      })
+      calculateRoute(currentStatus, currentLocation, pickupCoords, dropoffCoords)
+    }
+  }, [currentLocation, currentStatus, pickupCoords, dropoffCoords])
+
   const loadDelivery = async () => {
     try {
       if (!deliveryId) return
 
       const data = await deliveryService.getDelivery(deliveryId)
       setDelivery(data)
+
+      console.log('[ActiveDelivery] Delivery data:', JSON.stringify(data, null, 2))
 
       // Update current status based on delivery status
       if (data.status === 'picking_up') {
@@ -51,6 +126,61 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
       } else if (data.status === 'delivered') {
         setCurrentStatus('delivered')
       }
+
+      // Extract pickup coordinates (use local variable)
+      let pickup: { latitude: number; longitude: number } | null = null
+      if (data.pickupCoordinates && data.pickupCoordinates.length === 2) {
+        const pickupLat = data.pickupCoordinates[1]
+        const pickupLng = data.pickupCoordinates[0]
+        pickup = { latitude: pickupLat, longitude: pickupLng }
+        setPickupCoords(pickup)
+      } else if (data.pickupAddress) {
+        // Geocode from address
+        try {
+          const geocodeResult = await mapsService.geocodeAddress(data.pickupAddress)
+          if (geocodeResult?.coordinates) {
+            pickup = {
+              latitude: geocodeResult.coordinates.latitude,
+              longitude: geocodeResult.coordinates.longitude,
+            }
+            setPickupCoords(pickup)
+          }
+        } catch (error) {
+          console.error('[ActiveDelivery] Pickup geocoding error:', error)
+        }
+      }
+
+      // Extract dropoff coordinates (use local variable)
+      let dropoff: { latitude: number; longitude: number } | null = null
+      if (data.dropoffCoordinates && data.dropoffCoordinates.length === 2) {
+        const dropoffLat = data.dropoffCoordinates[1]
+        const dropoffLng = data.dropoffCoordinates[0]
+        dropoff = { latitude: dropoffLat, longitude: dropoffLng }
+        setDropoffCoords(dropoff)
+      } else if (data.dropoffAddress) {
+        // Geocode from address
+        try {
+          const geocodeResult = await mapsService.geocodeAddress(data.dropoffAddress)
+          if (geocodeResult?.coordinates) {
+            dropoff = {
+              latitude: geocodeResult.coordinates.latitude,
+              longitude: geocodeResult.coordinates.longitude,
+            }
+            setDropoffCoords(dropoff)
+          }
+        } catch (error) {
+          console.error('[ActiveDelivery] Dropoff geocoding error:', error)
+        }
+      }
+
+      // Calculate route based on delivery status using local variables
+      console.log('[ActiveDelivery] About to calculate route with:', {
+        status: data.status,
+        hasCurrentLocation: !!currentLocation,
+        hasPickup: !!pickup,
+        hasDropoff: !!dropoff
+      })
+      calculateRoute(data.status, currentLocation, pickup, dropoff)
     } catch (error: any) {
       console.error('[ActiveDelivery] Load error:', error)
       Alert.alert('Lỗi', error.message || 'Không thể tải thông tin đơn hàng')
@@ -147,7 +277,13 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
               Alert.alert('Thành công', 'Đã hoàn thành giao hàng', [
                 {
                   text: 'OK',
-                  onPress: () => navigation.navigate('Home'),
+                  onPress: () => {
+                    // Navigate back to home screen
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'HomeScreen' }],
+                    })
+                  },
                 },
               ])
             } catch (error: any) {
@@ -165,6 +301,24 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
     if (delivery?.customerId?.phone) {
       Linking.openURL(`tel:${delivery.customerId.phone}`)
     }
+  }
+
+  const handleChat = () => {
+    if (!delivery?.customerId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin khách hàng')
+      return
+    }
+
+    navigation.navigate('ChatScreen', {
+      customer: {
+        id: typeof delivery.customerId === 'string' ? delivery.customerId : delivery.customerId._id,
+        name: typeof delivery.customerId === 'string' 
+          ? 'Khách hàng'
+          : `${delivery.customerId.firstName || ''} ${delivery.customerId.lastName || ''}`.trim() || 'Khách hàng',
+        phone: typeof delivery.customerId === 'string' ? undefined : delivery.customerId.phone,
+      },
+      deliveryId: delivery._id,
+    })
   }
 
   const handleNavigate = (address: string, coords: [number, number]) => {
@@ -206,12 +360,35 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
     )
   }
 
-  const customerName = delivery.customerId?.name || 
-                      `${delivery.customerId?.firstName || ''} ${delivery.customerId?.lastName || ''}`.trim() ||
-                      'Khách hàng'
+  const customerName = delivery.customerId?.name ||
+    `${delivery.customerId?.firstName || ''} ${delivery.customerId?.lastName || ''}`.trim() ||
+    'Khách hàng'
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      {/* Map */}
+      <View style={StyleSheet.absoluteFillObject}>
+        <MapViewComponent
+          height={'100%'}
+          initialRegion={pickupCoords || currentLocation ? {
+            latitude: pickupCoords?.latitude || currentLocation![1],
+            longitude: pickupCoords?.longitude || currentLocation![0],
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          } : undefined}
+          pickupCoords={pickupCoords || undefined}
+          dropoffCoords={dropoffCoords || undefined}
+          routeCoordinates={routeCoordinates}
+          drivers={currentLocation ? [{
+            id: 'current-driver',
+            latitude: currentLocation[1],
+            longitude: currentLocation[0],
+            name: 'Bạn',
+            rating: 0,
+            vehicle: 'Current',
+          }] : []}
+        />
+      </View>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -221,62 +398,12 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
           <Text style={styles.headerTitle}>Đơn #{delivery._id.slice(-8)}</Text>
           <Text style={styles.headerStatus}>{delivery.status.toUpperCase()}</Text>
         </View>
-        <TouchableOpacity onPress={handleCall} style={styles.callBtn}>
-          <MaterialIcons name="phone" size={24} color={COLORS.primary} />
-        </TouchableOpacity>
       </View>
-
-      {/* Map */}
-      <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          initialRegion={{
-            latitude: delivery.pickupCoordinates[1],
-            longitude: delivery.pickupCoordinates[0],
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-          }}
-        >
-          {/* Current location */}
-          {currentLocation && (
-            <Marker
-              coordinate={{
-                latitude: currentLocation[1],
-                longitude: currentLocation[0],
-              }}
-              title="Vị trí của bạn"
-            >
-              <View style={styles.currentLocationMarker}>
-                <MaterialCommunityIcons name="truck-fast" size={24} color="#fff" />
-              </View>
-            </Marker>
-          )}
-
-          {/* Pickup marker */}
-          <Marker
-            coordinate={{
-              latitude: delivery.pickupCoordinates[1],
-              longitude: delivery.pickupCoordinates[0],
-            }}
-            title="Điểm lấy hàng"
-            pinColor={COLORS.primary}
-          />
-
-          {/* Dropoff marker */}
-          <Marker
-            coordinate={{
-              latitude: delivery.dropoffCoordinates[1],
-              longitude: delivery.dropoffCoordinates[0],
-            }}
-            title="Điểm giao hàng"
-            pinColor="#E74C3C"
-          />
-        </MapView>
-      </View>
-
       {/* Bottom Sheet */}
-      <ScrollView style={styles.bottomSheet} contentContainerStyle={styles.bottomSheetContent}>
+      <View style={styles.card}>
+        <View style={styles.handleBarContainer}>
+          <View style={styles.handleBar} />
+        </View>
         {/* Progress Timeline */}
         <View style={styles.timeline}>
           <View style={styles.timelineStep}>
@@ -300,69 +427,78 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
         </View>
 
         {/* Customer Info */}
-        <View style={styles.customerCard}>
-          <View style={styles.customerHeader}>
-            <View style={styles.customerAvatar}>
-              <MaterialIcons name="person" size={28} color={COLORS.primary} />
-            </View>
-            <View style={styles.customerInfo}>
-              <Text style={styles.customerName}>{customerName}</Text>
-              <Text style={styles.customerPhone}>{delivery.customerId?.phone}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Goods Info */}
-        <View style={styles.goodsCard}>
-          <Text style={styles.sectionTitle}>Thông tin hàng hóa</Text>
-          <View style={styles.goodsRow}>
-            <View style={styles.goodsItem}>
-              <Text style={styles.goodsLabel}>Loại hàng</Text>
-              <Text style={styles.goodsValue}>{getGoodsTypeLabel(delivery.goodsType)}</Text>
-            </View>
-            <View style={styles.goodsItem}>
-              <Text style={styles.goodsLabel}>Trọng lượng</Text>
-              <Text style={styles.goodsValue}>{delivery.weight} kg</Text>
+        <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
+          <View style={styles.customerCard}>
+            <View style={styles.customerHeader}>
+              <View style={styles.customerAvatar}>
+                <MaterialIcons name="person" size={28} color={COLORS.primary} />
+              </View>
+              <View style={styles.customerInfo}>
+                <Text style={styles.customerName}>{customerName}</Text>
+                <Text style={styles.customerPhone}>{delivery.customerId?.phone}</Text>
+              </View>
+              <View style={styles.customerActions}>
+                <TouchableOpacity onPress={handleChat} style={styles.chatBtn}>
+                  <MaterialCommunityIcons name="message-text" size={20} color={COLORS.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleCall} style={styles.callBtnSmall}>
+                  <MaterialIcons name="phone" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Phí vận chuyển</Text>
-            <Text style={styles.priceValue}>{delivery.estimatedPrice.toLocaleString('vi-VN')}đ</Text>
-          </View>
-        </View>
 
-        {/* Pickup Address */}
-        <View style={styles.addressCard}>
-          <View style={styles.addressHeader}>
-            <MaterialIcons name="trip-origin" size={20} color={COLORS.primary} />
-            <Text style={styles.addressTitle}>Điểm lấy hàng</Text>
+          {/* Goods Info */}
+          <View style={styles.goodsCard}>
+            <Text style={styles.sectionTitle}>Thông tin hàng hóa</Text>
+            <View style={styles.goodsRow}>
+              <View style={styles.goodsItem}>
+                <Text style={styles.goodsLabel}>Loại hàng</Text>
+                <Text style={styles.goodsValue}>{getGoodsTypeLabel(delivery.goodsType)}</Text>
+              </View>
+              <View style={styles.goodsItem}>
+                <Text style={styles.goodsLabel}>Trọng lượng</Text>
+                <Text style={styles.goodsValue}>{delivery.weight} kg</Text>
+              </View>
+            </View>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Phí vận chuyển</Text>
+              <Text style={styles.priceValue}>{delivery.estimatedPrice.toLocaleString('vi-VN')}đ</Text>
+            </View>
           </View>
-          <Text style={styles.addressText}>{delivery.pickupAddress}</Text>
-          <TouchableOpacity
-            style={styles.navigateBtn}
-            onPress={() => handleNavigate(delivery.pickupAddress, delivery.pickupCoordinates)}
-          >
-            <MaterialIcons name="directions" size={18} color={COLORS.primary} />
-            <Text style={styles.navigateBtnText}>Chỉ đường</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Dropoff Address */}
-        <View style={styles.addressCard}>
-          <View style={styles.addressHeader}>
-            <MaterialIcons name="location-on" size={20} color="#E74C3C" />
-            <Text style={styles.addressTitle}>Điểm giao hàng</Text>
+          {/* Pickup Address */}
+          <View style={styles.addressCard}>
+            <View style={styles.addressHeader}>
+              <MaterialIcons name="trip-origin" size={20} color={COLORS.primary} />
+              <Text style={styles.addressTitle}>Điểm lấy hàng</Text>
+            </View>
+            <Text style={styles.addressText}>{delivery.pickupAddress}</Text>
+            <TouchableOpacity
+              style={styles.navigateBtn}
+              onPress={() => handleNavigate(delivery.pickupAddress, delivery.pickupCoordinates)}
+            >
+              <MaterialIcons name="directions" size={18} color={COLORS.primary} />
+              <Text style={styles.navigateBtnText}>Chỉ đường</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.addressText}>{delivery.dropoffAddress}</Text>
-          <TouchableOpacity
-            style={styles.navigateBtn}
-            onPress={() => handleNavigate(delivery.dropoffAddress, delivery.dropoffCoordinates)}
-          >
-            <MaterialIcons name="directions" size={18} color={COLORS.primary} />
-            <Text style={styles.navigateBtnText}>Chỉ đường</Text>
-          </TouchableOpacity>
-        </View>
 
+          {/* Dropoff Address */}
+          <View style={styles.addressCard}>
+            <View style={styles.addressHeader}>
+              <MaterialIcons name="location-on" size={20} color="#E74C3C" />
+              <Text style={styles.addressTitle}>Điểm giao hàng</Text>
+            </View>
+            <Text style={styles.addressText}>{delivery.dropoffAddress}</Text>
+            <TouchableOpacity
+              style={styles.navigateBtn}
+              onPress={() => handleNavigate(delivery.dropoffAddress, delivery.dropoffCoordinates)}
+            >
+              <MaterialIcons name="directions" size={18} color={COLORS.primary} />
+              <Text style={styles.navigateBtnText}>Chỉ đường</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
         {/* Notes */}
         {delivery.notes && (
           <View style={styles.notesCard}>
@@ -405,8 +541,8 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
             )}
           </TouchableOpacity>
         )}
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </View>
   )
 }
 
@@ -415,11 +551,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
+  header: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    zIndex: 10,
+  },
+  card: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 15,
+    maxHeight: '50%',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,
+  },
+  scrollContent: {
+    flex: 1,
+    marginBottom: 16,
   },
   loadingText: {
     fontSize: 15,
@@ -448,16 +617,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
   backBtn: {
     width: 40,
     height: 40,
@@ -484,36 +643,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  mapContainer: {
-    height: 280,
+  customerActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  map: {
-    flex: 1,
-  },
-  currentLocationMarker: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
+  chatBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFE8DC',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 5,
+    alignItems: 'center',
   },
-  bottomSheet: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -20,
-  },
-  bottomSheetContent: {
-    padding: 20,
+  callBtnSmall: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   timeline: {
     flexDirection: 'row',
@@ -696,5 +844,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  handleBarContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  handleBar: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#4B5563',
+    borderRadius: 3,
   },
 })

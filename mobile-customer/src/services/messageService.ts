@@ -47,9 +47,10 @@ export const messageService = {
    * Gửi tin nhắn
    */
   async sendMessage(
-    rideId: string,
+    tripId: string,
     text: string,
-    senderType: 'customer' | 'driver'
+    senderType: 'customer' | 'driver',
+    tripType: 'ride' | 'delivery' = 'ride'
   ) {
     try {
       const token = await AsyncStorage.getItem('authToken')
@@ -58,30 +59,39 @@ export const messageService = {
         throw new Error('No auth token found. Please login again.')
       }
 
-      if (!rideId || !text.trim()) {
-        throw new Error('RideId and text are required')
+      if (!tripId || !text.trim()) {
+        throw new Error('TripId and text are required')
       }
 
       console.log('[MessageService] Sending message:', {
-        rideId,
+        tripId,
+        tripType,
         textLength: text.length,
         senderType,
         tokenLength: token?.length,
       })
 
+      const messageData: any = {
+        text,
+        senderType,
+        type: 'text',
+      }
+
+      if (tripType === 'ride') {
+        messageData.rideId = tripId
+      } else {
+        messageData.deliveryId = tripId
+      }
+
       const response = await apiClient.post(
         '/messages',
-        {
-          rideId,
-          text,
-          senderType,
-          type: 'text',
-        }
+        messageData
       )
 
       console.log('[MessageService] Message sent successfully:', {
         messageId: response.data.data?._id,
-        rideId,
+        tripId,
+        tripType,
         status: response.status,
       })
 
@@ -97,10 +107,11 @@ export const messageService = {
   },
 
   /**
-   * Lấy danh sách tin nhắn của cuốc xe
+   * Lấy danh sách tin nhắn
    */
-  async getMessagesByRide(
-    rideId: string,
+  async getMessagesByTrip(
+    tripId: string,
+    tripType: 'ride' | 'delivery' = 'ride',
     limit: number = 50,
     skip: number = 0
   ) {
@@ -111,23 +122,25 @@ export const messageService = {
         throw new Error('No auth token found. Please login again.')
       }
 
-      if (!rideId) {
-        throw new Error('RideId is required')
+      if (!tripId) {
+        throw new Error('TripId is required')
       }
 
       console.log('[MessageService] Fetching messages:', {
-        rideId,
+        tripId,
+        tripType,
         limit,
         skip,
         tokenLength: token?.length,
       })
 
-      const response = await apiClient.get(`/messages/ride/${rideId}`, {
+      const response = await apiClient.get(`/messages/${tripType}/${tripId}`, {
         params: { limit, skip },
       })
 
       console.log('[MessageService] Retrieved messages:', {
-        rideId,
+        tripId,
+        tripType,
         count: response.data.data?.messages?.length || 0,
         total: response.data.data?.total || 0,
         status: response.status,
@@ -139,7 +152,8 @@ export const messageService = {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
-        rideId,
+        tripId,
+        tripType,
       })
       throw error
     }
@@ -148,7 +162,11 @@ export const messageService = {
   /**
    * Lấy tin nhắn mới từ một thời điểm
    */
-  async getNewMessages(rideId: string, sinceTimestamp?: number) {
+  async getNewMessages(
+    tripId: string,
+    tripType: 'ride' | 'delivery' = 'ride',
+    sinceTimestamp?: number
+  ) {
     try {
       const token = await AsyncStorage.getItem('authToken')
 
@@ -157,22 +175,24 @@ export const messageService = {
         return []
       }
 
-      if (!rideId) {
-        throw new Error('RideId is required')
+      if (!tripId) {
+        throw new Error('TripId is required')
       }
 
       console.log('[MessageService] Polling new messages:', {
-        rideId,
+        tripId,
+        tripType,
         since: sinceTimestamp,
         tokenLength: token?.length,
       })
 
-      const response = await apiClient.get(`/messages/ride/${rideId}/new`, {
+      const response = await apiClient.get(`/messages/${tripType}/${tripId}/new`, {
         params: sinceTimestamp ? { since: sinceTimestamp } : {},
       })
 
       console.log('[MessageService] Retrieved new messages:', {
-        rideId,
+        tripId,
+        tripType,
         count: response.data.data?.messages?.length || 0,
         status: response.status,
       })
@@ -189,7 +209,8 @@ export const messageService = {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status,
-        rideId,
+        tripId,
+        tripType,
       })
       
       // Return empty array instead of throwing for other errors too
@@ -200,16 +221,19 @@ export const messageService = {
   /**
    * Đánh dấu tất cả tin nhắn là đã đọc
    */
-  async markAsRead(rideId: string) {
+  async markAsRead(
+    tripId: string,
+    tripType: 'ride' | 'delivery' = 'ride'
+  ) {
     try {
       const token = await AsyncStorage.getItem('authToken')
 
       const response = await apiClient.post(
-        `/messages/ride/${rideId}/mark-as-read`,
+        `/messages/${tripType}/${tripId}/mark-as-read`,
         {}
       )
 
-      console.log('[MessageService] Marked messages as read:', { rideId })
+      console.log('[MessageService] Marked messages as read:', { tripId, tripType })
 
       return response.data
     } catch (error: any) {

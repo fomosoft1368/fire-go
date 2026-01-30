@@ -600,7 +600,36 @@ export class DriverService {
       return [];
     }
   }
+
+  /**
+   * Set driver online/offline status
+   */
+  async setOnlineStatus(isOnline: boolean): Promise<any> {
+    try {
+      console.log(`[DriverService] Setting online status to: ${isOnline}`);
+      const response = await this.api.patch('/online-status', { isOnline });
+      console.log(`[DriverService] Online status updated:`, response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] Error setting online status:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Set driver available status for auto-assign
+   */
+  async setAvailableStatus(isAvailable: boolean): Promise<any> {
+    try {
+      console.log(`[DriverService] Setting available status to: ${isAvailable}`);
+      const response = await this.api.patch('/available-status', { isAvailable });
+      console.log(`[DriverService] Available status updated:`, response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] Error setting available status:', error.message);
+      throw error;
+    }
+  }
 }
 
-// Export singleton instance
-export const driverService = new DriverService();
+export const driverService = new DriverService()

@@ -2,9 +2,13 @@ import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
 import { MessageType } from '../schemas/message.schema';
 
 export class CreateMessageDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  rideId: string;
+  rideId?: string;
+
+  @IsOptional()
+  @IsString()
+  deliveryId?: string;
 
   @IsNotEmpty()
   @IsString()

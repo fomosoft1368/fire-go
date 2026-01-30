@@ -25,13 +25,9 @@ interface Driver {
   name: string
   avatar: string
   rating: number
-  totalRides: number
   carType: string
   licensePlate: string
-  carColor: string
   phone: string
-  currentLat: number
-  currentLng: number
 }
 
 export default function RideTracking({ navigation, route }: RideTrackingProps) {
@@ -39,33 +35,27 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
   const [ride, setRide] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [driver, setDriver] = useState<Driver>({
-    id: '1',
-    name: 'Nguyễn Văn A',
-    avatar: 'https://i.pravatar.cc/150?u=driver1',
-    rating: 4.5,
-    totalRides: 120,
-    carType: 'Toyota Vios',
-    licensePlate: '29A-123.45',
-    carColor: 'Trắng',
-    phone: '0905123456',
-    currentLat: 21.0285,
-    currentLng: 105.8542,
+    id: '',
+    name: '',
+    avatar: '',
+    rating: 0,
+    carType: '',
+    licensePlate: '',
+    phone: '',
   })
 
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
   const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([])
-  const [routeFetched, setRouteFetched] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   
   useEffect(() => {
-    if (pickupCoords && dropoffCoords && !routeFetched) {
+    if (pickupCoords && dropoffCoords && routeCoordinates.length === 0) {
       fetchRouteFromPickupDropoff()
-      setRouteFetched(true)
     }
-  }, [pickupCoords, dropoffCoords, routeFetched])
+  }, [pickupCoords, dropoffCoords])
 
   const fetchRouteFromPickupDropoff = async () => {
     if (!pickupCoords || !dropoffCoords) return
@@ -114,15 +104,13 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
     const fetchRideStatus = async () => {
       try {
-        const API_URL = 'http://192.168.1.18:3000/api'
+        const API_URL = 'http://192.168.1.16:3000/api'
         const url = `${API_URL}/rides/${rideId}`
         
         const response = await fetch(url)
         
         if (response.ok) {
           const data = await response.json()
-          
-          console.log('🚗 [RideTracking] Full ride data from API:', JSON.stringify(data, null, 2))
           
           // Only update if data changed
           setRide(prevRide => {
@@ -170,27 +158,14 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
             })
           }
 
-          // Update driver info if available (only once)
+          // Update driver info if available
           if (data.driverId) {
             const driverData = Array.isArray(data.driverId) ? data.driverId[0] : data.driverId
-            console.log('🚗 [RideTracking] Driver data từ API:', {
-              driverId: driverData?._id || driverData?.id,
-              name: `${driverData?.firstName || ''} ${driverData?.lastName || ''}`.trim(),
-              hasCurrentLocation: !!driverData?.currentLocation,
-              currentLocation: driverData?.currentLocation,
-              coordinates: driverData?.currentLocation?.coordinates
-            })
             
             if (typeof driverData === 'object') {
               setDriver(prev => {
                 const newId = driverData._id || driverData.id
-                // Only update if driver changed
                 if (prev.id !== newId && prev.id === '1') {
-                  console.log('✅ [RideTracking] Updating driver info:', {
-                    oldId: prev.id,
-                    newId: newId,
-                    name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim()
-                  })
                   return {
                     ...prev,
                     id: newId,
@@ -209,19 +184,12 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
               if (driverData.currentLocation?.coordinates && driverData.currentLocation.coordinates.length === 2) {
                 const newDriverLat = driverData.currentLocation.coordinates[1]
                 const newDriverLng = driverData.currentLocation.coordinates[0]
-                console.log('📍 [RideTracking] Updating driver location:', {
-                  lng: newDriverLng,
-                  lat: newDriverLat,
-                  driverName: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim()
-                })
                 setDriverLocation(prev => {
                   if (!prev || prev.latitude !== newDriverLat || prev.longitude !== newDriverLng) {
                     return { latitude: newDriverLat, longitude: newDriverLng }
                   }
                   return prev
                 })
-              } else {
-                console.warn('⚠️ [RideTracking] No currentLocation in driver data!')
               }
             }
           }
@@ -233,10 +201,9 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
       }
     }
 
-    fetchRideStatus() // Initial fetch
-    fetchUnreadCount() // Initial unread count fetch
+    fetchRideStatus()
+    fetchUnreadCount()
     
-    // Poll every 3 seconds for real-time tracking
     const interval = setInterval(() => {
       fetchRideStatus()
       fetchUnreadCount()
@@ -328,20 +295,20 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.headerButton}
+          style={[styles.backButton, { backgroundColor: "#fff" }]}
           onPress={() => navigation?.goBack()}
         >
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+          <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Theo dõi chuyến đi</Text>
-        <TouchableOpacity style={styles.headerButton} onPress={handleHelp}>
+        <TouchableOpacity onPress={handleHelp}>
           <Text style={styles.helpText}>Trợ giúp</Text>
         </TouchableOpacity>
       </View>
 
       {/* Driver Status Badge */}
       <View style={styles.statusBadge}>
-        <MaterialIcons name="location-on" size={16} color="#FF6B00" />
+        <MaterialIcons name="location-on" size={16} color="#fff" />
         <Text style={styles.statusText}>Tài xế đang di chuyển đến điểm đón</Text>
       </View>
 
@@ -375,7 +342,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
             <View style={styles.ratingRow}>
               <MaterialIcons name="star" size={14} color="#FFB800" />
               <Text style={styles.ratingText}>
-                {driver.rating} • {driver.totalRides} chuyến
+                {driver.rating}
               </Text>
             </View>
           </View>
@@ -457,12 +424,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    color: '#FF6B00',
   },
   helpText: {
     fontSize: 14,
@@ -476,7 +440,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#1a202c',
+    backgroundColor: '#FF6B00',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -540,6 +504,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 15,
+    height: '50%',
   },
   handleBarContainer: {
     alignItems: 'center',
@@ -715,5 +680,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#fff',
     fontWeight: '600',
+  },
+    backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
 })

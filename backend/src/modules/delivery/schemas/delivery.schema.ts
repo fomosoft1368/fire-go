@@ -9,6 +9,7 @@ export enum DeliveryStatus {
   DELIVERING = 'delivering',
   DELIVERED = 'delivered',
   CANCELLED = 'cancelled',
+  NO_DRIVER_AVAILABLE = 'no_driver_available',
 }
 
 export enum GoodsType {
