@@ -630,6 +630,19 @@ export class DriverService {
       throw error;
     }
   }
+
+  /**
+   * Send heartbeat to keep driver online
+   */
+  async sendHeartbeat(): Promise<any> {
+    try {
+      const response = await this.api.post('/heartbeat');
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] Error sending heartbeat:', error.message);
+      throw error;
+    }
+  }
 }
 
 export const driverService = new DriverService()

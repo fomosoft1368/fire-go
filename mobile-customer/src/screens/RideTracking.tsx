@@ -165,16 +165,23 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
             if (typeof driverData === 'object') {
               setDriver(prev => {
                 const newId = driverData._id || driverData.id
-                if (prev.id !== newId && prev.id === '1') {
+                const newName = `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim() || 'Tài xế'
+                const newRating = driverData.averageRating || driverData.rating || 0
+                const newPhone = driverData.phone || ''
+                const newCarType = driverData.vehicleModel || driverData.vehicleType || 'Xe'
+                const newLicensePlate = driverData.vehiclePlate || driverData.licensePlate || ''
+                const newAvatar = driverData.avatar || 'https://via.placeholder.com/100'
+                
+                // Only update if there's actual change to avoid unnecessary re-renders
+                if (prev.id !== newId || prev.name !== newName || prev.rating !== newRating) {
                   return {
-                    ...prev,
                     id: newId,
-                    name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim() || 'Tài xế',
-                    phone: driverData.phone || prev.phone,
-                    rating: driverData.averageRating || driverData.rating || prev.rating,
-                    carType: driverData.vehicleType || prev.carType,
-                    licensePlate: driverData.licensePlate || prev.licensePlate,
-                    avatar: driverData.avatar || prev.avatar,
+                    name: newName,
+                    phone: newPhone,
+                    rating: newRating,
+                    carType: newCarType,
+                    licensePlate: newLicensePlate,
+                    avatar: newAvatar,
                   }
                 }
                 return prev
@@ -243,6 +250,30 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
     Alert.alert('Trợ giúp', 'Liên hệ hotline: 1900-xxxx')
   }
 
+  const getStatusText = () => {
+    if (!ride?.status) return 'Đang tải...'
+    
+    switch (ride.status) {
+      case 'pending':
+      case 'finding_driver':
+        return 'Đang tìm tài xế...'
+      case 'accepted':
+        return 'Tài xế đang di chuyển đến điểm đón'
+      case 'arrived_pickup':
+        return 'Tài xế đã đến điểm đón'
+      case 'in_progress':
+        return 'Đang di chuyển đến điểm đến'
+      case 'arrived_dropoff':
+        return 'Đã đến điểm đến'
+      case 'completed':
+        return 'Chuyến đi hoàn thành'
+      case 'cancelled':
+        return 'Chuyến đi đã hủy'
+      default:
+        return 'Đang xử lý...'
+    }
+  }
+
   // Show chat screen
   if (showChat && driver) {
     return (
@@ -309,7 +340,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
       {/* Driver Status Badge */}
       <View style={styles.statusBadge}>
         <MaterialIcons name="location-on" size={16} color="#fff" />
-        <Text style={styles.statusText}>Tài xế đang di chuyển đến điểm đón</Text>
+        <Text style={styles.statusText}>{getStatusText()}</Text>
       </View>
 
       {/* ETA Badge */}

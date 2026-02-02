@@ -92,10 +92,10 @@ const Home = () => {
 
                 {/* Banner */}
                 <View style={styles.banner}>
-                    <Image
-                        source={{ uri: 'https://via.placeholder.com/150x200' }}
+                    {/* <Image
+                        source={require('')}
                         style={styles.bannerImage}
-                    />
+                    /> */}
                     <View style={styles.bannerContent}>
                         <Text style={styles.bannerTitle}>Dịch vụ Vận chuyển hỏa tốc</Text>
                         <Text style={styles.bannerSubtitle}>

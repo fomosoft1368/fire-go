@@ -667,13 +667,14 @@ export default function RideSharing(props?: RideSharingProps) {
                 />
               </View>
               {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                <FlatList
-                  data={pickupSuggestions}
-                  keyExtractor={(item, index) => `pickup-${index}`}
+                <ScrollView
                   style={styles.suggestionsDropdown}
                   keyboardShouldPersistTaps="handled"
-                  renderItem={({ item }) => (
+                  nestedScrollEnabled={true}
+                >
+                  {pickupSuggestions.map((item, index) => (
                     <TouchableOpacity
+                      key={`pickup-${index}`}
                       style={styles.suggestionItem}
                       onPress={() => handlePickupSuggestionSelect(item)}
                     >
@@ -683,8 +684,8 @@ export default function RideSharing(props?: RideSharingProps) {
                         <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
                       </View>
                     </TouchableOpacity>
-                  )}
-                />
+                  ))}
+                </ScrollView>
               )}
             </View>
 
@@ -707,13 +708,14 @@ export default function RideSharing(props?: RideSharingProps) {
                 />
               </View>
               {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
-                <FlatList
-                  data={dropoffSuggestions}
-                  keyExtractor={(item, index) => `dropoff-${index}`}
+                <ScrollView
                   style={styles.suggestionsDropdown}
                   keyboardShouldPersistTaps="handled"
-                  renderItem={({ item }) => (
+                  nestedScrollEnabled={true}
+                >
+                  {dropoffSuggestions.map((item, index) => (
                     <TouchableOpacity
+                      key={`dropoff-${index}`}
                       style={styles.suggestionItem}
                       onPress={() => handleDropoffSuggestionSelect(item)}
                     >
@@ -723,8 +725,8 @@ export default function RideSharing(props?: RideSharingProps) {
                         <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
                       </View>
                     </TouchableOpacity>
-                  )}
-                />
+                  ))}
+                </ScrollView>
               )}
             </View>
           </View>
@@ -866,7 +868,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 15,
-    maxHeight: '65%',
+    maxHeight: '50%',
   },
   handleBar: {
     width: 40,

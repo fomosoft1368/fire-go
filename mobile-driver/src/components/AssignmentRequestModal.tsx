@@ -43,10 +43,14 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
 
   // Check if this is a delivery or ride request
   const isDelivery = request.type === 'delivery'
-  const data = isDelivery ? (request.deliveryId || {}) : (request.rideId || {})
   
+  // The request object structure can be:
+  // 1. Direct ride/delivery object (has pickupAddress directly)
+  // 2. Nested object with rideId/deliveryId property
+  const data = request.rideId || request.deliveryId || request
+
   const pickupAddress = data.pickupAddress || 'Địa điểm đón'
-  const dropoffAddress = data.dropoffAddress || (isDelivery ? data.deliveryAddress : 'Địa điểm đến')
+  const dropoffAddress = data.dropoffAddress || data.deliveryAddress || 'Địa điểm đến'
   const fare = data.totalFare || data.deliveryFee || 0
 
   return (
@@ -61,10 +65,10 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <MaterialIcons 
-                name={isDelivery ? "local-shipping" : "local-taxi"} 
-                size={32} 
-                color="#FF6B00" 
+              <MaterialIcons
+                name={isDelivery ? "local-shipping" : "local-taxi"}
+                size={32}
+                color="#FF6B00"
               />
             </View>
             <Text style={styles.title}>

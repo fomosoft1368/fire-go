@@ -7,6 +7,7 @@ export const COLORS_DARK = {
   // Dark theme
   bg: '#0f172a',
   bgSecondary: '#1a202c',
+  background: '#0f172a',
   border: 'rgba(255, 255, 255, 0.05)',
   borderLight: 'rgba(255, 255, 255, 0.1)',
 
@@ -17,6 +18,7 @@ export const COLORS_DARK = {
   // Status
   success: '#4caf50',
   danger: '#ef4444',
+  error: '#ef4444',
   warning: '#ffc107',
 
   // Semantic
@@ -33,6 +35,7 @@ export const COLORS_LIGHT = {
   // Light theme
   bg: '#ffffff',
   bgSecondary: '#f5f5f5',
+  background: '#ffffff',
   border: 'rgba(0, 0, 0, 0.05)',
   borderLight: 'rgba(0, 0, 0, 0.1)',
 
@@ -43,6 +46,7 @@ export const COLORS_LIGHT = {
   // Status
   success: '#4caf50',
   danger: '#ef4444',
+  error: '#ef4444',
   warning: '#ffc107',
 
   // Semantic

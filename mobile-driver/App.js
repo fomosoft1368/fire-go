@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { StyleSheet, ActivityIndicator, View, Alert } from 'react-native'
+import { StyleSheet, ActivityIndicator, View, Alert, AppState } from 'react-native'
 import { Audio } from 'expo-av'
 import 'react-native-gesture-handler'
 import { NavigationContainer } from '@react-navigation/native'
@@ -210,6 +210,21 @@ console.log('[App] Fetching user profile with token...')
               // Restore auth state
               console.log('[App] Dispatching loginSuccess to restore session')
               dispatch(loginSuccess({ token, user }))
+              
+              // Wait a bit for Redux to update, then set driver online
+              // Use setTimeout to ensure token is available in interceptor
+              setTimeout(async () => {
+                console.log('[App] Setting driver online status on app start...')
+                try {
+                  await driverService.setOnlineStatus(true)
+                  console.log('[App] ✅ Driver is now online')
+                } catch (error) {
+                  console.error('[App] ❌ Failed to set online status:', error)
+                  if (error.response) {
+                    console.error('[App] Error response:', error.response.status, error.response.data)
+                  }
+                }
+              }, 500)
             }
           } catch (error) {
             console.log('[App] Token invalid or expired, clearing...', error.message)
@@ -228,6 +243,58 @@ console.log('[App] Fetching user profile with token...')
 
     checkAuth()
   }, [dispatch])
+
+  // Handle app state changes (background/foreground)
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      console.log('[App] AppState changed to:', nextAppState)
+      
+      if (nextAppState === 'active') {
+        // App came to foreground - set driver online
+        console.log('[App] App is now active, setting driver online...')
+        try {
+          await driverService.setOnlineStatus(true)
+          console.log('[App] ✅ Driver is now online')
+        } catch (error) {
+          console.error('[App] ❌ Failed to set online:', error.message)
+        }
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // App went to background - set driver offline
+        console.log('[App] App is going to background, setting driver offline...')
+        try {
+          await driverService.setOnlineStatus(false)
+          console.log('[App] ✅ Driver is now offline')
+        } catch (error) {
+          console.error('[App] ❌ Failed to set offline:', error.message)
+        }
+      }
+    })
+
+    // Send heartbeat every 15 seconds to keep driver online
+    // This ensures we always have a heartbeat within the 2-minute timeout
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        await driverService.sendHeartbeat()
+        console.log('[App] 💓 Heartbeat sent')
+      } catch (error) {
+        console.error('[App] ❌ Heartbeat failed:', error.message)
+      }
+    }, 15 * 1000) // Every 15 seconds
+
+    // Cleanup: Set offline when component unmounts (app closes)
+    return () => {
+      subscription.remove()
+      clearInterval(heartbeatInterval)
+      
+      // Important: Set driver offline when app is closed/killed
+      console.log('[App] App is unmounting, setting driver offline...')
+      driverService.setOnlineStatus(false).catch((error) => {
+        console.error('[App] ❌ Failed to set offline on unmount:', error.message)
+      })
+    }
+  }, [isAuthenticated])
 
   // Global polling for pending requests (runs on all screens)
   useEffect(() => {

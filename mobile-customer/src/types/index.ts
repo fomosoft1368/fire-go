@@ -154,6 +154,14 @@ export type RootStackParamList = {
     rideId?: string
     deliveryId?: string
   }
+  CancelTrip: {
+    tripId: string
+    tripType: 'ride' | 'delivery' | 'combined_trip'
+    tripDetails?: {
+      pickupAddress?: string
+      dropoffAddress?: string
+    }
+  }
 }
 
 // API Response Types

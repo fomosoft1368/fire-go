@@ -153,8 +153,11 @@ export class RidesController {
     console.log('🆕 [RidesController] Creating ride for customer:', customerId);
     const ride = await this.ridesService.create(createRideDto, customerId);
     
-    // Auto-assign driver if enabled in request
-    if (createRideDto.autoAssign && ride.rideType === RideType.HIRE) {
+    // Auto-assign driver for HIRE rides (default enabled unless explicitly disabled)
+    const shouldAutoAssign = ride.rideType === RideType.HIRE && 
+                            (createRideDto.autoAssign !== false); // Default to true
+    
+    if (shouldAutoAssign) {
       console.log('🤖 [RidesController] Auto-assigning driver for ride:', ride._id);
       try {
         const assignResult = await this.ridesService.autoAssignDriver(ride._id.toString());
@@ -222,14 +225,6 @@ export class RidesController {
   @Get('driver/:id')
   async findByIdForDriver(@Param('id') id: string) {
     return this.ridesService.findByIdForDriver(id);
-  }
-
-  @Get('stats/:userId')
-  async getStats(
-    @Param('userId') userId: string,
-    @Query('userType') userType: 'driver' | 'customer',
-  ) {
-    return this.ridesService.getRideStats(userId, userType);
   }
 
   // ============ Assignment Request Endpoints ============

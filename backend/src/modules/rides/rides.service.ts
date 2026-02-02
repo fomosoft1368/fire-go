@@ -141,8 +141,8 @@ export class RidesService {
     const ride = await this.rideModel.create({
       ...createRideDto,
       rideType,
-      driverId: driverId ? new Types.ObjectId(driverId) : null, // null for HIRE, ObjectId for SHARE
-      customerId: rideType === RideType.HIRE && customerId ? [new Types.ObjectId(customerId)] : [], // [customerId] for HIRE, [] for SHARE
+      driverId: driverId ? new Types.ObjectId(driverId) : null,
+      customerId: customerId ? new Types.ObjectId(customerId) : null,
       pickupLocation: {
         type: 'Point',
         coordinates: createRideDto.pickupCoordinates,
@@ -267,75 +267,74 @@ export class RidesService {
 
     let enrichedCustomers = [];
     
-    if (ride.customerId && ride.customerId.length > 0) {
-      // Check if customerId is already populated (contains objects)
-      const isPopulated = ride.customerId[0] && typeof ride.customerId[0] === 'object' && ride.customerId[0]._id;
+    if (ride.customerId) {
+      // Check if customerId is already populated (contains object)
+      const isPopulated = ride.customerId && typeof ride.customerId === 'object' && ride.customerId._id;
       
       if (isPopulated) {
         console.log('✅ Using populated customer data');
-        enrichedCustomers = (ride.customerId || []).map((customer: any) => {
-          console.log('🔍 Finding request for customer:', {
-            customerId: customer._id?.toString?.() || customer._id,
-            customerIdType: typeof customer._id,
-          });
-          
-          const customerRequest = requests.find(r => {
-            const rCustomerId = r.customerId?._id?.toString?.() || r.customerId?.toString?.() || r.customerId;
-            const cCustomerId = customer._id?.toString?.() || customer._id;
-            const match = rCustomerId === cCustomerId;
-            
-            if (!match) {
-              console.log('   Comparing:', {
-                requestCustomerId: rCustomerId,
-                customerCustomerId: cCustomerId,
-                match,
-              });
-            }
-            return match;
-          });
-          
-          console.log('🔗 Linking customer to request:', {
-            customerId: customer._id?.toString?.() || customer._id,
-            found: !!customerRequest,
-            requestId: customerRequest?._id?.toString?.() || customerRequest?._id,
-            status: customerRequest?.status,
-          });
-          
-          return {
-            _id: customer._id,
-            name: customer.name || customer.firstName || 'Khách hàng',
-            phone: customer.phone || '',
-            rating: customer.rating || 0,
-            firstName: customer.firstName || '',
-            lastName: customer.lastName || '',
-            avatar: customer.avatar || '',
-            pickupAddress: customerRequest?.pickupAddress || ride.pickupAddress || '',
-            dropoffAddress: customerRequest?.dropoffAddress || ride.dropoffAddress || '',
-            pickupCoordinates: customerRequest?.pickupCoordinates || ride.pickupLocation?.coordinates || [],
-            dropoffCoordinates: customerRequest?.dropoffCoordinates || ride.dropoffLocation?.coordinates || [],
-            distance: customerRequest?.distance || ride.distance || 0,
-            fare: customerRequest?.fare || ride.totalFare || 0,
-            status: customerRequest?.status || 'pending',
-            requestId: customerRequest?._id?.toString(),
-          };
+        const customer = ride.customerId as any;
+        console.log('🔍 Finding request for customer:', {
+          customerId: customer._id?.toString?.() || customer._id,
+          customerIdType: typeof customer._id,
         });
+        
+        const customerRequest = requests.find(r => {
+          const rCustomerId = r.customerId?._id?.toString?.() || r.customerId?.toString?.() || r.customerId;
+          const cCustomerId = customer._id?.toString?.() || customer._id;
+          const match = rCustomerId === cCustomerId;
+          
+          if (!match) {
+            console.log('   Comparing:', {
+              requestCustomerId: rCustomerId,
+              customerCustomerId: cCustomerId,
+              match,
+            });
+          }
+          return match;
+        });
+        
+        console.log('🔗 Linking customer to request:', {
+          customerId: customer._id?.toString?.() || customer._id,
+          found: !!customerRequest,
+          requestId: customerRequest?._id?.toString?.() || customerRequest?._id,
+          status: customerRequest?.status,
+        });
+        
+        enrichedCustomers = [{
+          _id: customer._id,
+          name: customer.name || customer.firstName || 'Khách hàng',
+          phone: customer.phone || '',
+          rating: customer.rating || 0,
+          firstName: customer.firstName || '',
+          lastName: customer.lastName || '',
+          avatar: customer.avatar || '',
+          pickupAddress: customerRequest?.pickupAddress || ride.pickupAddress || '',
+          dropoffAddress: customerRequest?.dropoffAddress || ride.dropoffAddress || '',
+          pickupCoordinates: customerRequest?.pickupCoordinates || ride.pickupLocation?.coordinates || [],
+          dropoffCoordinates: customerRequest?.dropoffCoordinates || ride.dropoffLocation?.coordinates || [],
+          distance: customerRequest?.distance || ride.distance || 0,
+          fare: customerRequest?.fare || ride.totalFare || 0,
+          status: customerRequest?.status || 'pending',
+          requestId: customerRequest?._id?.toString(),
+        }];
       } else {
-        // Populate didn't work, manually fetch customers
-        console.log('⚠️ Populate failed, manually fetching customers...');
-        const customerIds = ride.customerId as Types.ObjectId[];
+        // Populate didn't work, manually fetch customer
+        console.log('⚠️ Populate failed, manually fetching customer...');
+        const customerId = ride.customerId as Types.ObjectId;
         
-        const customers = await this.rideModel.db.db.collection('customers').find({
-          _id: { $in: customerIds.map(id => typeof id === 'string' ? new Types.ObjectId(id) : id) }
-        }).toArray();
+        const customer = await this.rideModel.db.db.collection('customers').findOne({
+          _id: typeof customerId === 'string' ? new Types.ObjectId(customerId) : customerId
+        });
         
-        console.log('👥 Manually fetched customers:', customers.length);
+        console.log('👤 Manually fetched customer:', !!customer);
         
-        enrichedCustomers = customers.map((customer: any) => {
+        if (customer) {
           const customerRequest = requests.find(r => 
             r.customerId?._id?.toString() === customer._id?.toString()
           );
           
-          return {
+          enrichedCustomers = [{
             _id: customer._id,
             name: customer.name || customer.firstName || 'Khách hàng',
             phone: customer.phone || '',
@@ -351,8 +350,8 @@ export class RidesService {
             fare: customerRequest?.fare || ride.totalFare || 0,
             status: customerRequest?.status || 'pending',
             requestId: customerRequest?._id?.toString(),
-          };
-        });
+          }];
+        }
       }
     }
 
@@ -372,7 +371,7 @@ export class RidesService {
     const plainRide = ride.toObject ? ride.toObject() : ride;
     return {
       ...plainRide,
-      customerId: enrichedCustomers,
+      customers: enrichedCustomers, // Array of customer details with request info
     };
   }
 
@@ -739,42 +738,6 @@ export class RidesService {
         : { driverRating: rating, driverReview: review };
 
     return this.rideModel.findByIdAndUpdate(rideId, updateData, { new: true });
-  }
-
-  async getRideStats(userId: string, userType: 'driver' | 'customer'): Promise<any> {
-    const field = userType === 'driver' ? 'driverId' : 'customerId';
-
-    const stats = await this.rideModel.aggregate([
-      {
-        $match: {
-          [field]: new Types.ObjectId(userId),
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalRides: { $sum: 1 },
-          completedRides: {
-            $sum: {
-              $cond: [{ $eq: ['$status', RideStatus.COMPLETED] }, 1, 0],
-            },
-          },
-          cancelledRides: {
-            $sum: {
-              $cond: [{ $eq: ['$status', RideStatus.CANCELLED] }, 1, 0],
-            },
-          },
-          totalEarnings: {
-            $sum: {
-              $cond: [{ $eq: ['$status', RideStatus.COMPLETED] }, '$totalFare', 0],
-            },
-          },
-          averageRating: { $avg: `$${userType === 'driver' ? 'customer' : 'driver'}Rating` },
-        },
-      },
-    ]);
-
-    return stats[0] || {};
   }
 
   /**

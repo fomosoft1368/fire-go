@@ -27,4 +27,13 @@ export const BORDER_RADIUS = {
   full: 9999,
 } as const
 
+export const FONT_SIZES = {
+  xs: 12,
+  sm: 14,
+  md: 16,
+  lg: 18,
+  xl: 20,
+  xxl: 24,
+} as const
+
 export const API_BASE_URL = 'http://10.0.2.2:3000/api'

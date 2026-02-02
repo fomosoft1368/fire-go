@@ -904,7 +904,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 15,
-    maxHeight: '65%',
+    maxHeight: '50%',
   },
   handleBar: {
     width: 40,
