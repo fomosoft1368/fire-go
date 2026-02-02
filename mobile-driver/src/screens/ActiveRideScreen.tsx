@@ -88,77 +88,121 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
     const startLocationTracking = async () => {
       try {
-        console.log('🔍 Starting location tracking...')
+        console.log('🔍 [ActiveRideScreen] Starting location tracking for driver:', driver?._id)
+        
+        // ✅ CRITICAL FIX: Set fallback location immediately for 2nd driver onwards
+        console.log('🎯 [ActiveRideScreen] Setting fallback location immediately...')
+        setCurrentLocation([105.8542, 21.0285]) // Hanoi center as immediate fallback
         
         // Request location permissions
         const { status } = await Location.requestForegroundPermissionsAsync()
-        console.log('📍 Location permission status:', status)
+        console.log('📍 [ActiveRideScreen] Location permission status:', status)
         
         if (status !== 'granted') {
-          console.warn('⚠️ Location permission denied, using fallback location')
-          setCurrentLocation([105.8386, 21.0722])
-          return
+          console.warn('⚠️ [ActiveRideScreen] Location permission denied, keeping fallback location')
+          return // Keep fallback location
         }
 
-        console.log('✅ Location permission granted, getting location...')
+        console.log('✅ [ActiveRideScreen] Location permission granted, getting real location...')
 
-        // Get initial location first
-        try {
-          const location = await Location.getCurrentPositionAsync({ 
-            accuracy: Location.Accuracy.High
-          })
-          
-          if (isMounted && location) {
-            const { longitude, latitude } = location.coords
+        // ✅ AGGRESSIVE GPS FETCHING: Try multiple times to get real location
+        let realLocationObtained = false
+        const maxRetries = 3
+        
+        for (let attempt = 1; attempt <= maxRetries && !realLocationObtained; attempt++) {
+          try {
+            console.log(`🔍 [ActiveRideScreen] GPS attempt ${attempt}/${maxRetries}...`)
+            const timeoutMs = attempt === 1 ? 2000 : 5000
+            const location = await Promise.race([
+              Location.getCurrentPositionAsync({ 
+                accuracy: Location.Accuracy.High,
+              }),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Location timeout')), timeoutMs)
+              )
+            ]) as any
             
-            console.log('📍 Initial driver location obtained:', { latitude, longitude })
-            
-            if (typeof latitude === 'number' && typeof longitude === 'number' && 
-                !isNaN(latitude) && !isNaN(longitude)) {
-              console.log('✅ Setting initial location:', { latitude, longitude })
-              setCurrentLocation([longitude, latitude])
+            if (isMounted && location?.coords) {
+              const { longitude, latitude } = location.coords
               
-              // Animate map to initial driver location
-              setTimeout(() => {
-                mapRef.current?.animateToRegion({
-                  latitude,
-                  longitude,
-                  latitudeDelta: 0.05,
-                  longitudeDelta: 0.05,
-                }, 500)
-              }, 500)
+              console.log(`✅ [ActiveRideScreen] Real GPS location obtained (attempt ${attempt}):`, { latitude, longitude })
+              
+              if (typeof latitude === 'number' && typeof longitude === 'number' && 
+                  !isNaN(latitude) && !isNaN(longitude)) {
+                console.log('✅ [ActiveRideScreen] Updating to real GPS location:', { latitude, longitude })
+                setCurrentLocation([longitude, latitude])
+                realLocationObtained = true
+                
+                // Animate map to real driver location
+                setTimeout(() => {
+                  if (mapRef.current) {
+                    console.log('🗺️ [ActiveRideScreen] Animating map to real driver location')
+                    mapRef.current.animateToRegion({
+                      latitude,
+                      longitude,
+                      latitudeDelta: 0.05,
+                      longitudeDelta: 0.05,
+                    }, 500)
+                  }
+                }, 300)
+                break // Exit retry loop
+              }
+            }
+          } catch (locError) {
+            console.error(`❌ [ActiveRideScreen] GPS attempt ${attempt} failed:`, locError)
+            if (attempt === maxRetries) {
+              console.warn('❌ [ActiveRideScreen] All GPS attempts failed, keeping fallback location')
+            } else {
+              console.log(`⏳ [ActiveRideScreen] Retrying GPS in 1 second...`)
+              await new Promise(resolve => setTimeout(resolve, 1000))
             }
           }
-        } catch (locError) {
-          console.error('❌ Error getting initial location:', locError)
         }
 
-        // Start watching location for continuous updates
+        // Start watching location for continuous updates (prioritize getting real GPS)
+        if (!realLocationObtained) {
+          console.log('⚠️ [ActiveRideScreen] No real GPS yet, starting aggressive location watch...')
+        }
+        
         locationWatchId = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,
-            timeInterval: 2000,
-            distanceInterval: 10,
+            timeInterval: realLocationObtained ? 5000 : 2000, // More frequent if still using fallback
+            distanceInterval: realLocationObtained ? 20 : 5, // More sensitive if still using fallback
           },
           (location) => {
-            if (isMounted && location) {
+            if (isMounted && location?.coords) {
               const { longitude, latitude } = location.coords
               
-              console.log('📍 Location watch update:', { latitude, longitude })
+              console.log('📍 [ActiveRideScreen] Location watch update:', { 
+                latitude, 
+                longitude,
+                isRealGPS: realLocationObtained ? 'yes' : 'upgrading from fallback'
+              })
               
               if (typeof latitude === 'number' && typeof longitude === 'number' && 
                   !isNaN(latitude) && !isNaN(longitude)) {
                 setCurrentLocation([longitude, latitude])
-                console.log('✅ Location state updated')
+                
+                if (!realLocationObtained) {
+                  console.log('✅ [ActiveRideScreen] Successfully upgraded from fallback to real GPS!')
+                  realLocationObtained = true
+                } else {
+                  console.log('✅ [ActiveRideScreen] GPS location updated via watch')
+                }
               }
             }
           }
         )
         
-        console.log('✅ Location watch started:', locationWatchId)
+        console.log('✅ [ActiveRideScreen] Location watch started:', locationWatchId)
       } catch (error) {
-        console.error('❌ Error in location tracking:', error)
-        setCurrentLocation([105.8386, 21.0722])
+        console.error('❌ [ActiveRideScreen] Error in location tracking:', error)
+        // Ensure we always have some location set, even on error
+        if (isMounted && !currentLocation) {
+          console.log('🎯 [ActiveRideScreen] Setting fallback location due to error')
+          setCurrentLocation([105.8542, 21.0285])
+        }
       }
     }
 
@@ -167,14 +211,14 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
     return () => {
       isMounted = false
       if (locationWatchId !== null) {
-        console.log('🛑 Stopping location watch:', locationWatchId)
+        console.log('🛑 [ActiveRideScreen] Stopping location watch:', locationWatchId)
         // locationWatchId has a .remove() method to unsubscribe from location updates
         if (locationWatchId.remove) {
           locationWatchId.remove()
         }
       }
     }
-  }, [])
+  }, [driver?._id]) // ✅ Add driver._id dependency to restart tracking when driver changes
 
   // Update driver location on server when currentLocation changes
   useEffect(() => {
@@ -241,6 +285,35 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
     }
   }, [tripId])
 
+  // ✅ CRITICAL FIX: Force route update when ride data changes
+  // This ensures 2nd driver onwards get routes immediately after accepting
+  useEffect(() => {
+    console.log('🎯 [ActiveRideScreen] Ride data changed - checking for route update need:', {
+      hasRide: !!ride,
+      hasCustomers: ride?.customerId?.length > 0,
+      currentPassenger: currentPassenger ? {
+        name: currentPassenger.name,
+        status: currentPassenger.status,
+        hasPickup: !!currentPassenger.pickupCoordinates,
+      } : null,
+      currentLocation: currentLocation ? 'available' : 'waiting...',
+    })
+
+    // If we have a ride with customers but no route yet, trigger route calculation
+    if (ride && currentPassenger && routeCoordinates.length === 0) {
+      const needsRoute = ['pending', 'accepted', 'arrived_at_pickup', 'in_progress'].includes(currentPassenger.status)
+      if (needsRoute) {
+        console.log('🚀 [ActiveRideScreen] Triggering immediate route calculation for new driver...')
+        // Small delay to ensure map is ready
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setCurrentPassengerIndex(0) // This will trigger the map update useEffect
+          }
+        }, 100)
+      }
+    }
+  }, [ride?._id, ride?.customerId?.length])
+
   // Modal countdown
   useEffect(() => {
     if (!showCustomerModal) return
@@ -267,12 +340,19 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
   // Update map when passenger changes
   useEffect(() => {
-    if (!currentPassenger?.pickupCoordinates || !currentLocation) {
-      console.log('⚠️ Skipping map update - missing data:', {
-        hasPickup: !!currentPassenger?.pickupCoordinates,
-        hasLocation: !!currentLocation,
-        hasMapRef: !!mapRef.current,
-      })
+    console.log('🗺️ [ActiveRideScreen] Map update triggered:', {
+      hasPassenger: !!currentPassenger,
+      hasPickup: !!currentPassenger?.pickupCoordinates,
+      hasLocation: !!currentLocation,
+      hasMapRef: !!mapRef.current,
+      passengerStatus: currentPassenger?.status,
+      driverId: driver?._id,
+    })
+
+    // ✅ CRITICAL FIX: Even if currentLocation is null, still try to get route
+    // This is especially important for 2nd driver onwards who need location + route
+    if (!currentPassenger?.pickupCoordinates) {
+      console.log('⚠️ Skipping map update - missing passenger pickup coordinates')
       return
     }
 
@@ -282,6 +362,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       pickup: currentPassenger.pickupCoordinates,
       dropoff: currentPassenger.dropoffCoordinates,
       status: currentPassenger.status,
+      currentLocation: currentLocation,
     })
 
     // Check if mapRef is ready
@@ -290,21 +371,69 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       return
     }
 
-    // Don't reset route coordinates - keep polyline visible while fetching new route
-    // Reset route coordinates immediately
+    // Reset route coordinates immediately to clear old routes
     console.log('🔄 Clearing route coordinates for new route fetch...')
     setRouteCoordinates([])
 
     // Fetch route and update map
     const updateMapAndRoute = async () => {
+      // ✅ CRITICAL FIX: Wait for currentLocation if not available yet
+      // This is especially important for 2nd driver onwards
+      if (!currentLocation) {
+        console.log('⏳ [ActiveRideScreen] Waiting for driver location before drawing route...')
+        
+        // Try to get location immediately for route drawing
+        try {
+          console.log('🔍 [ActiveRideScreen] Attempting to get current location for route...')
+          const location = await Promise.race([
+            Location.getCurrentPositionAsync({ 
+              accuracy: Location.Accuracy.High,
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Location timeout')), 5000)
+            )
+          ]) as any
+          
+          if (location?.coords) {
+            const { longitude, latitude } = location.coords
+            console.log('✅ [ActiveRideScreen] Got current location for route:', { latitude, longitude })
+            
+            if (typeof latitude === 'number' && typeof longitude === 'number' && 
+                !isNaN(latitude) && !isNaN(longitude)) {
+              // Update currentLocation state and proceed with route
+              setCurrentLocation([longitude, latitude])
+              
+              // Use this fresh location for route calculation
+              await calculateAndDrawRoute([longitude, latitude])
+              return
+            }
+          }
+        } catch (locError) {
+          console.error('❌ [ActiveRideScreen] Could not get location for route:', locError)
+        }
+        
+        // If we can't get location, use fallback Hanoi location
+        console.log('⚠️ [ActiveRideScreen] Using fallback location for route drawing')
+        const fallbackLocation: [number, number] = [105.8542, 21.0285] // Hanoi center
+        setCurrentLocation(fallbackLocation)
+        await calculateAndDrawRoute(fallbackLocation)
+        return
+      }
+      
+      // Use existing currentLocation
+      await calculateAndDrawRoute(currentLocation)
+    }
+    
+    // Helper function to calculate and draw route
+    const calculateAndDrawRoute = async (startLocation: [number, number]) => {
       // Validate current location and passenger
-      if (!currentLocation || !currentPassenger?.pickupCoordinates) {
-        console.warn('⚠️ Missing current location or passenger pickup coordinates')
+      if (!startLocation || !currentPassenger?.pickupCoordinates) {
+        console.warn('⚠️ Missing start location or passenger pickup coordinates')
         return
       }
       
       // First, get the route
-      let startCoord = currentLocation
+      let startCoord = startLocation
       let endCoord: [number, number] = [0, 0]
       let targetMarkerCoord: [number, number] = [0, 0]
       
@@ -327,11 +456,12 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         endCoord = [currentPassenger.dropoffCoordinates[0], currentPassenger.dropoffCoordinates[1]]
         targetMarkerCoord = endCoord
       } else {
+        console.log('⚠️ [ActiveRideScreen] No route needed for status:', currentPassenger?.status)
         return
       }
       
-      console.log('🗺️ Getting route from', startCoord, 'to', endCoord)
-      console.log('📋 Current passenger details:', {
+      console.log('🗺️ [ActiveRideScreen] Getting route from', startCoord, 'to', endCoord)
+      console.log('📋 [ActiveRideScreen] Current passenger details:', {
         index: currentPassengerIndex,
         name: currentPassenger.name,
         pickupCoordinates: currentPassenger.pickupCoordinates,
@@ -339,13 +469,17 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         status: currentPassenger.status,
         requestId: currentPassenger.requestId,
       })
+      
+      // ✅ ALWAYS try to get route, even with fallback location
       const route = await getDirectionsRoute(startCoord, endCoord)
-      console.log('✅ Route received with', route.length, 'points')
-      console.log('🎨 Setting routeCoordinates state:', route.length, 'points')
+      console.log('✅ [ActiveRideScreen] Route received with', route.length, 'points')
+      console.log('🎨 [ActiveRideScreen] Setting routeCoordinates state:', route.length, 'points')
+      
+      // ✅ Always set route coordinates, even if empty (clears old routes)
       setRouteCoordinates(route)
       
       // Fit map to show both driver and destination
-      if (mapRef.current) {
+      if (mapRef.current && route.length > 0) {
         try {
           console.log('🎬 Fitting map to show full route from', startCoord, 'to', endCoord)
           const coords = [
@@ -374,26 +508,21 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
             console.error('❌ Error animating map:', err)
           }
         }
+      } else if (mapRef.current) {
+        // No route but we have map - just center on pickup location
+        try {
+          console.log('🎬 No route available, centering on pickup location')
+          mapRef.current.animateToRegion({
+            latitude: currentPassenger.pickupCoordinates[1],
+            longitude: currentPassenger.pickupCoordinates[0],
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }, 500)
+        } catch (error) {
+          console.error('❌ Error centering on pickup:', error)
+        }
       } else {
-        console.warn('⚠️ Map reference not available, will retry in 500ms')
-        // Retry after map is ready
-        setTimeout(() => {
-          if (mapRef.current) {
-            try {
-              console.log('🎬 Retrying fitToCoordinates after delay')
-              const coords = [
-                { latitude: startCoord[1], longitude: startCoord[0] },
-                { latitude: endCoord[1], longitude: endCoord[0] },
-              ]
-              mapRef.current.fitToCoordinates(coords, {
-                edgePadding: { top: 100, right: 50, bottom: 150, left: 50 },
-                animated: true,
-              })
-            } catch (error) {
-              console.error('❌ Error on retry fitToCoordinates:', error)
-            }
-          }
-        }, 500)
+        console.warn('⚠️ Map reference not available for route display')
       }
     }
     
@@ -479,14 +608,80 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         }
 
         console.log(`✅ [Attempt ${attempt}] Response received, customers: ${data?.customerId?.length || 0}`)
+        console.log(`📊 [ActiveRideScreen] [Attempt ${attempt}] Response analysis:`, {
+          hasData: !!data,
+          dataId: data?._id,
+          dataStatus: data?.status,
+          customerId: data?.customerId ? {
+            isArray: Array.isArray(data.customerId),
+            length: data.customerId.length,
+            firstCustomer: data.customerId[0] ? {
+              name: data.customerId[0].name,
+              status: data.customerId[0].status,
+              hasPickup: !!data.customerId[0].pickupCoordinates,
+              hasDropoff: !!data.customerId[0].dropoffCoordinates,
+            } : null,
+          } : 'NOT_FOUND',
+          driverId: data?.driverId,
+          currentDriverId: data?.currentDriverId,
+        })
 
         if (!data || !data._id) {
           console.error(`❌ [Attempt ${attempt}] Invalid data structure:`, { 
             hasData: !!data,
             hasId: !!data?._id,
-            keys: data ? Object.keys(data).length : 0
+            keys: data ? Object.keys(data).length : 0,
+            fullData: data,
           })
           throw new Error('Server returned invalid ride data')
+        }
+
+        // ✅ CRITICAL: Filter out inactive customers to prevent UI errors
+        // When driver 1 timeout → driver 2 accept, we only want active customers
+        if (data.customerId && Array.isArray(data.customerId)) {
+          const originalCount = data.customerId.length
+          console.log(`🔍 [ActiveRideScreen] Before filter - customers:`, data.customerId.map((c: any) => ({
+            id: c._id,
+            name: c.name,
+            status: c.status,
+            hasStatus: !!c.status,
+          })))
+          
+          data.customerId = data.customerId.filter((customer: any) => {
+            // ✅ RELAXED FILTER: Keep customers that are active OR have no status (legacy data)
+            // Only exclude customers explicitly marked as 'timeout', 'rejected', or 'cancelled'
+            const excludedStatuses = ['timeout', 'rejected', 'cancelled']
+            const shouldExclude = customer.status && excludedStatuses.includes(customer.status)
+            
+            if (shouldExclude) {
+              console.log(`🗑️ [ActiveRideScreen] Filtered out inactive customer:`, {
+                id: customer._id,
+                name: customer.name,
+                status: customer.status,
+                reason: 'excluded status',
+              })
+              
+              // ✅ Show notification when customer cancels
+              if (customer.status === 'cancelled' && ride?.customerId?.find((c: any) => c._id === customer._id)) {
+                // Only show alert if this customer was previously in the list (means they just cancelled)
+                setTimeout(() => {
+                  Alert.alert(
+                    'Khách hàng đã hủy chuyến',
+                    `${customer.name} đã hủy yêu cầu đặt xe. Ghế đã được hoàn lại.`,
+                    [{ text: 'OK' }]
+                  )
+                }, 300) // Small delay to avoid alert during render
+              }
+            }
+            return !shouldExclude // Keep if NOT in excluded list
+          })
+          
+          console.log(`🔄 [ActiveRideScreen] Customer filter: ${originalCount} → ${data.customerId.length} active`)
+          console.log(`✅ [ActiveRideScreen] After filter - customers:`, data.customerId.map((c: any) => ({
+            id: c._id,
+            name: c.name,
+            status: c.status,
+          })))
         }
 
         // ✅ Ride found
@@ -978,9 +1173,18 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       ) : (
         <>
           {/* Debug Info */}
-          <View style={{ backgroundColor: '#f5f5f5', padding: 8, marginBottom: 4 }}>
+          {/* <View style={{ backgroundColor: '#f5f5f5', padding: 8, marginBottom: 4 }}>
             <Text style={{ fontSize: 10, color: '#666' }}>
               💡 Debug: Khách {currentPassengerIndex + 1}/{ride.customerId?.length}, Status: {currentPassenger?.status || 'N/A'}, Route points: {routeCoordinates.length}
+            </Text>
+            <Text style={{ fontSize: 10, color: '#666' }}>
+              📍 Driver: {currentLocation ? 
+                `[${currentLocation[0].toFixed(4)}, ${currentLocation[1].toFixed(4)}] ${
+                  Math.abs(currentLocation[0] - 105.8542) > 0.01 || Math.abs(currentLocation[1] - 21.0285) > 0.01 
+                    ? '✅ GPS thật' : '🔄 Fallback'
+                }` : 
+                'No location'
+              }
             </Text>
             <Text style={{ fontSize: 10, color: '#666' }}>
               Pickup: [{currentPassenger?.pickupCoordinates?.[0]?.toFixed(4)}, {currentPassenger?.pickupCoordinates?.[1]?.toFixed(4)}]
@@ -989,12 +1193,12 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               Dropoff: [{currentPassenger?.dropoffCoordinates?.[0]?.toFixed(4)}, {currentPassenger?.dropoffCoordinates?.[1]?.toFixed(4)}]
             </Text>
             <Text style={{ fontSize: 10, color: '#666' }}>
-              Marker showing: {currentPassenger?.status === 'in_progress' ? '📍 Dropoff' : currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted' ? '🟢 Pickup' : '🟡 Arrived'}
+              Marker: {currentPassenger?.status === 'in_progress' ? '📍 Dropoff' : currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted' ? '🟢 Pickup' : '🟡 Arrived'}
             </Text>
             <Text style={{ fontSize: 10, color: '#666' }}>
-              Pickup valid: {isValidCoordinates(currentPassenger?.pickupCoordinates) ? '✅' : '❌'}, Dropoff valid: {isValidCoordinates(currentPassenger?.dropoffCoordinates) ? '✅' : '❌'}
+              Coords valid: Pickup {isValidCoordinates(currentPassenger?.pickupCoordinates) ? '✅' : '❌'}, Dropoff {isValidCoordinates(currentPassenger?.dropoffCoordinates) ? '✅' : '❌'}
             </Text>
-          </View>
+          </View> */}
           {/* Map Section */}
           <View style={styles.mapContainer}>
             <MapView
@@ -1007,17 +1211,34 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 longitudeDelta: 0.05,
               }}
             >
-              {/* Driver location (current location) */}
-              {currentLocation && (
-                <Marker
-                  coordinate={{
-                    latitude: currentLocation[1],
-                    longitude: currentLocation[0],
-                  }}
-                  title="Vị trí tài xế"
-                  pinColor="blue"
-                />
-              )}
+              {/* Driver location (current location) - ✅ ALWAYS show driver marker */}
+              {/* Use currentLocation if available, otherwise use fallback location */}
+              {(() => {
+                const driverCoords = currentLocation || [105.8542, 21.0285] // Hanoi fallback
+                const isRealGPS = currentLocation && (
+                  Math.abs(currentLocation[0] - 105.8542) > 0.01 || 
+                  Math.abs(currentLocation[1] - 21.0285) > 0.01
+                ) // Check if significantly different from fallback
+                
+                console.log('🔵 [ActiveRideScreen] Rendering driver marker:', {
+                  coords: driverCoords,
+                  isRealGPS: isRealGPS,
+                  currentLocation: currentLocation,
+                })
+                
+                return (
+                  <Marker
+                    coordinate={{
+                      latitude: driverCoords[1],
+                      longitude: driverCoords[0],
+                    }}
+                    title={isRealGPS ? "📍 Vị trí tài xế (GPS thật)" : "📍 Vị trí tài xế (đang tìm GPS...)"}
+                    description={isRealGPS ? "Vị trí chính xác từ GPS" : "Đang lấy vị trí chính xác..."}
+                    pinColor={isRealGPS ? "blue" : "orange"} // Orange for fallback, blue for real GPS
+                    identifier="driver-marker"
+                  />
+                )
+              })()}
 
               {/* PENDING/ACCEPTED state: Show only pickup marker */}
               {(currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted') && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
@@ -1032,14 +1253,22 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                     description={currentPassenger.pickupAddress}
                     pinColor="green"
                   />
-                  {currentLocation && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
+                  {/* ✅ CRITICAL: Show polyline if route exists OR if we have any location */}
+                  {/* This ensures 2nd driver onwards get polyline even with fallback location */}
+                  {(routeCoordinates.length > 0 || currentLocation) && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
                     <Polyline
-                      key={`polyline-pending-${routeCoordinates.length}`}
+                      key={`polyline-pending-${routeCoordinates.length}-${currentLocation?.[0]?.toFixed(4) || 'no-loc'}`}
                       coordinates={routeCoordinates.length > 0 ? routeCoordinates : [
-                        { latitude: currentLocation[1], longitude: currentLocation[0] },
-                        { latitude: currentPassenger.pickupCoordinates[1], longitude: currentPassenger.pickupCoordinates[0] },
+                        { 
+                          latitude: currentLocation ? currentLocation[1] : 21.0285, 
+                          longitude: currentLocation ? currentLocation[0] : 105.8542 
+                        },
+                        { 
+                          latitude: currentPassenger.pickupCoordinates[1], 
+                          longitude: currentPassenger.pickupCoordinates[0] 
+                        },
                       ]}
-                      strokeColor={COLORS.primary}
+                      strokeColor={currentLocation ? COLORS.primary : `${COLORS.primary}80`}
                       strokeWidth={3}
                     />
                   )}
@@ -1068,13 +1297,20 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                     description={currentPassenger.dropoffAddress}
                     pinColor="red"
                   />
-                  {currentLocation && isValidCoordinates(currentPassenger?.dropoffCoordinates) && (
+                  {/* ✅ CRITICAL: Show polyline if route exists OR if we have currentLocation */}
+                  {/* This ensures 2nd driver onwards get polyline even if location is still loading */}
+                  {(routeCoordinates.length > 0 || currentLocation) && isValidCoordinates(currentPassenger?.dropoffCoordinates) && (
                     <Polyline
                       key={`polyline-inprogress-${routeCoordinates.length}`}
-                      coordinates={routeCoordinates.length > 0 ? routeCoordinates : [
-                        { latitude: currentLocation[1], longitude: currentLocation[0] },
-                        { latitude: currentPassenger.dropoffCoordinates[1], longitude: currentPassenger.dropoffCoordinates[0] },
-                      ]}
+                      coordinates={routeCoordinates.length > 0 ? routeCoordinates : (
+                        currentLocation ? [
+                          { latitude: currentLocation[1], longitude: currentLocation[0] },
+                          { latitude: currentPassenger.dropoffCoordinates[1], longitude: currentPassenger.dropoffCoordinates[0] },
+                        ] : [
+                          { latitude: currentPassenger.dropoffCoordinates[1], longitude: currentPassenger.dropoffCoordinates[0] },
+                          { latitude: currentPassenger.dropoffCoordinates[1], longitude: currentPassenger.dropoffCoordinates[0] },
+                        ]
+                      )}
                       strokeColor={COLORS.primary}
                       strokeWidth={3}
                     />
@@ -1095,14 +1331,22 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                     description={currentPassenger.pickupAddress}
                     pinColor="yellow"
                   />
-                  {currentLocation && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
+                  {/* ✅ CRITICAL: Show polyline if route exists OR if we have any location */}
+                  {/* This ensures 2nd driver onwards get polyline even with fallback location */}
+                  {(routeCoordinates.length > 0 || currentLocation) && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
                     <Polyline
-                      key={`polyline-arrived-${routeCoordinates.length}`}
+                      key={`polyline-arrived-${routeCoordinates.length}-${currentLocation?.[0]?.toFixed(4) || 'no-loc'}`}
                       coordinates={routeCoordinates.length > 0 ? routeCoordinates : [
-                        { latitude: currentLocation[1], longitude: currentLocation[0] },
-                        { latitude: currentPassenger.pickupCoordinates[1], longitude: currentPassenger.pickupCoordinates[0] },
+                        { 
+                          latitude: currentLocation ? currentLocation[1] : 21.0285, 
+                          longitude: currentLocation ? currentLocation[0] : 105.8542 
+                        },
+                        { 
+                          latitude: currentPassenger.pickupCoordinates[1], 
+                          longitude: currentPassenger.pickupCoordinates[0] 
+                        },
                       ]}
-                      strokeColor={COLORS.primary}
+                      strokeColor={currentLocation ? COLORS.primary : `${COLORS.primary}80`}
                       strokeWidth={3}
                     />
                   )}

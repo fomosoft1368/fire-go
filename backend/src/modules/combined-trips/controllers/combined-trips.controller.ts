@@ -15,7 +15,7 @@ import { Model } from 'mongoose';
 import { CombinedTripsService } from '../services/combined-trips.service';
 import { CombinedTripStatus } from '../schemas/combined-trip.schema';
 import { JwtAuthGuard } from '../../../modules/auth/guards/jwt-auth.guard';
-import { RideRequest } from '../../rides/schemas/ride-request.schema';
+import { RideRequest, RequestStatus } from '../../rides/schemas/ride-request.schema';
 import { Types } from 'mongoose';
 
 @Controller('api/combined-trips')
@@ -62,6 +62,8 @@ export class CombinedTripsController {
         customerId: [],
         requestedAt: new Date(),
         totalFare, // Include calculated totalFare
+        totalSeats: createCombinedTripDto.totalSeats || 4, // Ensure totalSeats is set
+        availableSeats: createCombinedTripDto.totalSeats || 4, // ✅ CRITICAL: availableSeats = totalSeats when creating new trip (no customers yet)
         createdBy: 'driver', // ✅ Mark this trip as driver-created
         // Convert coordinates to GeoJSON format
         pickupLocation: {
@@ -77,6 +79,8 @@ export class CombinedTripsController {
       console.log('📍 Converted to GeoJSON:', {
         pickupLocation: tripData.pickupLocation,
         dropoffLocation: tripData.dropoffLocation,
+        totalSeats: tripData.totalSeats,
+        availableSeats: tripData.availableSeats,
       });
 
       return await this.combinedTripsService.createCombinedTrip(tripData);
@@ -386,6 +390,9 @@ export class CombinedTripsController {
 
         console.log('[CombinedTripsController] Processing trip:', {
           tripId: trip._id,
+          totalSeats: trip.totalSeats,
+          availableSeats: trip.availableSeats,
+          passengers: trip.passengers,
           customerPickupAddress: request.pickupAddress,
           customerDropoffAddress: request.dropoffAddress,
           driverId: trip.driverId,
@@ -394,6 +401,9 @@ export class CombinedTripsController {
         });
 
         const tripObj = trip.toObject ? trip.toObject() : trip;
+
+        // Calculate booked seats for display
+        const bookedSeats = (tripObj.totalSeats || 4) - (tripObj.availableSeats || 4);
 
         // IMPORTANT: Customer's locations must override driver's route
         // This is why we set customer fields AFTER spreading trip object
@@ -411,6 +421,7 @@ export class CombinedTripsController {
           customerFare: request.fare,
           customerSeats: request.seats,
           requestStatus: request.status,
+          bookedSeats, // ✅ Số ghế đã đặt (để frontend hiển thị ghế occupied)
           // Keep original driver route for reference (for debugging)
           driverPickupAddress: tripObj.pickupAddress,
           driverDropoffAddress: tripObj.dropoffAddress,
@@ -435,10 +446,10 @@ export class CombinedTripsController {
   /**
    * GET /combined-trips/:combinedTripId/requests
    * Get ride requests for a combined trip
-   * TEMPORARY: Auth disabled for testing - will re-enable after mobile-driver fixes
+   * Auth disabled - this is a polling endpoint for customer to check driver status
    */
   @Get(':combinedTripId/requests')
-  @UseGuards(JwtAuthGuard) // TODO: Re-enable after mobile-driver sends token
+  // @UseGuards(JwtAuthGuard) // Disabled - polling endpoint, no sensitive data
   async getCombinedTripRequests(
     @Param('combinedTripId') combinedTripId: string,
     @Query('driverId') driverId: string, // Pass driverId via query for now
@@ -666,6 +677,12 @@ export class CombinedTripsController {
         throw new BadRequestException('Request not found');
       }
 
+      // ✅ CRITICAL: Prevent double-accept
+      if (request.status === 'accepted') {
+        console.log(`⚠️ Request ${requestId} already accepted, skipping`);
+        return { status: request.status };
+      }
+
       
 
       // Get the trip to check current state
@@ -698,14 +715,32 @@ export class CombinedTripsController {
           { new: true },
         );
 
-        // Add driver to trip
-        await this.combinedTripsService.getCombinedTripsModel().findByIdAndUpdate(
+        // ✅ CRITICAL: Trừ số ghế ngay cả khi driver accept trip đầu tiên
+        const seatsToDeduct = request.seats || 1;
+        console.log(`[acceptRequest Case 1] Customer created trip, driver accepting:`);
+        console.log(`  Request seats: ${request.seats}`);
+        console.log(`  Seats to deduct: ${seatsToDeduct}`);
+        console.log(`  Current availableSeats: ${trip.availableSeats}`);
+
+        // ✅ VALIDATION: Don't allow if not enough seats
+        if (trip.availableSeats < seatsToDeduct) {
+          throw new BadRequestException(`Không đủ ghế trống. Còn ${trip.availableSeats} ghế, yêu cầu ${seatsToDeduct} ghế`);
+        }
+
+        // Add driver to trip AND deduct seats
+        const updatedTrip = await this.combinedTripsService.getCombinedTripsModel().findByIdAndUpdate(
           combinedTripId,
           { 
             status: CombinedTripStatus.ACCEPTED,
-            driverId: request.driverId, // ✅ Add driver to trip
+            driverId: request.driverId,
+            $inc: { availableSeats: -seatsToDeduct }, // ✅ Trừ seats
           },
+          { new: true },
         );
+
+        console.log(`[acceptRequest Case 1] After accept:`);
+        console.log(`  New availableSeats: ${updatedTrip?.availableSeats}`);
+        console.log(`  Expected: ${trip.availableSeats - seatsToDeduct}`);
 
        
 
@@ -726,6 +761,31 @@ export class CombinedTripsController {
           request.customerId.toString(),
         );
 
+        // ✅ CRITICAL: Trừ số ghế khi accept request
+        const seatsToDeduct = request.seats || 1;
+        console.log(`[acceptRequest] Before deduct - Trip ${combinedTripId}:`);
+        console.log(`  Request seats: ${request.seats}`);
+        console.log(`  Seats to deduct: ${seatsToDeduct}`);
+        console.log(`  Current availableSeats: ${trip.availableSeats}`);
+        
+        // ✅ VALIDATION: Don't allow if not enough seats
+        if (trip.availableSeats < seatsToDeduct) {
+          throw new BadRequestException(`Không đủ ghế trống. Còn ${trip.availableSeats} ghế, yêu cầu ${seatsToDeduct} ghế`);
+        }
+        
+        const updatedTrip = await this.combinedTripsService.getCombinedTripsModel().findByIdAndUpdate(
+          combinedTripId,
+          { $inc: { availableSeats: -seatsToDeduct } },
+          { new: true }, // ✅ Return updated document
+        );
+        
+        console.log(`[acceptRequest] After deduct - Trip ${combinedTripId}:`);
+        console.log(`  New availableSeats: ${updatedTrip?.availableSeats}`);
+        console.log(`  Expected: ${trip.availableSeats - seatsToDeduct}`);
+
+        // Sau khi thêm người ghép mới, cập nhật lại giá cho tất cả khách chưa hoàn thành
+        await this.combinedTripsService.recalculateFaresForCombinedTrip(combinedTripId);
+
       
 
       } else {
@@ -739,13 +799,14 @@ export class CombinedTripsController {
           { new: true },
         );
 
-        // Update trip status if needed
-        if (!trip.driverId && request.driverId) {
+        // ✅ CRITICAL FIX: Always update driverId when driver accepts
+        // This handles driver rotation case (driver 1 timeout → driver 2 accept)
+        if (request.driverId) {
           await this.combinedTripsService.getCombinedTripsModel().findByIdAndUpdate(
             combinedTripId,
             { 
               status: CombinedTripStatus.ACCEPTED,
-              driverId: request.driverId,
+              driverId: request.driverId, // ✅ Always update to new accepting driver
             },
           );
         }
@@ -768,7 +829,7 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-     
+      console.log('❌ [rejectRequest] Driver rejecting request:', requestId, 'for trip:', combinedTripId);
 
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
@@ -780,11 +841,31 @@ export class CombinedTripsController {
         throw new BadRequestException('Request not found');
       }
 
-      // Update combined trip status
+      console.log('✅ [rejectRequest] Request marked as rejected');
+
+      // Update combined trip status back to PENDING (still looking for driver)
       await this.combinedTripsService.updateCombinedTripStatus(
         combinedTripId,
         CombinedTripStatus.PENDING,
       );
+
+      // ✅ IMPORTANT: Find next driver after rejection
+      console.log('🔄 [rejectRequest] Finding next driver after rejection...');
+      const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
+      if (trip && trip.pickupLocation?.coordinates) {
+        const pickupCoordinates = trip.pickupLocation.coordinates as [number, number];
+        
+        // Wait 5 seconds before sending to next driver (give time for UI to update)
+        setTimeout(() => {
+          console.log('📞 [rejectRequest] 5 seconds passed, calling findAndNotifyDrivers');
+          this.combinedTripsService.findAndNotifyDrivers(combinedTripId, pickupCoordinates)
+            .catch(err => {
+              console.error('❌ [rejectRequest] Error finding next driver:', err);
+            });
+        }, 5000);
+      } else {
+        console.warn('⚠️ [rejectRequest] Cannot find next driver - trip not found or no coordinates');
+      }
 
       return { status: request.status };
     } catch (error: any) {
@@ -847,6 +928,87 @@ export class CombinedTripsController {
       return { status: request.status };
     } catch (error: any) {
       console.error('[CombinedTripsController] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * PATCH /combined-trips/:combinedTripId/requests/:requestId/cancel
+   * Customer cancels their ride request (only allowed when status = 'accepted')
+   * - Sets request status to 'cancelled'
+   * - Frees up seats on the combined trip
+   * - Recalculates fares for remaining passengers
+   */
+  @Patch(':combinedTripId/requests/:requestId/cancel')
+  @UseGuards(JwtAuthGuard)
+  async cancelRideRequest(
+    @Param('combinedTripId') combinedTripId: string,
+    @Param('requestId') requestId: string,
+    @Request() req: any,
+  ) {
+    try {
+      console.log('[CombinedTripsController] Customer cancelling ride request:', {
+        combinedTripId,
+        requestId,
+        customerId: req.user?.id,
+      });
+
+      // Get the ride request
+      const request = await this.rideRequestModel.findById(requestId);
+
+      if (!request) {
+        throw new BadRequestException('Không tìm thấy yêu cầu đặt xe');
+      }
+
+      // ✅ Only allow cancel when status = 'accepted'
+      if (request.status !== RequestStatus.ACCEPTED) {
+        throw new BadRequestException(
+          request.status === RequestStatus.ARRIVED_AT_PICKUP || request.status === RequestStatus.IN_PROGRESS
+            ? 'Tài xế đã đến điểm đón hoặc đang di chuyển, không thể hủy chuyến'
+            : `Không thể hủy chuyến ở trạng thái hiện tại: ${request.status}`
+        );
+      }
+
+      // ✅ Verify customer owns this request
+      const customerId = req.user?.id || req.user?.sub;
+      if (String(request.customerId) !== String(customerId)) {
+        throw new BadRequestException('Bạn không có quyền hủy yêu cầu này');
+      }
+
+      // ✅ Update request status to 'cancelled'
+      request.status = RequestStatus.CANCELLED;
+      await request.save();
+
+      console.log('[CombinedTripsController] ✅ Request marked as cancelled:', requestId);
+
+      // ✅ Free up seats on combined trip
+      const trip = await this.combinedTripsService.getCombinedTripsModel().findById(combinedTripId);
+      if (trip) {
+        trip.availableSeats += request.seats;
+        await trip.save();
+        console.log('[CombinedTripsController] ✅ Freed up seats:', {
+          seats: request.seats,
+          newAvailableSeats: trip.availableSeats,
+        });
+      }
+
+      // ✅ Recalculate fares for remaining passengers
+      await this.combinedTripsService.recalculateFaresForCombinedTrip(combinedTripId);
+      console.log('[CombinedTripsController] ✅ Fares recalculated for remaining passengers');
+
+      // TODO: Send socket notification to driver about cancellation
+
+      return {
+        success: true,
+        message: 'Đã hủy chuyến đi thành công. Ghế của bạn đã được hoàn lại.',
+        request: {
+          _id: request._id,
+          status: request.status,
+          seats: request.seats,
+        },
+      };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] ❌ Error cancelling request:', error);
       throw error;
     }
   }

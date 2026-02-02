@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -7,19 +7,95 @@ import { RideRequest, RideRequestDocument } from '../../rides/schemas/ride-reque
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 
+import { PricingService } from '../../pricing/pricing.service';
+import { ModuleRef } from '@nestjs/core';
+
 @Injectable()
-export class CombinedTripsService {
+export class CombinedTripsService implements OnModuleInit {
   private timeoutCheckInterval: NodeJS.Timeout | null = null;
   private processingTrips: Set<string> = new Set(); // Track trips being processed
+
+
+  private pricingService: PricingService;
 
   constructor(
     @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTripDocument>,
     @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     private eventEmitter: EventEmitter2,
-  ) {
-    // Start checking for expired requests every 5 seconds
+    private moduleRef: ModuleRef,
+  ) {}
+
+  /**
+   * Called after all modules are initialized
+   */
+  onModuleInit() {
+    this.pricingService = this.moduleRef.get(PricingService, { strict: false });
+    console.log('🚀 CombinedTripsService initialized - starting timeout checker');
     this.startTimeoutChecker();
+  }
+
+  /**
+   * Cập nhật lại giá cho tất cả khách chưa hoàn thành khi có người ghép mới
+   * (trừ những ride request đã COMPLETED)
+   */
+  async recalculateFaresForCombinedTrip(combinedTripId: string): Promise<void> {
+    // ✅ CHỈ lấy ride request ĐANG HOẠT ĐỘNG (accepted, arrived_at_pickup, in_progress)
+    // KHÔNG tính pending, rejected, timeout, cancelled
+    const requests = await this.rideRequestModel.find({
+      combinedTripId: new Types.ObjectId(combinedTripId),
+      status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] }, // ✅ CHỈ lấy requests đang active
+    });
+    
+    console.log(`[recalculateFaresForCombinedTrip] Found ${requests.length} ACTIVE requests for trip ${combinedTripId}`);
+    
+    if (!requests.length) {
+      console.log('[recalculateFaresForCombinedTrip] No active requests, skipping recalculation');
+      return;
+    }
+
+    // ✅ Chuẩn bị dữ liệu cho pricing
+    // CRITICAL: Phải tạo entry cho MỖI GHẾ, không phải mỗi request
+    // Ví dụ: 1 request với 2 ghế → tạo 2 passenger entries
+    const passengers = [];
+    for (const req of requests) {
+      const seatsCount = req.seats || 1;
+      for (let i = 0; i < seatsCount; i++) {
+        passengers.push({
+          distance: req.distance || 0,
+          isPeakTime: undefined,
+          vehicleType: 'sedan',
+        });
+      }
+    }
+
+    const totalSeats = passengers.length;
+    console.log(`[recalculateFaresForCombinedTrip] Calculating price for ${totalSeats} TOTAL SEATS from ${requests.length} requests`);
+    console.log(`  → Breakdown: ${requests.map(r => `${r.seats || 1} ghế`).join(', ')}`);
+
+    // Tính lại giá cho tất cả khách
+    const pricingResult = await this.pricingService.calculatePrice({ passengers });
+    const breakdown = pricingResult.breakdown;
+
+    // ✅ Cập nhật fare cho từng request
+    // Mỗi request có thể có nhiều ghế, cần lấy tổng giá cho TẤT CẢ ghế của request đó
+    let passengerIndex = 0;
+    await Promise.all(requests.map(async (req) => {
+      const seatsCount = req.seats || 1;
+      let totalFareForRequest = 0;
+      
+      // Cộng giá của TẤT CẢ ghế thuộc request này
+      for (let i = 0; i < seatsCount; i++) {
+        const farePerSeat = breakdown[passengerIndex]?.finalPrice || 0;
+        totalFareForRequest += farePerSeat;
+        passengerIndex++;
+      }
+      
+      console.log(`  → Request ${req._id}: ${req.distance}km, ${seatsCount} ghế, tổng: ${totalFareForRequest.toLocaleString()}đ (${(totalFareForRequest/seatsCount).toLocaleString()}đ/ghế)`);
+      return this.rideRequestModel.findByIdAndUpdate(req._id, { fare: totalFareForRequest });
+    }));
+    
+    console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${requests.length} ACTIVE requests in trip ${combinedTripId}`);
   }
 
   /**
@@ -55,9 +131,12 @@ export class CombinedTripsService {
               this.processingTrips.add(combinedTripId);
               console.log('🔒 [Timeout Checker] Locked trip', combinedTripId, 'for processing');
               
-              // ✅ DELETE expired request instead of just marking as rejected
-              await this.rideRequestModel.findByIdAndDelete(expiredReq._id);
-              console.log('🗑️ [Timeout Checker] Deleted expired request:', expiredReq._id);
+              // ✅ MARK AS TIMEOUT instead of deleting - need to keep history to exclude this driver
+              await this.rideRequestModel.findByIdAndUpdate(expiredReq._id, {
+                status: 'timeout',
+              });
+              console.log('⏰ [Timeout Checker] Marked request as TIMEOUT (not deleted):', expiredReq._id);
+              console.log('📝 [Timeout Checker] This driver will be EXCLUDED from next search');
               
               const trip = await this.combinedTripModel.findById(combinedTripId);
               if (trip && trip.status === 'pending') {
@@ -271,18 +350,39 @@ export class CombinedTripsService {
 
       let enrichedCustomers = [];
 
-      if (trip.customerId && trip.customerId.length > 0) {
+      // ✅ CRITICAL FIX: Build customer data from RideRequests instead of trip.customerId
+      // This ensures driver rotation works - even if trip.customerId is empty/wrong,
+      // we get customer data from RideRequests which always has current data
+      if (requests.length > 0) {
+        console.log('✅ Building customer data from RideRequests (not trip.customerId)');
+        enrichedCustomers = requests.map((customerRequest: any) => {
+          const customer = customerRequest.customerId; // This is populated customer object
+          
+          return {
+            _id: customer?._id || customerRequest.customerId,
+            name: customer?.name || customer?.firstName || 'Khách hàng',
+            phone: customer?.phone || '',
+            rating: customer?.rating || 0,
+            firstName: customer?.firstName || '',
+            lastName: customer?.lastName || '',
+            avatar: customer?.avatar || '',
+            pickupAddress: customerRequest?.pickupAddress || trip.pickupAddress || '',
+            dropoffAddress: customerRequest?.dropoffAddress || trip.dropoffAddress || '',
+            pickupCoordinates: customerRequest?.pickupCoordinates || trip.pickupLocation?.coordinates || [],
+            dropoffCoordinates: customerRequest?.dropoffCoordinates || trip.dropoffLocation?.coordinates || [],
+            distance: customerRequest?.distance || trip.distance || 0,
+            fare: customerRequest?.fare || trip.totalFare || 0,
+            status: customerRequest?.status || 'pending',
+            requestId: customerRequest?._id?.toString(),
+          };
+        });
+      } else if (trip.customerId && trip.customerId.length > 0) {
+        // ✅ FALLBACK: Use trip.customerId only if no RideRequests found
+        console.log('✅ Fallback: Using trip.customerId (no RideRequests found)');
         const isPopulated = trip.customerId[0] && typeof trip.customerId[0] === 'object' && trip.customerId[0]._id;
 
         if (isPopulated) {
-          console.log('✅ Using populated customer data');
           enrichedCustomers = (trip.customerId || []).map((customer: any) => {
-            const customerRequest = requests.find(r => {
-              const rCustomerId = r.customerId?._id?.toString?.() || r.customerId?.toString?.() || r.customerId;
-              const cCustomerId = customer._id?.toString?.() || customer._id;
-              return rCustomerId === cCustomerId;
-            });
-
             return {
               _id: customer._id,
               name: customer.name || customer.firstName || 'Khách hàng',
@@ -291,26 +391,35 @@ export class CombinedTripsService {
               firstName: customer.firstName || '',
               lastName: customer.lastName || '',
               avatar: customer.avatar || '',
-              pickupAddress: customerRequest?.pickupAddress || trip.pickupAddress || '',
-              dropoffAddress: customerRequest?.dropoffAddress || trip.dropoffAddress || '',
-              pickupCoordinates: customerRequest?.pickupCoordinates || trip.pickupLocation?.coordinates || [],
-              dropoffCoordinates: customerRequest?.dropoffCoordinates || trip.dropoffLocation?.coordinates || [],
-              distance: customerRequest?.distance || trip.distance || 0,
-              fare: customerRequest?.fare || trip.totalFare || 0,
-              status: customerRequest?.status || 'pending',
-              requestId: customerRequest?._id?.toString(),
+              pickupAddress: trip.pickupAddress || '',
+              dropoffAddress: trip.dropoffAddress || '',
+              pickupCoordinates: trip.pickupLocation?.coordinates || [],
+              dropoffCoordinates: trip.dropoffLocation?.coordinates || [],
+              distance: trip.distance || 0,
+              fare: trip.totalFare || 0,
+              status: 'pending', // Default status if no RideRequest
+              requestId: null, // No requestId available
             };
           });
         }
       }
 
+      console.log('✅ Final enriched customers count:', enrichedCustomers.length);
+
       const tripObject = trip.toObject ? trip.toObject() : trip;
       const enrichedTrip = {
         ...tripObject,
         customerId: enrichedCustomers,
+        // ✅ Add bookedSeats calculation for frontend display
+        bookedSeats: (tripObject.totalSeats || 4) - (tripObject.availableSeats || 4),
       };
 
       console.log('✅ Enriched trip data - status:', enrichedTrip.status, 'tripObject.status:', tripObject.status);
+      console.log('✅ Enriched trip seats:', {
+        totalSeats: enrichedTrip.totalSeats,
+        availableSeats: enrichedTrip.availableSeats,
+        bookedSeats: enrichedTrip.bookedSeats,
+      });
 
       return enrichedTrip;
     } catch (error) {
@@ -482,7 +591,8 @@ export class CombinedTripsService {
         duration: data.duration || 0,
         baseFare: data.totalFare || 0, // Required field
         totalFare: data.totalFare || 0,
-        availableSeats: data.seats || 1,
+        totalSeats: 4, // ✅ Sedan có 4 ghế
+        availableSeats: 4, // ✅ Ban đầu 4 ghế trống, sẽ trừ khi driver accept
         customerId: data.customerId ? [data.customerId] : [],
         status: CombinedTripStatus.PENDING,
         requestedAt: new Date(),
@@ -565,7 +675,7 @@ export class CombinedTripsService {
       // ✅ NEW: Get list of drivers who already REJECTED or TIMED OUT for THIS trip
       const rejectedRequests = await this.rideRequestModel.find({
         combinedTripId: new Types.ObjectId(combinedTripId),
-        status: 'rejected', // status is 'rejected' for both manual reject and timeout
+        status: { $in: ['rejected', 'timeout'] }, // Include both rejected AND timeout
       });
       const rejectedDriverIds = rejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
       console.log('📊 Rejected/timeout drivers for this trip:', rejectedDriverIds.length, rejectedDriverIds);
@@ -578,14 +688,14 @@ export class CombinedTripsService {
       // Exclude drivers who already have active trips OR rejected/timeout this trip
       const drivers = await this.driverModel.find({
         _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
-        status: 'online',
+        status: 'online', // ✅ Only online drivers
         currentLocation: {
           $near: {
             $geometry: {
               type: 'Point',
               coordinates: pickupCoordinates,
             },
-            $maxDistance: 50000, // 50km (increased for testing - adjust based on your city size)
+            $maxDistance: 10000, // 10km radius
           },
         },
       }).limit(10); // Get top 10 nearest drivers

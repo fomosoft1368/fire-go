@@ -186,9 +186,11 @@ export const combinedTripsService = {
     try {
       console.log('[CombinedTripsService] Getting combined trip requests:', combinedTripId)
 
-      const token = await AsyncStorage.getItem('token')
+      const token = await AsyncStorage.getItem('authToken')  // ✅ Changed from 'token' to 'authToken'
       if (!token) {
-        console.warn('[CombinedTripsService] ⚠️ No token found - request may fail')
+        console.warn('[CombinedTripsService] ⚠️ No authToken found - request may fail')
+      } else {
+        console.log('[CombinedTripsService] ✅ authToken found, length:', token.length)
       }
 
       const response = await fetch(`${API_BASE_URL}/combined-trips/${combinedTripId}/requests`, {
@@ -207,10 +209,10 @@ export const combinedTripsService = {
       }
 
       const requestsArray = Array.isArray(result) ? result : (result?.data || [])
-      console.log('[CombinedTripsService] Found combined trip requests:', requestsArray.length)
+      console.log('[CombinedTripsService] ✅ Found combined trip requests:', requestsArray.length)
       return requestsArray
     } catch (error: any) {
-      console.error('[CombinedTripsService] Get combined trip requests error:', error)
+      console.error('[CombinedTripsService] ❌ Get combined trip requests error:', error)
       throw error
     }
   },
@@ -276,6 +278,49 @@ export const combinedTripsService = {
       return tripsArray || []
     } catch (error: any) {
       console.error('[CombinedTripsService] Get customer trips error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Cancel a ride request (only allowed when status = 'accepted')
+   * - Frees up seats on the combined trip
+   * - Recalculates fares for remaining passengers
+   */
+  async cancelRideRequest(combinedTripId: string, requestId: string) {
+    try {
+      console.log('[CombinedTripsService] Cancelling ride request:', {
+        combinedTripId,
+        requestId,
+      })
+
+      const token = await AsyncStorage.getItem('authToken')
+      const headers: any = {
+        'Content-Type': 'application/json',
+      }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/combined-trips/${combinedTripId}/requests/${requestId}/cancel`,
+        {
+          method: 'PATCH',
+          headers,
+        }
+      )
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('[CombinedTripsService] Cancel ride request failed:', result)
+        throw new Error(result?.message || 'Failed to cancel ride request')
+      }
+
+      console.log('[CombinedTripsService] ✅ Ride request cancelled successfully')
+      return result
+    } catch (error: any) {
+      console.error('[CombinedTripsService] ❌ Cancel ride request error:', error)
       throw error
     }
   },

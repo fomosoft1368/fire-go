@@ -6,6 +6,8 @@ export enum RequestStatus {
   PENDING = 'pending',
   ACCEPTED = 'accepted',
   REJECTED = 'rejected',
+  TIMEOUT = 'timeout', // ✅ Add timeout status for driver rotation
+  CANCELLED = 'cancelled', // ✅ Add cancelled status
   ARRIVED_AT_PICKUP = 'arrived_at_pickup',
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
@@ -31,7 +33,7 @@ export class RideRequest extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Driver' })
   driverId?: Types.ObjectId
 
-  @Prop({ type: String, enum: RequestStatus, default: RequestStatus.PENDING })
+  @Prop({ type: String, enum: RequestStatus , default: RequestStatus.PENDING })
   status: RequestStatus
 
   @Prop({ type: Number, default: 1 })

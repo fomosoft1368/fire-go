@@ -104,23 +104,7 @@ export default function HomeScreen() {
     }
   }, [])
 
-  // Seed pricing data on app startup
-  useEffect(() => {
-    const seedPricing = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/rides/seed-pricing`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        })
-        if (response.ok) {
-          console.log('✅ [HomeScreen] Pricing seeded successfully')
-        }
-      } catch (error) {
-        console.log('[HomeScreen] Pricing seed attempt (fallback will be used if needed)')
-      }
-    }
-    seedPricing()
-  }, [])
+  // Pricing now loaded from backend via pricing.ts getPricingConfig()
 
   // Fetch available drivers on app startup
   useEffect(() => {

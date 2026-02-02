@@ -27,7 +27,7 @@ import { calculateFare } from '../utils/pricing'
 export default function FindingRideScreen({ navigation }: any) {
   const route = useRoute()
   const params = route.params as any
-  
+  const ride = params?.ride ?? null
   const pickupAddress = params?.pickupAddress ?? ''
   const dropoffAddress = params?.dropoffAddress ?? ''
   const distance = params?.distance ?? 0
@@ -38,7 +38,8 @@ export default function FindingRideScreen({ navigation }: any) {
   const endLat = params?.endLat ?? 21.0285  // Customer's dropoff latitude
   const totalFare = params?.totalFare ?? 0
   const seats = params?.seats ?? 1
-
+const [selectedSeats, setSelectedSeats] = useState<number[]>([])
+const [tripData, setTripData] = useState(ride)
   // 🔍 Debug params
   console.log('[FindingRideScreen] 🔍 PARAMS RECEIVED:', {
     pickupAddress,
@@ -54,7 +55,9 @@ export default function FindingRideScreen({ navigation }: any) {
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
   const user = useSelector((state: RootState) => state.auth.user)
-
+const totalSeats = tripData?.totalSeats || 4
+const bookedSeatsCount = tripData?.bookedSeats ?? (totalSeats - (tripData?.availableSeats ?? totalSeats))
+const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
   // State
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,7 +105,7 @@ export default function FindingRideScreen({ navigation }: any) {
 
   // Calculate fare independently if not provided by params
   useEffect(() => {
-    const calculateFareIfNeeded = () => {
+    const calculateFareIfNeeded = async () => {
       // If totalFare already provided from params, use it
       if (totalFare > 0) {
         console.log('[FindingRideScreen] Updating vehicle prices from totalFare:', totalFare)
@@ -115,27 +118,29 @@ export default function FindingRideScreen({ navigation }: any) {
       }
 
       // Otherwise, calculate it here using pricing.ts
-      if (distance > 0 && duration > 0) {
-        console.log('[FindingRideScreen] Calculating fare independently...', { distance, duration })
+      if (distance > 0) {
+        console.log('[FindingRideScreen] Calculating fare independently...', { distance, seats })
         try {
           const distanceKm = distance > 500 ? distance / 1000 : distance
-          const durationMin = duration / 60
 
-          // Calculate for basic (sedan) type
-          const fareBreakdown = calculateFare(distanceKm, durationMin, 'sedan')
-          const basicFare = fareBreakdown.total
+          // Tính giá cho TỪNG loại xe (cho 1 NGƯỜI, chưa giảm giá)
+          const [sedanFare, suvFare, truckFare] = await Promise.all([
+            calculateFare(distanceKm, 'sedan', 1), // Tính cho 1 người
+            calculateFare(distanceKm, 'suv', 1),
+            calculateFare(distanceKm, 'truck', 1),
+          ])
 
-          console.log('[FindingRideScreen] ✅ Calculated fare:', {
-            basic: basicFare,
-            comfort: Math.round(basicFare * 1.3),
-            premium: Math.round(basicFare * 1.6),
-            breakdown: fareBreakdown,
+          console.log('[FindingRideScreen] ✅ Calculated fares (1 person, no discount):', {
+            sedan: sedanFare.finalPrice,
+            suv: suvFare.finalPrice,
+            truck: truckFare.finalPrice,
           })
 
+          // Lưu giá cho 1 người (chưa discount)
           setVehiclePrices({
-            basic: basicFare,
-            comfort: Math.round(basicFare * 1.3),
-            premium: Math.round(basicFare * 1.6),
+            basic: sedanFare.finalPrice,
+            comfort: suvFare.finalPrice,
+            premium: truckFare.finalPrice,
           })
         } catch (error) {
           console.error('[FindingRideScreen] Error calculating fare:', error)
@@ -150,20 +155,32 @@ export default function FindingRideScreen({ navigation }: any) {
     }
 
     calculateFareIfNeeded()
-  }, [totalFare, distance, duration])
+  }, [totalFare, distance, seats])
 
   // Fetch rides when location is obtained
   useEffect(() => {
     if (currentLocation) {
       fetchShareRides()
       
-      // Setup auto-refresh every 30 seconds
+      // ✅ Poll for ride updates every 3 seconds (to get real-time seat availability)
+      const pollInterval = setInterval(() => {
+        if (isMountedRef.current) {
+          console.log('[FindingRideScreen] Polling rides for updates...')
+          fetchShareRides(false) // Don't show loading indicator
+        }
+      }, 3000)
+
+      // Keep the old 30-second refresh as fallback
       refreshIntervalRef.current = setInterval(() => {
         if (isMountedRef.current) {
-          console.log('[FindingRideScreen] Auto-refreshing rides...')
+          console.log('[FindingRideScreen] Auto-refreshing rides (30s fallback)...')
           fetchShareRides(false)
         }
       }, 30000)
+
+      return () => {
+        clearInterval(pollInterval)
+      }
     }
   }, [currentLocation])
 
@@ -297,7 +314,8 @@ export default function FindingRideScreen({ navigation }: any) {
         totalFare: trip.totalFare || trip.baseFare || 50000,
         distance: trip.distance || 5,
         totalSeats: trip.totalSeats || 4,
-        availableSeats: (trip.totalSeats || 4) - (trip.customerId?.length || 0),
+        // ✅ Use availableSeats from backend (already calculated correctly)
+        availableSeats: trip.availableSeats ?? ((trip.totalSeats || 4) - (trip.customerId?.length || 0)),
         pickupCoordinates: trip.pickupCoordinates || [startLng, startLat],
         dropoffCoordinates: trip.dropoffCoordinates || [startLng + 0.05, startLat + 0.05],
         estimatedDuration: trip.duration || 600,
@@ -363,12 +381,19 @@ export default function FindingRideScreen({ navigation }: any) {
       }
 
       // 🔍 Debug: Check fare calculation
-      const fareToSend = vehiclePrices[selectedVehicleType]
+      const basePricePerPerson = vehiclePrices[selectedVehicleType]
+      
+      // Tính discount theo số ghế
+      const discountRate = seats === 1 ? 0 : seats === 2 ? 0.15 : seats === 3 ? 0.25 : 0.30
+      const fareToSend = Math.round(basePricePerPerson * (1 - discountRate))
+      
       console.log('[FindingRideScreen] 🆔', requestId, '🔍 FARE DEBUG:', {
         totalFareFromParams: totalFare,
         selectedVehicleType,
-        vehiclePrices,
-        fareToSend,
+        basePricePerPerson,
+        seats,
+        discountRate: `${discountRate * 100}%`,
+        fareAfterDiscount: fareToSend,
       })
 
       if (fareToSend === 0 || !fareToSend) {
@@ -670,7 +695,7 @@ export default function FindingRideScreen({ navigation }: any) {
             <View style={[styles.metricsDivider, { backgroundColor: colors.border }]} />
             <View style={styles.seatsSection}>
               <Text style={[styles.seatsNumber, { color: colors.text }]}>
-                {item.availableSeats || 1}
+                {item.availableSeats || 0}
               </Text>
               <Text style={[styles.seatsLabel, { color: colors.textSecondary }]}>Ghế trống</Text>
             </View>
@@ -1041,16 +1066,49 @@ export default function FindingRideScreen({ navigation }: any) {
                       Loại xe:
                     </Text>
                     <Text style={[styles.tripInfoValue, { color: colors.text }]}>
-                      {selectedVehicleType === 'basic' ? 'Tiêu chuẩn' : selectedVehicleType === 'comfort' ? 'Thoải mái' : 'Cao cấp'}
+                      {selectedVehicleType === 'basic' ? 'Sedan' : selectedVehicleType === 'comfort' ? 'SUV' : 'Truck'}
+                    </Text>
+                  </View>
+                  <View style={styles.tripInfoRow}>
+                    <MaterialIcons name="people" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
+                      Số ghế đặt:
+                    </Text>
+                    <Text style={[styles.tripInfoValue, { color: colors.text }]}>
+                      {seats} người
                     </Text>
                   </View>
                   <View style={styles.tripInfoRow}>
                     <MaterialIcons name="attach-money" size={20} color={colors.textSecondary} />
                     <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
-                      Giá cước:
+                      Giá gốc (1 người):
                     </Text>
-                    <Text style={[styles.tripInfoValue, { color: '#38e07b' }]}>
+                    <Text style={[styles.tripInfoValue, { color: colors.textSecondary }]}>
                       ₫{vehiclePrices[selectedVehicleType].toLocaleString('vi-VN')}
+                    </Text>
+                  </View>
+                  {seats > 1 && (
+                    <View style={styles.tripInfoRow}>
+                      <MaterialIcons name="local-offer" size={20} color="#ff9800" />
+                      <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
+                        Giảm ghép xe:
+                      </Text>
+                      <Text style={[styles.tripInfoValue, { color: '#ff9800' }]}>
+                        {seats === 2 ? '-15%' : seats === 3 ? '-25%' : '-30%'}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={[styles.tripInfoRow, { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border + '30' }]}>
+                    <MaterialIcons name="payments" size={20} color="#38e07b" />
+                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary, fontWeight: '700' }]}>
+                      Tổng thanh toán:
+                    </Text>
+                    <Text style={[styles.tripInfoValue, { color: '#38e07b', fontSize: 16 }]}>
+                      ₫{(() => {
+                        const basePrice = vehiclePrices[selectedVehicleType]
+                        const discount = seats === 1 ? 0 : seats === 2 ? 0.15 : seats === 3 ? 0.25 : 0.30
+                        return Math.round(basePrice * (1 - discount)).toLocaleString('vi-VN')
+                      })()}
                     </Text>
                   </View>
                 </View>
