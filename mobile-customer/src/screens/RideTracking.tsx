@@ -104,7 +104,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
     const fetchRideStatus = async () => {
       try {
-        const API_URL = 'http://192.168.1.16:3000/api'
+        const API_URL = 'http://192.168.1.18:3000/api'
         const url = `${API_URL}/rides/${rideId}`
         
         const response = await fetch(url)

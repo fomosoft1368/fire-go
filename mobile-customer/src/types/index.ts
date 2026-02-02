@@ -150,6 +150,15 @@ export type RootStackParamList = {
       id: string
       name: string
       phone?: string
+      avatar?: string
+      rating?: number
+      totalRides?: number
+      carType?: string
+      licensePlate?: string
+      carColor?: string
+      distance?: number
+      eta?: number
+      email?: string
     }
     rideId?: string
     deliveryId?: string

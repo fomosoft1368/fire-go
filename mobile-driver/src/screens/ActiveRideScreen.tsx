@@ -17,7 +17,9 @@ import MapView, { Marker, Polyline } from 'react-native-maps'
 import * as Location from 'expo-location'
 import { COLORS } from '../constants'
 import { API_BASE_URL } from '../constants/config'
-import ChatScreen from './ChatScreen'
+import { useNavigation } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import type { RootStackParamList } from '../types'
 import { driverService } from '../services/driverService'
 import { useSelector } from 'react-redux'
 import type { RootState } from '../redux/store'
@@ -45,8 +47,8 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
   const [updating, setUpdating] = useState(false)
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
   const [showCustomerModal, setShowCustomerModal] = useState(false)
-  const [showChatScreen, setShowChatScreen] = useState(false)
   const [requestingCustomer, setRequestingCustomer] = useState<Customer | null>(null)
+  const screenNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [modalCountdown, setModalCountdown] = useState(60)
   const [currentPassengerIndex, setCurrentPassengerIndex] = useState(0)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -1488,8 +1490,15 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                         <TouchableOpacity 
                           style={styles.passengerActionBtn}
                           onPress={() => {
-                            if (currentPassenger) {
-                              setShowChatScreen(true)
+                            if (currentPassenger && ride) {
+                              screenNavigation.navigate('ChatScreen', {
+                                customer: {
+                                  id: currentPassenger._id,
+                                  name: currentPassenger.name,
+                                  phone: currentPassenger.phone,
+                                },
+                                rideId: ride._id,
+                              } as any)
                             }
                           }}
                         >
@@ -1629,25 +1638,6 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 </View>
               </View>
             </View>
-          </Modal>
-
-          {/* Chat Modal */}
-          <Modal 
-            visible={showChatScreen} 
-            animationType="slide"
-            transparent={false}
-          >
-            {showChatScreen && currentPassenger && (
-              <ChatScreen
-                customer={{
-                  id: currentPassenger._id,
-                  name: currentPassenger.name,
-                  phone: currentPassenger.phone,
-                }}
-                rideId={ride._id}
-                onClose={() => setShowChatScreen(false)}
-              />
-            )}
           </Modal>
 
         </>

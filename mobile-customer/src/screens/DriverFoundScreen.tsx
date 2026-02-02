@@ -10,7 +10,6 @@ import {
   Alert,
   Dimensions,
   StatusBar,
-  Modal,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { MaterialIcons } from '@expo/vector-icons'
@@ -24,7 +23,6 @@ import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS, API_BASE_URL } from 
 import { combinedTripsService } from '../services/combinedTripsService'
 import { rideService } from '../services/rideService'
 import MapViewComponent from '../components/MapView'
-import ChatScreen from './ChatScreen'
 
 const { height } = Dimensions.get('window')
 
@@ -75,7 +73,6 @@ export default function DriverFoundScreen() {
   const [routeData, setRouteData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showChatScreen, setShowChatScreen] = useState(false)
   const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const locationInterval = useRef<NodeJS.Timeout | null>(null)
   const alertedStatuses = useRef<Set<string>>(new Set()) // Track alerted status changes
@@ -815,8 +812,24 @@ export default function DriverFoundScreen() {
   }
 
   const handleChat = () => {
-    if (tripData?.driverId) {
-      setShowChatScreen(true)
+    if (tripData?.driverId && rideRequest?._id) {
+      navigation.navigate('ChatScreen', {
+        driver: {
+          id: tripData.driverId._id,
+          name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
+          avatar: tripData.driverId.avatar || '',
+          rating: tripData.driverId.rating || 5,
+          totalRides: tripData.driverId.totalRides || 0,
+          carType: tripData.driverId.carType || 'Unknown',
+          licensePlate: tripData.driverId.licensePlate || '',
+          carColor: tripData.driverId.carColor || '',
+          distance: tripData.driverId.distance || 0,
+          eta: tripData.driverId.eta || 0,
+          phone: tripData.driverId.phone,
+          email: tripData.driverId.email,
+        },
+        rideId: rideRequest._id,
+      })
     }
   }
 
@@ -1251,34 +1264,6 @@ export default function DriverFoundScreen() {
           <View style={{ height: SPACING.xl }} />
         </ScrollView>
       </LinearGradient>
-
-      {/* Chat Modal */}
-      <Modal 
-        visible={showChatScreen} 
-        animationType="slide"
-        transparent={false}
-      >
-        {showChatScreen && tripData?.driverId && (
-          <ChatScreen
-            driver={{
-              id: tripData.driverId._id,
-              name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
-              avatar: tripData.driverId.avatar || '',
-              rating: tripData.driverId.rating || 5,
-              totalRides: tripData.driverId.totalRides || 0,
-              carType: tripData.driverId.carType || 'Unknown',
-              licensePlate: tripData.driverId.licensePlate || '',
-              carColor: tripData.driverId.carColor || '',
-              distance: tripData.driverId.distance || 0,
-              eta: tripData.driverId.eta || 0,
-              phone: tripData.driverId.phone,
-              email: tripData.driverId.email,
-            } as any}
-            rideId={tripData._id}
-            onClose={() => setShowChatScreen(false)}
-          />
-        )}
-      </Modal>
     </SafeAreaView>
   )
 }
