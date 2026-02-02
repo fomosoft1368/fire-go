@@ -150,6 +150,82 @@ export class MessagesController {
   }
 
   /**
+   * GET /api/messages/delivery/:deliveryId
+   * Lấy danh sách tin nhắn của delivery
+   */
+  @Get('delivery/:deliveryId')
+  @UseGuards(JwtAuthGuard)
+  async getMessagesByDelivery(
+    @Param('deliveryId') deliveryId: string,
+    @Query('limit') limit: number = 50,
+    @Query('skip') skip: number = 0,
+  ) {
+    const { messages, total } = await this.messagesService.getMessagesByDelivery(
+      deliveryId,
+      Math.min(limit, 100),
+      skip,
+    );
+
+    return {
+      success: true,
+      data: {
+        messages,
+        total,
+        limit,
+        skip,
+      },
+    };
+  }
+
+  /**
+   * GET /api/messages/delivery/:deliveryId/new
+   * Lấy tin nhắn mới của delivery từ một thời điểm
+   */
+  @Get('delivery/:deliveryId/new')
+  @UseGuards(JwtAuthGuard)
+  async getNewDeliveryMessages(
+    @Param('deliveryId') deliveryId: string,
+    @Query('since') since?: string,
+  ) {
+    const sinceTimestamp = since ? parseInt(since) : Date.now() - 60000;
+
+    const messages = await this.messagesService.getNewDeliveryMessages(
+      deliveryId,
+      sinceTimestamp,
+    );
+
+    return {
+      success: true,
+      data: {
+        messages,
+        count: messages.length,
+      },
+    };
+  }
+
+  /**
+   * POST /api/messages/delivery/:deliveryId/mark-as-read
+   * Đánh dấu tất cả tin nhắn của delivery là đã đọc
+   */
+  @Post('delivery/:deliveryId/mark-as-read')
+  @UseGuards(JwtAuthGuard)
+  async markDeliveryMessagesAsRead(
+    @Param('deliveryId') deliveryId: string,
+    @Request() req: any,
+  ) {
+    if (!req.user?.id) {
+      throw new BadRequestException('User ID not found');
+    }
+
+    await this.messagesService.markDeliveryMessagesAsRead(deliveryId, req.user.id);
+
+    return {
+      success: true,
+      message: 'Messages marked as read',
+    };
+  }
+
+  /**
    * DELETE /api/messages/:messageId
    * Xóa tin nhắn
    */

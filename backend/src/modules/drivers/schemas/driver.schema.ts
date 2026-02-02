@@ -175,6 +175,15 @@ export class Driver {
   isAcceptingRides: boolean;
 
   @Prop({ default: false })
+  isVerified: boolean;
+
+  @Prop({ default: false })
+  isOnline: boolean;
+
+  @Prop({ default: false })
+  isAvailable: boolean;
+
+  @Prop({ default: false })
   isSuspended: boolean;
 
   @Prop()

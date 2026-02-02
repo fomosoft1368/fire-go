@@ -289,16 +289,18 @@ const MapViewComponent = ({
               
               return (
                 <Marker
-                  key={driver.id}
+                  key={`driver-${driver.id}-${driver.latitude}-${driver.longitude}`}
                   coordinate={{
                     latitude: driver.latitude,
                     longitude: driver.longitude,
                   }}
                   identifier={`driver-${driver.id}`}
                   title={driver.name}
+                  description={`${driver.vehicle || 'Vehicle'} - Rating: ${driver.rating || 'N/A'}`}
+                  tracksViewChanges={true}
                 >
                   <View style={styles.driverMarker}>
-                    <MaterialCommunityIcons name="car" size={24} color="#ff8c00" />
+                    <MaterialCommunityIcons name="car" size={28} color="#FF6B00" />
                   </View>
                 </Marker>
               )

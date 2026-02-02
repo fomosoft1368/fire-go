@@ -150,7 +150,13 @@ export class DriversService {
   }
 
   async updateLocation(driverId: string, updateLocationDto: UpdateLocationDto): Promise<DriverDocument> {
-    return this.driverModel.findByIdAndUpdate(
+    console.log('[DriversService] 📍 Updating driver location:', {
+      driverId,
+      coordinates: updateLocationDto.coordinates,
+      timestamp: new Date().toISOString()
+    })
+    
+    const updatedDriver = await this.driverModel.findByIdAndUpdate(
       driverId,
       {
         currentLocation: {
@@ -160,7 +166,19 @@ export class DriversService {
         lastLocationUpdate: new Date(),
       },
       { new: true },
-    );
+    )
+    
+    if (updatedDriver) {
+      console.log('[DriversService] ✅ Location updated successfully:', {
+        driverId: updatedDriver._id,
+        name: `${updatedDriver.firstName} ${updatedDriver.lastName}`,
+        coordinates: updatedDriver.currentLocation?.coordinates
+      })
+    } else {
+      console.error('[DriversService] ❌ Driver not found:', driverId)
+    }
+    
+    return updatedDriver
   }
 
   async update(driverId: string, updateDriverDto: UpdateDriverDto): Promise<DriverDocument> {
@@ -299,4 +317,40 @@ export class DriversService {
       { new: true },
     );
   }
-}
+
+  /**
+   * Set driver online status
+   */
+  async updateOnlineStatus(userId: string, isOnline: boolean): Promise<DriverDocument> {
+    const driver = await this.findByUserId(userId);
+
+    const updated = await this.driverModel.findByIdAndUpdate(
+      driver._id,
+      { 
+        isOnline,
+        // When going online, also make available for auto-assign
+        // When going offline, also mark unavailable
+        isAvailable: isOnline,
+      },
+      { new: true },
+    );
+
+    console.log(`[DriversService] Driver ${driver._id} online status updated to:`, isOnline, 'available:', isOnline);
+    return updated;
+  }
+
+  /**
+   * Set driver available status for auto-assign
+   */
+  async updateAvailableStatus(userId: string, isAvailable: boolean): Promise<DriverDocument> {
+    const driver = await this.findByUserId(userId);
+
+    const updated = await this.driverModel.findByIdAndUpdate(
+      driver._id,
+      { isAvailable },
+      { new: true },
+    );
+
+    console.log(`[DriversService] Driver ${driver._id} available status updated to:`, isAvailable);
+    return updated;
+  }}

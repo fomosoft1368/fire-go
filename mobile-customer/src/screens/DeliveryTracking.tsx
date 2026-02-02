@@ -16,11 +16,60 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '../types'
 import MapViewComponent from '../components/MapView'
 import { deliveryService, type Delivery } from '../services/deliveryService'
+import { driverService, type Driver as DriverDetails } from '../services/driverService'
+import { mapsService } from '../services/mapsService'
+import { SPACING } from '@/constants/config'
 
 const ORANGE = '#FF6B00'
+const POLL_INTERVAL = 5000
+const DELIVERY_COMPLETED_DELAY = 1000
 
 type DeliveryTrackingRouteProp = RouteProp<RootStackParamList, 'DeliveryTracking'>
 type DeliveryTrackingNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DeliveryTracking'>
+
+// Helper function to extract coordinates from various data structures
+const extractCoordinates = (data: any, field: 'pickup' | 'dropoff') => {
+  const locationField = field === 'pickup' ? 'pickupLocation' : 'dropoffLocation'
+  const coordinatesField = field === 'pickup' ? 'pickupCoordinates' : 'dropoffCoordinates'
+  const addressField = field === 'pickup' ? 'pickupAddress' : 'dropoffAddress'
+
+  // Try location.coordinates first
+  if (data[locationField]?.coordinates?.length === 2) {
+    return {
+      latitude: data[locationField].coordinates[1],
+      longitude: data[locationField].coordinates[0],
+    }
+  }
+
+  // Try direct coordinates field
+  if (data[coordinatesField]?.length === 2) {
+    return {
+      latitude: data[coordinatesField][1],
+      longitude: data[coordinatesField][0],
+    }
+  }
+
+  // Return address for geocoding
+  return data[addressField] ? { address: data[addressField] } : null
+}
+
+// Helper to get driver ID from driverId field
+const getDriverId = (driverId: any): string | null => {
+  if (!driverId) return null
+  return typeof driverId === 'object' ? driverId._id : driverId
+}
+
+// Helper to map delivery status to timeline status
+const mapDeliveryStatus = (status: string): 'pickup' | 'delivering' | 'delivered' => {
+  switch (status) {
+    case 'picking_up':
+      return 'pickup'
+    case 'delivered':
+      return 'delivered'
+    default:
+      return 'delivering'
+  }
+}
 
 interface Driver {
   id: string
@@ -38,95 +87,255 @@ export default function DeliveryTracking() {
   const { deliveryId, driver: routeDriver } = route.params || {}
 
   const [delivery, setDelivery] = useState<Delivery | null>(null)
+  const [driverDetails, setDriverDetails] = useState<DriverDetails | null>(null)
   const [currentStatus, setCurrentStatus] = useState<'pickup' | 'delivering' | 'delivered'>('delivering')
   const [estimatedTime, setEstimatedTime] = useState('14:30')
+  const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([])
+  const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
 
   // Fetch delivery data
   useEffect(() => {
+    // Fetch and process delivery data
     const fetchDelivery = async () => {
       try {
         if (!deliveryId) return
-        
+
         const data = await deliveryService.getDelivery(deliveryId)
         setDelivery(data)
+
+        console.log('[DeliveryTracking] Delivery fetched:', {
+          id: data._id,
+          status: data.status,
+          hasDriver: !!data.driverId,
+        })
+
+        // Update status
+        setCurrentStatus(mapDeliveryStatus(data.status))
         
-        // Map status to timeline status
-        if (data.status === 'picking_up') {
-          setCurrentStatus('pickup')
-        } else if (data.status === 'delivering') {
-          setCurrentStatus('delivering')
-        } else if (data.status === 'delivered') {
-          setCurrentStatus('delivered')
+        // Fetch driver details
+        const driverId = getDriverId(data.driverId)
+        if (driverId) {
+          try {
+            const driverData = await driverService.getDriver(driverId)
+            setDriverDetails(driverData)
+            console.log('[DeliveryTracking] Driver details fetched')
+          } catch (error) {
+            console.error('[DeliveryTracking] Failed to fetch driver details:', error)
+          }
         }
+
+        // Process coordinates
+        await processDeliveryCoordinates(data)
+
       } catch (error) {
         console.error('[DeliveryTracking] Fetch error:', error)
         Alert.alert('Lỗi', 'Không thể tải thông tin đơn hàng')
       }
     }
 
-    fetchDelivery()
+    // Process and set coordinates
+    const processDeliveryCoordinates = async (data: any) => {
+      // Extract pickup coordinates
+      const pickupResult = extractCoordinates(data, 'pickup')
+      if (pickupResult) {
+        if ('address' in pickupResult) {
+          try {
+            const geocoded = await mapsService.geocodeAddress(pickupResult.address)
+            if (geocoded?.coordinates) {
+              setPickupCoords(geocoded.coordinates)
+            }
+          } catch (error) {
+            console.error('[DeliveryTracking] Pickup geocoding error:', error)
+          }
+        } else {
+          setPickupCoords(pickupResult)
+        }
+      }
 
-    // Poll delivery status every 5 seconds
-    const pollInterval = setInterval(async () => {
+      // Extract dropoff coordinates
+      const dropoffResult = extractCoordinates(data, 'dropoff')
+      if (dropoffResult) {
+        if ('address' in dropoffResult) {
+          try {
+            const geocoded = await mapsService.geocodeAddress(dropoffResult.address)
+            if (geocoded?.coordinates) {
+              setDropoffCoords(geocoded.coordinates)
+            }
+          } catch (error) {
+            console.error('[DeliveryTracking] Dropoff geocoding error:', error)
+          }
+        } else {
+          setDropoffCoords(dropoffResult)
+        }
+      }
+
+      // Extract driver location
+      if (data.driverId?.currentLocation?.coordinates?.length === 2) {
+        setDriverLocation({
+          latitude: data.driverId.currentLocation.coordinates[1],
+          longitude: data.driverId.currentLocation.coordinates[0],
+        })
+      }
+
+      // Calculate route
+      const pickup = extractCoordinates(data, 'pickup')
+      const dropoff = extractCoordinates(data, 'dropoff')
+      
+      if (pickup && dropoff && !('address' in pickup) && !('address' in dropoff)) {
+        try {
+          const routeInfo = await mapsService.getRouteInfo(
+            `${pickup.latitude},${pickup.longitude}`,
+            `${dropoff.latitude},${dropoff.longitude}`
+          )
+
+          if (routeInfo.routeCoordinates?.length > 0) {
+            setRouteCoordinates(routeInfo.routeCoordinates)
+            console.log('[DeliveryTracking] Route set:', routeInfo.routeCoordinates.length, 'points')
+          }
+        } catch (error) {
+          console.error('[DeliveryTracking] Route calculation error:', error)
+        }
+      }
+    }
+
+    // Handle delivery completion
+    const handleDeliveryComplete = (data: any) => {
+      navigation.replace('DeliveryCompleted', {
+        deliveryId: data._id,
+        totalAmount: data.actualPrice || data.estimatedPrice,
+        distance: data.distance || '5km',
+        duration: data.duration || '15 phút',
+        driver: {
+          id: getDriverId(data.driverId) || '1',
+          name: 'Nguyễn Văn An',
+          phone: '0901234567',
+          rating: 4.8,
+          totalTrips: 132,
+        }
+      })
+    }
+
+    // Poll for delivery updates
+    const pollDeliveryStatus = async () => {
       try {
         if (!deliveryId) return
 
         const data = await deliveryService.getDelivery(deliveryId)
         setDelivery(data)
 
-        // Check if delivery is completed
+        // Check completion
         if (data.status === 'delivered') {
-          clearInterval(pollInterval)
-          
-          // Navigate to DeliveryCompleted
-          setTimeout(() => {
-            navigation.replace('DeliveryCompleted', {
-              deliveryId: data._id,
-              totalAmount: data.actualPrice || data.estimatedPrice,
-              distance: data.distance || '5km',
-              duration: data.duration || '15 phút',
-              driver: {
-                id: data.driverId || '1',
-                name: 'Nguyễn Văn An',
-                phone: '0901234567',
-                rating: 4.8,
-                totalTrips: 132,
-              }
-            })
-          }, 1000)
+          return 'completed'
         }
 
-        // Update timeline status
-        if (data.status === 'picking_up') {
-          setCurrentStatus('pickup')
-        } else if (data.status === 'delivering') {
-          setCurrentStatus('delivering')
+        // Update status
+        setCurrentStatus(mapDeliveryStatus(data.status))
+
+        // Update coordinates
+        const pickup = extractCoordinates(data, 'pickup')
+        const dropoff = extractCoordinates(data, 'dropoff')
+        
+        if (pickup && !('address' in pickup)) setPickupCoords(pickup)
+        if (dropoff && !('address' in dropoff)) setDropoffCoords(dropoff)
+
+        // Update driver location
+        if (data.driverId?.currentLocation?.coordinates?.length === 2) {
+          setDriverLocation({
+            latitude: data.driverId.currentLocation.coordinates[1],
+            longitude: data.driverId.currentLocation.coordinates[0],
+          })
         }
+
+        return 'continue'
       } catch (error) {
         console.error('[DeliveryTracking] Poll error:', error)
+        return 'error'
       }
-    }, 5000)
+    }
+
+    // Initial fetch
+    fetchDelivery()
+
+    // Setup polling
+    const pollInterval = setInterval(async () => {
+      const result = await pollDeliveryStatus()
+      
+      if (result === 'completed') {
+        clearInterval(pollInterval)
+        const currentDelivery = await deliveryService.getDelivery(deliveryId!)
+        setTimeout(() => handleDeliveryComplete(currentDelivery), DELIVERY_COMPLETED_DELAY)
+      }
+    }, POLL_INTERVAL)
 
     return () => clearInterval(pollInterval)
-  }, [deliveryId])
+  }, [deliveryId, navigation])
 
-  // Mock driver data - replace with actual data from API
-  const driver: Driver = routeDriver || {
-    id: '1',
-    name: 'Nguyễn Văn An',
-    phone: '0901234567',
-    rating: 4.8,
-    totalTrips: 132,
-    vehiclePlate: '29C - 123.45',
-    avatar: undefined,
-  }
+  // Get driver data from driverDetails or delivery or use route params or fallback
+  const driver: Driver = React.useMemo(() => {
+    // Priority 1: Use fetched driver details
+    if (driverDetails) {
+      return {
+        id: driverDetails._id,
+        name: `${driverDetails.firstName} ${driverDetails.lastName}`.trim(),
+        phone: driverDetails.phone,
+        rating: driverDetails.averageRating || 0,
+        totalTrips: driverDetails.totalTrips || 0,
+        vehiclePlate: driverDetails.vehiclePlate || 'N/A',
+        avatar: driverDetails.avatar,
+      }
+    }
+
+    // Priority 2: Get basic info from delivery data
+    if (delivery?.driverId && typeof delivery.driverId === 'object') {
+      const driverData = delivery.driverId as any
+      return {
+        id: driverData._id || driverData.id || '1',
+        name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim() || driverData.name || 'Tài xế',
+        phone: driverData.phone || '0000000000',
+        rating: driverData.averageRating || driverData.rating || 0,
+        totalTrips: driverData.totalTrips || 0,
+        vehiclePlate: driverData.vehiclePlate || 'N/A',
+        avatar: driverData.avatar,
+      }
+    }
+    
+    // Priority 3: Use route params
+    if (routeDriver) {
+      return routeDriver
+    }
+    
+    // Priority 4: Fallback to default
+    return {
+      id: '1',
+      name: 'Tài xế',
+      phone: '0000000000',
+      rating: 0,
+      totalTrips: 0,
+      vehiclePlate: 'N/A',
+      avatar: undefined,
+    }
+  }, [driverDetails, delivery, routeDriver])
 
   const handleCall = () => {
     Linking.openURL(`tel:${driver.phone}`)
   }
 
   const handleChat = () => {
-    Alert.alert('Chat', 'Chức năng chat đang được phát triển')
+    if (!deliveryId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin đơn hàng')
+      return
+    }
+
+    navigation.navigate('ChatScreen', {
+      driver: {
+        id: driver.id,
+        name: driver.name,
+        phone: driver.phone,
+      },
+      deliveryId: deliveryId,
+    })
   }
 
   const renderStatusTimeline = () => {
@@ -207,76 +416,105 @@ export default function DeliveryTracking() {
 
   return (
     <SafeAreaView style={styles.container}>
+
+      {/* Map */}
+      <View style={StyleSheet.absoluteFillObject}>
+        <MapViewComponent
+          height={'100%'}
+          initialRegion={pickupCoords || {
+            latitude: 21.0285,
+            longitude: 105.8542,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
+          pickupCoords={pickupCoords || undefined}
+          dropoffCoords={dropoffCoords || undefined}
+          routeCoordinates={routeCoordinates}
+          drivers={driverLocation ? [{
+            id: driver.id,
+            latitude: driverLocation.latitude,
+            longitude: driverLocation.longitude,
+            name: driver.name,
+            rating: driver.rating,
+            vehicle: driver.vehiclePlate,
+          }] : []}
+        />
+      </View>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back-ios" size={20} color="#111" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Đơn hàng #{deliveryId?.slice(-8) || 'FG-2024'}</Text>
           <Text style={styles.headerSubtitle}>{delivery?.status?.toUpperCase() || 'ĐANG GIAO HÀNG'}</Text>
         </View>
-        <View style={{ width: 40 }} />
       </View>
-
-      {/* Map */}
-      <View style={styles.mapContainer}>
-        <MapViewComponent height={300} />
-        
-        {/* Zoom controls */}
-        <View style={styles.mapControls}>
-          <TouchableOpacity style={styles.mapBtn}>
-            <MaterialIcons name="add" size={24} color="#333" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.mapBtn}>
-            <MaterialIcons name="remove" size={24} color="#333" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Current location button */}
-        <TouchableOpacity style={styles.locationBtn}>
-          <MaterialIcons name="my-location" size={24} color={ORANGE} />
-        </TouchableOpacity>
+      {/* Driver Status Badge */}
+      <View style={styles.statusBadge}>
+        <MaterialIcons name="location-on" size={16} color="#fff" />
+        <Text style={styles.statusText}>Tài xế đang di chuyển đến điểm đón</Text>
       </View>
-
       {/* Bottom Card */}
-      <View style={styles.bottomCard}>
+      <View style={styles.card}>
+                <View style={styles.handleBarContainer}>
+                  <View style={styles.handleBar} />
+                </View>
         {/* Status Timeline */}
         {renderStatusTimeline()}
-
         {/* Driver Info */}
         <View style={styles.driverCard}>
-          <View style={styles.driverAvatar}>
-            {driver.avatar ? (
-              <Image source={{ uri: driver.avatar }} style={styles.avatarImage} />
-            ) : (
-              <MaterialIcons name="person" size={32} color="#999" />
-            )}
-          </View>
+          {/* Driver Header with Avatar and Basic Info */}
+          <View style={styles.driverHeader}>
+            <View style={styles.driverAvatar}>
+              {driver.avatar ? (
+                <Image source={{ uri: driver.avatar }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <MaterialIcons name="person" size={28} color="#FF6B00" />
+                </View>
+              )}
+              {/* Online Status Badge */}
+              <View style={styles.onlineBadge} />
+            </View>
 
-          <View style={styles.driverInfo}>
-            <Text style={styles.driverName}>{driver.name}</Text>
-            <View style={styles.ratingRow}>
-              <View style={styles.stars}>
-                {renderStars(driver.rating)}
+            <View style={styles.driverBasicInfo}>
+              <Text style={styles.driverName}>{driver.name}</Text>
+              
+              {/* Rating with Stars */}
+              <View style={styles.ratingContainer}>
+                <View style={styles.ratingBadge}>
+                  <MaterialIcons name="star" size={16} color="#FFB800" />
+                  <Text style={styles.ratingValue}>{driver.rating.toFixed(1)}</Text>
+                </View>
+                <Text style={styles.ratingDivider}>•</Text>
+                <Text style={styles.tripCount}>{driver.totalTrips} chuyến</Text>
               </View>
-              <Text style={styles.ratingText}>{driver.rating}</Text>
-              <Text style={styles.tripCount}>• {driver.totalTrips} chuyến đã giao</Text>
-            </View>
-            <View style={styles.vehicleRow}>
-              <MaterialCommunityIcons name="motorbike" size={16} color="#666" />
-              <Text style={styles.vehiclePlate}>{driver.vehiclePlate}</Text>
+
+              {/* Vehicle Info */}
+              <View style={styles.vehicleInfo}>
+                <View style={styles.vehicleBadge}>
+                  <MaterialCommunityIcons name="motorbike" size={14} color="#666" />
+                  <Text style={styles.vehiclePlate}>{driver.vehiclePlate}</Text>
+                </View>
+              </View>
             </View>
           </View>
 
+          {/* Action Buttons */}
           <View style={styles.driverActions}>
             <TouchableOpacity style={styles.callBtn} onPress={handleCall}>
-              <MaterialIcons name="phone" size={20} color="#fff" />
-              <Text style={styles.callBtnText}>Gọi tài xế</Text>
+              <View style={styles.callBtnIcon}>
+                <MaterialIcons name="phone" size={20} color="#fff" />
+              </View>
+              <Text style={styles.callBtnText}>Gọi điện</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.chatBtn} onPress={handleChat}>
-              <MaterialCommunityIcons name="message-text" size={20} color={ORANGE} />
+              <View style={styles.chatBtnIcon}>
+                <MaterialCommunityIcons name="message-text" size={20} color="#FF6B00" />
+              </View>
+              <Text style={styles.chatBtnText}>Nhắn tin</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -291,17 +529,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
 
-  // Header
   header: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    paddingHorizontal: SPACING.md,
+    zIndex: 10,
   },
+
   backBtn: {
     width: 40,
     height: 40,
@@ -446,62 +685,114 @@ const styles = StyleSheet.create({
 
   // Driver Card
   driverCard: {
-    backgroundColor: '#F9F9F9',
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  driverHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     marginBottom: 16,
   },
   driverAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#E5E5E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginRight: 14,
+    position: 'relative',
   },
   avatarImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
+    borderColor: '#F0F0F0',
   },
-  driverInfo: {
-    marginBottom: 16,
+  avatarPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FFE8DC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFD4BE',
+  },
+  onlineBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#4CAF50',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  driverBasicInfo: {
+    flex: 1,
+    justifyContent: 'center',
   },
   driverName: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111',
     marginBottom: 6,
   },
-  ratingRow: {
+  ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 6,
   },
-  stars: {
+  ratingBadge: {
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8E1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     marginRight: 6,
   },
-  ratingText: {
+  ratingValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111',
-    marginRight: 6,
+    color: '#F9A825',
+    marginLeft: 4,
+  },
+  ratingDivider: {
+    fontSize: 14,
+    color: '#CCC',
+    marginHorizontal: 6,
   },
   tripCount: {
-    fontSize: 13,
-    color: '#666',
-  },
-  vehicleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  vehiclePlate: {
     fontSize: 14,
     fontWeight: '600',
     color: '#666',
+  },
+  vehicleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  vehicleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 6,
+  },
+  vehiclePlate: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#333',
+    letterSpacing: 0.5,
   },
   driverActions: {
     flexDirection: 'row',
@@ -514,8 +805,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: ORANGE,
     paddingVertical: 14,
-    borderRadius: 30,
+    borderRadius: 14,
     gap: 8,
+    shadowColor: ORANGE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  callBtnIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   callBtnText: {
     fontSize: 15,
@@ -523,11 +827,88 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   chatBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFE8DC',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFE8DC',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: '#FFD4BE',
+  },
+  chatBtnIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: ORANGE,
+  },
+  statusBadge: {
+    position: 'absolute',
+    top: 110,
+    left: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FF6B00',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  card: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 15,
+    maxHeight: '50%',
+  },
+    handleBarContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 16,
+  },
+  handleBar: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#4B5563',
+    borderRadius: 3,
   },
 })

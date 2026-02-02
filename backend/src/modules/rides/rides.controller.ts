@@ -6,6 +6,7 @@ import { AutoAssignService } from './services/auto-assign.service';
 import { CreateRideDto } from './dto';
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
 import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema';
+import { AssignmentRequest, AssignmentRequestDocument } from './schemas/assignment-request.schema';
 import { Pricing } from './schemas/pricing.schema';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -17,6 +18,7 @@ export class RidesController {
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<Pricing>,
     @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
+    @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
   ) {}
   @Get('analytics/revenue')
   async getRevenueStats(
@@ -149,7 +151,27 @@ export class RidesController {
     }
     
     console.log('🆕 [RidesController] Creating ride for customer:', customerId);
-    return this.ridesService.create(createRideDto, customerId);
+    const ride = await this.ridesService.create(createRideDto, customerId);
+    
+    // Auto-assign driver if enabled in request
+    if (createRideDto.autoAssign && ride.rideType === RideType.HIRE) {
+      console.log('🤖 [RidesController] Auto-assigning driver for ride:', ride._id);
+      try {
+        const assignResult = await this.ridesService.autoAssignDriver(ride._id.toString());
+        console.log('✅ [RidesController] Auto-assign result:', assignResult);
+        // Return ride with assignment info
+        return {
+          ...ride.toObject(),
+          assignmentResult: assignResult,
+        };
+      } catch (error) {
+        console.warn('⚠️ [RidesController] Auto-assign failed:', error.message);
+        // Return original ride even if auto-assign fails
+        return ride;
+      }
+    }
+    
+    return ride;
   }
 
   @Get()
@@ -208,6 +230,56 @@ export class RidesController {
     @Query('userType') userType: 'driver' | 'customer',
   ) {
     return this.ridesService.getRideStats(userId, userType);
+  }
+
+  // ============ Assignment Request Endpoints ============
+  
+  /**
+   * Driver lấy danh sách pending assignment requests
+   */
+  @Get('assignment-requests/pending')
+  @UseGuards(JwtAuthGuard)
+  async getPendingAssignmentRequests(@Request() req: any) {
+    const driverId = req.user.id;
+    const { assignmentRequestModel } = this as any;
+    
+    const requests = await assignmentRequestModel
+      .find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'pending',
+        expiresAt: { $gt: new Date() },
+      })
+      .populate('rideId')
+      .sort({ createdAt: -1 });
+
+    return requests;
+  }
+
+  /**
+   * Driver chấp nhận assignment request
+   */
+  @Post('assignment-requests/:requestId/accept')
+  @UseGuards(JwtAuthGuard)
+  async acceptAssignmentRequest(
+    @Param('requestId') requestId: string,
+    @Request() req: any,
+  ) {
+    const driverId = req.user.id;
+    return this.autoAssignService.acceptAssignmentRequest(requestId, driverId);
+  }
+
+  /**
+   * Driver từ chối assignment request
+   */
+  @Post('assignment-requests/:requestId/reject')
+  @UseGuards(JwtAuthGuard)
+  async rejectAssignmentRequest(
+    @Param('requestId') requestId: string,
+    @Request() req: any,
+    @Body('reason') reason?: string,
+  ) {
+    const driverId = req.user.id;
+    return this.autoAssignService.rejectAssignmentRequest(requestId, driverId, reason);
   }
 
   @Get(':id')

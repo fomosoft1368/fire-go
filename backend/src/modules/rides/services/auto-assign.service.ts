@@ -3,6 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { Ride, RideDocument } from '../schemas/ride.schema';
+import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignment-request.schema';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 interface DriverScore {
   driver: DriverDocument;
@@ -18,17 +20,21 @@ interface DriverScore {
 @Injectable()
 export class AutoAssignService {
   private readonly logger = new Logger(AutoAssignService.name);
+  private readonly REQUEST_TIMEOUT_SECONDS = 15; // Timeout 15 giây
+  private timeoutHandlers = new Map<string, NodeJS.Timeout>(); // Track timeout handlers
 
   constructor(
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
+    @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   /**
-   * Tính điểm cho tài xế dựa trên công thức:
-   * Điểm = (40% Khoảng cách) + (30% Rating) + (20% Hoàn thành) + (10% Thời gian online)
+   * Tự động chỉ định tài xế cho chuyến đi
+   * FLOW MỚI: Gửi request tới tài xế phù hợp nhất, đợi accept/reject
    */
-  async autoAssignDriver(rideId: string): Promise<RideDocument> {
+  async autoAssignDriver(rideId: string): Promise<{ success: boolean; message: string; requestId?: string }> {
     const ride = await this.rideModel.findById(rideId);
     if (!ride) {
       throw new NotFoundException(`Không tìm thấy chuyến xe với ID: ${rideId}`);
@@ -55,37 +61,319 @@ export class AutoAssignService {
     // Sắp xếp theo điểm cao nhất
     driverScores.sort((a, b) => b.score - a.score);
 
-    this.logger.debug(`Driver scores for ride ${rideId}:`, driverScores);
+    this.logger.debug(`Driver scores for ride ${rideId}:`, driverScores.map(ds => ({
+      driverId: ds.driver._id,
+      score: ds.score,
+      breakdown: ds.breakdown
+    })));
 
+    // Tạo assignment request cho tài xế đầu tiên
     const selectedDriver = driverScores[0];
-    this.logger.log(
-      `Assigned driver ${selectedDriver.driver._id} to ride ${rideId} with score ${selectedDriver.score}`
+    const assignmentRequest = await this.createAssignmentRequest(
+      ride._id.toString(),
+      selectedDriver.driver._id.toString(),
+      selectedDriver.score,
+      1 // Attempt 1
     );
 
-    // Cập nhật chuyến xe
-    const updatedRide = await this.rideModel.findByIdAndUpdate(
-      rideId,
+    this.logger.log(
+      `Created assignment request ${assignmentRequest._id} for driver ${selectedDriver.driver._id} (score: ${selectedDriver.score})`
+    );
+
+    // Emit event để notify driver (via polling hoặc socket)
+    this.eventEmitter.emit('assignment.request.created', {
+      requestId: assignmentRequest._id,
+      driverId: selectedDriver.driver._id,
+      rideId: ride._id,
+      ride: ride,
+      expiresAt: assignmentRequest.expiresAt,
+    });
+
+    // Lên lịch timeout check
+    this.scheduleTimeoutCheck(assignmentRequest._id.toString(), driverScores);
+
+    return {
+      success: true,
+      message: `Đã gửi yêu cầu tới tài xế ${selectedDriver.driver._id}`,
+      requestId: assignmentRequest._id.toString(),
+    };
+  }
+
+  /**
+   * Tạo assignment request
+   */
+  private async createAssignmentRequest(
+    rideId: string,
+    driverId: string,
+    score: number,
+    attemptNumber: number,
+  ): Promise<AssignmentRequestDocument> {
+    const expiresAt = new Date(Date.now() + this.REQUEST_TIMEOUT_SECONDS * 1000);
+
+    const request = new this.assignmentRequestModel({
+      rideId: new Types.ObjectId(rideId),
+      driverId: new Types.ObjectId(driverId),
+      status: 'pending',
+      score,
+      expiresAt,
+      attemptNumber,
+    });
+
+    return await request.save();
+  }
+
+  /**
+   * Lên lịch kiểm tra timeout
+   */
+  private scheduleTimeoutCheck(requestId: string, driverScores: DriverScore[]) {
+    const timeoutHandler = setTimeout(async () => {
+      const request = await this.assignmentRequestModel.findById(requestId);
+      
+      if (!request || request.status !== 'pending') {
+        this.timeoutHandlers.delete(requestId); // Cleanup
+        return; // Đã được xử lý rồi
+      }
+
+      this.logger.warn(`Assignment request ${requestId} timeout, retrying with next driver`);
+
+      // Update status sang timeout
+      await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
+        status: 'timeout',
+        respondedAt: new Date(),
+      });
+
+      // Retry với driver tiếp theo
+      await this.retryWithNextDriver(request, driverScores);
+      this.timeoutHandlers.delete(requestId); // Cleanup
+    }, this.REQUEST_TIMEOUT_SECONDS * 1000);
+
+    // Store timeout handler để có thể cancel sau
+    this.timeoutHandlers.set(requestId, timeoutHandler);
+  }
+
+  /**
+   * Thử lại với tài xế tiếp theo
+   */
+  private async retryWithNextDriver(
+    previousRequest: AssignmentRequestDocument,
+    driverScores: DriverScore[],
+  ): Promise<void> {
+    const attemptNumber = previousRequest.attemptNumber + 1;
+    
+    // Lấy danh sách drivers đã được request rồi
+    const previousRequests = await this.assignmentRequestModel.find({
+      rideId: previousRequest.rideId,
+    }).select('driverId');
+
+    const triedDriverIds = previousRequests.map(r => r.driverId.toString());
+
+    // Tìm driver tiếp theo chưa được request
+    const nextDriver = driverScores.find(
+      ds => !triedDriverIds.includes(ds.driver._id.toString())
+    );
+
+    if (!nextDriver) {
+      this.logger.error(`No more drivers available for ride ${previousRequest.rideId}`);
+      
+      // Update ride status
+      await this.rideModel.findByIdAndUpdate(previousRequest.rideId, {
+        status: 'no_driver_available',
+      });
+
+      // Emit event để notify customer
+      this.eventEmitter.emit('ride.no_driver_available', {
+        rideId: previousRequest.rideId,
+      });
+      
+      return;
+    }
+
+    // Tạo request mới cho driver tiếp theo
+    const newRequest = await this.createAssignmentRequest(
+      previousRequest.rideId.toString(),
+      nextDriver.driver._id.toString(),
+      nextDriver.score,
+      attemptNumber,
+    );
+
+    this.logger.log(
+      `Retry attempt ${attemptNumber}: Created assignment request ${newRequest._id} for driver ${nextDriver.driver._id}`
+    );
+
+    // Emit event
+    this.eventEmitter.emit('assignment.request.created', {
+      requestId: newRequest._id,
+      driverId: nextDriver.driver._id,
+      rideId: previousRequest.rideId,
+      expiresAt: newRequest.expiresAt,
+    });
+
+    // Lên lịch timeout check
+    this.scheduleTimeoutCheck(newRequest._id.toString(), driverScores);
+  }
+
+  /**
+   * Driver accept assignment request
+   */
+  async acceptAssignmentRequest(requestId: string, driverId: string): Promise<RideDocument> {
+    const request = await this.assignmentRequestModel.findById(requestId);
+
+    if (!request) {
+      throw new NotFoundException('Không tìm thấy yêu cầu');
+    }
+
+    // Check if request is still valid (not expired)
+    if (new Date() > request.expiresAt) {
+      throw new BadRequestException('Yêu cầu này đã hết hạn');
+    }
+
+    if (request.status !== 'pending') {
+      throw new BadRequestException('Yêu cầu này đã được xử lý hoặc hết hạn');
+    }
+
+    if (request.driverId.toString() !== driverId) {
+      throw new BadRequestException('Yêu cầu này không dành cho bạn');
+    }
+
+    // Sử dụng atomic update để tránh race condition
+    const updatedRequest = await this.assignmentRequestModel.findOneAndUpdate(
       {
-        driverId: selectedDriver.driver._id,
-        status: 'assigned',
-        assignedAt: new Date(),
+        _id: requestId,
+        status: 'pending', // Chỉ update nếu vẫn còn pending
+        expiresAt: { $gt: new Date() }, // Và chưa hết hạn
+      },
+      {
+        status: 'accepted',
+        respondedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!updatedRequest) {
+      throw new BadRequestException('Yêu cầu này đã được xử lý hoặc hết hạn');
+    }
+
+    // QUAN TRỌNG: Cancel timeout handler để tránh retry sau khi đã accept
+    const timeoutHandler = this.timeoutHandlers.get(requestId);
+    if (timeoutHandler) {
+      clearTimeout(timeoutHandler);
+      this.timeoutHandlers.delete(requestId);
+      this.logger.log(`✅ Cancelled timeout handler for request ${requestId}`);
+    }
+
+    // Update ride
+    const updatedRide = await this.rideModel.findByIdAndUpdate(
+      request.rideId,
+      {
+        driverId: new Types.ObjectId(driverId),
+        status: 'accepted',
+        acceptedAt: new Date(),
       },
       { new: true }
     ).populate(['customerId', 'driverId']);
 
+    this.logger.log(`Driver ${driverId} accepted assignment request ${requestId}`);
+
+    // Cancel tất cả pending requests khác của ride này
+    await this.assignmentRequestModel.updateMany(
+      {
+        rideId: request.rideId,
+        _id: { $ne: requestId },
+        status: 'pending',
+      },
+      {
+        status: 'cancelled',
+        respondedAt: new Date(),
+      }
+    );
+
+    // Emit event
+    this.eventEmitter.emit('assignment.request.accepted', {
+      requestId,
+      driverId,
+      rideId: request.rideId,
+      ride: updatedRide,
+    });
+
     return updatedRide;
+  }
+
+  /**
+   * Driver reject assignment request
+   */
+  async rejectAssignmentRequest(
+    requestId: string,
+    driverId: string,
+    reason?: string,
+  ): Promise<void> {
+    const request = await this.assignmentRequestModel.findById(requestId);
+
+    if (!request) {
+      throw new NotFoundException('Không tìm thấy yêu cầu');
+    }
+
+    if (request.status !== 'pending') {
+      throw new BadRequestException('Yêu cầu này đã được xử lý hoặc hết hạn');
+    }
+
+    if (request.driverId.toString() !== driverId) {
+      throw new BadRequestException('Yêu cầu này không dành cho bạn');
+    }
+
+    // Cancel timeout handler
+    const timeoutHandler = this.timeoutHandlers.get(requestId);
+    if (timeoutHandler) {
+      clearTimeout(timeoutHandler);
+      this.timeoutHandlers.delete(requestId);
+      this.logger.log(`✅ Cancelled timeout handler for request ${requestId}`);
+    }
+
+    // Update request status
+    await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
+      status: 'rejected',
+      respondedAt: new Date(),
+      rejectionReason: reason,
+    });
+
+    this.logger.log(`Driver ${driverId} rejected assignment request ${requestId}${reason ? `: ${reason}` : ''}`);
+
+    // Lấy lại driver scores để retry
+    const ride = await this.rideModel.findById(request.rideId);
+    const availableDrivers = await this.getAvailableDrivers(ride);
+    const driverScores = await Promise.all(
+      availableDrivers.map(async (driver) =>
+        this.calculateDriverScore(driver, ride)
+      )
+    );
+    driverScores.sort((a, b) => b.score - a.score);
+
+    // Retry với driver tiếp theo
+    await this.retryWithNextDriver(request, driverScores);
   }
 
   /**
    * Lấy danh sách tài xế sẵn có
    */
   private async getAvailableDrivers(ride: RideDocument): Promise<DriverDocument[]> {
+    // Tìm các ride đang active để exclude drivers đang có cuốc
+    const activeRides = await this.rideModel.find({
+      status: { $in: ['accepted', 'in_progress', 'assigned'] },
+      driverId: { $exists: true, $ne: null },
+    }).select('driverId');
+
+    const busyDriverIds = activeRides.map(r => r.driverId?.toString()).filter(Boolean);
+
     const drivers = await this.driverModel.find({
       status: 'online',
       isAcceptingRides: true,
       isSuspended: false,
-      driverId: { $eq: null }, // Không có chuyến đang làm
       currentLocation: { $exists: true }, // Có vị trí hiện tại
+      _id: { $nin: busyDriverIds }, // Không có trong danh sách đang bận
+    });
+
+    console.log('[AutoAssignService] Found available drivers:', {
+      total: drivers.length,
+      busyCount: busyDriverIds.length,
     });
 
     return drivers;

@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Delivery, DeliveryStatus } from '../schemas/delivery.schema';
+import { Driver } from '../../drivers/schemas/driver.schema';
 import { CreateDeliveryDto } from '../dto/create-delivery.dto';
 import { UpdateDeliveryDto } from '../dto/update-delivery.dto';
 import { RateDeliveryDto } from '../dto/rate-delivery.dto';
 
 @Injectable()
 export class DeliveryService {
+  private readonly logger = new Logger(DeliveryService.name);
+
   constructor(
     @InjectModel(Delivery.name) private deliveryModel: Model<Delivery>,
+    @InjectModel(Driver.name) private driverModel: Model<Driver>,
   ) {}
 
   async create(createDeliveryDto: CreateDeliveryDto): Promise<Delivery> {
@@ -39,7 +43,7 @@ export class DeliveryService {
     return this.deliveryModel
       .find(filter)
       .populate('customerId', 'name phone')
-      .populate('driverId', 'name phone vehicleNumber')
+      .populate('driverId', 'firstName lastName phone vehiclePlate averageRating totalTrips avatar currentLocation')
       .sort({ createdAt: -1 })
       .exec();
   }
@@ -52,7 +56,7 @@ export class DeliveryService {
     const delivery = await this.deliveryModel
       .findById(id)
       .populate('customerId', 'name phone')
-      .populate('driverId', 'name phone vehicleNumber rating')
+      .populate('driverId', 'firstName lastName phone vehiclePlate averageRating totalTrips avatar currentLocation')
       .exec();
 
     if (!delivery) {
@@ -69,7 +73,7 @@ export class DeliveryService {
 
     return this.deliveryModel
       .find({ customerId: new Types.ObjectId(customerId) })
-      .populate('driverId', 'name phone vehicleNumber rating')
+      .populate('driverId', 'firstName lastName phone vehiclePlate averageRating totalTrips avatar currentLocation')
       .sort({ createdAt: -1 })
       .exec();
   }
@@ -114,8 +118,23 @@ export class DeliveryService {
     const updatedDelivery = await this.deliveryModel
       .findByIdAndUpdate(id, { $set: updateDeliveryDto }, { new: true })
       .populate('customerId', 'name phone')
-      .populate('driverId', 'name phone vehicleNumber rating')
+      .populate('driverId', 'firstName lastName phone vehiclePlate averageRating totalTrips avatar currentLocation')
       .exec();
+
+    // IMPORTANT: When delivery is completed or cancelled, set driver back to available
+    if (updatedDelivery.driverId && 
+        (updateDeliveryDto.status === DeliveryStatus.DELIVERED || 
+         updateDeliveryDto.status === DeliveryStatus.CANCELLED)) {
+      const driverId = typeof updatedDelivery.driverId === 'object' 
+        ? updatedDelivery.driverId._id 
+        : updatedDelivery.driverId;
+      
+      await this.driverModel.findByIdAndUpdate(driverId, {
+        isAvailable: true,
+      });
+      
+      this.logger.log(`Set driver ${driverId} back to available after delivery ${updateDeliveryDto.status}`);
+    }
 
     return updatedDelivery;
   }
@@ -171,7 +190,7 @@ export class DeliveryService {
         { new: true },
       )
       .populate('customerId', 'name phone')
-      .populate('driverId', 'name phone vehicleNumber rating')
+      .populate('driverId', 'firstName lastName phone vehiclePlate averageRating totalTrips avatar currentLocation')
       .exec();
 
     return updatedDelivery;

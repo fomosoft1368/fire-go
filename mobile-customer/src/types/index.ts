@@ -145,6 +145,15 @@ export type RootStackParamList = {
       totalTrips: number
     }
   }
+  ChatScreen: {
+    driver: {
+      id: string
+      name: string
+      phone?: string
+    }
+    rideId?: string
+    deliveryId?: string
+  }
 }
 
 // API Response Types
@@ -182,4 +191,5 @@ export interface CreateRideDto {
   driverNote?: string
   isScheduled?: boolean
   scheduledTime?: string
+  autoAssign?: boolean // Tự động chỉ định tài xế
 }

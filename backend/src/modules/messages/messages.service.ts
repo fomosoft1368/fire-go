@@ -18,24 +18,39 @@ export class MessagesService {
     createMessageDto: CreateMessageDto,
     senderId: string,
   ): Promise<MessageDocument> {
-    if (!createMessageDto.rideId || !senderId || !createMessageDto.text) {
-      throw new BadRequestException('rideId, senderId, and text are required');
+    const hasRide = !!createMessageDto.rideId;
+    const hasDelivery = !!createMessageDto.deliveryId;
+    
+    if ((!hasRide && !hasDelivery) || (hasRide && hasDelivery)) {
+      throw new BadRequestException('Either rideId or deliveryId is required (but not both)');
+    }
+    
+    if (!senderId || !createMessageDto.text) {
+      throw new BadRequestException('senderId and text are required');
     }
 
     try {
-      const message = await this.messageModel.create({
-        rideId: new Types.ObjectId(createMessageDto.rideId),
+      const messageData: any = {
         senderId: new Types.ObjectId(senderId),
         senderType: createMessageDto.senderType,
         text: createMessageDto.text.trim(),
         type: createMessageDto.type || 'text',
         imageUrl: createMessageDto.imageUrl,
         isRead: false,
-      });
+      };
+
+      if (hasRide) {
+        messageData.rideId = new Types.ObjectId(createMessageDto.rideId);
+      } else {
+        messageData.deliveryId = new Types.ObjectId(createMessageDto.deliveryId);
+      }
+
+      const message = await this.messageModel.create(messageData);
 
       console.log(`[MessagesService] Message saved to DB:`, {
         messageId: message._id,
         rideId: createMessageDto.rideId,
+        deliveryId: createMessageDto.deliveryId,
         sender: senderId,
         senderType: createMessageDto.senderType,
         createdAt: message.createdAt,
@@ -46,6 +61,7 @@ export class MessagesService {
       console.error(`[MessagesService] Error saving message:`, {
         error: error.message,
         rideId: createMessageDto.rideId,
+        deliveryId: createMessageDto.deliveryId,
         senderId,
       });
       throw error;
@@ -174,5 +190,83 @@ export class MessagesService {
     });
 
     return count;
+  }
+
+  /**
+   * Lấy danh sách tin nhắn của delivery
+   */
+  async getMessagesByDelivery(
+    deliveryId: string,
+    limit: number = 50,
+    skip: number = 0,
+  ): Promise<{
+    messages: MessageDocument[];
+    total: number;
+  }> {
+    const objectId = new Types.ObjectId(deliveryId);
+
+    const [messages, total] = await Promise.all([
+      this.messageModel
+        .find({ deliveryId: objectId })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(skip)
+        .lean(),
+      this.messageModel.countDocuments({ deliveryId: objectId }),
+    ]);
+
+    console.log(`[MessagesService] Retrieved messages for delivery:`, {
+      deliveryId,
+      count: messages.length,
+      total,
+    });
+
+    return {
+      messages: messages.reverse(),
+      total,
+    };
+  }
+
+  /**
+   * Lấy tin nhắn mới của delivery từ một thời điểm
+   */
+  async getNewDeliveryMessages(
+    deliveryId: string,
+    sinceTimestamp: number,
+  ): Promise<MessageDocument[]> {
+    const messages = await this.messageModel
+      .find({
+        deliveryId: new Types.ObjectId(deliveryId),
+        createdAt: { $gt: new Date(sinceTimestamp) },
+      })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    return messages;
+  }
+
+  /**
+   * Đánh dấu tất cả tin nhắn của delivery là đã đọc
+   */
+  async markDeliveryMessagesAsRead(
+    deliveryId: string,
+    recipientId: string,
+  ): Promise<void> {
+    await this.messageModel.updateMany(
+      {
+        deliveryId: new Types.ObjectId(deliveryId),
+        senderId: { $ne: new Types.ObjectId(recipientId) },
+        isRead: false,
+      },
+      {
+        isRead: true,
+        readAt: new Date(),
+      },
+    );
+
+    console.log(`[MessagesService] Marked delivery messages as read:`, {
+      deliveryId,
+      recipientId,
+    });
   }
 }

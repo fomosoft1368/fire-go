@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react'
-import { StyleSheet, ActivityIndicator, View } from 'react-native'
+import React, { useEffect, useState, useRef } from 'react'
+import { StyleSheet, ActivityIndicator, View, Alert } from 'react-native'
 import { Audio } from 'expo-av'
 import 'react-native-gesture-handler'
 import { NavigationContainer } from '@react-navigation/native'
@@ -12,6 +12,9 @@ import { restoreAuth } from './src/redux/slices/authSlice'
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS } from './src/constants'
 import { loginSuccess } from './src/redux/slices/authSlice'
+import { assignmentRequestPollingService } from './src/services/assignmentRequestPollingService'
+import { driverService } from './src/services/driverService'
+import AssignmentRequestModal from './src/components/AssignmentRequestModal'
 import LoginScreen from './src/screens/LoginScreen'
 import RegisterScreen from './src/screens/RegisterScreen'
 import HomeScreen from './src/screens/HomeScreen'
@@ -27,6 +30,7 @@ import CreateRideScreen from './src/screens/CreateRideScreen'
 import TripActivities from './src/screens/TripActivities'
 import DeliveryRequestsScreen from './src/screens/DeliveryRequestsScreen'
 import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
+import ChatScreen from './src/screens/ChatScreen'
 import GlobalRequestModal from './src/components/GlobalRequestModal'
 //
 
@@ -171,6 +175,11 @@ const HomeStackNavigator = () => {
         component={ActiveDeliveryScreen}
         options={{ animationEnabled: true }}
       />
+      <Stack.Screen
+        name="ChatScreen"
+        component={ChatScreen}
+        options={{ animationEnabled: true }}
+      />
     </Stack.Navigator>
   )
 }
@@ -233,7 +242,6 @@ console.log('[App] Fetching user profile with token...')
       
       try {
         // Get all my combined trips to poll for requests
-        const driverService = require('./src/services/driverService').driverService
         const allCombinedTrips = await driverService.getMyCombinedTrips()
 
         console.log('🚗 My trips count:', allCombinedTrips.length)
@@ -343,11 +351,18 @@ console.log('[App] Fetching user profile with token...')
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {isAuthenticated ? (
-        <Stack.Screen
-          name="Main"
-          component={HomeStackNavigator}
-          options={{ animationEnabled: false }}
-        />
+        <>
+          <Stack.Screen
+            name="Main"
+            component={HomeStackNavigator}
+            options={{ animationEnabled: false }}
+          />
+          <Stack.Screen
+            name="TripActivities"
+            component={TripActivities}
+            options={{ animationEnabled: true }}
+          />
+        </>
       ) : (
         <>
           <Stack.Screen
@@ -369,11 +384,144 @@ console.log('[App] Fetching user profile with token...')
 const styles = StyleSheet.create({})
 
 export default function App() {
+  // Global state for assignment request modal
+  const [assignmentRequest, setAssignmentRequest] = useState(null)
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false)
+  const [countdown, setCountdown] = useState(15)
+  const navigationRef = useRef(null)
+
+  // Start assignment request polling when app loads
+  useEffect(() => {
+    console.log('[App] 🚀 Starting assignment request polling service...')
+    
+    assignmentRequestPollingService.startPolling((request) => {
+      console.log('[App] 🔔 Assignment request received:', JSON.stringify(request, null, 2))
+      setAssignmentRequest(request)
+      setShowAssignmentModal(true)
+      setCountdown(15)
+
+      // Play notification sound
+      playNotificationSound()
+    })
+
+    return () => {
+      console.log('[App] 🛑 Stopping assignment request polling service...')
+      assignmentRequestPollingService.stopPolling()
+    }
+  }, [])
+
+  // Countdown timer
+  useEffect(() => {
+    if (!showAssignmentModal) return
+
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          // Auto reject when timeout
+          handleRejectAssignment()
+          return 15
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [showAssignmentModal])
+
+  const playNotificationSound = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('./src/assets/sounds/notification.mp3')
+      )
+      await sound.setPositionAsync(0)
+      await sound.setVolumeAsync(1.0)
+      await sound.playAsync()
+    } catch (e) {
+      console.log('Sound error:', e)
+    }
+  }
+
+  const handleAcceptAssignment = async () => {
+    if (!assignmentRequest) return
+
+    try {
+      const requestType = assignmentRequest.type || 'ride'
+      console.log('[App] ✅ Accepting assignment request:', assignmentRequest._id, 'type:', requestType)
+      
+      const result = await assignmentRequestPollingService.acceptRequest(
+        assignmentRequest._id,
+        requestType
+      )
+
+      console.log('[App] ✅ Request accepted successfully:', result)
+      
+      // Đóng modal
+      setShowAssignmentModal(false)
+      setAssignmentRequest(null)
+      setCountdown(15)
+
+      // Navigate based on type
+      if (navigationRef.current && result?._id) {
+        if (requestType === 'delivery') {
+          console.log('[App] 🚀 Navigating to ActiveDelivery with deliveryId:', result._id)
+          navigationRef.current.navigate('ActiveDelivery', { 
+            deliveryId: result._id 
+          })
+          Alert.alert('Thành công', 'Bạn đã nhận đơn giao hàng!')
+        } else {
+          console.log('[App] 🚀 Navigating to TripActivities with rideId:', result._id)
+          navigationRef.current.navigate('TripActivities', { 
+            rideId: result._id 
+          })
+          Alert.alert('Thành công', 'Bạn đã nhận cuốc xe!')
+        }
+      } else {
+        console.error('[App] ❌ Cannot navigate: navigationRef or result._id not available')
+      }
+    } catch (error) {
+      console.error('[App] Error accepting assignment:', error)
+      Alert.alert('Lỗi', error.message || 'Không thể nhận yêu cầu')
+    }
+  }
+
+  const handleRejectAssignment = async () => {
+    if (!assignmentRequest) return
+
+    try {
+      const requestType = assignmentRequest.type || 'ride'
+      console.log('[App] ❌ Rejecting assignment request:', assignmentRequest._id, 'type:', requestType)
+      
+      await assignmentRequestPollingService.rejectRequest(
+        assignmentRequest._id,
+        requestType,
+        'Tài xế từ chối'
+      )
+
+      setShowAssignmentModal(false)
+      setAssignmentRequest(null)
+      setCountdown(15)
+    } catch (error) {
+      console.error('[App] Error rejecting assignment:', error)
+      // Still close modal even if reject fails
+      setShowAssignmentModal(false)
+      setAssignmentRequest(null)
+    }
+  }
+
   return (
     <Provider store={store}>
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <RootNavigator />
         <GlobalRequestModal />
+        
+        {/* Global Assignment Request Modal */}
+        <AssignmentRequestModal
+          visible={showAssignmentModal}
+          request={assignmentRequest}
+          onAccept={handleAcceptAssignment}
+          onReject={handleRejectAssignment}
+          countdown={countdown}
+        />
       </NavigationContainer>
     </Provider>
   )
