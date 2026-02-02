@@ -19,6 +19,7 @@ import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { deliveryService } from '../services/deliveryService'
 import { mapsService } from '../services/mapsService'
 import { rideService } from '../services/rideService'
+import { calculateFare, formatCurrency } from '../utils/pricing'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useNavigation } from '@react-navigation/native'
@@ -295,51 +296,57 @@ export default function Delivery(props?: DeliveryProps) {
         }
     }, [])
 
-    // Calculate price based on selections and distance
+    // Calculate price based on selections and distance using backend pricing API
     useEffect(() => {
         if (!routeInfo?.distance) {
             setEstimatedPrice(0)
             return
         }
 
-        const distanceKm = routeInfo.distance
+        const calculateDeliveryPrice = async () => {
+            try {
+                const distanceKm = routeInfo.distance
 
-        // Base fare
-        let basePrice = vehicle === 'truck' ? 30000 : 15000
+                // Map vehicle type: bike → sedan, truck → truck
+                const carType: 'sedan' | 'truck' = vehicle === 'truck' ? 'truck' : 'sedan'
 
-        // Distance-based pricing
-        let distancePrice = 0
-        if (vehicle === 'bike') {
-            // Xe máy: 8,000đ/km cho 5km đầu, 6,000đ/km sau đó
-            if (distanceKm <= 5) {
-                distancePrice = distanceKm * 8000
-            } else {
-                distancePrice = 5 * 8000 + (distanceKm - 5) * 6000
-            }
-        } else {
-            // Xe tải: 15,000đ/km cho 5km đầu, 12,000đ/km sau đó
-            if (distanceKm <= 5) {
-                distancePrice = distanceKm * 15000
-            } else {
-                distancePrice = 5 * 15000 + (distanceKm - 5) * 12000
+                // Tính giá giao hàng: không có giảm giá ghép xe (totalPassengers = 1)
+                // Backend tự động check giờ cao điểm và áp dụng multiplier nếu cần
+                const fareBreakdown = await calculateFare(distanceKm, carType, 1, true)
+                
+                // Weight surcharge (vẫn áp dụng phụ phí theo trọng lượng)
+                let weightSurcharge = 0
+                if (weight === '>50') weightSurcharge = 30000
+                else if (weight === '20-50') weightSurcharge = 15000
+                else if (weight === '<20') weightSurcharge = 5000
+
+                // Goods type surcharge (vẫn áp dụng phụ phí theo loại hàng)
+                let goodsSurcharge = 0
+                if (goodsType === 'bulky') goodsSurcharge = 10000
+                else if (goodsType === 'food') goodsSurcharge = 5000
+
+                // Total price = base fare từ backend + surcharges
+                const totalPrice = fareBreakdown.finalPrice + weightSurcharge + goodsSurcharge
+
+                console.log('[Delivery] Price calculation:', {
+                    distance: distanceKm,
+                    carType,
+                    baseFare: fareBreakdown.finalPrice,
+                    isPeakTime: fareBreakdown.isPeakTime,
+                    weightSurcharge,
+                    goodsSurcharge,
+                    totalPrice,
+                })
+
+                setEstimatedPrice(Math.round(totalPrice / 1000) * 1000) // Round to nearest 1000
+            } catch (error) {
+                console.error('[Delivery] Price calculation error:', error)
+                // Fallback to 0 if API fails
+                setEstimatedPrice(0)
             }
         }
 
-        // Weight surcharge
-        let weightSurcharge = 0
-        if (weight === '>50') weightSurcharge = 30000
-        else if (weight === '20-50') weightSurcharge = 15000
-        else if (weight === '<20') weightSurcharge = 5000
-
-        // Goods type surcharge
-        let goodsSurcharge = 0
-        if (goodsType === 'bulky') goodsSurcharge = 10000
-        else if (goodsType === 'food') goodsSurcharge = 5000
-
-        // Total price
-        const totalPrice = basePrice + distancePrice + weightSurcharge + goodsSurcharge
-
-        setEstimatedPrice(Math.round(totalPrice / 1000) * 1000) // Round to nearest 1000
+        calculateDeliveryPrice()
     }, [vehicle, weight, goodsType, routeInfo])
 
     const handleConfirm = async () => {

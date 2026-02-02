@@ -139,7 +139,7 @@ export default function FindingDriverScreen({
                   <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>Giá ước tính</Text>
                     <Text style={styles.infoValue}>
-                      {fareEstimate.total?.toLocaleString('vi-VN')}đ
+                      {fareEstimate.finalPrice?.toLocaleString('vi-VN')}đ
                     </Text>
                   </View>
                 </View>

@@ -694,16 +694,18 @@ export default function DriverFoundScreen() {
       
       // Use customer's dropoff coordinates from RideRequest
       const customerDropoffCoords = rideRequest?.dropoffCoordinates || tripData?.dropoffLocation?.coordinates
+      const customerPickupCoords = rideRequest?.pickupCoordinates || tripData?.pickupLocation?.coordinates
       
-      // Use current driver location (will be updated by polling)
-      // Allow [0, 0] coordinates - polyline will still render, just at 0,0 initially
-      const driverCoords = driverLocation?.coordinates || [0, 0]
+      // ✅ CRITICAL FIX: Use pickup location as fallback when driver GPS not ready
+      // Driver is usually near pickup when status just changed to in_progress
+      // This ensures OSRM always gets valid coordinates instead of [0, 0]
+      const driverCoords = driverLocation?.coordinates || customerPickupCoords || [0, 0]
       
       console.log('[DriverFoundScreen] 🗺️ Loading route with data:', {
         combinedTripId,
         hasDriverLocation: !!driverLocation,
         driverCoords: driverCoords,
-        driverLocationSource: driverLocation ? 'polling' : 'fallback [0,0]',
+        driverLocationSource: driverLocation ? 'polling' : (customerPickupCoords ? 'fallback to pickup' : 'fallback [0,0]'),
         hasCustomerDropoff: !!customerDropoffCoords,
         customerDropoffCoords,
         rideRequestDropoff: rideRequest?.dropoffCoordinates,
@@ -725,16 +727,15 @@ export default function DriverFoundScreen() {
       const [driverLng, driverLat] = driverCoords
       const [customerLng, customerLat] = customerDropoffCoords
       
-      // ✅ CRITICAL: Skip OSRM call if driver location is [0, 0] - not ready yet
-      // Wait for driver location polling to update
-      if (driverLng === 0 && driverLat === 0) {
-        console.warn('[DriverFoundScreen] ⚠️ SKIPPED: Driver location is [0, 0] - OSRM API would fail', {
-          reason: 'Waiting for driver location polling to update',
+      // ✅ CRITICAL FIX: Skip OSRM call ONLY if coordinates are truly invalid [0, 0]
+      // AND we couldn't get pickup location fallback
+      if ((driverLng === 0 && driverLat === 0) && (!customerPickupCoords)) {
+        console.warn('[DriverFoundScreen] ⚠️ SKIPPED: No valid coordinates available for route', {
+          reason: 'Both driver location and pickup fallback are [0, 0]',
           driverCoords: [driverLng, driverLat],
+          pickupCoords: customerPickupCoords,
           willRetryWhen: 'driverLocation state updates from polling',
-          nextRetryCheckMs: 2000,
         })
-        // Polyline will be requested again when driver location updates
         return
       }
       
@@ -764,6 +765,7 @@ export default function DriverFoundScreen() {
         from: [driverLng, driverLat],
         to: [customerLng, customerLat],
         callTimestamp: new Date().toISOString(),
+        usingFallbackLocation: !driverLocation && !!customerPickupCoords,
       })
       
       // Fetch route from OSRM - from driver location to CUSTOMER's dropoff
