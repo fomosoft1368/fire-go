@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
-import { pricingService, PricingConfig as PricingConfigType, PeakHour, CarpoolDiscount, VehicleTypePrice } from '../services/pricingService'
+import { pricingService, PricingConfig as PricingConfigType, PeakHour, CarpoolDiscount, VehicleTypePrice, DeliveryGoodsType, DeliveryWeightRange, DeliveryVehicleType } from '../services/pricingService'
 import Layout from '../components/Layout'
 
 export default function PricingConfigPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [selectedVehicle, setSelectedVehicle] = useState('sedan')
+  const [activeTab, setActiveTab] = useState<'ride' | 'delivery'>('ride') // ============ GIAO HÀNG ============
+  const [selectedVehicle, setSelectedVehicle] = useState('bike')
   const [vehicleTypes, setVehicleTypes] = useState<VehicleTypePrice[]>([
-    { type: 'sedan', name: 'Sedan (4-5 chỗ)', baseFee: 20000, pricePerKm: 8000, minimumFare: 30000 },
-    { type: 'suv', name: 'SUV (7 chỗ)', baseFee: 25000, pricePerKm: 10000, minimumFare: 40000 },
-    { type: 'truck', name: 'Truck (Bán tải)', baseFee: 30000, pricePerKm: 12000, minimumFare: 50000 }
+    { type: 'bike', name: 'Xe máy', baseFee: 15000, pricePerKm: 1500, minimumFare: 20000 },
+    { type: 'sedan', name: 'Sedan (4-5 chỗ)', baseFee: 20000, pricePerKm: 2000, minimumFare: 30000 },
+    { type: 'suv', name: 'SUV (7 chỗ)', baseFee: 25000, pricePerKm: 2500, minimumFare: 40000 },
+    { type: 'truck', name: 'Truck (Bán tải)', baseFee: 30000, pricePerKm: 3000, minimumFare: 50000 }
   ])
   const [peakMultiplier, setPeakMultiplier] = useState(1.2)
   const [driverShare, setDriverShare] = useState(85)
@@ -23,6 +25,11 @@ export default function PricingConfigPage() {
   const [peakHours, setPeakHours] = useState<PeakHour[]>([])
   const [simulation, setSimulation] = useState('')
 
+  // ============ GIAO HÀNG - Delivery State ============
+  const [deliveryGoodsTypes, setDeliveryGoodsTypes] = useState<DeliveryGoodsType[]>([])
+  const [deliveryWeightRanges, setDeliveryWeightRanges] = useState<DeliveryWeightRange[]>([])
+  const [deliveryVehicleTypes, setDeliveryVehicleTypes] = useState<DeliveryVehicleType[]>([])
+
   // Load config from API
   useEffect(() => {
     loadConfig()
@@ -35,9 +42,10 @@ export default function PricingConfigPage() {
       
       // Đảm bảo luôn có vehicleTypes
       const defaultVehicles = [
-        { type: 'sedan', name: 'Sedan (4-5 chỗ)', baseFee: 20000, pricePerKm: 8000, minimumFare: 30000 },
-        { type: 'suv', name: 'SUV (7 chỗ)', baseFee: 25000, pricePerKm: 10000, minimumFare: 40000 },
-        { type: 'truck', name: 'Truck (Bán tải)', baseFee: 30000, pricePerKm: 12000, minimumFare: 50000 }
+        { type: 'bike', name: 'Xe máy', baseFee: 15000, pricePerKm: 1500, minimumFare: 20000 },
+        { type: 'sedan', name: 'Sedan (4-5 chỗ)', baseFee: 20000, pricePerKm: 2000, minimumFare: 30000 },
+        { type: 'suv', name: 'SUV (7 chỗ)', baseFee: 25000, pricePerKm: 2500, minimumFare: 40000 },
+        { type: 'truck', name: 'Truck (Bán tải)', baseFee: 30000, pricePerKm: 3000, minimumFare: 50000 }
       ]
       
       setVehicleTypes(config.vehicleTypes && config.vehicleTypes.length > 0 ? config.vehicleTypes : defaultVehicles)
@@ -51,6 +59,11 @@ export default function PricingConfigPage() {
         { passengers: 4, discount: 30 }
       ])
       setPeakHours(config.peakHours || [])
+      
+      // ============ GIAO HÀNG - Load Delivery Config ============
+      setDeliveryGoodsTypes(config.deliveryGoodsTypes || [])
+      setDeliveryWeightRanges(config.deliveryWeightRanges || [])
+      setDeliveryVehicleTypes(config.deliveryVehicleTypes || [])
     } catch (error) {
       console.error('Failed to load pricing config:', error)
       alert('❌ Không thể tải cấu hình. Sử dụng giá trị mặc định.')
@@ -143,6 +156,24 @@ export default function PricingConfigPage() {
   }
 
   const saveConfiguration = async () => {
+    if (activeTab === 'delivery') {
+      // ============ GIAO HÀNG - Save Delivery Config ============
+      try {
+        setSaving(true)
+        await pricingService.updateDeliveryGoodsTypes(deliveryGoodsTypes)
+        await pricingService.updateDeliveryWeightRanges(deliveryWeightRanges)
+        await pricingService.updateDeliveryVehicleTypes(deliveryVehicleTypes)
+        alert('✅ Lưu cấu hình giao hàng thành công!')
+      } catch (error) {
+        console.error('Failed to save delivery config:', error)
+        alert('❌ Lỗi khi lưu cấu hình giao hàng!')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
+    // Original ride config save
     const config: Partial<PricingConfigType> = {
       vehicleTypes,
       peakMultiplier,
@@ -163,7 +194,61 @@ export default function PricingConfigPage() {
       setSaving(false)
     }
   }
+  // ============ GIAO HÀNG - Delivery Management Functions ============
+  
+  // Goods Types
+  const addDeliveryGoodsType = () => {
+    const newKey = `goods-${Date.now()}`
+    setDeliveryGoodsTypes(prev => [...prev, { key: newKey, label: 'Loại hàng mới', icon: 'cube-outline', surcharge: 0 }])
+  }
 
+  const updateDeliveryGoodsType = (key: string, field: keyof DeliveryGoodsType, value: string | number) => {
+    setDeliveryGoodsTypes(prev => 
+      prev.map(item => item.key === key ? { ...item, [field]: value } : item)
+    )
+  }
+
+  const deleteDeliveryGoodsType = (key: string) => {
+    setDeliveryGoodsTypes(prev => prev.filter(item => item.key !== key))
+  }
+
+  // Weight Ranges
+  const addDeliveryWeightRange = () => {
+    const newKey = `weight-${Date.now()}`
+    setDeliveryWeightRanges(prev => [...prev, { key: newKey, label: 'Khối lượng mới', surcharge: 0 }])
+  }
+
+  const updateDeliveryWeightRange = (key: string, field: keyof DeliveryWeightRange, value: string | number) => {
+    setDeliveryWeightRanges(prev => 
+      prev.map(item => item.key === key ? { ...item, [field]: value } : item)
+    )
+  }
+
+  const deleteDeliveryWeightRange = (key: string) => {
+    setDeliveryWeightRanges(prev => prev.filter(item => item.key !== key))
+  }
+
+  // Vehicle Types
+  const addDeliveryVehicleType = () => {
+    const newKey = `vehicle-${Date.now()}`
+    setDeliveryVehicleTypes(prev => [...prev, { 
+      key: newKey, 
+      label: 'Phương tiện mới', 
+      description: 'Mô tả', 
+      icon: 'motorbike',
+      vehicleTypeMapping: 'sedan'
+    }])
+  }
+
+  const updateDeliveryVehicleType = (key: string, field: keyof DeliveryVehicleType, value: string) => {
+    setDeliveryVehicleTypes(prev => 
+      prev.map(item => item.key === key ? { ...item, [field]: value } : item)
+    )
+  }
+
+  const deleteDeliveryVehicleType = (key: string) => {
+    setDeliveryVehicleTypes(prev => prev.filter(item => item.key !== key))
+  }
   if (loading) {
     return (
       <Layout>
@@ -190,6 +275,35 @@ export default function PricingConfigPage() {
           </p>
         </div>
 
+        {/* ============ GIAO HÀNG - Tab Selector ============ */}
+        <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-700">
+          <button
+            onClick={() => setActiveTab('ride')}
+            className={`px-6 py-3 font-semibold transition-colors ${
+              activeTab === 'ride'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <span className="material-symbols-outlined align-middle mr-2">local_taxi</span>
+            Lái xe hộ / Ghép xe
+          </button>
+          <button
+            onClick={() => setActiveTab('delivery')}
+            className={`px-6 py-3 font-semibold transition-colors ${
+              activeTab === 'delivery'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <span className="material-symbols-outlined align-middle mr-2">local_shipping</span>
+            Giao hàng
+          </button>
+        </div>
+
+        {/* ============ RIDE TAB - Original Content ============ */}
+        {activeTab === 'ride' && (
+          <>
         {/* Basic Parameters */}
         <div className="bg-white dark:bg-card-dark rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
@@ -458,6 +572,325 @@ export default function PricingConfigPage() {
             <p className="text-sm text-primary/80">{simulation}</p>
           </div>
         </div>
+          </>
+        )}
+
+        {/* ============ GIAO HÀNG - DELIVERY TAB ============ */}
+        {activeTab === 'delivery' && (
+          <>
+            {/* Goods Types */}
+            <div className="bg-white dark:bg-card-dark rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Loại hàng hóa
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Phụ thu theo loại hàng hóa vận chuyển
+                  </p>
+                </div>
+                <button
+                  onClick={addDeliveryGoodsType}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  <span className="material-symbols-outlined text-sm">add_circle</span>
+                  Thêm loại
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Mã
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Tên hiển thị
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Icon
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Phụ thu (VND)
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Thao tác
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {deliveryGoodsTypes.map(item => (
+                      <tr key={item.key}>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.key}
+                            onChange={(e) => updateDeliveryGoodsType(item.key, 'key', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.label}
+                            onChange={(e) => updateDeliveryGoodsType(item.key, 'label', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.icon}
+                            onChange={(e) => updateDeliveryGoodsType(item.key, 'icon', e.target.value)}
+                            placeholder="cube-outline"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-32 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="number"
+                            value={item.surcharge}
+                            onChange={(e) => updateDeliveryGoodsType(item.key, 'surcharge', parseFloat(e.target.value) || 0)}
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => deleteDeliveryGoodsType(item.key)}
+                            className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {deliveryGoodsTypes.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                          Chưa có loại hàng hóa nào. Nhấn "Thêm loại" để tạo mới.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Weight Ranges */}
+            <div className="bg-white dark:bg-card-dark rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Khối lượng hàng
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Phụ thu theo trọng lượng hàng hóa
+                  </p>
+                </div>
+                <button
+                  onClick={addDeliveryWeightRange}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  <span className="material-symbols-outlined text-sm">add_circle</span>
+                  Thêm khối lượng
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Mã
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Phạm vi (kg)
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Phụ thu (VND)
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Thao tác
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {deliveryWeightRanges.map(item => (
+                      <tr key={item.key}>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-32 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.key}
+                            onChange={(e) => updateDeliveryWeightRange(item.key, 'key', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-full px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.label}
+                            onChange={(e) => updateDeliveryWeightRange(item.key, 'label', e.target.value)}
+                            placeholder="< 20kg"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-32 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="number"
+                            value={item.surcharge}
+                            onChange={(e) => updateDeliveryWeightRange(item.key, 'surcharge', parseFloat(e.target.value) || 0)}
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => deleteDeliveryWeightRange(item.key)}
+                            className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {deliveryWeightRanges.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                          Chưa có khối lượng nào. Nhấn "Thêm khối lượng" để tạo mới.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Vehicle Types */}
+            <div className="bg-white dark:bg-card-dark rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Phương tiện giao hàng
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Loại xe và ánh xạ để tính giá cước
+                  </p>
+                </div>
+                <button
+                  onClick={addDeliveryVehicleType}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  <span className="material-symbols-outlined text-sm">add_circle</span>
+                  Thêm phương tiện
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Mã
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Tên hiển thị
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Mô tả
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Icon
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Ánh xạ giá
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Thao tác
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {deliveryVehicleTypes.map(item => (
+                      <tr key={item.key}>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.key}
+                            onChange={(e) => updateDeliveryVehicleType(item.key, 'key', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-32 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.label}
+                            onChange={(e) => updateDeliveryVehicleType(item.key, 'label', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-48 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => updateDeliveryVehicleType(item.key, 'description', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            className="w-32 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            type="text"
+                            value={item.icon}
+                            onChange={(e) => updateDeliveryVehicleType(item.key, 'icon', e.target.value)}
+                            placeholder="motorbike"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            className="w-32 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            value={item.vehicleTypeMapping}
+                            onChange={(e) => updateDeliveryVehicleType(item.key, 'vehicleTypeMapping', e.target.value)}
+                          >
+                            <option value="bike">Bike</option>
+                            <option value="sedan">Sedan</option>
+                            <option value="suv">SUV</option>
+                            <option value="truck">Truck</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => deleteDeliveryVehicleType(item.key)}
+                            className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {deliveryVehicleTypes.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                          Chưa có phương tiện nào. Nhấn "Thêm phương tiện" để tạo mới.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Info Note */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 flex items-start gap-3">
+              <span className="material-symbols-outlined text-blue-600 dark:text-blue-400 mt-0.5">info</span>
+              <div>
+                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">Lưu ý về ánh xạ giá</p>
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  Hệ thống sẽ tính giá giao hàng dựa trên loại xe ánh xạ (sedan/suv/truck), sau đó cộng thêm phụ thu từ loại hàng và khối lượng.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Save Button */}
         <div className="flex justify-end gap-3">
@@ -506,3 +939,4 @@ export default function PricingConfigPage() {
     </Layout>
   )
 }
+

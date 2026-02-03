@@ -37,4 +37,24 @@ export class PricingController {
     const isPeakTime = await this.pricingService.isPeakTime(time);
     return { isPeakTime };
   }
+
+  // ============ GIAO HÀNG - Delivery Config APIs ============
+  @Post('config/delivery/goods-types')
+  @UseGuards(JwtAuthGuard)
+  async updateDeliveryGoodsTypes(@Body() body: { goodsTypes: any[] }): Promise<PricingConfig> {
+    return this.pricingService.updateDeliveryGoodsTypes(body.goodsTypes);
+  }
+
+  @Post('config/delivery/weight-ranges')
+  @UseGuards(JwtAuthGuard)
+  async updateDeliveryWeightRanges(@Body() body: { weightRanges: any[] }): Promise<PricingConfig> {
+    return this.pricingService.updateDeliveryWeightRanges(body.weightRanges);
+  }
+
+  @Post('config/delivery/vehicle-types')
+  @UseGuards(JwtAuthGuard)
+  async updateDeliveryVehicleTypes(@Body() body: { vehicleTypes: any[] }): Promise<PricingConfig> {
+    return this.pricingService.updateDeliveryVehicleTypes(body.vehicleTypes);
+  }
+  // ============ END GIAO HÀNG ============
 }

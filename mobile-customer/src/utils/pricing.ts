@@ -34,6 +34,10 @@ interface PricingConfig {
   maxDiscountRate: number
   carpoolDiscounts: CarpoolDiscount[]
   peakHours: PeakHour[]
+  // ============ GIAO HÀNG - Delivery Config ============
+  deliveryGoodsTypes?: Array<{ key: string; label: string; icon: string; surcharge: number }>
+  deliveryWeightRanges?: Array<{ key: string; label: string; surcharge: number }>
+  deliveryVehicleTypes?: Array<{ key: string; label: string; description: string; icon: string; vehicleTypeMapping: string }>
 }
 
 interface FareBreakdown {
@@ -124,6 +128,13 @@ export const clearPricingCache = () => {
 const getDefaultConfig = (): PricingConfig => ({
   vehicleTypes: [
     {
+      type: 'bike',
+      name: 'Xe máy',
+      baseFee: 15000,
+      pricePerKm: 1500,
+      minimumFare: 20000,
+    },
+    {
       type: 'sedan',
       name: 'Sedan (4-5 chỗ)',
       baseFee: 20000,
@@ -194,7 +205,7 @@ export const isPeakHour = async (date: Date = new Date()): Promise<boolean> => {
  */
 export const calculateFare = async (
   distance: number, // km
-  carType: 'sedan' | 'suv' | 'truck' = 'sedan',
+  carType: 'bike' | 'sedan' | 'suv' | 'truck' = 'sedan', // ============ GIAO HÀNG - Added bike ============
   totalPassengers: number = 1, // Tổng số người ghép trong chuyến
   checkPeakTime: boolean = true // Có check giờ cao điểm không
 ): Promise<FareBreakdown> => {
@@ -260,7 +271,7 @@ export const calculateFare = async (
  */
 export const calculateCarpoolFares = async (
   passengers: Array<{ distance: number; isPeakTime?: boolean }>,
-  carType: 'sedan' | 'suv' | 'truck' = 'sedan'
+  carType: 'bike' | 'sedan' | 'suv' | 'truck' = 'sedan' // ============ GIAO HÀNG - Added bike ============
 ): Promise<{
   breakdown: FareBreakdown[]
   totalPrice: number

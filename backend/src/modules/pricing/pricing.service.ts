@@ -185,24 +185,31 @@ export class PricingService {
     const defaultConfig = new this.pricingConfigModel({
       vehicleTypes: [
         {
+          type: 'bike',
+          name: 'Xe máy',
+          baseFee: 15000,
+          pricePerKm: 1500,
+          minimumFare: 20000,
+        },
+        {
           type: 'sedan',
           name: 'Sedan (4-5 chỗ)',
           baseFee: 20000,
-          pricePerKm: 8000,
+          pricePerKm: 2000,
           minimumFare: 30000,
         },
         {
           type: 'suv',
           name: 'SUV (7 chỗ)',
           baseFee: 25000,
-          pricePerKm: 10000,
+          pricePerKm: 2500,
           minimumFare: 40000,
         },
         {
           type: 'truck',
           name: 'Truck (Bán tải)',
           baseFee: 30000,
-          pricePerKm: 12000,
+          pricePerKm: 3000,
           minimumFare: 50000,
         },
       ],
@@ -231,8 +238,83 @@ export class PricingService {
           multiplier: 1.2,
         },
       ],
+      // ============ GIAO HÀNG - Default Delivery Config ============
+      deliveryGoodsTypes: [
+        {
+          key: 'light',
+          label: 'Hàng nhẹ',
+          icon: 'cube-outline',
+          surcharge: 0,
+        },
+        {
+          key: 'bulky',
+          label: 'Cồng kềnh',
+          icon: 'archive-outline',
+          surcharge: 10000,
+        },
+        {
+          key: 'food',
+          label: 'Thực phẩm',
+          icon: 'food-apple-outline',
+          surcharge: 5000,
+        },
+      ],
+      deliveryWeightRanges: [
+        {
+          key: '<20',
+          label: '< 20kg',
+          surcharge: 5000,
+        },
+        {
+          key: '20-50',
+          label: '20-50kg',
+          surcharge: 15000,
+        },
+        {
+          key: '>50',
+          label: '> 50kg',
+          surcharge: 30000,
+        },
+      ],
+      deliveryVehicleTypes: [
+        {
+          key: 'bike',
+          label: 'Xe máy',
+          description: 'Phù hợp hàng nhỏ',
+          icon: 'motorbike',
+          vehicleTypeMapping: 'bike',
+        },
+        {
+          key: 'truck',
+          label: 'Xe tải nhỏ',
+          description: 'Sức tải 500kg',
+          icon: 'truck-outline',
+          vehicleTypeMapping: 'truck',
+        },
+      ],
+      // ============ END GIAO HÀNG ============
     });
     
     return defaultConfig.save();
   }
+
+  // ============ GIAO HÀNG - Delivery Config Methods ============
+  async updateDeliveryGoodsTypes(goodsTypes: any[]): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    config.deliveryGoodsTypes = goodsTypes;
+    return config.save();
+  }
+
+  async updateDeliveryWeightRanges(weightRanges: any[]): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    config.deliveryWeightRanges = weightRanges;
+    return config.save();
+  }
+
+  async updateDeliveryVehicleTypes(vehicleTypes: any[]): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    config.deliveryVehicleTypes = vehicleTypes;
+    return config.save();
+  }
+  // ============ END GIAO HÀNG ============
 }

@@ -23,6 +23,28 @@ export interface VehicleTypePrice {
   minimumFare: number;
 }
 
+// ============ GIAO HÀNG - Delivery Config Types ============
+export interface DeliveryGoodsType {
+  key: string;
+  label: string;
+  icon: string;
+  surcharge: number;
+}
+
+export interface DeliveryWeightRange {
+  key: string;
+  label: string;
+  surcharge: number;
+}
+
+export interface DeliveryVehicleType {
+  key: string;
+  label: string;
+  description: string;
+  icon: string;
+  vehicleTypeMapping: string;
+}
+
 export interface PricingConfig {
   _id?: string;
   vehicleTypes: VehicleTypePrice[];
@@ -31,6 +53,10 @@ export interface PricingConfig {
   maxDiscountRate: number;
   carpoolDiscounts: CarpoolDiscount[];
   peakHours: PeakHour[];
+  // ============ GIAO HÀNG ============
+  deliveryGoodsTypes?: DeliveryGoodsType[];
+  deliveryWeightRanges?: DeliveryWeightRange[];
+  deliveryVehicleTypes?: DeliveryVehicleType[];
   updatedAt?: string;
 }
 
@@ -81,6 +107,49 @@ class PricingService {
       return response.data;
     } catch (error) {
       console.error('Error resetting pricing config:', error);
+      throw error;
+    }
+  }
+
+  // ============ GIAO HÀNG - Delivery Config Methods ============
+  async updateDeliveryGoodsTypes(goodsTypes: DeliveryGoodsType[]): Promise<PricingConfig> {
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/pricing/config/delivery/goods-types`,
+        { goodsTypes },
+        this.getAuthHeaders()
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error updating delivery goods types:', error);
+      throw error;
+    }
+  }
+
+  async updateDeliveryWeightRanges(weightRanges: DeliveryWeightRange[]): Promise<PricingConfig> {
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/pricing/config/delivery/weight-ranges`,
+        { weightRanges },
+        this.getAuthHeaders()
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error updating delivery weight ranges:', error);
+      throw error;
+    }
+  }
+
+  async updateDeliveryVehicleTypes(vehicleTypes: DeliveryVehicleType[]): Promise<PricingConfig> {
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/pricing/config/delivery/vehicle-types`,
+        { vehicleTypes },
+        this.getAuthHeaders()
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error updating delivery vehicle types:', error);
       throw error;
     }
   }
