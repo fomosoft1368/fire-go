@@ -185,24 +185,31 @@ export class PricingService {
     const defaultConfig = new this.pricingConfigModel({
       vehicleTypes: [
         {
+          type: 'bike',
+          name: 'Xe máy',
+          baseFee: 15000,
+          pricePerKm: 1500,
+          minimumFare: 20000,
+        },
+        {
           type: 'sedan',
           name: 'Sedan (4-5 chỗ)',
           baseFee: 20000,
-          pricePerKm: 8000,
+          pricePerKm: 2000,
           minimumFare: 30000,
         },
         {
           type: 'suv',
           name: 'SUV (7 chỗ)',
           baseFee: 25000,
-          pricePerKm: 10000,
+          pricePerKm: 2500,
           minimumFare: 40000,
         },
         {
           type: 'truck',
           name: 'Truck (Bán tải)',
           baseFee: 30000,
-          pricePerKm: 12000,
+          pricePerKm: 3000,
           minimumFare: 50000,
         },
       ],
@@ -231,8 +238,190 @@ export class PricingService {
           multiplier: 1.2,
         },
       ],
+      // ============ GIAO HÀNG - Default Delivery Config ============
+      deliveryGoodsTypes: [
+        {
+          key: 'light',
+          label: 'Hàng nhẹ',
+          icon: 'cube-outline',
+          surcharge: 0,
+        },
+        {
+          key: 'bulky',
+          label: 'Cồng kềnh',
+          icon: 'archive-outline',
+          surcharge: 10000,
+        },
+        {
+          key: 'food',
+          label: 'Thực phẩm',
+          icon: 'food-apple-outline',
+          surcharge: 5000,
+        },
+      ],
+      deliveryWeightRanges: [
+        {
+          key: '<20',
+          label: '< 20kg',
+          surcharge: 5000,
+        },
+        {
+          key: '20-50',
+          label: '20-50kg',
+          surcharge: 15000,
+        },
+        {
+          key: '>50',
+          label: '> 50kg',
+          surcharge: 30000,
+        },
+      ],
+      deliveryVehicleTypes: [
+        {
+          key: 'bike',
+          label: 'Xe máy',
+          description: 'Phù hợp hàng nhỏ',
+          icon: 'motorbike',
+          vehicleTypeMapping: 'bike',
+        },
+        {
+          key: 'truck',
+          label: 'Xe tải nhỏ',
+          description: 'Sức tải 500kg',
+          icon: 'truck-outline',
+          vehicleTypeMapping: 'truck',
+        },
+      ],
+      // ============ END GIAO HÀNG ============
+
+      // ============ LÁI XE HỘ - Default Hire Driver Config ============
+      hireDriverPricing: [
+        {
+          vehicleType: 'bike',
+          name: 'Xe máy',
+          openingFee: 50000,
+          freeKm: 5,
+          pricePerExtraKm: 5000,
+          description: 'Phí mở cửa 50k bao gồm 5km đầu, vượt 5k/km',
+        },
+        {
+          vehicleType: 'sedan',
+          name: 'Sedan (4-5 chỗ)',
+          openingFee: 100000,
+          freeKm: 10,
+          pricePerExtraKm: 10000,
+          description: 'Phí mở cửa 100k bao gồm 10km đầu, vượt 10k/km',
+        },
+        {
+          vehicleType: 'suv',
+          name: 'SUV (7 chỗ)',
+          openingFee: 150000,
+          freeKm: 10,
+          pricePerExtraKm: 15000,
+          description: 'Phí mở cửa 150k bao gồm 10km đầu, vượt 15k/km',
+        },
+        {
+          vehicleType: 'truck',
+          name: 'Truck (Bán tải)',
+          openingFee: 200000,
+          freeKm: 10,
+          pricePerExtraKm: 20000,
+          description: 'Phí mở cửa 200k bao gồm 10km đầu, vượt 20k/km',
+        },
+      ],
+      // ============ END LÁI XE HỘ ============
     });
     
     return defaultConfig.save();
   }
+
+  // ============ GIAO HÀNG - Delivery Config Methods ============
+  async updateDeliveryGoodsTypes(goodsTypes: any[]): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    config.deliveryGoodsTypes = goodsTypes;
+    return config.save();
+  }
+
+  async updateDeliveryWeightRanges(weightRanges: any[]): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    config.deliveryWeightRanges = weightRanges;
+    return config.save();
+  }
+
+  async updateDeliveryVehicleTypes(vehicleTypes: any[]): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    config.deliveryVehicleTypes = vehicleTypes;
+    return config.save();
+  }
+  // ============ END GIAO HÀNG ============
+
+  // ============ LÁI XE HỘ - Hire Driver Pricing Methods ============
+  async updateHireDriverPricing(hireDriverPricing: any[]): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    config.hireDriverPricing = hireDriverPricing;
+    return config.save();
+  }
+
+  /**
+   * Calculate hire driver fare
+   * Formula: If distance <= freeKm: openingFee
+   *          If distance > freeKm: openingFee + (distance - freeKm) * pricePerExtraKm
+   */
+  async calculateHireDriverFare(vehicleType: string, distance: number): Promise<{ 
+    total: number; 
+    breakdown: { 
+      openingFee: number; 
+      freeKm: number; 
+      extraKm: number; 
+      extraKmFee: number; 
+      pricePerExtraKm: number;
+    } 
+  }> {
+    const pricingConfig = await this.getConfig();
+    const config = pricingConfig.hireDriverPricing?.find(
+      (h) => h.vehicleType === vehicleType
+    );
+
+    if (!config) {
+      // Fallback to default
+      const defaults: any = {
+        bike: { openingFee: 50000, freeKm: 5, pricePerExtraKm: 5000 },
+        sedan: { openingFee: 100000, freeKm: 10, pricePerExtraKm: 10000 },
+        suv: { openingFee: 150000, freeKm: 10, pricePerExtraKm: 15000 },
+        truck: { openingFee: 200000, freeKm: 10, pricePerExtraKm: 20000 },
+      };
+      const fallback = defaults[vehicleType] || defaults.sedan;
+
+      const extraKm = Math.max(0, distance - fallback.freeKm);
+      const extraKmFee = extraKm * fallback.pricePerExtraKm;
+      const total = fallback.openingFee + extraKmFee;
+
+      return {
+        total,
+        breakdown: {
+          openingFee: fallback.openingFee,
+          freeKm: fallback.freeKm,
+          extraKm,
+          extraKmFee,
+          pricePerExtraKm: fallback.pricePerExtraKm,
+        },
+      };
+    }
+
+    const extraKm = Math.max(0, distance - config.freeKm);
+    const extraKmFee = extraKm * config.pricePerExtraKm;
+    const total = config.openingFee + extraKmFee;
+
+    return {
+      total,
+      breakdown: {
+        openingFee: config.openingFee,
+        freeKm: config.freeKm,
+        extraKm,
+        extraKmFee,
+        pricePerExtraKm: config.pricePerExtraKm,
+      },
+    };
+  }
+  // ============ END LÁI XE HỘ ============
 }

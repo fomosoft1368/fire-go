@@ -109,7 +109,23 @@ export default function BookingsScreen() {
 
       // Format combined trips thành RideBooking structure
       // Use customer's specific pickup/dropoff from RideRequest, not driver's route
-      const formattedCombinedTrips = (combinedTrips || []).map((trip: any) => {
+      // Filter out rejected and timeout requests
+      const formattedCombinedTrips = (combinedTrips || [])
+        .filter((trip: any) => {
+          const status = trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase()
+          const isRejectedOrTimeout = status === 'rejected' || status === 'timeout'
+          
+          if (isRejectedOrTimeout) {
+            console.log('[BookingsScreen] ⚠️ Filtering out rejected/timeout trip:', {
+              tripId: trip._id,
+              status: status,
+              reason: 'Driver rejected or did not respond',
+            })
+          }
+          
+          return !isRejectedOrTimeout
+        })
+        .map((trip: any) => {
         const formatted = {
           id: trip._id || trip.id,
           rideType: 'share',

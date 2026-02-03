@@ -15,7 +15,7 @@ import { Model } from 'mongoose';
 import { CombinedTripsService } from '../services/combined-trips.service';
 import { CombinedTripStatus } from '../schemas/combined-trip.schema';
 import { JwtAuthGuard } from '../../../modules/auth/guards/jwt-auth.guard';
-import { RideRequest, RequestStatus } from '../../rides/schemas/ride-request.schema';
+import { RideRequest, RequestStatus } from '../schemas/ride-request.schema';
 import { Types } from 'mongoose';
 
 @Controller('api/combined-trips')

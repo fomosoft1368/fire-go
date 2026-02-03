@@ -220,10 +220,10 @@ export class RidesController {
     return this.ridesService.findByCustomerId(customerId);
   }
 
-  @Get('driver/:id')
-  async findByIdForDriver(@Param('id') id: string) {
-    return this.ridesService.findByIdForDriver(id);
-  }
+  // @Get('driver/:id')
+  // async findByIdForDriver(@Param('id') id: string) {
+  //   return this.ridesService.findByIdForDriver(id);
+  // }
 
   // ============ Assignment Request Endpoints ============
   
@@ -340,4 +340,179 @@ export class RidesController {
   ) {
     return this.ridesService.rateRide(rideId, rating, review, ratedBy);
   }
+<<<<<<< HEAD:backend/src/modules/rides/controllers/rides.controller.ts
+=======
+
+  // // Ride Requests Management
+  // @Post(':rideId/requests')
+  // async createRideRequest(
+  //   @Param('rideId') rideId: string,
+  //   @Body() body: {
+  //     customerId: string;
+  //     seats: number;
+  //     fare: number;
+  //     pickupAddress: string;
+  //     dropoffAddress: string;
+  //     pickupCoordinates: [number, number];
+  //     dropoffCoordinates: [number, number];
+  //     distance: number;
+  //   },
+  // ) {
+  //   try {
+  //     console.log('📝 [createRideRequest] Creating request with:', {
+  //       rideId,
+  //       customerId: body.customerId,
+  //       pickupAddress: body.pickupAddress,
+  //       dropoffAddress: body.dropoffAddress,
+  //       pickupCoordinates: body.pickupCoordinates,
+  //       dropoffCoordinates: body.dropoffCoordinates,
+  //     });
+      
+  //     // Create ride request
+  //     const request = new this.rideRequestModel({
+  //       rideId: new Types.ObjectId(rideId),
+  //       customerId: new Types.ObjectId(body.customerId),
+  //       status: 'pending',
+  //       seats: body.seats,
+  //       fare: body.fare,
+  //       pickupAddress: body.pickupAddress,
+  //       dropoffAddress: body.dropoffAddress,
+  //       pickupCoordinates: body.pickupCoordinates,
+  //       dropoffCoordinates: body.dropoffCoordinates,
+  //       distance: body.distance,
+  //     });
+
+  //     console.log('💾 [createRideRequest] Saving request document...');
+  //     const savedRequest = await request.save();
+  //     console.log('✅ [createRideRequest] Request saved successfully:', {
+  //       _id: savedRequest._id,
+  //       rideId: savedRequest.rideId,
+  //       customerId: savedRequest.customerId,
+  //       pickupCoordinates: savedRequest.pickupCoordinates,
+  //     });
+      
+  //     const populatedRequest = await savedRequest.populate('customerId', 'name phone rating');
+  //     console.log('✅ [createRideRequest] Request populated:', populatedRequest);
+  //     return populatedRequest;
+  //   } catch (error: any) {
+  //     console.error('❌ [createRideRequest] Error:', error.message, error.stack);
+  //     throw new BadRequestException(`Failed to create ride request: ${error.message}`);
+  //   }
+  // }
+
+  // @Get(':rideId/requests/:requestId')
+  // async getRideRequest(
+  //   @Param('rideId') rideId: string,
+  //   @Param('requestId') requestId: string,
+  // ) {
+  //   try {
+  //     const request = await this.rideRequestModel
+  //       .findById(new Types.ObjectId(requestId))
+  //       .populate('customerId', 'name phone rating');
+
+  //     if (!request) {
+  //       throw new Error('Request not found');
+  //     }
+
+  //     return request;
+  //   } catch (error: any) {
+  //     throw new Error(`Failed to get request: ${error.message}`);
+  //   }
+  // }
+
+  // @Get(':rideId/requests')
+  // async getRideRequests(@Param('rideId') rideId: string) {
+  //   return this.rideRequestModel
+  //     .find({ rideId: new Types.ObjectId(rideId), status: 'pending' })
+  //     .populate('customerId', 'name phone rating')
+  //     .sort({ createdAt: -1 })
+  // }
+
+  // @Patch(':rideId/requests/:requestId/accept')
+  // async acceptRideRequest(
+  //   @Param('rideId') rideId: string,
+  //   @Param('requestId') requestId: string,
+  // ) {
+  //   const request = await this.rideRequestModel.findByIdAndUpdate(
+  //     requestId,
+  //     { status: 'accepted' },
+  //     { new: true },
+  //   )
+
+  //   if (!request) {
+  //     throw new BadRequestException('Request not found')
+  //   }
+
+  //   return request
+  // }
+
+  // @Patch(':rideId/requests/:requestId/reject')
+  // async rejectRideRequest(
+  //   @Param('rideId') rideId: string,
+  //   @Param('requestId') requestId: string,
+  // ) {
+  //   // Update request status to rejected
+  //   const request = await this.rideRequestModel.findByIdAndUpdate(
+  //     requestId,
+  //     { status: 'rejected' },
+  //     { new: true },
+  //   )
+
+  //   return request
+  // }
+
+  // @Patch(':rideId/requests/:requestId/mark-arrived')
+  // async markArrivedAtPickup(
+  //   @Param('rideId') rideId: string,
+  //   @Param('requestId') requestId: string,
+  // ) {
+  //   const request = await this.rideRequestModel.findByIdAndUpdate(
+  //     requestId,
+  //     { status: 'arrived_at_pickup' },
+  //     { new: true },
+  //   )
+
+  //   if (!request) {
+  //     throw new BadRequestException('Request not found')
+  //   }
+
+  //   return request
+  // }
+
+  // @Patch(':rideId/requests/:requestId/start-journey')
+  // async startJourneyWithPassenger(
+  //   @Param('rideId') rideId: string,
+  //   @Param('requestId') requestId: string,
+  // ) {
+  //   const request = await this.rideRequestModel.findByIdAndUpdate(
+  //     requestId,
+  //     { status: 'in_progress' },
+  //     { new: true },
+  //   )
+
+  //   if (!request) {
+  //     throw new BadRequestException('Request not found')
+  //   }
+
+  //   return request
+  // }
+
+  // @Patch(':rideId/requests/:requestId/complete')
+  // async completePassengerJourney(
+  //   @Param('rideId') rideId: string,
+  //   @Param('requestId') requestId: string,
+  // ) {
+  //   const request = await this.rideRequestModel.findByIdAndUpdate(
+  //     requestId,
+  //     { status: 'completed' },
+  //     { new: true },
+  //   )
+
+  //   if (!request) {
+  //     throw new BadRequestException('Request not found')
+  //   }
+
+  //   return request
+  // }
+>>>>>>> 575fa8899f586c90e179f1c33e7561109deb8541:backend/src/modules/rides/rides.controller.ts
 }

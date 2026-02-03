@@ -279,14 +279,14 @@ export default function RideSharing(props?: RideSharingProps) {
       }
 
       // Nếu chưa tính giá, tính trước
-      if (!routeInfo || !fareEstimate) {
-        Alert.alert(
-          'Chưa tính giá',
-          'Vui lòng chờ hệ thống tính toán hoặc kiểm tra lại địa chỉ!',
-          [{ text: 'OK' }]
-        )
-        return
-      }
+      // if (!routeInfo || !fareEstimate) {
+      //   Alert.alert(
+      //     'Chưa tính giá',
+      //     'Vui lòng chờ hệ thống tính toán hoặc kiểm tra lại địa chỉ!',
+      //     [{ text: 'OK' }]
+      //   )
+      //   return
+      // }
 
       setIsLoading(true)
 
@@ -623,7 +623,7 @@ export default function RideSharing(props?: RideSharingProps) {
                             <Text style={styles.priceTagText}>~{estimatedPrice.toLocaleString('vi-VN')}đ</Text>
                         </View>
                     )} */}
-          {routeInfo?.fareEstimate ? (
+          {/* {routeInfo?.fareEstimate ? (
             <View>
               <Text style={styles.priceValue}>{(routeInfo.fareEstimate.totalFare || routeInfo.fareEstimate.total)?.toLocaleString() || 'Tính toán...'}đ</Text>
               <View style={styles.fareBreakdown}>
@@ -631,7 +631,7 @@ export default function RideSharing(props?: RideSharingProps) {
                 </Text>
               </View>
             </View>
-          ) : null}
+          ) : null} */}
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>

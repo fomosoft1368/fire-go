@@ -19,7 +19,7 @@ import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { deliveryService } from '../services/deliveryService'
 import { mapsService } from '../services/mapsService'
 import { rideService } from '../services/rideService'
-import { calculateFare, formatCurrency } from '../utils/pricing'
+import { calculateFare, formatCurrency, getPricingConfig } from '../utils/pricing' // giao hàng
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useNavigation } from '@react-navigation/native'
@@ -53,6 +53,30 @@ interface Customer {
     avatar?: string
     address?: string
 }
+
+// ============ GIAO HÀNG - Dynamic Config from Backend ============
+interface DeliveryGoodsType {
+    key: string
+    label: string
+    icon: string
+    surcharge: number
+}
+
+interface DeliveryWeightRange {
+    key: string
+    label: string
+    surcharge: number
+}
+
+interface DeliveryVehicleType {
+    key: string
+    label: string
+    description: string
+    icon: string
+    vehicleTypeMapping: string
+}
+// ============ END GIAO HÀNG ============
+
 const GOODS_TYPES = [
     { key: 'light', label: 'Hàng nhẹ', icon: 'cube-outline' },
     { key: 'bulky', label: 'Cồng kềnh', icon: 'archive-outline' },
@@ -64,8 +88,8 @@ const WEIGHTS = [
     { key: '>50', label: '> 50kg' },
 ];
 const VEHICLES = [
-    { key: 'bike', label: 'Xe máy', desc: 'Phù hợp hàng nhỏ', icon: 'motorbike' },
-    { key: 'truck', label: 'Xe tải nhỏ', desc: 'Sức tải 500kg', icon: 'truck-outline' },
+    { key: 'bike', label: 'Xe máy', description: 'Phù hợp hàng nhỏ', icon: 'motorbike' },
+    { key: 'truck', label: 'Xe tải nhỏ', description: 'Sức tải 500kg', icon: 'truck-outline' },
 ];
 export default function Delivery(props?: DeliveryProps) {
     const [pickup, setPickup] = useState('')
@@ -86,8 +110,46 @@ export default function Delivery(props?: DeliveryProps) {
     const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
     const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+    
+    // ============ GIAO HÀNG - Dynamic Config ============
+    const [goodsTypes, setGoodsTypes] = useState<DeliveryGoodsType[]>(GOODS_TYPES.map(g => ({ ...g, surcharge: 0 })))
+    const [weightRanges, setWeightRanges] = useState<DeliveryWeightRange[]>(WEIGHTS.map(w => ({ ...w, surcharge: 0 })))
+    const [vehicles, setVehicles] = useState<DeliveryVehicleType[]>(VEHICLES.map(v => ({ ...v, vehicleTypeMapping: v.key === 'truck' ? 'truck' : 'sedan' })))
+    // ============ END GIAO HÀNG ============
+    
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
     const setRideMode = props?.setRideMode
+
+    // ============ GIAO HÀNG - Load Config from Backend ============
+    useEffect(() => {
+        const loadDeliveryConfig = async () => {
+            try {
+                console.log('[Delivery] Loading config from backend...')
+                const config = await getPricingConfig()
+                
+                if (config.deliveryGoodsTypes && config.deliveryGoodsTypes.length > 0) {
+                    setGoodsTypes(config.deliveryGoodsTypes)
+                    console.log('[Delivery] Loaded goods types:', config.deliveryGoodsTypes.length)
+                }
+                
+                if (config.deliveryWeightRanges && config.deliveryWeightRanges.length > 0) {
+                    setWeightRanges(config.deliveryWeightRanges)
+                    console.log('[Delivery] Loaded weight ranges:', config.deliveryWeightRanges.length)
+                }
+                
+                if (config.deliveryVehicleTypes && config.deliveryVehicleTypes.length > 0) {
+                    setVehicles(config.deliveryVehicleTypes)
+                    console.log('[Delivery] Loaded vehicle types:', config.deliveryVehicleTypes.length)
+                }
+            } catch (error) {
+                console.error('[Delivery] Error loading config:', error)
+                // Keep using fallback constants if API fails
+            }
+        }
+        
+        loadDeliveryConfig()
+    }, [])
+    // ============ END GIAO HÀNG ============
 
     const handlePickupLocationChange = (text: string) => {
         setPickup(text)
@@ -307,23 +369,24 @@ export default function Delivery(props?: DeliveryProps) {
             try {
                 const distanceKm = routeInfo.distance
 
-                // Map vehicle type: bike → sedan, truck → truck
-                const carType: 'sedan' | 'truck' = vehicle === 'truck' ? 'truck' : 'sedan'
+                // ============ GIAO HÀNG - Get vehicle mapping from config ============
+                const selectedVehicle = vehicles.find(v => v.key === vehicle)
+                const carType = (selectedVehicle?.vehicleTypeMapping || 'bike') as 'bike' | 'sedan' | 'truck'
+                // ============ END GIAO HÀNG ============
 
                 // Tính giá giao hàng: không có giảm giá ghép xe (totalPassengers = 1)
                 // Backend tự động check giờ cao điểm và áp dụng multiplier nếu cần
                 const fareBreakdown = await calculateFare(distanceKm, carType, 1, true)
                 
-                // Weight surcharge (vẫn áp dụng phụ phí theo trọng lượng)
-                let weightSurcharge = 0
-                if (weight === '>50') weightSurcharge = 30000
-                else if (weight === '20-50') weightSurcharge = 15000
-                else if (weight === '<20') weightSurcharge = 5000
+                // ============ GIAO HÀNG - Weight surcharge from config ============
+                const weightConfig = weightRanges.find(w => w.key === weight)
+                const weightSurcharge = weightConfig?.surcharge || 0
+                // ============ END GIAO HÀNG ============
 
-                // Goods type surcharge (vẫn áp dụng phụ phí theo loại hàng)
-                let goodsSurcharge = 0
-                if (goodsType === 'bulky') goodsSurcharge = 10000
-                else if (goodsType === 'food') goodsSurcharge = 5000
+                // ============ GIAO HÀNG - Goods type surcharge from config ============
+                const goodsConfig = goodsTypes.find(g => g.key === goodsType)
+                const goodsSurcharge = goodsConfig?.surcharge || 0
+                // ============ END GIAO HÀNG ============
 
                 // Total price = base fare từ backend + surcharges
                 const totalPrice = fareBreakdown.finalPrice + weightSurcharge + goodsSurcharge
@@ -347,7 +410,7 @@ export default function Delivery(props?: DeliveryProps) {
         }
 
         calculateDeliveryPrice()
-    }, [vehicle, weight, goodsType, routeInfo])
+    }, [vehicle, weight, goodsType, routeInfo, vehicles, weightRanges, goodsTypes]) // ============ GIAO HÀNG - Added dependencies ============
 
     const handleConfirm = async () => {
         if (!pickup || !dropoff || !goodsType || !weight) {
@@ -513,7 +576,8 @@ export default function Delivery(props?: DeliveryProps) {
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Loại hàng hóa</Text>
                         <View style={styles.optionsRow}>
-                            {GOODS_TYPES.map(type => (
+                            {/* ============ GIAO HÀNG - Dynamic goods types ============ */}
+                            {goodsTypes.map(type => (
                                 <TouchableOpacity
                                     key={type.key}
                                     style={[
@@ -536,6 +600,7 @@ export default function Delivery(props?: DeliveryProps) {
                                     </Text>
                                 </TouchableOpacity>
                             ))}
+                            {/* ============ END GIAO HÀNG ============ */}
                         </View>
                     </View>
 
@@ -543,7 +608,8 @@ export default function Delivery(props?: DeliveryProps) {
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Trọng lượng ước tính</Text>
                         <View style={styles.optionsRow}>
-                            {WEIGHTS.map(w => (
+                            {/* ============ GIAO HÀNG - Dynamic weight ranges ============ */}
+                            {weightRanges.map(w => (
                                 <TouchableOpacity
                                     key={w.key}
                                     style={[
@@ -561,6 +627,7 @@ export default function Delivery(props?: DeliveryProps) {
                                     </Text>
                                 </TouchableOpacity>
                             ))}
+                            {/* ============ END GIAO HÀNG ============ */}
                         </View>
                     </View>
 
@@ -568,7 +635,8 @@ export default function Delivery(props?: DeliveryProps) {
                     <View style={styles.section}>
                         <Text style={styles.sectionLabel}>Phương tiện vận chuyển</Text>
                         <View style={styles.vehicleRow}>
-                            {VEHICLES.map(v => (
+                            {/* ============ GIAO HÀNG - Dynamic vehicle types ============ */}
+                            {vehicles.map(v => (
                                 <TouchableOpacity
                                     key={v.key}
                                     style={[
@@ -589,9 +657,10 @@ export default function Delivery(props?: DeliveryProps) {
                                     ]}>
                                         {v.label}
                                     </Text>
-                                    <Text style={styles.vehicleDesc}>{v.desc}</Text>
+                                    <Text style={styles.vehicleDesc}>{v.description}</Text>
                                 </TouchableOpacity>
                             ))}
+                            {/* ============ END GIAO HÀNG ============ */}
                         </View>
                     </View>
                 </ScrollView>
