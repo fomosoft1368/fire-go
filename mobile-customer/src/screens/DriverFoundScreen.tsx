@@ -10,20 +10,19 @@ import {
   Alert,
   Dimensions,
   StatusBar,
-  Modal,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
 import { useNavigation, useRoute } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { RootState } from '../redux/store'
 import type { RootStackParamList } from '../types'
-import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
+import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
 import { rideService } from '../services/rideService'
 import MapViewComponent from '../components/MapView'
-import ChatScreen from './ChatScreen'
 
 const { height } = Dimensions.get('window')
 
@@ -33,10 +32,12 @@ const getStatusLabel = (status: string) => {
   const statusMap: { [key: string]: string } = {
     pending: 'Chuyến đi mới',
     accepted: 'Tài xế đã chấp nhận',
+    rejected: 'Tài xế từ chối',
+    timeout: 'Tài xế không phản hồi',
+    cancelled: 'Đã hủy',
     arrived_at_pickup: 'Tài xế đã đến',
     in_progress: 'Bắt đầu chuyến đi',
     completed: 'Hoàn thành',
-    cancelled: 'Đã hủy',
   }
   return statusMap[status] || 'Chờ xử lý'
 }
@@ -45,6 +46,9 @@ const getEstimatedTime = (status: string) => {
   const timeMap: { [key: string]: string } = {
     pending: '~10 phút',
     accepted: '~5 phút',
+    rejected: 'Đã từ chối',
+    timeout: 'Không phản hồi',
+    cancelled: 'Đã hủy',
     arrived_at_pickup: '0 phút',
     in_progress: 'Đang di chuyển',
     completed: 'Hoàn thành',
@@ -69,26 +73,31 @@ export default function DriverFoundScreen() {
   const [routeData, setRouteData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showChatScreen, setShowChatScreen] = useState(false)
   const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const locationInterval = useRef<NodeJS.Timeout | null>(null)
+  const alertedStatuses = useRef<Set<string>>(new Set()) // Track alerted status changes
 
   // Load trip details on mount
   useEffect(() => {
+    console.log('[DriverFoundScreen] 🚀 Initializing trip loading and polling...')
     loadTripDetails()
     loadDriverLocation() // Load location immediately on mount
     
-    // Poll trip status every 2 seconds
+    // ✅ CRITICAL: More aggressive polling for real-time updates
+    // Poll trip status every 1.5 seconds for faster updates
     pollingInterval.current = setInterval(() => {
+      console.log('[DriverFoundScreen] 🔄 Polling trip details...')
       loadTripDetails()
-    }, 2000)
+    }, 1500) // Reduced from 2000 to 1500ms
 
-    // Poll driver location every 2 seconds (same as trip polling) to stay in sync
+    // Poll driver location every 2 seconds to stay in sync
     locationInterval.current = setInterval(() => {
+      console.log('[DriverFoundScreen] 📍 Polling driver location...')
       loadDriverLocation()
     }, 2000)
 
     return () => {
+      console.log('[DriverFoundScreen] 🛑 Cleaning up polling intervals')
       if (pollingInterval.current) {
         clearInterval(pollingInterval.current)
       }
@@ -114,17 +123,32 @@ export default function DriverFoundScreen() {
       return
     }
 
+    // ✅ CRITICAL: Skip polling for synthetic/fallback requests
+    const isSyntheticRequest = rideRequest._id.startsWith('synthetic_') || 
+                               rideRequest._id.startsWith('userapi_') ||
+                               rideRequest._id.startsWith('fromtrip_') ||
+                               rideRequest._id.startsWith('fallback-')
+    
+    if (isSyntheticRequest) {
+      console.log('[DriverFoundScreen] ⚠️ Skipping status poll for synthetic request:', {
+        requestId: rideRequest._id,
+        reason: 'Synthetic requests don\'t exist in backend, will rely on trip polling instead',
+      })
+      return
+    }
+
     console.log('[DriverFoundScreen] ✅ Starting request status polling for:', {
       combinedTripId,
       rideRequestId: rideRequest._id,
       currentStatus: rideRequest?.status,
     })
 
-    // Poll request status every 2 seconds
+    // ✅ CRITICAL: Aggressive status polling for real-time updates
+    // Poll request status every 1 second for immediate status changes
     let pollCount = 0
     const statusPollingInterval = setInterval(async () => {
       pollCount++
-      console.log(`[DriverFoundScreen] 📡 Poll #${pollCount} - Fetching status...`, {
+      console.log(`[DriverFoundScreen] 📡 Status Poll #${pollCount} - Fetching status...`, {
         combinedTripId,
         rideRequestId: rideRequest._id,
         currentStatus: rideRequest?.status,
@@ -136,74 +160,104 @@ export default function DriverFoundScreen() {
           rideRequest._id
         )
         
-        console.log(`[DriverFoundScreen] 📡 Poll #${pollCount} - Response received:`, {
-          status: response?.status,
+        // ✅ ENHANCED DEBUG: Log full response to see what backend returns
+        console.log(`[DriverFoundScreen] 📡 Status Poll #${pollCount} - Full backend response:`, {
+          success: !!response,
+          responseStatus: response?.status,
+          responseType: typeof response?.status,
           requestId: response?._id,
-          fullResponse: response,
+          oldStatus: rideRequest?.status,
+          oldStatusType: typeof rideRequest?.status,
+          hasChanged: response?.status && response.status !== rideRequest?.status,
+          fullBackendResponse: response,
+          pollTimestamp: new Date().toISOString(),
         })
         
-        if (response?.status) {
+        if (response?.status && response.status !== rideRequest?.status) {
+          console.log(`[DriverFoundScreen] 🔄 Status Poll #${pollCount} - STATUS CHANGED:`, {
+            oldStatus: rideRequest?.status,
+            newStatus: response?.status,
+            shouldUpdate: true,
+          })
+          
           setRideRequest((prev: any) => {
-            const hasStatusChanged = prev?.status !== response?.status
-            console.log(`[DriverFoundScreen] 📡 Poll #${pollCount} - Updating state:`, {
+            console.log('[DriverFoundScreen] ✅ REQUEST STATUS UPDATED!', {
               oldStatus: prev?.status,
               newStatus: response?.status,
-              hasChanged: hasStatusChanged,
+              requestId: response?._id,
+              timestamp: new Date().toISOString(),
             })
-            if (hasStatusChanged) {
-              console.log('[DriverFoundScreen] ⚠️⚠️ Request status CHANGED!', {
-                oldStatus: prev?.status,
-                newStatus: response?.status,
-                requestId: response?._id,
-              })
-              
-              // Handle deleted/rejected status
-              if (response?.status === 'deleted' || response?.status === 'rejected') {
-                Alert.alert(
-                  'Yêu cầu bị từ chối',
-                  'Tài xế đã từ chối yêu cầu của bạn.',
-                  [{ text: 'OK', onPress: () => navigation.goBack() }]
-                )
-              }
+            return {
+              ...prev,
+              ...response,
+              status: response.status, // Ensure status is updated
             }
-            // IMPORTANT: Merge response with existing rideRequest to preserve _id
-            // Backend may only return partial data (status), so merge it
-            const merged = { ...prev, ...response }
-            console.log(`[DriverFoundScreen] 📡 Poll #${pollCount} - Merged state:`, {
-              prevId: prev?._id,
-              responseId: response?._id,
-              mergedId: merged?._id,
-              finalStatus: merged?.status,
-            })
-            return merged
           })
+          
+          // ✅ CRITICAL: Also reload trip data when status changes for complete sync
+          console.log('[DriverFoundScreen] 🔄 Status changed, reloading full trip data for consistency...')
+          setTimeout(() => loadTripDetails(), 100) // Small delay to avoid race conditions
+          
+          // Handle status changes with navigation or alerts
+          if (response?.status === 'completed') {
+            console.log('🏁 Trip completed - should navigate to rating screen')
+            const alertKey = `completed-${response._id}`
+            if (!alertedStatuses.current.has(alertKey)) {
+              alertedStatuses.current.add(alertKey)
+              Alert.alert('Hoàn thành', 'Chuyến đi đã hoàn thành thành công!')
+            }
+          } else if (response?.status === 'cancelled' || response?.status === 'deleted' || response?.status === 'rejected' || response?.status === 'timeout') {
+            console.log('❌ Trip cancelled/rejected/timeout - should navigate back')
+            const alertKey = `cancelled-${response._id}-${response.status}`
+            if (!alertedStatuses.current.has(alertKey)) {
+              alertedStatuses.current.add(alertKey)
+              Alert.alert(
+                'Chuyến đi bị hủy',
+                'Tài xế đã hủy, từ chối hoặc không phản hồi chuyến đi của bạn.',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
+              )
+            }
+          }
         } else {
-          console.warn(`[DriverFoundScreen] 📡 Poll #${pollCount} - No status in response!`, response)
+          console.log(`[DriverFoundScreen] ⚪ Status Poll #${pollCount} - No change:`, {
+            currentStatus: rideRequest?.status,
+            responseStatus: response?.status,
+          })
         }
       } catch (err: any) {
-        console.error(`[DriverFoundScreen] 📡 Poll #${pollCount} - Error:`, {
+        console.error(`[DriverFoundScreen] ❌ Status Poll #${pollCount} - Error:`, {
           message: err.message,
           error: err,
           combinedTripId,
           rideRequestId: rideRequest._id,
         })
       }
-    }, 2000)
+    }, 1000) // Reduced from 2000 to 1000ms for faster status updates
 
     return () => {
       console.log(`[DriverFoundScreen] 🛑 Clearing polling interval after ${pollCount} polls`)
       clearInterval(statusPollingInterval)
     }
-  }, [rideRequest?._id, combinedTripId])
+  }, [rideRequest?._id, combinedTripId, navigation])
 
-  // Load route when trip starts (status = in_progress) or driver location changes
+  // Load route when driver accepts (shows route to pickup) or trip starts (shows route to dropoff)
   // Check BOTH RideRequest status (customer's status) and CombinedTrip status
   useEffect(() => {
     const currentStatus = rideRequest?.status || tripData?.status
-    if (currentStatus === 'in_progress' && driverLocation) {
+    console.log('[DriverFoundScreen] Route loading check:', {
+      currentStatus,
+      hasDriverlocation: !!driverLocation,
+      driverCoords: driverLocation?.coordinates,
+    })
+    
+    // ✅ CRITICAL: Call loadRoute immediately when status is in_progress
+    // Don't wait for driverLocation - it will be used from current state
+    // Map will show polyline even if driver location is still updating
+    if (currentStatus === 'in_progress') {
+      console.log('[DriverFoundScreen] Status is in_progress - calling loadRoute immediately')
       loadRoute()
     }
-  }, [rideRequest?.status, tripData?.status, driverLocation])
+  }, [rideRequest?.status, tripData?.status, driverLocation]) // ✅ Add driverLocation to dependency - retry when it updates
 
   const loadTripDetails = async () => {
     try {
@@ -236,32 +290,84 @@ export default function DriverFoundScreen() {
           })),
         })
 
-        // Find the ride request for CURRENT USER
-        // Match by user ID from Redux
+        // ✅ CRITICAL DEBUG: Log current user info before matching
         const currentUserId = user?._id || user?.id
-        console.log('[DriverFoundScreen] Current user ID from Redux:', {
+        console.log('[DriverFoundScreen] 🔍 USER MATCHING DEBUG - Starting user match process:', {
           userId: currentUserId,
-          type: typeof currentUserId,
-          user: user,
+          userIdType: typeof currentUserId,
+          fullUserObject: user,
+          requestsToMatch: requests?.length || 0,
+          allRequests: requests?.map((r: any) => ({
+            _id: r._id,
+            customerId: r.customerId,
+            customerIdType: typeof r.customerId,
+            customerId_id: r.customerId?._id,
+            customerId_id_type: typeof r.customerId?._id,
+            status: r.status,
+          })) || [],
         })
 
         if (currentUserId && Array.isArray(requests) && requests.length > 0) {
           console.log('[DriverFoundScreen] Starting to match', requests.length, 'requests')
-          request = requests.find((req: any) => {
+          
+          // ✅ CRITICAL DEBUG: Show filtering process step by step
+          console.log('[DriverFoundScreen] 🔍 FILTERING DEBUG - Before active filter:', {
+            allRequests: requests.map((r: any) => ({
+              _id: r._id,
+              status: r.status,
+              customerId: r.customerId?._id || r.customerId,
+              isActiveStatus: ['pending', 'accepted', 'arrived_at_pickup', 'in_progress', 'completed'].includes(r.status),
+            })),
+          })
+          
+          // ✅ IMPORTANT: Only find ACTIVE requests (pending/accepted/in_progress)
+          // Filter out timeout/rejected requests to avoid showing old driver data
+          const activeRequests = requests.filter((r: any) => 
+            ['pending', 'accepted', 'arrived_at_pickup', 'in_progress', 'completed'].includes(r.status)
+          )
+          console.log('[DriverFoundScreen] 🔍 FILTERING DEBUG - After active filter:', {
+            originalCount: requests.length,
+            activeCount: activeRequests.length,
+            filteredOut: requests.length - activeRequests.length,
+            activeRequests: activeRequests.map((r: any) => ({
+              _id: r._id,
+              status: r.status,
+              customerId: r.customerId?._id || r.customerId,
+            })),
+          })
+          
+          request = activeRequests.find((req: any) => {
             const reqCustomerId = req.customerId?._id || req.customerId
             const isMatch = String(reqCustomerId) === String(currentUserId)
-            console.log('[DriverFoundScreen] Matching request:', {
+            console.log('[DriverFoundScreen] 🔍 MATCHING REQUEST DEBUG:', {
               reqCustomerId,
               reqCustomerId_type: typeof reqCustomerId,
               currentUserId,
               currentUserId_type: typeof currentUserId,
               isMatch,
-              status: req.status,
+              requestStatus: req.status,
+              requestStatusType: typeof req.status,
+              requestId: req._id,
               reqFullObj: req,
             })
             return isMatch
           })
-          console.log('[DriverFoundScreen] Found RideRequest for current user:', {
+          
+          // ✅ CRITICAL DEBUG: Log the final selected request
+          console.log('[DriverFoundScreen] 🎯 FINAL SELECTED REQUEST:', {
+            currentUserId,
+            requestFound: !!request,
+            requestStatus: request?.status,
+            requestStatusType: typeof request?.status,
+            requestId: request?._id,
+            allActiveRequests: activeRequests.map(r => ({
+              _id: r._id,
+              status: r.status,
+              customerId: r.customerId?._id || r.customerId,
+            })),
+            selectedRequestFullObj: request,
+          })
+          console.log('[DriverFoundScreen] ✅ Found RideRequest for current user:', {
             currentUserId,
             requestFound: !!request,
             requestStatus: request?.status,
@@ -269,15 +375,202 @@ export default function DriverFoundScreen() {
             requestFullObj: request,
           })
         } else {
-          // Fallback: use first request if no user ID available
-          request = requests?.[0] || null
-          console.log('[DriverFoundScreen] Using fallback request:', {
+          // ✅ CRITICAL DEBUG: Why no matching happened?
+          console.log('[DriverFoundScreen] 🚨 NO MATCHING ATTEMPTED - Debug reasons:', {
+            hasCurrentUserId: !!currentUserId,
+            currentUserId: currentUserId,
+            isRequestsArray: Array.isArray(requests),
+            requestsLength: requests?.length || 0,
+            requests: requests,
+            userObject: user,
+            reasons: {
+              noUserId: !currentUserId,
+              notArray: !Array.isArray(requests),
+              emptyArray: Array.isArray(requests) && requests.length === 0,
+            },
+          })
+          
+          // ✅ CRITICAL FALLBACK: If no requests found, try alternative method
+          if (Array.isArray(requests) && requests.length === 0 && currentUserId) {
+            console.log('[DriverFoundScreen] 🔧 EMERGENCY FALLBACK - No requests from API, trying direct database query...')
+            
+            // Try direct query to backend for this specific user's request
+            try {
+              // Use the user API to get current user's active requests
+              const userResponse = await fetch(`${API_BASE_URL}/combined-trips/customer/${currentUserId}`, {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${await AsyncStorage.getItem('authToken')}`,
+                },
+              })
+              
+              console.log('[DriverFoundScreen] 🔧 Direct API response status:', userResponse.status)
+              
+              if (userResponse.ok) {
+                const userTrips = await userResponse.json()
+                console.log('[DriverFoundScreen] 🆘 Direct user query result:', {
+                  userTripsCount: userTrips?.length || 0,
+                  userTrips: userTrips?.slice(0, 2), // Log first 2 trips
+                  combinedTripId: combinedTripId,
+                })
+                
+                // Find trip matching current combinedTripId
+                const matchingTrip = userTrips?.find((trip: any) => String(trip._id) === String(combinedTripId))
+                if (matchingTrip) {
+                  console.log('[DriverFoundScreen] 🎯 Found matching trip from user API:', {
+                    tripId: matchingTrip._id,
+                    tripStatus: matchingTrip.status,
+                    requestStatus: matchingTrip.requestStatus,
+                    customerFare: matchingTrip.customerFare,
+                    customerSeats: matchingTrip.customerSeats,
+                    hasRequest: !!matchingTrip.request,
+                    rideRequests: matchingTrip.rideRequests,
+                  })
+                  
+                  // ✅ CRITICAL: This API returns trip WITH customer's RideRequest data embedded
+                  // Fields like requestStatus, customerFare, customerSeats come from RideRequest
+                  request = {
+                    _id: matchingTrip.requestId || `fromtrip_${matchingTrip._id}_${currentUserId}`,
+                    combinedTripId: combinedTripId,
+                    customerId: currentUserId,
+                    status: matchingTrip.requestStatus || matchingTrip.status, // ✅ Use requestStatus (from RideRequest), NOT trip status
+                    seats: matchingTrip.customerSeats || matchingTrip.seats || 1,
+                    fare: matchingTrip.customerFare || matchingTrip.fare || 0,
+                    tripType: 'combined_trip',
+                    pickupCoordinates: matchingTrip.customerPickupCoordinates || matchingTrip.pickupCoordinates || trip?.pickupLocation?.coordinates,
+                    dropoffCoordinates: matchingTrip.customerDropoffCoordinates || matchingTrip.dropoffCoordinates || trip?.dropoffLocation?.coordinates,
+                    pickupAddress: matchingTrip.customerPickupAddress || matchingTrip.pickupAddress || trip?.pickupAddress,
+                    dropoffAddress: matchingTrip.customerDropoffAddress || matchingTrip.dropoffAddress || trip?.dropoffAddress,
+                    createdAt: matchingTrip.createdAt || new Date().toISOString(),
+                    updatedAt: matchingTrip.updatedAt || new Date().toISOString(),
+                    driverId: trip?.driverId?._id,
+                  }
+                  
+                  console.log('[DriverFoundScreen] ✅ FALLBACK SUCCESS - Created request from user API:', {
+                    requestId: request._id,
+                    status: request.status,
+                    source: 'user API (customer/:id endpoint)',
+                    usedRequestStatus: !!matchingTrip.requestStatus,
+                    requestStatusValue: matchingTrip.requestStatus,
+                    tripStatusValue: matchingTrip.status,
+                  })
+                }
+              } else {
+                const errorText = await userResponse.text()
+                console.error('[DriverFoundScreen] 🔧 Direct API error:', userResponse.status, errorText)
+                
+                // Try alternative: get combined trip directly
+                console.log('[DriverFoundScreen] 🔧 Trying direct combined trip API...')
+                const directTripResponse = await fetch(`${API_BASE_URL}/combined-trips/${combinedTripId}`, {
+                  method: 'GET',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${await AsyncStorage.getItem('authToken')}`,
+                  },
+                })
+                
+                if (directTripResponse.ok) {
+                  const combinedTripData = await directTripResponse.json()
+                  console.log('[DriverFoundScreen] 🔧 Direct combined trip result:', {
+                    tripId: combinedTripData._id,
+                    status: combinedTripData.status,
+                    hasRideRequests: !!combinedTripData.rideRequests,
+                    rideRequestsCount: combinedTripData.rideRequests?.length || 0,
+                  })
+                  
+                  // Find matching ride request
+                  const matchingRequest = combinedTripData.rideRequests?.find((req: any) => 
+                    String(req.customerId) === String(currentUserId)
+                  )
+                  
+                  if (matchingRequest) {
+                    console.log('[DriverFoundScreen] 🎯 Found matching request from direct trip API:', {
+                      requestId: matchingRequest._id,
+                      status: matchingRequest.status,
+                      customerId: matchingRequest.customerId,
+                    })
+                    
+                    request = {
+                      _id: matchingRequest._id,
+                      combinedTripId: combinedTripId,
+                      customerId: matchingRequest.customerId,
+                      status: matchingRequest.status,
+                      seats: matchingRequest.seats || 1,
+                      fare: matchingRequest.fare || 0,
+                      tripType: 'combined_trip',
+                      pickupCoordinates: matchingRequest.pickupCoordinates || trip?.pickupLocation?.coordinates,
+                      dropoffCoordinates: matchingRequest.dropoffCoordinates || trip?.dropoffLocation?.coordinates,
+                      pickupAddress: matchingRequest.pickupAddress || trip?.pickupAddress,
+                      dropoffAddress: matchingRequest.dropoffAddress || trip?.dropoffAddress,
+                      createdAt: matchingRequest.createdAt || new Date().toISOString(),
+                      updatedAt: matchingRequest.updatedAt || new Date().toISOString(),
+                      driverId: trip?.driverId?._id,
+                    }
+                    
+                    console.log('[DriverFoundScreen] ✅ FALLBACK SUCCESS - Created request from direct trip API:', {
+                      requestId: request._id,
+                      status: request.status,
+                      source: 'direct trip API',
+                    })
+                  }
+                }
+              }
+            } catch (apiError) {
+              console.warn('[DriverFoundScreen] 🔧 Direct API fallback failed:', apiError)
+            }
+            
+            // If still no request, create synthetic one as last resort
+            if (!request) {
+              console.log('[DriverFoundScreen] 🆘 Last resort: Creating synthetic request...')
+              request = {
+                _id: `synthetic_${combinedTripId}_${currentUserId}`,
+                combinedTripId: combinedTripId,
+                customerId: currentUserId,
+                status: tripData?.status || 'accepted', // Use CombinedTrip status as fallback
+                seats: 1,
+                fare: tripData?.fare || 0,
+                tripType: 'combined_trip',
+                pickupCoordinates: trip?.pickupLocation?.coordinates,
+                dropoffCoordinates: trip?.dropoffLocation?.coordinates,
+                pickupAddress: trip?.pickupLocation?.address,
+                dropoffAddress: trip?.dropoffLocation?.address,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                driverId: trip?.driverId?._id,
+              }
+              console.log('[DriverFoundScreen] 🆘 SYNTHETIC REQUEST CREATED:', {
+                synthetic: true,
+                requestId: request._id,
+                status: request.status,
+                basedOnTripStatus: tripData?.status,
+                reason: 'All APIs failed - using synthetic data',
+              })
+            }
+          } else {
+            // Normal fallback: use first ACTIVE request if no user ID available
+            const activeRequests = requests?.filter((r: any) => 
+              ['pending', 'accepted', 'arrived_at_pickup', 'in_progress', 'completed'].includes(r?.status)
+            ) || []
+            request = activeRequests?.[0] || null
+          }
+          
+          console.log('[DriverFoundScreen] 🔄 FALLBACK REQUEST SELECTION:', {
             reason: !currentUserId ? 'no user ID' : !Array.isArray(requests) ? 'requests not array' : 'empty requests',
             requestStatus: request?.status,
             requestId: request?._id,
             currentUserId,
             requestsCount: requests?.length || 0,
-            requestFullObj: request,
+            activeRequestsCount: requests?.filter?.((r: any) => 
+              ['pending', 'accepted', 'arrived_at_pickup', 'in_progress', 'completed'].includes(r?.status)
+            )?.length || 0,
+            selectedRequest: request ? {
+              _id: request._id,
+              status: request.status,
+              customerId: request.customerId,
+              fare: request.fare,
+              synthetic: request._id?.includes('synthetic_'),
+            } : null,
           })
         }
       } catch (err) {
@@ -299,7 +592,18 @@ export default function DriverFoundScreen() {
           type: trip.driverId.currentLocation.type,
           coordinates: trip.driverId.currentLocation.coordinates,
         } : 'NOT_FOUND',
+        // ✅ NEW: Debug driver matching
+        requestDriverId: request?.driverId,
+        tripDriverId: trip?.driverId?._id,
       })
+      
+      // ✅ CRITICAL: Ensure CombinedTrip shows correct driver from active request
+      // Backend should update CombinedTrip.driverId when request accepted, but add safety check
+      if (request?.driverId && trip?.driverId?._id && 
+          String(request.driverId) !== String(trip.driverId._id)) {
+        console.warn('[DriverFoundScreen] ⚠️ Driver ID mismatch! Request driver:', request.driverId, 'vs Trip driver:', trip.driverId._id)
+        console.warn('[DriverFoundScreen] Using trip driver (should be updated by backend)')
+      }
       
       setTripData(trip)
       setRideRequest(request)
@@ -382,25 +686,121 @@ export default function DriverFoundScreen() {
 
   const loadRoute = async () => {
     try {
+      console.log('[DriverFoundScreen] 🗺️ === LOADROUTE CALLED ===', {
+        timestamp: new Date().toISOString(),
+        combinedTripId,
+        tripStatus: rideRequest?.status || tripData?.status,
+      })
+      
       // Use customer's dropoff coordinates from RideRequest
       const customerDropoffCoords = rideRequest?.dropoffCoordinates || tripData?.dropoffLocation?.coordinates
+      const customerPickupCoords = rideRequest?.pickupCoordinates || tripData?.pickupLocation?.coordinates
       
-      if (!combinedTripId || !driverLocation || !customerDropoffCoords) return
+      // ✅ CRITICAL FIX: Use pickup location as fallback when driver GPS not ready
+      // Driver is usually near pickup when status just changed to in_progress
+      // This ensures OSRM always gets valid coordinates instead of [0, 0]
+      const driverCoords = driverLocation?.coordinates || customerPickupCoords || [0, 0]
+      
+      console.log('[DriverFoundScreen] 🗺️ Loading route with data:', {
+        combinedTripId,
+        hasDriverLocation: !!driverLocation,
+        driverCoords: driverCoords,
+        driverLocationSource: driverLocation ? 'polling' : (customerPickupCoords ? 'fallback to pickup' : 'fallback [0,0]'),
+        hasCustomerDropoff: !!customerDropoffCoords,
+        customerDropoffCoords,
+        rideRequestDropoff: rideRequest?.dropoffCoordinates,
+        tripDataDropoff: tripData?.dropoffLocation?.coordinates,
+      })
+      
+      // ✅ Validate dropoff coordinates (critical)
+      if (!customerDropoffCoords || !Array.isArray(customerDropoffCoords) || customerDropoffCoords.length < 2) {
+        console.warn('[DriverFoundScreen] ❌ VALIDATION FAILED: Invalid customer dropoff coordinates:', {
+          value: customerDropoffCoords,
+          isNull: !customerDropoffCoords,
+          isArray: Array.isArray(customerDropoffCoords),
+          length: customerDropoffCoords?.length,
+        })
+        return
+      }
+      
+      // Extract coordinates
+      const [driverLng, driverLat] = driverCoords
+      const [customerLng, customerLat] = customerDropoffCoords
+      
+      // ✅ CRITICAL FIX: Skip OSRM call ONLY if coordinates are truly invalid [0, 0]
+      // AND we couldn't get pickup location fallback
+      if ((driverLng === 0 && driverLat === 0) && (!customerPickupCoords)) {
+        console.warn('[DriverFoundScreen] ⚠️ SKIPPED: No valid coordinates available for route', {
+          reason: 'Both driver location and pickup fallback are [0, 0]',
+          driverCoords: [driverLng, driverLat],
+          pickupCoords: customerPickupCoords,
+          willRetryWhen: 'driverLocation state updates from polling',
+        })
+        return
+      }
+      
+      // ✅ Validate numeric values
+      if (typeof driverLng !== 'number' || typeof driverLat !== 'number' || 
+          typeof customerLng !== 'number' || typeof customerLat !== 'number') {
+        console.warn('[DriverFoundScreen] ❌ Non-numeric coordinates:', {
+          driverLng: typeof driverLng,
+          driverLat: typeof driverLat,
+          customerLng: typeof customerLng,
+          customerLat: typeof customerLat,
+        })
+        return
+      }
+      
+      if (isNaN(driverLng) || isNaN(driverLat) || isNaN(customerLng) || isNaN(customerLat)) {
+        console.warn('[DriverFoundScreen] ❌ NaN coordinates:', {
+          driverLng,
+          driverLat,
+          customerLng,
+          customerLat,
+        })
+        return
+      }
 
-      console.log('[DriverFoundScreen] Loading route for trip in progress to customer dropoff')
+      console.log('[DriverFoundScreen] ✅ Calling getDirections with validated coordinates:', {
+        from: [driverLng, driverLat],
+        to: [customerLng, customerLat],
+        callTimestamp: new Date().toISOString(),
+        usingFallbackLocation: !driverLocation && !!customerPickupCoords,
+      })
       
       // Fetch route from OSRM - from driver location to CUSTOMER's dropoff
       const directions = await rideService.getDirections(
-        driverLocation.coordinates[0],
-        driverLocation.coordinates[1],
-        customerDropoffCoords[0],
-        customerDropoffCoords[1],
+        driverLng,
+        driverLat,
+        customerLng,
+        customerLat,
       )
 
-      console.log('[DriverFoundScreen] Route fetched')
+      console.log('[DriverFoundScreen] ✅ Route fetched successfully:', {
+        hasDirections: !!directions,
+        distance: directions?.distance,
+        duration: directions?.duration,
+        hasFeatures: !!directions?.features,
+        featuresLength: directions?.features?.length,
+        hasGeometry: !!directions?.features?.[0]?.geometry,
+        geometryType: directions?.features?.[0]?.geometry?.type,
+        coordsLength: directions?.features?.[0]?.geometry?.coordinates?.length,
+      })
       setRouteData(directions)
     } catch (err: any) {
-      console.error('Error loading route:', err)
+      console.error('[DriverFoundScreen] ❌ Error loading route:', {
+        message: err.message,
+        stack: err.stack,
+        errorType: err.constructor.name,
+        timestamp: new Date().toISOString(),
+        driverLocation: driverLocation ? {
+          coordinates: driverLocation.coordinates,
+          type: driverLocation.type,
+        } : 'NULL',
+        customerDropoffCoords: rideRequest?.dropoffCoordinates || tripData?.dropoffLocation?.coordinates,
+        rideRequestId: rideRequest?._id,
+        combinedTripId,
+      })
     }
   }
 
@@ -414,21 +814,58 @@ export default function DriverFoundScreen() {
   }
 
   const handleChat = () => {
-    if (tripData?.driverId) {
-      setShowChatScreen(true)
+    if (tripData?.driverId && rideRequest?._id) {
+      navigation.navigate('ChatScreen', {
+        driver: {
+          id: tripData.driverId._id,
+          name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
+          avatar: tripData.driverId.avatar || '',
+          rating: tripData.driverId.rating || 5,
+          totalRides: tripData.driverId.totalRides || 0,
+          carType: tripData.driverId.carType || 'Unknown',
+          licensePlate: tripData.driverId.licensePlate || '',
+          carColor: tripData.driverId.carColor || '',
+          distance: tripData.driverId.distance || 0,
+          eta: tripData.driverId.eta || 0,
+          phone: tripData.driverId.phone,
+          email: tripData.driverId.email,
+        },
+        rideId: rideRequest._id,
+      })
     }
   }
 
-  const handleCancelTrip = () => {
+  const handleCancelTrip = async () => {
+    // ✅ Chỉ cho phép hủy khi status = 'accepted'
+    if (rideRequest?.status !== 'accepted') {
+      Alert.alert(
+        'Không thể hủy', 
+        rideRequest?.status === 'arrived_at_pickup' || rideRequest?.status === 'in_progress'
+          ? 'Tài xế đã đến hoặc đang di chuyển, không thể hủy chuyến'
+          : 'Chuyến đi không thể hủy ở trạng thái hiện tại'
+      )
+      return
+    }
+
     Alert.alert('Hủy chuyến đi', 'Bạn có chắc chắn muốn hủy chuyến đi này?', [
       { text: 'Không', onPress: () => {}, style: 'cancel' },
       {
         text: 'Hủy chuyến',
         onPress: async () => {
           try {
-            Alert.alert('Thành công', 'Chuyến đi đã bị hủy')
-            navigation.goBack()
+            if (!rideRequest?._id || !combinedTripId) {
+              Alert.alert('Lỗi', 'Không tìm thấy thông tin chuyến đi')
+              return
+            }
+
+            // Call API to cancel ride request
+            await combinedTripsService.cancelRideRequest(combinedTripId, rideRequest._id)
+            
+            Alert.alert('Thành công', 'Chuyến đi đã bị hủy. Ghế của bạn đã được hoàn lại.', [
+              { text: 'OK', onPress: () => navigation.goBack() }
+            ])
           } catch (err: any) {
+            console.error('[handleCancelTrip] Error:', err)
             Alert.alert('Lỗi', err.message || 'Không thể hủy chuyến đi')
           }
         },
@@ -481,21 +918,32 @@ export default function DriverFoundScreen() {
   }
   
   // Use RideRequest status (customer's booking status) instead of CombinedTrip status
-  // RideRequest.status reflects customer's actual position in the trip
+  // ✅ CRITICAL: RideRequest.status reflects customer's actual position in the trip
+  // This status comes from backend RideRequest collection, NOT CombinedTrip
   const tripStatus = rideRequest?.status || 'pending'
   const statusLabel = getStatusLabel(tripStatus)
   const estimatedTime = getEstimatedTime(tripStatus)
   
-  console.log('[DriverFoundScreen] Current trip status:', {
+  // ✅ DEBUG: Add detailed logging to see what's happening with status
+  console.log('[DriverFoundScreen] ✅ STATUS DEBUG - Current status analysis:', {
     rideRequest: rideRequest ? {
       _id: rideRequest._id,
-      status: rideRequest.status,
+      status: rideRequest.status, // ← This is the correct status
       customerId: rideRequest.customerId,
       fare: rideRequest.fare,
-    } : null,
-    displayStatus: tripStatus,
-    statusLabel,
-    estimatedTime,
+      timestamp: new Date().toISOString(),
+      rawObject: rideRequest, // Log full object to see all fields
+    } : 'NULL_RIDE_REQUEST',
+    combinedTripStatus: tripData?.status, // ← This is NOT used for display
+    finalDisplayStatus: tripStatus,
+    statusLabel: statusLabel,
+    estimatedTime: estimatedTime,
+    getStatusLabelResult: getStatusLabel(tripStatus),
+    polling: {
+      tripDataPolling: pollingInterval.current ? 'active' : 'inactive',
+      statusPolling: 'per useEffect',
+      locationPolling: locationInterval.current ? 'active' : 'inactive',
+    },
   })
   
   // Debug log
@@ -574,6 +1022,29 @@ export default function DriverFoundScreen() {
           longitude: coord[0],
         })
       )
+      console.log('[DriverFoundScreen] 📍 MAP UPDATE - Polyline rendered:', {
+        status: 'in_progress',
+        routeDataExists: !!routeData,
+        featuresExists: !!routeData?.features,
+        geometryExists: !!routeData?.features?.[0]?.geometry,
+        coordinatesLength: mapRouteCoordinates?.length,
+        firstCoord: mapRouteCoordinates?.[0],
+        lastCoord: mapRouteCoordinates?.[mapRouteCoordinates.length - 1],
+      })
+    } else {
+      console.warn('[DriverFoundScreen] 📍 MAP UPDATE - Polyline NOT available:', {
+        status: 'in_progress',
+        routeDataExists: !!routeData,
+        featuresExists: !!routeData?.features,
+        geometryExists: !!routeData?.features?.[0]?.geometry,
+        coordinates: routeData?.features?.[0]?.geometry?.coordinates ? 'exists' : 'missing',
+        routeDataStructure: {
+          distance: routeData?.distance,
+          duration: routeData?.duration,
+          hasFeatures: !!routeData?.features,
+          featureslength: routeData?.features?.length,
+        }
+      })
     }
   }
 
@@ -749,13 +1220,26 @@ export default function DriverFoundScreen() {
           </View>
 
           {/* Secondary Action - Cancel */}
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={handleCancelTrip}
-          >
-            <MaterialIcons name="cancel" size={20} color="#ef4444" />
-            <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
-          </TouchableOpacity>
+          {/* ✅ Chỉ hiển thị nút hủy khi status = 'accepted' */}
+          {rideRequest?.status === 'accepted' && (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={handleCancelTrip}
+            >
+              <MaterialIcons name="cancel" size={20} color="#ef4444" />
+              <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
+            </TouchableOpacity>
+          )}
+          
+          {/* ✅ Hiển thị thông báo khi không thể hủy */}
+          {(rideRequest?.status === 'arrived_at_pickup' || rideRequest?.status === 'in_progress') && (
+            <View style={styles.cannotCancelNotice}>
+              <MaterialIcons name="info" size={16} color={colors.textSecondary} />
+              <Text style={[styles.cannotCancelText, { color: colors.textSecondary }]}>
+                Tài xế đã đến điểm đón, không thể hủy chuyến
+              </Text>
+            </View>
+          )}
 
           {/* Trip Details - Optional */}
           <View style={[styles.tripDetailsCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
@@ -782,34 +1266,6 @@ export default function DriverFoundScreen() {
           <View style={{ height: SPACING.xl }} />
         </ScrollView>
       </LinearGradient>
-
-      {/* Chat Modal */}
-      <Modal 
-        visible={showChatScreen} 
-        animationType="slide"
-        transparent={false}
-      >
-        {showChatScreen && tripData?.driverId && (
-          <ChatScreen
-            driver={{
-              id: tripData.driverId._id,
-              name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
-              avatar: tripData.driverId.avatar || '',
-              rating: tripData.driverId.rating || 5,
-              totalRides: tripData.driverId.totalRides || 0,
-              carType: tripData.driverId.carType || 'Unknown',
-              licensePlate: tripData.driverId.licensePlate || '',
-              carColor: tripData.driverId.carColor || '',
-              distance: tripData.driverId.distance || 0,
-              eta: tripData.driverId.eta || 0,
-              phone: tripData.driverId.phone,
-              email: tripData.driverId.email,
-            } as any}
-            rideId={tripData._id}
-            onClose={() => setShowChatScreen(false)}
-          />
-        )}
-      </Modal>
     </SafeAreaView>
   )
 }
@@ -1088,6 +1544,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#ef4444',
+  },
+  cannotCancelNotice: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.md,
+  },
+  cannotCancelText: {
+    fontSize: 12,
+    fontStyle: 'italic',
   },
   tripDetailsCard: {
     borderWidth: 1,

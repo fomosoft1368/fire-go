@@ -15,6 +15,7 @@ import { MessagesModule } from './modules/messages/messages.module';
 import { PlacesModule } from './modules/places/places.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
+import { PricingModule } from './modules/pricing/pricing.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { DeliveryModule } from './modules/delivery/delivery.module';
     PlacesModule,
     PaymentModule,
     DeliveryModule,
+    PricingModule,
   ],
   controllers: [],
   providers: [],

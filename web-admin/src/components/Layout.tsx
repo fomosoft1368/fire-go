@@ -270,6 +270,18 @@ export default function Layout({ children }: LayoutProps) {
           </button>
 
           <button
+            onClick={() => navigate('/pricing-config')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/pricing-config')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/pricing-config') ? 'filled' : ''}`}>attach_money</span>
+            <span className="font-semibold">{t('sidebar.pricingConfig', 'Pricing Config')}</span>
+          </button>
+
+          <button
             onClick={() => navigate('/dispatch')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
               isActive('/dispatch')
@@ -358,6 +370,7 @@ export default function Layout({ children }: LayoutProps) {
               {location.pathname === '/customers' && 'Quản lý Khách hàng'}
               {location.pathname === '/revenue' && 'Quản lý Doanh thu'}
               {location.pathname === '/transactions' && 'Quản lý Giao dịch'}
+              {location.pathname === '/pricing-config' && 'Cấu hình Giá cước'}
               {location.pathname === '/dispatch' && 'Điều phối & Tranh chấp'}
               {location.pathname === '/notifications' && 'Quản lý Thông báo'}
               {location.pathname === '/reports' && 'Báo cáo & Thống kê'}

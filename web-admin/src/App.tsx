@@ -19,6 +19,7 @@ import Customers from './pages/customers'
 import Settings from './pages/settings'
 import WalletManagement from './pages/transaction-management'
 import NotificationsManagement from './pages/NotificationsManagement'
+import PricingConfig from './pages/pricing-config'
 import './App.css'
 
 function App() {
@@ -85,6 +86,7 @@ function App() {
               <Route path="/reports" element={<ReportsAnalytics />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/transactions" element={<WalletManagement />} />
+              <Route path="/pricing-config" element={<PricingConfig />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Router>

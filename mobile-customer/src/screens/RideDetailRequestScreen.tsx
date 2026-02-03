@@ -22,6 +22,7 @@ import type { RootStackParamList, NearbyRide } from '../types'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
 import { rideService } from '../services/rideService'
+import { calculateFare } from '../utils/pricing'
 import MapViewComponent from '../components/MapView'
 
 const { height, width } = Dimensions.get('window')
@@ -57,17 +58,58 @@ export default function RideDetailRequestScreen() {
   const [customerFare, setCustomerFare] = useState<number | null>(null)
   const [customerDistance, setCustomerDistance] = useState<number | null>(null)
   const [calculatingFare, setCalculatingFare] = useState(false)
+  const [tripData, setTripData] = useState(ride) // ✅ Store ride data in state for updates
   const statusCheckInterval = useRef<NodeJS.Timeout | null>(null)
+  const tripPollInterval = useRef<NodeJS.Timeout | null>(null)
+
+  //  Calculate seat availability BEFORE useEffect
+  const totalSeats = tripData?.totalSeats || 4
+  
+  const bookedSeatsCount = tripData?.bookedSeats ?? (totalSeats - (tripData?.availableSeats ?? totalSeats))
+  // ✅ Số ghế trống = tổng ghế - ghế đã đặt - ghế đang chọn
+  const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
 
   // Validate ride data
   useEffect(() => {
-    if (!ride || !combinedTripId) {
+    if (!tripData || !combinedTripId) {
       Alert.alert('Lỗi', 'Không thể tải thông tin chuyến xe')
       navigation.goBack()
     }
   }, [])
 
+  // ✅ Poll trip data every 2 seconds to get updated availableSeats
+  useEffect(() => {
+    const pollTripData = async () => {
+      try {
+        const updatedTrip = await combinedTripsService.getCombinedTripDetail(combinedTripId)
+        if (updatedTrip) {
+          setTripData(updatedTrip)
+          console.log('[RideDetailRequestScreen] Trip data polled:', {
+            availableSeats: updatedTrip.availableSeats,
+            totalSeats: updatedTrip.totalSeats,
+            bookedSeats: updatedTrip.bookedSeats,
+          })
+        }
+      } catch (error) {
+        console.error('[RideDetailRequestScreen] Error polling trip data:', error)
+      }
+    }
+
+    // Fetch immediately on mount
+    pollTripData()
+
+    // Then poll every 2 seconds
+    tripPollInterval.current = setInterval(pollTripData, 2000)
+
+    return () => {
+      if (tripPollInterval.current) {
+        clearInterval(tripPollInterval.current)
+      }
+    }
+  }, [combinedTripId])
+
   // Calculate customer's fare based on their pickup/dropoff locations
+  // Re-calculate when selected seats change (discount changes based on total passengers)
   useEffect(() => {
     const calculateCustomerFare = async () => {
       try {
@@ -75,6 +117,7 @@ export default function RideDetailRequestScreen() {
         console.log('[RideDetailRequestScreen] Calculating customer fare:', {
           pickup: pickupCoordinates,
           dropoff: dropoffCoordinates,
+          selectedSeatsCount: selectedSeats.length,
         })
 
         // Get route from customer's pickup to dropoff
@@ -104,20 +147,54 @@ export default function RideDetailRequestScreen() {
         const distanceKm = distance > 500 ? distance / 1000 : distance
         setCustomerDistance(distanceKm)
 
-        // Calculate fare
-        const fareEstimate = await rideService.calculateFare(
+        // ✅ NGHIỆP VỤ GIẢM GIÁ:
+        // - Nếu xe đang có 1 người, mình chọn 1 ghế → TỔNG 2 NGƯỜI → giảm 10% cho MỖI NGƯỜI
+        // - Nếu xe đang có 1 người, mình chọn 2 ghế → TỔNG 3 NGƯỜI → giảm 15% cho MỖI NGƯỜI
+        // - Nếu xe đang có 2 người, mình chọn 2 ghế → TỔNG 4 NGƯỜI → giảm 20% cho MỖI NGƯỜI
+        
+        // ✅ TỔNG SỐ NGƯỜI trong xe = người đã đặt + 1 (mình)
+        // KHÔNG tính theo số ghế đang chọn, vì 1 người có thể đặt nhiều ghế!
+        const totalPassengers = bookedSeatsCount + selectedSeats.length
+        
+        // Get vehicle type from ride (default to 'sedan' if not available)
+        // Valid types: 'sedan', 'suv', 'truck'
+        const vehicleType = tripData.vehicleType || tripData.driverId?.vehicleType || 'sedan'
+        
+        console.log('[RideDetailRequestScreen] Pricing calculation:', {
           distanceKm,
-          duration / 60,
-          'basic'
+          vehicleType,
+          bookedSeatsCount, // 
+          selectedSeatsCount: selectedSeats.length, // Số ghế đang chọn
+          totalPassengers, // ← TỔNG SỐ NGƯỜI (quyết định % discount)
+          discountWillBe: totalPassengers === 2 ? '10%' : totalPassengers === 3 ? '15%' : totalPassengers === 4 ? '20%' : '0%',
+        })
+
+        // ✅ Tính giá cho KHÁCH NÀY với discount theo TỔNG SỐ NGƯỜI trong xe
+        const fareBreakdown = await calculateFare(
+          distanceKm,
+          vehicleType,
+          totalPassengers, // ✅ Discount dựa trên TỔNG SỐ NGƯỜI (bookedSeats + selectedSeats)
+          true // Check peak time
         )
 
-        const calculatedFare = fareEstimate?.totalFare || fareEstimate?.total || 0
-        setCustomerFare(calculatedFare)
+        // ✅ GIÁ CHO MỖI GHẾ = finalPrice (đã bao gồm discount theo totalPassengers)
+        // Ví dụ: 
+        // - 1 người trong xe + mình chọn 1 ghế = 2 người → discount 10%
+        // - 1 người trong xe + mình chọn 2 ghế = 3 người → discount 15%
+        // Giá cho KHÁCH NÀY = giá mỗi ghế × số ghế đã chọn
+        const customerTotalFare = fareBreakdown.finalPrice * selectedSeats.length
+
+        setCustomerFare(customerTotalFare)
 
         console.log('[RideDetailRequestScreen] Customer fare calculated:', {
-          distance: distanceKm,
-          duration: duration / 60,
-          fare: calculatedFare,
+          rawPrice: fareBreakdown.rawPrice,
+          basePrice: fareBreakdown.basePrice,
+          finalPrice: fareBreakdown.finalPrice, // Giá MỖI GHẾ (đã có discount)
+          discountApplied: fareBreakdown.discountApplied + '%',
+          totalPassengers, // Tổng số người trong xe
+          selectedSeatsCount: selectedSeats.length, // Số ghế khách chọn
+          customerTotalFare, // = finalPrice × số ghế
+          explanation: `${bookedSeatsCount} người đã đặt + ${selectedSeats.length} ghế chọn = ${totalPassengers} người → giảm ${fareBreakdown.discountApplied}%`,
         })
       } catch (error) {
         console.error('[RideDetailRequestScreen] Error calculating fare:', error)
@@ -128,10 +205,10 @@ export default function RideDetailRequestScreen() {
       }
     }
 
-    if (pickupCoordinates && dropoffCoordinates && ride) {
+    if (pickupCoordinates && dropoffCoordinates && ride && selectedSeats.length > 0) {
       calculateCustomerFare()
     }
-  }, [pickupCoordinates, dropoffCoordinates, ride])
+   }, [pickupCoordinates, dropoffCoordinates, ride, selectedSeats, bookedSeatsCount])
 
   useEffect(() => {
     return () => {
@@ -159,9 +236,17 @@ export default function RideDetailRequestScreen() {
         customerDistance,
       })
 
-      // Use calculated customer fare, not driver's total fare
+      // ⚠️ CRITICAL FIX: customerFare đã là tổng tiền cho TẤT CẢ ghế đã chọn
+      // KHÔNG được nhân với selectedSeats.length nữa!
       const fareToUse = customerFare || ride.totalFare
       const distanceToUse = customerDistance || ride.distance
+
+      console.log('💰 [RideDetailRequestScreen] Fare to send to backend:', {
+        customerFare,
+        selectedSeatsCount: selectedSeats.length,
+        fareToUse, // ← Đây là GIÁ TỔNG cho tất cả ghế
+        note: 'customerFare = pricePerSeat × selectedSeats, KHÔNG nhân lại!'
+      })
 
       // Create combined trip request
       const request = await combinedTripsService.createCombinedTripRequest(
@@ -172,11 +257,15 @@ export default function RideDetailRequestScreen() {
         pickupCoordinates,
         dropoffCoordinates,
         distanceToUse,
-        fareToUse * selectedSeats.length,
+        fareToUse, // ✅ GIÁ TỔNG, đã bao gồm tất cả ghế
         selectedSeats.length
       )
 
-      console.log('Request created:', request._id)
+      console.log('✅ Request created:', request._id)
+      console.log('📤 Request sent to driver ID:', tripData.driverId?._id || tripData.driverId)
+      console.log('👤 Driver name:', tripData.driverId?.firstName, tripData.driverId?.lastName)
+      console.log('🚗 Combined Trip ID:', combinedTripId)
+      console.log('📋 Full request data:', JSON.stringify(request, null, 2))
       setRequestStatus('pending')
 
       // Start polling for status changes
@@ -253,17 +342,15 @@ export default function RideDetailRequestScreen() {
     navigation.goBack()
   }
 
-  // Safe calculation with fallback
-  const availableSeats = ride ? (ride.totalSeats || 4) - (ride.customerId?.length || 0) : 0
-
   // Car seats layout (4 seats total)
-  const occupiedSeats = ride?.customerId?.length || 0
   const getSeatsState = () => {
     const seats = []
-    for (let i = 0; i < 4; i++) {
-      if (i < occupiedSeats) {
+    for (let i = 0; i < totalSeats; i++) {
+      if (i < bookedSeatsCount) {
+        // Ghế đã được người khác đặt
         seats.push('occupied')
       } else {
+        // Ghế còn trống
         seats.push('available')
       }
     }
@@ -327,20 +414,20 @@ export default function RideDetailRequestScreen() {
                   <View style={styles.driverDetails}>
                     <View style={styles.driverHeaderRow}>
                       <Text style={[styles.driverName, { color: colors.text }]}>
-                        {ride.driverId?.firstName || 'Tài'} {ride.driverId?.lastName || 'xế'}
+                        {tripData.driverId?.firstName || 'Tài'} {tripData.driverId?.lastName || 'xế'}
                       </Text>
                     </View>
                     <View style={styles.ratingRow}>
                       <MaterialIcons name="star" size={14} color="#FFB800" />
                       <Text style={[styles.ratingValue, { color: colors.text }]}>
-                        {(ride.driverId?.averageRating || ride.driverId?.rating || 5).toFixed(1)}
+                        {(tripData.driverId?.averageRating || tripData.driverId?.rating || 5).toFixed(1)}
                       </Text>
                       <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>
-                        ({ride.driverId?.totalReviews || 0})
+                        ({tripData.driverId?.totalReviews || 0})
                       </Text>
                     </View>
                     <Text style={[styles.vehicleText, { color: colors.textSecondary }]}>
-                      {ride.driverId?.vehicleModel || 'Xe'} • {ride.driverId?.vehiclePlate || 'N/A'}
+                      {tripData.driverId?.vehicleModel || 'Xe'} • {tripData.driverId?.vehiclePlate || 'N/A'}
                     </Text>
                   </View>
                 </View>
@@ -583,7 +670,7 @@ export default function RideDetailRequestScreen() {
                   <ActivityIndicator size="small" color="#53d22d" />
                 ) : (
                   <Text style={[styles.price, { color: colors.text }]}>
-                    ₫{((customerFare || ride.totalFare) * (selectedSeats.length || 1)).toLocaleString()}
+                    ₫{(customerFare || ride.totalFare).toLocaleString()}
                   </Text>
                 )}
               </View>
@@ -591,7 +678,7 @@ export default function RideDetailRequestScreen() {
             <TouchableOpacity
               style={[styles.bookButton, { backgroundColor: '#53d22d' }]}
               onPress={handleRequestRide}
-              disabled={requesting || availableSeats <= 0 || calculatingFare || selectedSeats.length === 0}
+              disabled={requesting || availableSeats < 0 || calculatingFare || selectedSeats.length === 0}
             >
               {requesting ? (
                 <ActivityIndicator color="black" size={20} />

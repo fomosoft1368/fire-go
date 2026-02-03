@@ -4,6 +4,7 @@ export enum CarType {
   SEDAN = 'sedan',
   SUV = 'suv',
   TRUCK = 'truck',
+  BIKE = 'bike',
 }
 
 export enum TransmissionType {

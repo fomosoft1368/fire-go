@@ -316,8 +316,15 @@ console.log('[App] Fetching user profile with token...')
         for (const trip of allCombinedTrips) {
           if (!isMounted) return
 
-          const API_URL = 'http://192.168.1.16:3000/api'
+          const API_URL = 'http://192.168.1.18:3000/api'
           try {
+            // Get auth token
+            const token = await AsyncStorage.getItem('token')
+            if (!token) {
+              console.warn('[App] ⚠️ No auth token, skipping poll')
+              continue
+            }
+
             // ✅ Add driverId to filter requests for THIS driver only
             const driverId = user?.id
             const endpoint = driverId 
@@ -327,7 +334,10 @@ console.log('[App] Fetching user profile with token...')
             console.log('[App] 🔗 Polling endpoint:', endpoint)
             
             const response = await fetch(endpoint, {
-              headers: { 'Content-Type': 'application/json' }
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              }
             })
 
             console.log('[App] 📡 Response status:', response.status)

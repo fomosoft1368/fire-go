@@ -303,14 +303,50 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
     setCalculating(true)
     try {
-      console.log('[HireDriverScreen] Calculating route...')
+      console.log('[HireDriverScreen] 🚗 ===== BẮT ĐẦU TÍNH GIÁ =====')
+      console.log('[HireDriverScreen] 📍 Input:', {
+        pickup: pickupLocation,
+        dropoff: dropoffLocation,
+        carType,
+      })
+      
       const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
+      console.log('[HireDriverScreen] 🗺️ Route info:', {
+        distance: route.distance + ' km',
+        duration: route.duration + ' phút',
+        pickup: route.pickup?.formattedAddress,
+        dropoff: route.dropoff?.formattedAddress,
+      })
       setRouteInfo(route)
 
-      const fare = calculateFare(route.distance, route.duration, carType)
+      // Tính giá lái xe hộ: không có giảm giá ghép xe (totalPassengers = 1)
+      // Backend tự động check giờ cao điểm và áp dụng multiplier nếu cần
+      console.log('[HireDriverScreen] 💰 Calling calculateFare with:', {
+        distance: route.distance,
+        carType,
+        totalPassengers: 1,
+        checkPeakTime: true,
+      })
+      
+      const fare = await calculateFare(route.distance, carType, 1, true)
+      
+      console.log('[HireDriverScreen] ✅ Fare calculated:', {
+        rawPrice: fare.rawPrice + 'đ',
+        basePrice: fare.basePrice + 'đ',
+        finalPrice: fare.finalPrice + 'đ',
+        isPeakTime: fare.isPeakTime,
+        discountApplied: fare.discountApplied + '%',
+        vehicleType: fare.vehicleType,
+      })
+      
       setFareEstimate(fare)
 
-      console.log('[HireDriverScreen] Route calculated:', { route, fare })
+      console.log('[HireDriverScreen] 🎯 TỔNG KẾT:', { 
+        distance: route.distance + ' km',
+        finalPrice: fare.finalPrice + 'đ',
+        isPeak: fare.isPeakTime ? 'GIỜ CAO ĐIỂM' : 'Giờ bình thường',
+      })
+      console.log('[HireDriverScreen] ===== KẾT THÚC TÍNH GIÁ =====\n')
 
       // Thông báo nếu đang dùng mock data
       if (route.isMockData) {
@@ -384,10 +420,10 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         ],
         distance: routeInfo.distance,
         duration: routeInfo.duration,
-        baseFare: fareEstimate.baseFare,
-        distanceFare: fareEstimate.distanceFare,
-        timeFare: fareEstimate.timeFare,
-        surgePricing: fareEstimate.surgePricing,
+        baseFare: fareEstimate.finalPrice, // Dùng finalPrice làm tổng giá
+        distanceFare: fareEstimate.rawPrice, // Giá gốc theo km
+        timeFare: 0, // Không tính theo thời gian
+        surgePricing: fareEstimate.isPeakTime ? fareEstimate.basePrice - fareEstimate.rawPrice : 0, // Phụ phí peak
         carType,
         licensePlate,
         transmission,
@@ -527,7 +563,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
               disabled={!pickupLocation || !dropoffLocation}
             >
               <Text style={styles.priceTagText}>
-                {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
+                {fareEstimate ? formatCurrency(fareEstimate.finalPrice) : '---'}
               </Text>
             </TouchableOpacity>
           )}
