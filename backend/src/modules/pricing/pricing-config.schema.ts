@@ -95,6 +95,29 @@ export class DeliveryVehicleType {
 }
 // ============ END GIAO HÀNG ============
 
+// ============ LÁI XE HỘ - Hire Driver Pricing Config ============
+@Schema()
+export class HireDriverPricing {
+  @Prop({ required: true })
+  vehicleType: string; // 'bike', 'sedan', 'suv', 'truck'
+
+  @Prop({ required: true })
+  name: string; // 'Xe máy', 'Sedan', 'SUV', 'Truck'
+
+  @Prop({ required: true })
+  openingFee: number; // Phí mở cửa (VNĐ)
+
+  @Prop({ required: true })
+  freeKm: number; // Số km miễn phí trong phí mở cửa
+
+  @Prop({ required: true })
+  pricePerExtraKm: number; // Giá mỗi km vượt (VNĐ/km)
+
+  @Prop()
+  description?: string; // Mô tả (optional)
+}
+// ============ END LÁI XE HỘ ============
+
 @Schema({ timestamps: true })
 export class PricingConfig {
   @Prop({ type: [VehicleTypePrice], default: [] })
@@ -125,6 +148,11 @@ export class PricingConfig {
   @Prop({ type: [DeliveryVehicleType], default: [] })
   deliveryVehicleTypes: DeliveryVehicleType[];
   // ============ END GIAO HÀNG ============
+
+  // ============ LÁI XE HỘ - Hire Driver Config ============
+  @Prop({ type: [HireDriverPricing], default: [] })
+  hireDriverPricing: HireDriverPricing[];
+  // ============ END LÁI XE HỘ ============
 }
 
 export const PricingConfigSchema = SchemaFactory.createForClass(PricingConfig);

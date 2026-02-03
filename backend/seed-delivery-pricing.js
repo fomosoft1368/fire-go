@@ -33,7 +33,7 @@ const PricingConfigSchema = new mongoose.Schema({
     endTime: String,
     multiplier: Number
   }],
-  // ============ GIAO HÀNG ============
+  // Delivery config
   deliveryGoodsTypes: [{
     key: String,
     label: String,
@@ -51,6 +51,15 @@ const PricingConfigSchema = new mongoose.Schema({
     description: String,
     icon: String,
     vehicleTypeMapping: String
+  }],
+  // Hire driver config
+  hireDriverPricing: [{
+    vehicleType: String,
+    name: String,
+    openingFee: Number,
+    freeKm: Number,
+    pricePerExtraKm: Number,
+    description: String
   }]
 }, { timestamps: true });
 
@@ -164,9 +173,47 @@ async function seedDeliveryPricing() {
       }
     ];
 
+    // ============ LÁI XE HỘ - Seed Hire Driver Pricing ============
+    console.log('🚗 Seeding hire driver pricing config...');
+    
+    config.hireDriverPricing = [
+      {
+        vehicleType: 'bike',
+        name: 'Xe máy',
+        openingFee: 50000,
+        freeKm: 5,
+        pricePerExtraKm: 5000,
+        description: 'Phí mở cửa 50k bao gồm 5km đầu, vượt 5k/km'
+      },
+      {
+        vehicleType: 'sedan',
+        name: 'Sedan (4-5 chỗ)',
+        openingFee: 100000,
+        freeKm: 10,
+        pricePerExtraKm: 10000,
+        description: 'Phí mở cửa 100k bao gồm 10km đầu, vượt 10k/km'
+      },
+      {
+        vehicleType: 'suv',
+        name: 'SUV (7 chỗ)',
+        openingFee: 150000,
+        freeKm: 10,
+        pricePerExtraKm: 15000,
+        description: 'Phí mở cửa 150k bao gồm 10km đầu, vượt 15k/km'
+      },
+      {
+        vehicleType: 'truck',
+        name: 'Truck (Bán tải)',
+        openingFee: 200000,
+        freeKm: 10,
+        pricePerExtraKm: 20000,
+        description: 'Phí mở cửa 200k bao gồm 10km đầu, vượt 20k/km'
+      }
+    ];
+
     await config.save();
     
-    console.log('✅ Delivery pricing config seeded successfully!');
+    console.log('✅ Delivery & Hire Driver pricing config seeded successfully!');
     console.log('\n📊 Summary:');
     console.log(`  • Goods Types: ${config.deliveryGoodsTypes.length}`);
     config.deliveryGoodsTypes.forEach(g => {
@@ -181,6 +228,11 @@ async function seedDeliveryPricing() {
     console.log(`  • Vehicle Types: ${config.deliveryVehicleTypes.length}`);
     config.deliveryVehicleTypes.forEach(v => {
       console.log(`    - ${v.label} (${v.icon}) → maps to ${v.vehicleTypeMapping}`);
+    });
+
+    console.log(`  • Hire Driver Pricing: ${config.hireDriverPricing.length}`);
+    config.hireDriverPricing.forEach(h => {
+      console.log(`    - ${h.name}: ${h.openingFee.toLocaleString('vi-VN')}đ (${h.freeKm}km) + ${h.pricePerExtraKm.toLocaleString('vi-VN')}đ/km`);
     });
 
   } catch (error) {

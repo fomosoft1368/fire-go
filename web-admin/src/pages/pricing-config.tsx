@@ -5,7 +5,7 @@ import Layout from '../components/Layout'
 export default function PricingConfigPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'ride' | 'delivery'>('ride') // ============ GIAO HÀNG ============
+  const [activeTab, setActiveTab] = useState<'ride' | 'delivery' | 'hire-driver'>('ride') // Thêm tab hire-driver
   const [selectedVehicle, setSelectedVehicle] = useState('bike')
   const [vehicleTypes, setVehicleTypes] = useState<VehicleTypePrice[]>([
     { type: 'bike', name: 'Xe máy', baseFee: 15000, pricePerKm: 1500, minimumFare: 20000 },
@@ -29,6 +29,22 @@ export default function PricingConfigPage() {
   const [deliveryGoodsTypes, setDeliveryGoodsTypes] = useState<DeliveryGoodsType[]>([])
   const [deliveryWeightRanges, setDeliveryWeightRanges] = useState<DeliveryWeightRange[]>([])
   const [deliveryVehicleTypes, setDeliveryVehicleTypes] = useState<DeliveryVehicleType[]>([])
+
+  // ============ LÁI XE HỘ - Hire Driver State ============
+  interface HireDriverPricing {
+    vehicleType: string
+    name: string
+    openingFee: number
+    freeKm: number
+    pricePerExtraKm: number
+    description?: string
+  }
+  const [hireDriverPricing, setHireDriverPricing] = useState<HireDriverPricing[]>([
+    { vehicleType: 'bike', name: 'Xe máy', openingFee: 50000, freeKm: 5, pricePerExtraKm: 5000 },
+    { vehicleType: 'sedan', name: 'Sedan (4-5 chỗ)', openingFee: 100000, freeKm: 10, pricePerExtraKm: 10000 },
+    { vehicleType: 'suv', name: 'SUV (7 chỗ)', openingFee: 150000, freeKm: 10, pricePerExtraKm: 15000 },
+    { vehicleType: 'truck', name: 'Truck (Bán tải)', openingFee: 200000, freeKm: 10, pricePerExtraKm: 20000 },
+  ])
 
   // Load config from API
   useEffect(() => {
@@ -64,6 +80,11 @@ export default function PricingConfigPage() {
       setDeliveryGoodsTypes(config.deliveryGoodsTypes || [])
       setDeliveryWeightRanges(config.deliveryWeightRanges || [])
       setDeliveryVehicleTypes(config.deliveryVehicleTypes || [])
+
+      // ============ LÁI XE HỘ - Load Hire Driver Config ============
+      if (config.hireDriverPricing && config.hireDriverPricing.length > 0) {
+        setHireDriverPricing(config.hireDriverPricing)
+      }
     } catch (error) {
       console.error('Failed to load pricing config:', error)
       alert('❌ Không thể tải cấu hình. Sử dụng giá trị mặc định.')
@@ -275,7 +296,7 @@ export default function PricingConfigPage() {
           </p>
         </div>
 
-        {/* ============ GIAO HÀNG - Tab Selector ============ */}
+        {/* ============ Tab Selector ============ */}
         <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-700">
           <button
             onClick={() => setActiveTab('ride')}
@@ -286,7 +307,18 @@ export default function PricingConfigPage() {
             }`}
           >
             <span className="material-symbols-outlined align-middle mr-2">local_taxi</span>
-            Lái xe hộ / Ghép xe
+            Ghép xe
+          </button>
+          <button
+            onClick={() => setActiveTab('hire-driver')}
+            className={`px-6 py-3 font-semibold transition-colors ${
+              activeTab === 'hire-driver'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <span className="material-symbols-outlined align-middle mr-2">directions_car</span>
+            Lái xe hộ
           </button>
           <button
             onClick={() => setActiveTab('delivery')}
@@ -572,6 +604,134 @@ export default function PricingConfigPage() {
             <p className="text-sm text-primary/80">{simulation}</p>
           </div>
         </div>
+          </>
+        )}
+
+        {/* ============ LÁI XE HỘ - HIRE DRIVER TAB ============ */}
+        {activeTab === 'hire-driver' && (
+          <>
+            <div className="bg-white dark:bg-card-dark rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Bảng giá lái xe hộ
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Phí mở cửa bao gồm km miễn phí, vượt km sẽ tính thêm phí/km
+                </p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Loại xe
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Phí mở cửa (VND)
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        KM miễn phí
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Phí vượt (VND/km)
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
+                        Mô tả
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {hireDriverPricing.map((pricing, index) => (
+                      <tr key={pricing.vehicleType} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="px-4 py-4 text-sm font-semibold text-slate-900 dark:text-white">
+                          {pricing.name}
+                        </td>
+                        <td className="px-4 py-4">
+                          <input
+                            type="number"
+                            value={pricing.openingFee}
+                            onChange={(e) => {
+                              const updated = [...hireDriverPricing]
+                              updated[index].openingFee = Number(e.target.value)
+                              setHireDriverPricing(updated)
+                            }}
+                            className="w-32 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <input
+                            type="number"
+                            value={pricing.freeKm}
+                            onChange={(e) => {
+                              const updated = [...hireDriverPricing]
+                              updated[index].freeKm = Number(e.target.value)
+                              setHireDriverPricing(updated)
+                            }}
+                            className="w-24 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <input
+                            type="number"
+                            value={pricing.pricePerExtraKm}
+                            onChange={(e) => {
+                              const updated = [...hireDriverPricing]
+                              updated[index].pricePerExtraKm = Number(e.target.value)
+                              setHireDriverPricing(updated)
+                            }}
+                            className="w-32 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-400">
+                          Phí {pricing.openingFee.toLocaleString()}đ (bao gồm {pricing.freeKm}km), vượt {pricing.pricePerExtraKm.toLocaleString()}đ/km
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Example Calculation */}
+              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h4 className="text-sm font-bold text-blue-900 dark:text-blue-300 mb-2">
+                  Ví dụ tính giá:
+                </h4>
+                {hireDriverPricing.map((pricing) => (
+                  <div key={pricing.vehicleType} className="text-sm text-blue-800 dark:text-blue-200 mb-1">
+                    <strong>{pricing.name}:</strong> Đi 15km = {pricing.openingFee.toLocaleString()}đ + 
+                    {Math.max(0, 15 - pricing.freeKm)}km × {pricing.pricePerExtraKm.toLocaleString()}đ/km = 
+                    <strong className="text-blue-900 dark:text-blue-100 ml-1">
+                      {(pricing.openingFee + Math.max(0, 15 - pricing.freeKm) * pricing.pricePerExtraKm).toLocaleString()}đ
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={async () => {
+                  try {
+                    setSaving(true)
+                    await pricingService.updateHireDriverPricing(hireDriverPricing)
+                    alert('✅ Đã lưu cấu hình lái xe hộ')
+                    await loadConfig()
+                  } catch (error) {
+                    console.error('Save error:', error)
+                    alert('❌ Lỗi khi lưu cấu hình')
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+                disabled={saving}
+                className="px-6 py-3 bg-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-semibold flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined">save</span>
+                {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
+              </button>
+            </div>
           </>
         )}
 

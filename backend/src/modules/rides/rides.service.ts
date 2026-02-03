@@ -4,7 +4,6 @@ import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
 import { Pricing } from './schemas/pricing.schema';
-import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema';
 import { CreateRideDto } from './dto';
 import { extractLocationHierarchy } from '../../shared/utils/location.util';
 import { AutoAssignService } from './services/auto-assign.service';
@@ -14,7 +13,7 @@ export class RidesService {
   constructor(
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<any>,
-    @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
+    // @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
     private eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => AutoAssignService))
     private autoAssignService: AutoAssignService,
@@ -220,185 +219,186 @@ export class RidesService {
    * Enrich ride with customer details for driver app
    * Merges customer info with RideRequest data (coordinates, addresses, fare)
    */
-  async getRideWithEnrichedCustomers(rideId: string, ride: any): Promise<any> {
-    return this.enrichRideWithCustomers(rideId, ride);
-  }
+  
+  // async getRideWithEnrichedCustomers(rideId: string, ride: any): Promise<any> {
+  //   return this.enrichRideWithCustomers(rideId, ride);
+  // }
 
-  private async enrichRideWithCustomers(rideId: string, ride: any): Promise<any> {
-    // Get all ride requests with customer details
-    console.log('🔍 Searching RideRequests for rideId:', rideId, 'Type:', typeof rideId);
+  // private async enrichRideWithCustomers(rideId: string, ride: any): Promise<any> {
+  //   // Get all ride requests with customer details
+  //   console.log('🔍 Searching RideRequests for rideId:', rideId, 'Type:', typeof rideId);
     
-    let rideIdObj: Types.ObjectId;
-    try {
-      rideIdObj = new Types.ObjectId(rideId);
-      console.log('✅ Converted rideId to ObjectId:', rideIdObj.toString());
-    } catch (e) {
-      console.error('❌ Failed to convert rideId to ObjectId:', rideId, e);
-      rideIdObj = new Types.ObjectId(rideId);
-    }
+  //   let rideIdObj: Types.ObjectId;
+  //   try {
+  //     rideIdObj = new Types.ObjectId(rideId);
+  //     console.log('✅ Converted rideId to ObjectId:', rideIdObj.toString());
+  //   } catch (e) {
+  //     console.error('❌ Failed to convert rideId to ObjectId:', rideId, e);
+  //     rideIdObj = new Types.ObjectId(rideId);
+  //   }
     
-    const requests = await this.rideRequestModel
-      .find({ rideId: rideIdObj })
-      .populate('customerId', 'name phone rating firstName lastName avatar')
-      .exec() as any[];
+  //   const requests = await this.rideRequestModel
+  //     .find({ rideId: rideIdObj })
+  //     .populate('customerId', 'name phone rating firstName lastName avatar')
+  //     .exec() as any[];
 
-    console.log('📋 RideRequests found:', requests.length);
-    console.log('🔎 Query used:', { rideId: rideIdObj.toString() });
-    if (requests.length > 0) {
-      console.log('📋 Sample RideRequest:', {
-        _id: requests[0]._id,
-        rideId: requests[0].rideId,
-        customerId: requests[0].customerId?._id,
-        pickupAddress: requests[0].pickupAddress,
-        dropoffAddress: requests[0].dropoffAddress,
-        pickupCoordinates: requests[0].pickupCoordinates,
-        status: requests[0].status,
-      });
-      console.log('📋 All RideRequests:', requests.map(r => ({
-        _id: r._id,
-        customerId: r.customerId?._id,
-        status: r.status,
-      })));
-    } else {
-      // If no requests found, log what we're looking for
-      console.log('⚠️ No RideRequests found for rideId:', rideIdObj.toString());
-      console.log('ℹ️ This is expected if customer hasn\'t submitted a request yet');
-    }
+  //   console.log('📋 RideRequests found:', requests.length);
+  //   console.log('🔎 Query used:', { rideId: rideIdObj.toString() });
+  //   if (requests.length > 0) {
+  //     console.log('📋 Sample RideRequest:', {
+  //       _id: requests[0]._id,
+  //       rideId: requests[0].rideId,
+  //       customerId: requests[0].customerId?._id,
+  //       pickupAddress: requests[0].pickupAddress,
+  //       dropoffAddress: requests[0].dropoffAddress,
+  //       pickupCoordinates: requests[0].pickupCoordinates,
+  //       status: requests[0].status,
+  //     });
+  //     console.log('📋 All RideRequests:', requests.map(r => ({
+  //       _id: r._id,
+  //       customerId: r.customerId?._id,
+  //       status: r.status,
+  //     })));
+  //   } else {
+  //     // If no requests found, log what we're looking for
+  //     console.log('⚠️ No RideRequests found for rideId:', rideIdObj.toString());
+  //     console.log('ℹ️ This is expected if customer hasn\'t submitted a request yet');
+  //   }
 
-    let enrichedCustomers = [];
+  //   let enrichedCustomers = [];
     
-    if (ride.customerId && ride.customerId.length > 0) {
-      // Check if customerId is already populated (contains objects)
-      const isPopulated = ride.customerId[0] && typeof ride.customerId[0] === 'object' && ride.customerId[0]._id;
+  //   if (ride.customerId && ride.customerId.length > 0) {
+  //     // Check if customerId is already populated (contains objects)
+  //     const isPopulated = ride.customerId[0] && typeof ride.customerId[0] === 'object' && ride.customerId[0]._id;
       
-      if (isPopulated) {
-        console.log('✅ Using populated customer data');
-        enrichedCustomers = (ride.customerId || []).map((customer: any) => {
-          console.log('🔍 Finding request for customer:', {
-            customerId: customer._id?.toString?.() || customer._id,
-            customerIdType: typeof customer._id,
-          });
+  //     if (isPopulated) {
+  //       console.log('✅ Using populated customer data');
+  //       enrichedCustomers = (ride.customerId || []).map((customer: any) => {
+  //         console.log('🔍 Finding request for customer:', {
+  //           customerId: customer._id?.toString?.() || customer._id,
+  //           customerIdType: typeof customer._id,
+  //         });
           
-          const customerRequest = requests.find(r => {
-            const rCustomerId = r.customerId?._id?.toString?.() || r.customerId?.toString?.() || r.customerId;
-            const cCustomerId = customer._id?.toString?.() || customer._id;
-            const match = rCustomerId === cCustomerId;
+  //         const customerRequest = requests.find(r => {
+  //           const rCustomerId = r.customerId?._id?.toString?.() || r.customerId?.toString?.() || r.customerId;
+  //           const cCustomerId = customer._id?.toString?.() || customer._id;
+  //           const match = rCustomerId === cCustomerId;
             
-            if (!match) {
-              console.log('   Comparing:', {
-                requestCustomerId: rCustomerId,
-                customerCustomerId: cCustomerId,
-                match,
-              });
-            }
-            return match;
-          });
+  //           if (!match) {
+  //             console.log('   Comparing:', {
+  //               requestCustomerId: rCustomerId,
+  //               customerCustomerId: cCustomerId,
+  //               match,
+  //             });
+  //           }
+  //           return match;
+  //         });
           
-          console.log('🔗 Linking customer to request:', {
-            customerId: customer._id?.toString?.() || customer._id,
-            found: !!customerRequest,
-            requestId: customerRequest?._id?.toString?.() || customerRequest?._id,
-            status: customerRequest?.status,
-          });
+  //         console.log('🔗 Linking customer to request:', {
+  //           customerId: customer._id?.toString?.() || customer._id,
+  //           found: !!customerRequest,
+  //           requestId: customerRequest?._id?.toString?.() || customerRequest?._id,
+  //           status: customerRequest?.status,
+  //         });
           
-          return {
-            _id: customer._id,
-            name: customer.name || customer.firstName || 'Khách hàng',
-            phone: customer.phone || '',
-            rating: customer.rating || 0,
-            firstName: customer.firstName || '',
-            lastName: customer.lastName || '',
-            avatar: customer.avatar || '',
-            pickupAddress: customerRequest?.pickupAddress || ride.pickupAddress || '',
-            dropoffAddress: customerRequest?.dropoffAddress || ride.dropoffAddress || '',
-            pickupCoordinates: customerRequest?.pickupCoordinates || ride.pickupLocation?.coordinates || [],
-            dropoffCoordinates: customerRequest?.dropoffCoordinates || ride.dropoffLocation?.coordinates || [],
-            distance: customerRequest?.distance || ride.distance || 0,
-            fare: customerRequest?.fare || ride.totalFare || 0,
-            status: customerRequest?.status || 'pending',
-            requestId: customerRequest?._id?.toString(),
-          };
-        });
-      } else {
-        // Populate didn't work, manually fetch customers
-        console.log('⚠️ Populate failed, manually fetching customers...');
-        const customerIds = ride.customerId as Types.ObjectId[];
+  //         return {
+  //           _id: customer._id,
+  //           name: customer.name || customer.firstName || 'Khách hàng',
+  //           phone: customer.phone || '',
+  //           rating: customer.rating || 0,
+  //           firstName: customer.firstName || '',
+  //           lastName: customer.lastName || '',
+  //           avatar: customer.avatar || '',
+  //           pickupAddress: customerRequest?.pickupAddress || ride.pickupAddress || '',
+  //           dropoffAddress: customerRequest?.dropoffAddress || ride.dropoffAddress || '',
+  //           pickupCoordinates: customerRequest?.pickupCoordinates || ride.pickupLocation?.coordinates || [],
+  //           dropoffCoordinates: customerRequest?.dropoffCoordinates || ride.dropoffLocation?.coordinates || [],
+  //           distance: customerRequest?.distance || ride.distance || 0,
+  //           fare: customerRequest?.fare || ride.totalFare || 0,
+  //           status: customerRequest?.status || 'pending',
+  //           requestId: customerRequest?._id?.toString(),
+  //         };
+  //       });
+  //     } else {
+  //       // Populate didn't work, manually fetch customers
+  //       console.log('⚠️ Populate failed, manually fetching customers...');
+  //       const customerIds = ride.customerId as Types.ObjectId[];
         
-        const customers = await this.rideModel.db.db.collection('customers').find({
-          _id: { $in: customerIds.map(id => typeof id === 'string' ? new Types.ObjectId(id) : id) }
-        }).toArray();
+  //       const customers = await this.rideModel.db.db.collection('customers').find({
+  //         _id: { $in: customerIds.map(id => typeof id === 'string' ? new Types.ObjectId(id) : id) }
+  //       }).toArray();
         
-        console.log('👥 Manually fetched customers:', customers.length);
+  //       console.log('👥 Manually fetched customers:', customers.length);
         
-        enrichedCustomers = customers.map((customer: any) => {
-          const customerRequest = requests.find(r => 
-            r.customerId?._id?.toString() === customer._id?.toString()
-          );
+  //       enrichedCustomers = customers.map((customer: any) => {
+  //         const customerRequest = requests.find(r => 
+  //           r.customerId?._id?.toString() === customer._id?.toString()
+  //         );
           
-          return {
-            _id: customer._id,
-            name: customer.name || customer.firstName || 'Khách hàng',
-            phone: customer.phone || '',
-            rating: customer.rating || 0,
-            firstName: customer.firstName || '',
-            lastName: customer.lastName || '',
-            avatar: customer.avatar || '',
-            pickupAddress: customerRequest?.pickupAddress || ride.pickupAddress || '',
-            dropoffAddress: customerRequest?.dropoffAddress || ride.dropoffAddress || '',
-            pickupCoordinates: customerRequest?.pickupCoordinates || ride.pickupLocation?.coordinates || [],
-            dropoffCoordinates: customerRequest?.dropoffCoordinates || ride.dropoffLocation?.coordinates || [],
-            distance: customerRequest?.distance || ride.distance || 0,
-            fare: customerRequest?.fare || ride.totalFare || 0,
-            status: customerRequest?.status || 'pending',
-            requestId: customerRequest?._id?.toString(),
-          };
-        });
-      }
-    }
+  //         return {
+  //           _id: customer._id,
+  //           name: customer.name || customer.firstName || 'Khách hàng',
+  //           phone: customer.phone || '',
+  //           rating: customer.rating || 0,
+  //           firstName: customer.firstName || '',
+  //           lastName: customer.lastName || '',
+  //           avatar: customer.avatar || '',
+  //           pickupAddress: customerRequest?.pickupAddress || ride.pickupAddress || '',
+  //           dropoffAddress: customerRequest?.dropoffAddress || ride.dropoffAddress || '',
+  //           pickupCoordinates: customerRequest?.pickupCoordinates || ride.pickupLocation?.coordinates || [],
+  //           dropoffCoordinates: customerRequest?.dropoffCoordinates || ride.dropoffLocation?.coordinates || [],
+  //           distance: customerRequest?.distance || ride.distance || 0,
+  //           fare: customerRequest?.fare || ride.totalFare || 0,
+  //           status: customerRequest?.status || 'pending',
+  //           requestId: customerRequest?._id?.toString(),
+  //         };
+  //       });
+  //     }
+  //   }
 
-    console.log('✅ enrichedCustomers:', enrichedCustomers.length);
-    console.log('✅ enrichedCustomers detailed data:');
-    enrichedCustomers.forEach((c, idx) => {
-      console.log(`   [${idx}] ${c.name}:`, {
-        pickupCoordinates: c.pickupCoordinates,
-        dropoffCoordinates: c.dropoffCoordinates,
-        pickupAddress: c.pickupAddress,
-        dropoffAddress: c.dropoffAddress,
-        status: c.status,
-        requestId: c.requestId,
-      });
-    });
+  //   console.log('✅ enrichedCustomers:', enrichedCustomers.length);
+  //   console.log('✅ enrichedCustomers detailed data:');
+  //   enrichedCustomers.forEach((c, idx) => {
+  //     console.log(`   [${idx}] ${c.name}:`, {
+  //       pickupCoordinates: c.pickupCoordinates,
+  //       dropoffCoordinates: c.dropoffCoordinates,
+  //       pickupAddress: c.pickupAddress,
+  //       dropoffAddress: c.dropoffAddress,
+  //       status: c.status,
+  //       requestId: c.requestId,
+  //     });
+  //   });
 
-    const plainRide = ride.toObject ? ride.toObject() : ride;
-    return {
-      ...plainRide,
-      customerId: enrichedCustomers,
-    };
-  }
+  //   const plainRide = ride.toObject ? ride.toObject() : ride;
+  //   return {
+  //     ...plainRide,
+  //     customerId: enrichedCustomers,
+  //   };
+  // }
 
-  async findByIdForDriver(id: string): Promise<any> {
-    // For driver app - get ride with populated customer details
-    console.log('🚗 findByIdForDriver called with id:', id);
+  // async findByIdForDriver(id: string): Promise<any> {
+  //   // For driver app - get ride with populated customer details
+  //   console.log('🚗 findByIdForDriver called with id:', id);
     
-    // Get ride with populated driver
-    const ride = await this.rideModel
-      .findById(id)
-      .populate('driverId')
-      .populate({
-        path: 'customerId',
-        model: 'Customer',
-        select: 'name phone rating firstName lastName avatar'
-      })
-      .exec();
+  //   // Get ride with populated driver
+  //   const ride = await this.rideModel
+  //     .findById(id)
+  //     .populate('driverId')
+  //     .populate({
+  //       path: 'customerId',
+  //       model: 'Customer',
+  //       select: 'name phone rating firstName lastName avatar'
+  //     })
+  //     .exec();
 
-    console.log('📦 Ride found:', !!ride);
+  //   console.log('📦 Ride found:', !!ride);
 
-    if (!ride) {
-      throw new NotFoundException(`Ride with ID ${id} not found`);
-    }
+  //   if (!ride) {
+  //     throw new NotFoundException(`Ride with ID ${id} not found`);
+  //   }
 
-    return this.enrichRideWithCustomers(id, ride);
-  }
+  //   return this.enrichRideWithCustomers(id, ride);
+  // }
 
   async findByCustomerId(customerId: string): Promise<RideDocument[]> {
     return this.rideModel

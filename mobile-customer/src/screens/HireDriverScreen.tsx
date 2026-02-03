@@ -7,7 +7,7 @@ import { RootState } from '../redux/store'
 import type { RootStackParamList } from '../types'
 import { rideService } from '../services/rideService'
 import { mapsService } from '../services/mapsService'
-import { calculateFare, formatCurrency } from '../utils/pricing'
+import { calculateHireDriverFare, formatCurrency } from '../utils/pricing'
 import type { CreateRideDto } from '../types'
 import {
   View,
@@ -319,32 +319,32 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       })
       setRouteInfo(route)
 
-      // Tính giá lái xe hộ: không có giảm giá ghép xe (totalPassengers = 1)
-      // Backend tự động check giờ cao điểm và áp dụng multiplier nếu cần
-      console.log('[HireDriverScreen] 💰 Calling calculateFare with:', {
+      // ============ LÁI XE HỘ - Tính giá theo nghiệp vụ phí mở cửa + km miễn phí ============
+      console.log('[HireDriverScreen] 💰 Calling calculateHireDriverFare with:', {
         distance: route.distance,
         carType,
-        totalPassengers: 1,
-        checkPeakTime: true,
       })
       
-      const fare = await calculateFare(route.distance, carType, 1, true)
+      const fare = await calculateHireDriverFare(route.distance, carType)
       
-      console.log('[HireDriverScreen] ✅ Fare calculated:', {
-        rawPrice: fare.rawPrice + 'đ',
-        basePrice: fare.basePrice + 'đ',
-        finalPrice: fare.finalPrice + 'đ',
-        isPeakTime: fare.isPeakTime,
-        discountApplied: fare.discountApplied + '%',
-        vehicleType: fare.vehicleType,
+      console.log('[HireDriverScreen] ✅ Hire Driver Fare calculated:', {
+        total: fare.total + 'đ',
+        openingFee: fare.openingFee + 'đ',
+        freeKm: fare.freeKm + 'km',
+        extraKm: fare.extraKm + 'km',
+        extraKmFee: fare.extraKmFee + 'đ',
+        pricePerExtraKm: fare.pricePerExtraKm + 'đ/km',
+        breakdown: `${fare.openingFee}đ + ${fare.extraKm}km × ${fare.pricePerExtraKm}đ = ${fare.total}đ`,
       })
       
       setFareEstimate(fare)
 
       console.log('[HireDriverScreen] 🎯 TỔNG KẾT:', { 
         distance: route.distance + ' km',
-        finalPrice: fare.finalPrice + 'đ',
-        isPeak: fare.isPeakTime ? 'GIỜ CAO ĐIỂM' : 'Giờ bình thường',
+        finalPrice: fare.total + 'đ',
+        formula: route.distance <= fare.freeKm 
+          ? `Trong ${fare.freeKm}km miễn phí → Chỉ tính phí mở cửa ${fare.openingFee}đ`
+          : `${fare.openingFee}đ + (${route.distance} - ${fare.freeKm})km × ${fare.pricePerExtraKm}đ/km = ${fare.total}đ`,
       })
       console.log('[HireDriverScreen] ===== KẾT THÚC TÍNH GIÁ =====\n')
 
@@ -420,10 +420,10 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         ],
         distance: routeInfo.distance,
         duration: routeInfo.duration,
-        baseFare: fareEstimate.finalPrice, // Dùng finalPrice làm tổng giá
-        distanceFare: fareEstimate.rawPrice, // Giá gốc theo km
+        baseFare: fareEstimate.total, // Tổng giá lái xe hộ
+        distanceFare: fareEstimate.extraKmFee, // Phí vượt km
         timeFare: 0, // Không tính theo thời gian
-        surgePricing: fareEstimate.isPeakTime ? fareEstimate.basePrice - fareEstimate.rawPrice : 0, // Phụ phí peak
+        surgePricing: 0, // Lái xe hộ không có peak pricing
         carType,
         licensePlate,
         transmission,
@@ -563,7 +563,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
               disabled={!pickupLocation || !dropoffLocation}
             >
               <Text style={styles.priceTagText}>
-                {fareEstimate ? formatCurrency(fareEstimate.finalPrice) : '---'}
+                {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
               </Text>
             </TouchableOpacity>
           )}

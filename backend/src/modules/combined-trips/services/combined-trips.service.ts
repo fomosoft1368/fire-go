@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CombinedTrip, CombinedTripDocument, CombinedTripStatus } from '../schemas/combined-trip.schema';
-import { RideRequest, RideRequestDocument } from '../../rides/schemas/ride-request.schema';
+import { RideRequest, RideRequestDocument } from '../schemas/ride-request.schema';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 

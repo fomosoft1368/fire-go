@@ -293,6 +293,43 @@ export class PricingService {
         },
       ],
       // ============ END GIAO HÀNG ============
+
+      // ============ LÁI XE HỘ - Default Hire Driver Config ============
+      hireDriverPricing: [
+        {
+          vehicleType: 'bike',
+          name: 'Xe máy',
+          openingFee: 50000,
+          freeKm: 5,
+          pricePerExtraKm: 5000,
+          description: 'Phí mở cửa 50k bao gồm 5km đầu, vượt 5k/km',
+        },
+        {
+          vehicleType: 'sedan',
+          name: 'Sedan (4-5 chỗ)',
+          openingFee: 100000,
+          freeKm: 10,
+          pricePerExtraKm: 10000,
+          description: 'Phí mở cửa 100k bao gồm 10km đầu, vượt 10k/km',
+        },
+        {
+          vehicleType: 'suv',
+          name: 'SUV (7 chỗ)',
+          openingFee: 150000,
+          freeKm: 10,
+          pricePerExtraKm: 15000,
+          description: 'Phí mở cửa 150k bao gồm 10km đầu, vượt 15k/km',
+        },
+        {
+          vehicleType: 'truck',
+          name: 'Truck (Bán tải)',
+          openingFee: 200000,
+          freeKm: 10,
+          pricePerExtraKm: 20000,
+          description: 'Phí mở cửa 200k bao gồm 10km đầu, vượt 20k/km',
+        },
+      ],
+      // ============ END LÁI XE HỘ ============
     });
     
     return defaultConfig.save();
@@ -317,4 +354,74 @@ export class PricingService {
     return config.save();
   }
   // ============ END GIAO HÀNG ============
+
+  // ============ LÁI XE HỘ - Hire Driver Pricing Methods ============
+  async updateHireDriverPricing(hireDriverPricing: any[]): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    config.hireDriverPricing = hireDriverPricing;
+    return config.save();
+  }
+
+  /**
+   * Calculate hire driver fare
+   * Formula: If distance <= freeKm: openingFee
+   *          If distance > freeKm: openingFee + (distance - freeKm) * pricePerExtraKm
+   */
+  async calculateHireDriverFare(vehicleType: string, distance: number): Promise<{ 
+    total: number; 
+    breakdown: { 
+      openingFee: number; 
+      freeKm: number; 
+      extraKm: number; 
+      extraKmFee: number; 
+      pricePerExtraKm: number;
+    } 
+  }> {
+    const pricingConfig = await this.getConfig();
+    const config = pricingConfig.hireDriverPricing?.find(
+      (h) => h.vehicleType === vehicleType
+    );
+
+    if (!config) {
+      // Fallback to default
+      const defaults: any = {
+        bike: { openingFee: 50000, freeKm: 5, pricePerExtraKm: 5000 },
+        sedan: { openingFee: 100000, freeKm: 10, pricePerExtraKm: 10000 },
+        suv: { openingFee: 150000, freeKm: 10, pricePerExtraKm: 15000 },
+        truck: { openingFee: 200000, freeKm: 10, pricePerExtraKm: 20000 },
+      };
+      const fallback = defaults[vehicleType] || defaults.sedan;
+
+      const extraKm = Math.max(0, distance - fallback.freeKm);
+      const extraKmFee = extraKm * fallback.pricePerExtraKm;
+      const total = fallback.openingFee + extraKmFee;
+
+      return {
+        total,
+        breakdown: {
+          openingFee: fallback.openingFee,
+          freeKm: fallback.freeKm,
+          extraKm,
+          extraKmFee,
+          pricePerExtraKm: fallback.pricePerExtraKm,
+        },
+      };
+    }
+
+    const extraKm = Math.max(0, distance - config.freeKm);
+    const extraKmFee = extraKm * config.pricePerExtraKm;
+    const total = config.openingFee + extraKmFee;
+
+    return {
+      total,
+      breakdown: {
+        openingFee: config.openingFee,
+        freeKm: config.freeKm,
+        extraKm,
+        extraKmFee,
+        pricePerExtraKm: config.pricePerExtraKm,
+      },
+    };
+  }
+  // ============ END LÁI XE HỘ ============
 }

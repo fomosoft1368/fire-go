@@ -57,4 +57,12 @@ export class PricingController {
     return this.pricingService.updateDeliveryVehicleTypes(body.vehicleTypes);
   }
   // ============ END GIAO HÀNG ============
+
+  // ============ LÁI XE HỘ - Hire Driver Config APIs ============
+  @Post('config/hire-driver')
+  @UseGuards(JwtAuthGuard)
+  async updateHireDriverPricing(@Body() body: { hireDriverPricing: any[] }): Promise<PricingConfig> {
+    return this.pricingService.updateHireDriverPricing(body.hireDriverPricing);
+  }
+  // ============ END LÁI XE HỘ ============
 }

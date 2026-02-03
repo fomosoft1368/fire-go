@@ -38,6 +38,15 @@ interface PricingConfig {
   deliveryGoodsTypes?: Array<{ key: string; label: string; icon: string; surcharge: number }>
   deliveryWeightRanges?: Array<{ key: string; label: string; surcharge: number }>
   deliveryVehicleTypes?: Array<{ key: string; label: string; description: string; icon: string; vehicleTypeMapping: string }>
+  // ============ LÁI XE HỘ - Hire Driver Config ============
+  hireDriverPricing?: Array<{
+    vehicleType: string
+    name: string
+    openingFee: number
+    freeKm: number
+    pricePerExtraKm: number
+    description?: string
+  }>
 }
 
 interface FareBreakdown {
@@ -46,6 +55,17 @@ interface FareBreakdown {
   finalPrice: number
   isPeakTime: boolean
   discountApplied: number
+  vehicleType: string
+}
+
+// ============ LÁI XE HỘ - Hire Driver Fare Breakdown ============
+interface HireDriverFareBreakdown {
+  total: number
+  openingFee: number
+  freeKm: number
+  extraKm: number
+  extraKmFee: number
+  pricePerExtraKm: number
   vehicleType: string
 }
 
@@ -252,10 +272,13 @@ export const calculateFare = async (
     finalPrice = vehicleConfig.minimumFare
   }
 
+  // Làm tròn lên nghìn
+  const roundedFinalPrice = Math.ceil(finalPrice / 1000) * 1000
+
   const result = {
     rawPrice: Math.round(rawPrice),
     basePrice: Math.round(basePrice),
-    finalPrice: Math.round(finalPrice),
+    finalPrice: roundedFinalPrice,
     isPeakTime: isPeak,
     discountApplied: Math.round(discountRate * 100),
     vehicleType: carType,
@@ -312,22 +335,129 @@ export const calculateCarpoolFares = async (
       finalPrice = vehicleConfig.minimumFare
     }
 
+    // Làm tròn lên nghìn
+    const roundedFinalPrice = Math.ceil(finalPrice / 1000) * 1000
+
     breakdown.push({
       rawPrice: Math.round(rawPrice),
       basePrice: Math.round(basePrice),
-      finalPrice: Math.round(finalPrice),
+      finalPrice: roundedFinalPrice,
       isPeakTime: isPeak,
       discountApplied: Math.round(discountRate * 100),
       vehicleType: carType,
     })
 
-    totalPrice += Math.round(finalPrice)
+    totalPrice += roundedFinalPrice
   }
 
   return {
     breakdown,
     totalPrice,
     averagePerPerson: Math.round(totalPrice / totalPassengers),
+  }
+}
+
+/**
+ * ============ LÁI XE HỘ - Calculate Hire Driver Fare ============
+ * Tính giá lái xe hộ theo nghiệp vụ:
+ * - Phí mở cửa (bao gồm km miễn phí)
+ * - Phí vượt km (nếu vượt quá km miễn phí)
+ * 
+ * VD: Phí mở cửa 100k (10km đầu) + 10k/km vượt
+ *     Đi 15km = 100k + (15-10) × 10k = 150k
+ */
+export const calculateHireDriverFare = async (
+  distance: number,
+  vehicleType: 'bike' | 'sedan' | 'suv' | 'truck' = 'sedan'
+): Promise<HireDriverFareBreakdown> => {
+  try {
+    // Load config from cache or API
+    const config = await getPricingConfig()
+
+    // Find hire driver config for vehicle type
+    const hireConfig = config.hireDriverPricing?.find(
+      (h) => h.vehicleType === vehicleType
+    )
+
+    if (!hireConfig) {
+      // Fallback to default
+      const defaults: any = {
+        bike: { openingFee: 50000, freeKm: 5, pricePerExtraKm: 5000 },
+        sedan: { openingFee: 100000, freeKm: 10, pricePerExtraKm: 10000 },
+        suv: { openingFee: 150000, freeKm: 10, pricePerExtraKm: 15000 },
+        truck: { openingFee: 200000, freeKm: 10, pricePerExtraKm: 20000 },
+      }
+      const fallback = defaults[vehicleType] || defaults.sedan
+
+      const extraKm = Math.max(0, distance - fallback.freeKm)
+      const extraKmFee = extraKm * fallback.pricePerExtraKm
+      const rawTotal = fallback.openingFee + extraKmFee
+      const total = Math.ceil(rawTotal / 1000) * 1000 // Làm tròn lên nghìn
+
+      console.log('[HireDriver] Using fallback config:', { vehicleType, ...fallback, distance, extraKm, rawTotal, total })
+
+      return {
+        total,
+        openingFee: fallback.openingFee,
+        freeKm: fallback.freeKm,
+        extraKm,
+        extraKmFee,
+        pricePerExtraKm: fallback.pricePerExtraKm,
+        vehicleType,
+      }
+    }
+
+    // Calculate using config
+    const extraKm = Math.max(0, distance - hireConfig.freeKm)
+    const extraKmFee = extraKm * hireConfig.pricePerExtraKm
+    const rawTotal = hireConfig.openingFee + extraKmFee
+    const total = Math.ceil(rawTotal / 1000) * 1000 // Làm tròn lên nghìn
+
+    console.log('[HireDriver] Calculated fare:', {
+      vehicleType,
+      distance,
+      openingFee: hireConfig.openingFee,
+      freeKm: hireConfig.freeKm,
+      extraKm,
+      extraKmFee,
+      rawTotal,
+      total,
+    })
+
+    return {
+      total,
+      openingFee: hireConfig.openingFee,
+      freeKm: hireConfig.freeKm,
+      extraKm,
+      extraKmFee,
+      pricePerExtraKm: hireConfig.pricePerExtraKm,
+      vehicleType,
+    }
+  } catch (error) {
+    console.error('[HireDriver] Error calculating fare:', error)
+    
+    // Emergency fallback
+    const defaults: any = {
+      bike: { openingFee: 50000, freeKm: 5, pricePerExtraKm: 5000 },
+      sedan: { openingFee: 100000, freeKm: 10, pricePerExtraKm: 10000 },
+      suv: { openingFee: 150000, freeKm: 10, pricePerExtraKm: 15000 },
+      truck: { openingFee: 200000, freeKm: 10, pricePerExtraKm: 20000 },
+    }
+    const fallback = defaults[vehicleType] || defaults.sedan
+    const extraKm = Math.max(0, distance - fallback.freeKm)
+    const extraKmFee = extraKm * fallback.pricePerExtraKm
+    const rawTotal = fallback.openingFee + extraKmFee
+    const total = Math.ceil(rawTotal / 1000) * 1000 // Làm tròn lên nghìn
+
+    return {
+      total,
+      openingFee: fallback.openingFee,
+      freeKm: fallback.freeKm,
+      extraKm,
+      extraKmFee,
+      pricePerExtraKm: fallback.pricePerExtraKm,
+      vehicleType,
+    }
   }
 }
 
