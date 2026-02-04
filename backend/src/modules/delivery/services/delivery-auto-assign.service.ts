@@ -364,7 +364,25 @@ export class DeliveryAutoAssignService {
       isAvailable: true,
     });
 
-    // Don't automatically retry here - let the timeout handle retry logic
+    // IMPORTANT: Retry immediately with next driver when rejected (don't wait for timeout)
+    const delivery = await this.deliveryModel.findById(request.deliveryId);
+    if (delivery && delivery.status === DeliveryStatus.FINDING_DRIVER) {
+      this.logger.log(`Retrying delivery ${delivery._id} with next driver after rejection`);
+      
+      // Get fresh list of available drivers and scores
+      const [lng, lat] = delivery.pickupCoordinates;
+      const availableDrivers = await this.getAvailableDriversWithScores(lng, lat);
+      
+      if (availableDrivers.length > 0) {
+        // Retry with next driver immediately
+        await this.retryWithNextDriver(request, availableDrivers);
+      } else {
+        this.logger.warn(`No more drivers available for delivery ${delivery._id}`);
+        await this.deliveryModel.findByIdAndUpdate(delivery._id, {
+          status: DeliveryStatus.NO_DRIVER_AVAILABLE,
+        });
+      }
+    }
   }
 
   /**
@@ -401,6 +419,7 @@ export class DeliveryAutoAssignService {
       isAvailable: true,
       isOnline: true,
       isVerified: true,
+      driverTypes: 'delivery', // Chỉ tìm tài xế có loại delivery
       currentLocation: {
         $near: {
           $geometry: {
@@ -415,7 +434,7 @@ export class DeliveryAutoAssignService {
     .limit(10)
     .exec();
 
-    this.logger.log(`[getAvailableDriversWithScores] Found ${drivers.length} drivers matching criteria`);
+    this.logger.log(`[getAvailableDriversWithScores] Found ${drivers.length} delivery drivers matching criteria`);
 
     // Score drivers
     const driverScores: DriverScore[] = drivers.map((driver: any) => {

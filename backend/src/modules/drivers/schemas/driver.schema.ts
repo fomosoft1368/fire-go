@@ -17,6 +17,12 @@ export enum DriverStatus {
   BREAK = 'break',
 }
 
+export enum DriverType {
+  HIRE = 'hire',          // Lái xe hộ
+  RIDESHARE = 'rideshare', // Ghép xe
+  DELIVERY = 'delivery',   // Vận chuyển
+}
+
 @Schema({ timestamps: true })
 export class Driver {
   // Authentication fields (drivers have their own credentials, independent from User collection)
@@ -48,6 +54,13 @@ export class Driver {
     default: DriverStatus.OFFLINE,
   })
   status: DriverStatus;
+
+  @Prop({
+    type: [String],
+    enum: DriverType,
+    default: [DriverType.RIDESHARE],
+  })
+  driverTypes: DriverType[]; // Tài xế có thể làm nhiều loại
 
   // Vehicle information
   @Prop()

@@ -363,17 +363,38 @@ export class AutoAssignService {
 
     const busyDriverIds = activeRides.map(r => r.driverId?.toString()).filter(Boolean);
 
+    // Xác định loại driver cần tìm dựa vào type của ride
+    let requiredDriverType: string;
+    if (ride.type === 'hire') {
+      requiredDriverType = 'hire';
+    } else if (ride.type === 'rideshare' || ride.isShared) {
+      requiredDriverType = 'rideshare';
+    } else {
+      // Default to rideshare nếu không xác định được
+      requiredDriverType = 'rideshare';
+    }
+
+    this.logger.log(`[AutoAssignService] Looking for drivers with type: ${requiredDriverType} for ride type: ${ride.type}`);
+
+    // FIX: Query should consider both status='online' OR isOnline=true
+    // AND filter by driverTypes array
     const drivers = await this.driverModel.find({
-      status: 'online',
+      $or: [
+        { status: 'online' },
+        { isOnline: true }
+      ],
       isAcceptingRides: true,
       isSuspended: false,
       currentLocation: { $exists: true }, // Có vị trí hiện tại
       _id: { $nin: busyDriverIds }, // Không có trong danh sách đang bận
+      driverTypes: requiredDriverType, // Lọc theo loại tài xế
     });
 
-    console.log('[AutoAssignService] Found available drivers:', {
+    this.logger.log('[AutoAssignService] Found available drivers:', {
       total: drivers.length,
       busyCount: busyDriverIds.length,
+      requiredType: requiredDriverType,
+      query: 'status=online OR isOnline=true AND driverTypes includes requiredType',
     });
 
     return drivers;

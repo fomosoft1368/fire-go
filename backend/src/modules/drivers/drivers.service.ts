@@ -142,9 +142,21 @@ export class DriversService {
       throw new BadRequestException('Driver is suspended');
     }
 
+    // Sync isOnline field with status
+    const isOnline = status === DriverStatus.ONLINE;
+    const updateData: any = { 
+      status,
+      isOnline,
+      isAvailable: isOnline,
+    };
+    
+    if (isOnline) {
+      updateData.lastOnlineTime = new Date();
+    }
+
     return this.driverModel.findByIdAndUpdate(
       driverId,
-      { status },
+      updateData,
       { new: true },
     );
   }
@@ -182,11 +194,22 @@ export class DriversService {
   }
 
   async update(driverId: string, updateDriverDto: UpdateDriverDto): Promise<DriverDocument> {
-    return this.driverModel.findByIdAndUpdate(
-      driverId,
-      updateDriverDto,
-      { new: true },
-    );
+    try {
+      console.log('[DriversService] Updating driver:', driverId);
+      console.log('[DriversService] Update data:', JSON.stringify(updateDriverDto));
+      
+      const result = await this.driverModel.findByIdAndUpdate(
+        driverId,
+        updateDriverDto,
+        { new: true },
+      );
+      
+      console.log('[DriversService] Update successful');
+      return result;
+    } catch (error) {
+      console.error('[DriversService] Error updating driver:', error);
+      throw error;
+    }
   }
 
   async incrementRideStats(driverId: string, completed: boolean = true): Promise<void> {
@@ -255,8 +278,8 @@ export class DriversService {
     );
   }
 
-  async getDashboard(userId: string): Promise<any> {
-    const driver = await this.findByUserId(userId);
+  async getDashboard(driverId: string): Promise<any> {
+    const driver = await this.findById(driverId);
 
     return {
       id: driver._id,
@@ -279,8 +302,8 @@ export class DriversService {
     };
   }
 
-  async getTodayEarnings(userId: string): Promise<any> {
-    const driver = await this.findByUserId(userId);
+  async getTodayEarnings(driverId: string): Promise<any> {
+    const driver = await this.findById(driverId);
     
     // Tính doanh thu hôm nay từ rides
     const today = new Date();
@@ -302,17 +325,17 @@ export class DriversService {
   }
 
   async toggleAcceptingRides(
-    userId: string,
+    driverId: string,
     isAcceptingRides: boolean,
   ): Promise<DriverDocument> {
-    const driver = await this.findByUserId(userId);
+    const driver = await this.findById(driverId);
 
     if (driver.isSuspended) {
       throw new BadRequestException('Driver is suspended and cannot accept rides');
     }
 
     return this.driverModel.findByIdAndUpdate(
-      driver._id,
+      driverId,
       { isAcceptingRides },
       { new: true },
     );
@@ -321,36 +344,82 @@ export class DriversService {
   /**
    * Set driver online status
    */
-  async updateOnlineStatus(userId: string, isOnline: boolean): Promise<DriverDocument> {
-    const driver = await this.findByUserId(userId);
+  async updateOnlineStatus(driverId: string, isOnline: boolean): Promise<DriverDocument> {
+    const updateData: any = { 
+      isOnline,
+      status: isOnline ? 'online' : 'offline',
+      isAvailable: isOnline,
+    };
+    if (isOnline) {
+      updateData.lastOnlineTime = new Date();
+    }
 
     const updated = await this.driverModel.findByIdAndUpdate(
-      driver._id,
-      { 
-        isOnline,
-        // When going online, also make available for auto-assign
-        // When going offline, also mark unavailable
-        isAvailable: isOnline,
-      },
+      driverId,
+      updateData,
       { new: true },
     );
 
-    console.log(`[DriversService] Driver ${driver._id} online status updated to:`, isOnline, 'available:', isOnline);
+    if (!updated) {
+      throw new NotFoundException(`Driver ${driverId} not found`);
+    }
+
+    console.log(`[DriversService] Driver ${driverId} online status updated to:`, isOnline, 'status:', updateData.status, 'available:', isOnline);
     return updated;
   }
 
   /**
    * Set driver available status for auto-assign
    */
-  async updateAvailableStatus(userId: string, isAvailable: boolean): Promise<DriverDocument> {
-    const driver = await this.findByUserId(userId);
-
+  async updateAvailableStatus(driverId: string, isAvailable: boolean): Promise<DriverDocument> {
     const updated = await this.driverModel.findByIdAndUpdate(
-      driver._id,
+      driverId,
       { isAvailable },
       { new: true },
     );
 
-    console.log(`[DriversService] Driver ${driver._id} available status updated to:`, isAvailable);
+    if (!updated) {
+      throw new NotFoundException(`Driver ${driverId} not found`);
+    }
+
+    console.log(`[DriversService] Driver ${driverId} available status updated to:`, isAvailable);
     return updated;
-  }}
+  }
+
+  /**
+   * Update driver heartbeat (keep alive)
+   * Also ensures isOnline and status are synced
+   */
+  async updateHeartbeat(driverId: string): Promise<void> {
+    await this.driverModel.findByIdAndUpdate(driverId, {
+      lastOnlineTime: new Date(),
+      isOnline: true,
+      status: DriverStatus.ONLINE,
+    });
+  }
+
+  /**
+   * Auto-offline drivers that haven't sent heartbeat in 3 minutes
+   * Should be called by a cron job every minute
+   * Note: Heartbeat is sent every 15 seconds from mobile app
+   */
+  async autoOfflineInactiveDrivers(): Promise<void> {
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
+    
+    const result = await this.driverModel.updateMany(
+      {
+        isOnline: true,
+        lastOnlineTime: { $lt: threeMinutesAgo },
+      },
+      {
+        isOnline: false,
+        isAvailable: false,
+        status: 'offline', // Sync status field with isOnline
+      }
+    );
+
+    if (result.modifiedCount > 0) {
+      console.log(`[DriversService] Auto-offlined ${result.modifiedCount} inactive drivers`);
+    }
+  }
+}

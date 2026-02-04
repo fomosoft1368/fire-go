@@ -7,6 +7,12 @@
     "userInterfaceStyle": "light",
     "sdkVersion": "54.0.0",
     "entryPoint": "./index.js",
+    "icon": "./src/assets/logooo.png",
+    "splash": {
+      "image": "./src/assets/logooo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -29,6 +35,10 @@
       "package": "com.datxe.customer",
       "versionCode": 1,
       "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/logooo.png",
+        "backgroundColor": "#ffffff"
+      },
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY"

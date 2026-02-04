@@ -59,7 +59,8 @@ export class DriversController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async getMyProfile(@Request() req: any) {
-    return this.driversService.findByUserId(req.user.id);
+    // req.user.id is the driver's _id from JWT token
+    return this.driversService.findById(req.user.id);
   }
 
   /**
@@ -154,6 +155,23 @@ export class DriversController {
     console.log('[DriversController] Updating driver status:', req.user.id, 'to:', status);
     return this.driversService.updateStatus(req.user.id, status);
   }
+
+  /**
+   * PATCH /api/drivers/me
+   * Cập nhật thông tin tài xế hiện tại
+   */
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async updateMyProfile(
+    @Request() req: any,
+    @Body() updateDriverDto: UpdateDriverDto,
+  ) {
+    console.log('[DriversController] Updating profile for driver:', req.user.id);
+    console.log('[DriversController] Update data:', JSON.stringify(updateDriverDto));
+    return this.driversService.update(req.user.id, updateDriverDto);
+  }
+
   /**
    * PATCH /api/drivers/online-status
    * Cập nhật online status (tài xế hiện tại)
@@ -183,6 +201,21 @@ export class DriversController {
     console.log('[DriversController] Setting available status for driver:', req.user.id, 'to:', isAvailable);
     return this.driversService.updateAvailableStatus(req.user.id, isAvailable);
   }
+
+  /**
+   * POST /api/drivers/heartbeat
+   * Heartbeat to keep driver online (update lastOnlineTime)
+   */
+  @Post('heartbeat')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async heartbeat(@Request() req: any) {
+    // req.user.id is the driver's _id from JWT token
+    await this.driversService.updateHeartbeat(req.user.id);
+    
+    return { success: true, message: 'Heartbeat received' };
+  }
+
   /**
    * PATCH /api/drivers/:id/status
    * Cập nhật trạng thái tài xế

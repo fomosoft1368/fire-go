@@ -23,7 +23,7 @@ import type { RootState } from '../redux/store'
 import type { RideItem } from '../types'
 
 export default function HomeScreen() {
-  const [isOnline, setIsOnline] = useState(true)
+  const [isOnline, setIsOnline] = useState(false) // Default offline until loaded from API
   const [autoAssignEnabled, setAutoAssignEnabled] = useState(true)
   const [activeFilter, setActiveFilter] = useState<'all' | 'pool' | 'assist'>('all')
   const [rides, setRides] = useState<any[]>([])
@@ -32,6 +32,28 @@ export default function HomeScreen() {
   
   const { user } = useSelector((state: RootState) => state.auth)
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
+
+  // Fetch driver profile on mount to get current online status
+  useEffect(() => {
+    const fetchDriverProfile = async () => {
+      try {
+        console.log('[HomeScreen] 📥 Fetching driver profile...')
+        const profile = await driverService.getProfile()
+        console.log('[HomeScreen] ✅ Profile loaded:', { 
+          isOnline: profile.isOnline, 
+          status: profile.status 
+        })
+        // Set online status from profile
+        setIsOnline(profile.isOnline || false)
+      } catch (error) {
+        console.error('[HomeScreen] ❌ Error fetching profile:', error)
+        // Default to offline if failed to fetch
+        setIsOnline(false)
+      }
+    }
+    
+    fetchDriverProfile()
+  }, [])
 
   // Handle online/offline toggle with API call
   const handleToggleOnline = async (value: boolean) => {
@@ -59,37 +81,9 @@ export default function HomeScreen() {
       console.log('[HomeScreen] 🟢 Driver is online, starting location tracking')
       locationTrackingService.startTracking(user.id)
       
-      // Start polling for assignment requests when online
       console.log('[HomeScreen] 🔄 Starting assignment polling')
       assignmentRequestPollingService.startPolling((request) => {
         console.log('[HomeScreen] 📨 New assignment request:', request)
-        
-        // Show notification modal with request details
-        Alert.alert(
-          request.type === 'ride' ? 'Yêu cầu chuyến đi' : 'Yêu cầu giao hàng',
-          `${request.pickup} → ${request.dropoff}\nGiá: ${request.estimatedPrice}₫`,
-          [
-            {
-              text: 'Từ chối',
-              style: 'cancel',
-              onPress: () => {
-                // Navigate to reject screen or call reject API
-                console.log('[HomeScreen] Request rejected')
-              }
-            },
-            {
-              text: 'Chấp nhận',
-              onPress: () => {
-                // Navigate to accept screen
-                if (request.type === 'delivery') {
-                  navigation.navigate('DeliveryDetails', { deliveryId: request.deliveryId })
-                } else {
-                  navigation.navigate('RideDetails', { rideId: request.rideId })
-                }
-              }
-            }
-          ]
-        )
       })
     } else if (!isOnline) {
       console.log('[HomeScreen] 🔴 Driver is offline, stopping location tracking and polling')
@@ -98,9 +92,7 @@ export default function HomeScreen() {
     }
 
     return () => {
-      // Don't stop tracking on unmount, let it continue in background
       console.log('[HomeScreen] Component unmounting, but keeping location tracking active')
-      // Note: Polling will continue until driver goes offline
     }
   }, [isOnline, user?.id])
 
@@ -108,9 +100,6 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchAvailableRides()
   }, [])
-
-  // ✅ REMOVED: Modal logic moved to GlobalRequestModal component in App.js
-  // Assignment request modal also moved to App.js (global AssignmentRequestModal)
 
   const fetchAvailableRides = async () => {
     setLoading(true)
@@ -184,13 +173,11 @@ export default function HomeScreen() {
     await fetchAvailableRides()
   }
 
-  const formatRideData = (ride: any): RideItem & { sourceType?: string; _id?: string } => {
+  const formatRideData = (ride: any): RideItem => {
     // Determine if it's a combined trip or regular ride
     const isCombinedTrip = ride.sourceType === 'combined_trip'
-    // Combined trips are always POOL, otherwise check rideType
     const isShareRide = isCombinedTrip || ride.rideType === 'share'
 
-    // Get pickup address (not mock)
     const pickupAddr = ride.pickupAddress || 'Điểm đón'
     
     console.log('📍 [formatRideData] Ride data:', {
@@ -202,13 +189,11 @@ export default function HomeScreen() {
       duration: ride.duration,
     })
 
-    // Handle dropoff location - could be string or GeoJSON object
     let dropoffAddr = ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến'
     if (typeof dropoffAddr === 'object' && dropoffAddr?.type === 'Point') {
       dropoffAddr = ride.dropoffLocationAddress || 'Địa điểm đến'
     }
 
-    // For display, show short version of address
     const shortPickupAddr = pickupAddr.length > 30 ? pickupAddr.substring(0, 30) + '...' : pickupAddr
     const shortDropoffAddr = dropoffAddr.length > 30 ? dropoffAddr.substring(0, 30) + '...' : dropoffAddr
 
@@ -246,10 +231,6 @@ export default function HomeScreen() {
 
       console.log('🚗 Viewing ride:', { rideId, sourceType, type })
 
-      // Determine which screen to navigate to based on ride type
-      const isCombinedTrip = sourceType === 'combined_trip'
-      const isAssistRide = type === 'ASSIST'
-
       // For lái xe hộ (ASSIST), go to RideDetailScreen
       if (isAssistRide && !isCombinedTrip) {
         console.log('📍 Navigating to RideDetailScreen for ASSIST ride')
@@ -259,30 +240,24 @@ export default function HomeScreen() {
 
       // For ghép xe (POOL/combined trips), accept and go to RideRequestsScreen
       if (isCombinedTrip) {
-        // Check if this driver created the combined trip (driverId is already set)
         const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
         const isMyTrip = rideDriverId === user.id
 
         if (!isMyTrip) {
-          // This is someone else's trip, we need to accept it
           await driverService.acceptCombinedTrip(rideId, user.id)
           console.log('✅ Combined trip accepted')
         } else {
-          // This is my own trip, skip accept and go straight to manage requests
           console.log('✅ This is your own combined trip, skipping accept')
         }
       } else {
-        // Regular share ride
         await driverService.acceptRide(rideId, user.id)
         Alert.alert('Thành công', `Bạn đã nhận cuốc`)
       }
 
-      // Navigate to RideRequestsScreen for share rides and combined trips
       const params = isCombinedTrip
         ? { combinedTripId: rideId, sourceType: 'combined_trip' }
         : { rideId, sourceType: 'ride' }
 
-      // Start polling for pending requests if combined trip
       if (isCombinedTrip) {
         console.log('🔄 Navigating to combined trip:', rideId)
       }
@@ -298,36 +273,6 @@ export default function HomeScreen() {
       Alert.alert('Lỗi', msg)
     }
   }
-  // Update ride status (cancel, start, complete)
-  const handleUpdateRideStatus = async (rideId: string, newStatus: string) => {
-    Alert.alert(
-      'Xác nhận',
-      `Bạn muốn thay đổi trạng thái chuyến?`,
-      [
-        { text: 'Hủy', onPress: () => { }, style: 'cancel' },
-        {
-          text: 'Xác nhận',
-          onPress: async () => {
-            try {
-              await driverService.updateRide(rideId, { status: newStatus })
-              Alert.alert('Thành công', 'Cập nhật trạng thái thành công')
-              await fetchAvailableRides()
-            } catch (error: any) {
-              console.error('Lỗi cập nhật:', error)
-              let msg = 'Không thể cập nhật trạng thái'
-              if (error && error.message) {
-                msg = Array.isArray(error.message) ? error.message.join(', ') : String(error.message)
-              }
-              Alert.alert('Lỗi', msg)
-            }
-          },
-        },
-      ]
-    )
-  }
-
-  // ✅ REMOVED: handleAcceptAssignedRide, handleEditRide, handleRejectRide
-  // Now handled by global AssignmentRequestModal in App.js
 
   const filteredRides = rides
     .map(formatRideData)
@@ -340,10 +285,6 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* ✅ REMOVED: All notification modals moved to App.js */}
-      {/* - GlobalRequestModal (for ride requests) */}
-      {/* - AssignmentRequestModal (for auto-assign driver confirmation) */}
-
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -369,72 +310,6 @@ export default function HomeScreen() {
           isOnline={isOnline}
           onToggleOnline={handleToggleOnline}
         />
-
-        {/* Auto-Assign Card */}
-        <View style={styles.autoAssignCard}>
-          <View style={styles.autoAssignHeader}>
-            <View style={styles.autoAssignTitleSection}>
-              <View style={[styles.autoAssignIcon, autoAssignEnabled && styles.autoAssignIconActive]}>
-                <MaterialIcons
-                  name="auto-awesome"
-                  size={24}
-                  color={autoAssignEnabled ? '#FF6B00' : COLORS.textSecondary}
-                />
-              </View>
-              <View style={styles.autoAssignTitle}>
-                <Text style={styles.autoAssignTitleText}>Tự động chỉ định</Text>
-                <Text style={styles.autoAssignSubtext}>
-                  {autoAssignEnabled ? 'Đang tìm kiếm cuốc phù hợp' : 'Bật để nhận cuốc tự động'}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={autoAssignEnabled}
-              onValueChange={setAutoAssignEnabled}
-              trackColor={{ false: COLORS.darkBorder, true: '#FF6B0050' }}
-              thumbColor={autoAssignEnabled ? '#FF6B00' : COLORS.textSecondary}
-            />
-          </View>
-
-          {autoAssignEnabled && (
-            <View style={styles.autoAssignStats}>
-              <View style={styles.statItem}>
-                <View style={styles.statIcon}>
-                  <MaterialIcons name="location-on" size={16} color="#FF6B00" />
-                </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statLabel}>Bán kính tìm</Text>
-                  <Text style={styles.statValue}>2 km</Text>
-                </View>
-              </View>
-
-              <View style={styles.statDivider} />
-
-              <View style={styles.statItem}>
-                <View style={styles.statIcon}>
-                  <MaterialIcons name="schedule" size={16} color="#4caf50" />
-                </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statLabel}>Cuốc chờ</Text>
-                  <Text style={styles.statValue}>{rides.length}</Text>
-                </View>
-              </View>
-
-              <View style={styles.statDivider} />
-
-              <View style={styles.statItem}>
-                <View style={styles.statIcon}>
-                  <MaterialIcons name="star" size={16} color="#8b5cf6" />
-                </View>
-                <View style={styles.statContent}>
-                  <Text style={styles.statLabel}>Điểm số</Text>
-                  <Text style={styles.statValue}>4.8</Text>
-                </View>
-              </View>
-            </View>
-          )}
-        </View>
-
         {/* Filter Buttons */}
         <FilterButtons activeFilter={activeFilter} onFilterChange={setActiveFilter} />
 
@@ -487,19 +362,10 @@ export default function HomeScreen() {
             </View>
           ) : filteredRides.length > 0 ? (
             filteredRides.map((ride) => {
-              // Tìm ride gốc để có full data (including sourceType)
               const originalRide = rides.find(r => r._id === ride.id)
-              // Merge formatted ride with original data to preserve sourceType
               const completeRide = originalRide ? { ...ride, ...originalRide } : ride
               return (
-                <View key={ride.id} style={styles.rideWithActions}>
-                  <RideCard ride={completeRide} onAccept={handleAcceptRide} />
-                  {originalRide && (
-                    <View style={styles.rideActions}>
-
-                    </View>
-                  )}
-                </View>
+                <RideCard key={ride.id} ride={completeRide} onAccept={handleAcceptRide} />
               )
             })
           ) : (
@@ -719,32 +585,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
-  debugInfo: {
-    marginTop: SPACING.lg,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.md,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
-  },
-  debugText: {
-    fontSize: 11,
-    color: COLORS.primary,
-    fontFamily: 'monospace',
-  },
-  viewMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    marginBottom: SPACING.xl,
-  },
-  viewMoreText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
   mapButton: {
     position: 'absolute',
     bottom: 32,
@@ -847,129 +687,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.darkBorder,
     marginHorizontal: SPACING.sm,
   },
-  // ============ Assigned Ride Notification Styles ============
-  assignedRideNotification: {
-    backgroundColor: '#FF6B00',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    marginBottom: 0,
-    overflow: 'hidden',
-    paddingTop: 40,
-  },
-  assignedRideContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    paddingTop: 40,
-  },
-  assignedRideIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  assignedRideInfo: {
-    flex: 1,
-    gap: SPACING.xs,
-  },
-  assignedRideTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  assignedRideLocation: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-  },
-  assignedRideTime: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '600',
-  },
-  assignedRideTimer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  assignedRideClose: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timerText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  timerProgressBar: {
-    marginTop: SPACING.md,
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 1.5,
-    overflow: 'hidden',
-  },
-  timerProgressFill: {
-    height: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 1.5,
-  },
-  // ============ Action Buttons Styles ============
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    marginTop: SPACING.lg,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  acceptButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
-  },
-  rejectButton: {
-    backgroundColor: 'rgba(244, 67, 54, 0.9)',
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  // ============ Test Button ============
-  testButton: {
-    marginHorizontal: SPACING.lg,
-    marginVertical: SPACING.lg,
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    backgroundColor: '#ff6b6b',
-    borderRadius: BORDER_RADIUS.lg,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  testButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  // ============ Delivery Button ============
   deliveryButton: {
     marginHorizontal: SPACING.lg,
     marginBottom: SPACING.lg,
@@ -1007,44 +724,5 @@ const styles = StyleSheet.create({
   deliverySubtitle: {
     fontSize: 14,
     color: '#666',
-  },
-  // ============ Ride Actions Styles ============
-  rideWithActions: {
-    marginBottom: SPACING.lg,
-  },
-  rideActions: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-    marginTop: SPACING.md,
-    paddingHorizontal: SPACING.sm,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  detailBtn: {
-    backgroundColor: '#2196F3',
-  },
-  editBtn: {
-    backgroundColor: '#2196F3',
-  },
-  startBtn: {
-    backgroundColor: '#4CAF50',
-  },
-  completeBtn: {
-    backgroundColor: '#8BC34A',
-  },
-  cancelBtn: {
-    backgroundColor: '#f44336',
-  },
-  actionBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
   },
 })

@@ -363,8 +363,6 @@ const MapViewComponent = ({
       >
         <MaterialIcons name="explore" size={20} color="#FF6B00" />
       </TouchableOpacity>
-
-      {/* Button phóng to vị trí hiện tại */}
     </View>
   )
 }

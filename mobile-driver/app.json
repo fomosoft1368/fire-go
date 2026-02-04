@@ -6,6 +6,12 @@
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./src/assets/fire-logo.png",
+    "splash": {
+      "image": "./src/assets/fire-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -31,6 +37,10 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
       ],
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/fire-logo.png",
+        "backgroundColor": "#ffffff"
+      },
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY"

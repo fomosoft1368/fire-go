@@ -248,6 +248,19 @@ export class DriverService {
   }
 
   /**
+   * Cập nhật thông tin tài xế hiện tại (dùng token)
+   */
+  async updateMyProfile(data: any): Promise<any> {
+    try {
+      const response = await this.api.patch('/me', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating my profile:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Lấy danh sách cuốc có sẵn (chưa được tài xế nào nhận và chưa hoàn thành)
    */
   async getAvailableRides(rideType?: 'share' | 'hire'): Promise<any[]> {
@@ -627,6 +640,19 @@ export class DriverService {
       return response.data;
     } catch (error: any) {
       console.error('[DriverService] Error setting available status:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Send heartbeat to keep driver online
+   */
+  async sendHeartbeat(): Promise<any> {
+    try {
+      const response = await this.api.post('/heartbeat');
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] Error sending heartbeat:', error.message);
       throw error;
     }
   }

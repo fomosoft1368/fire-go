@@ -70,6 +70,9 @@ const authSlice = createSlice({
         state.error = null
       }
     },
+    updateUser: (state, action: PayloadAction<any>) => {
+      state.user = { ...state.user, ...action.payload }
+    },
   },
 })
 
@@ -82,6 +85,7 @@ export const {
   registerSuccess,
   registerFailure,
   restoreAuth,
+  updateUser,
 } = authSlice.actions
 
 export default authSlice.reducer

@@ -292,9 +292,12 @@ async function seed() {
           bankAccountHolder: driverData.bankAccountHolder,
           bankStatus: 'verified',
           status: 'online',
+          isOnline: true, // Sync with status field
+          isAvailable: true,
           isAcceptingRides: true,
           isSuspended: false,
           verificationStatus: 'verified',
+          lastOnlineTime: new Date(), // Set initial heartbeat
           currentLocation: {
             type: 'Point',
             coordinates: [105.8542, 21.0285], // Hà Nội

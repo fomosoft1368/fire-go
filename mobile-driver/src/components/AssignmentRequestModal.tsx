@@ -8,6 +8,7 @@ interface AssignmentRequestModalProps {
   onAccept: () => void
   onReject: () => void
   countdown: number
+  driverTypes?: string[] // Loại tài xế: hire, rideshare, delivery
 }
 
 const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
@@ -16,6 +17,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
   onAccept,
   onReject,
   countdown,
+  driverTypes = ['rideshare'], // Mặc định là rideshare
 }) => {
   const [pulseAnim] = useState(new Animated.Value(1))
 
@@ -43,10 +45,43 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
 
   // Check if this is a delivery or ride request
   const isDelivery = request.type === 'delivery'
-  const data = isDelivery ? (request.deliveryId || {}) : (request.rideId || {})
+  const isRideshare = request.type === 'rideshare' || request.isShared
+  const isHire = request.type === 'hire' || (!isDelivery && !isRideshare)
   
+  // Kiểm tra loại tài xế có phù hợp với loại request không
+  const canAcceptRequest = () => {
+    if (isDelivery) {
+      // Chỉ tài xế delivery mới nhận được đơn giao hàng
+      return driverTypes.includes('delivery')
+    } else if (isRideshare) {
+      // Chỉ tài xế rideshare mới nhận được cuốc ghép xe
+      return driverTypes.includes('rideshare')
+    } else if (isHire) {
+      // Chỉ tài xế hire mới nhận được cuốc lái xe hộ
+      return driverTypes.includes('hire')
+    }
+    return false
+  }
+
+  // Nếu tài xế không phù hợp với loại request, không hiển thị modal
+  if (!canAcceptRequest()) {
+    console.log('[AssignmentRequestModal] Driver types mismatch:', {
+      driverTypes,
+      requestType: request.type,
+      isDelivery,
+      isRideshare,
+      isHire,
+    })
+    return null
+  }
+  
+  // The request object structure can be:
+  // 1. Direct ride/delivery object (has pickupAddress directly)
+  // 2. Nested object with rideId/deliveryId property
+  const data = request.rideId || request.deliveryId || request
+
   const pickupAddress = data.pickupAddress || 'Địa điểm đón'
-  const dropoffAddress = data.dropoffAddress || (isDelivery ? data.deliveryAddress : 'Địa điểm đến')
+  const dropoffAddress = data.dropoffAddress || data.deliveryAddress || 'Địa điểm đến'
   const fare = data.totalFare || data.deliveryFee || 0
 
   return (
@@ -61,10 +96,10 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <MaterialIcons 
-                name={isDelivery ? "local-shipping" : "local-taxi"} 
-                size={32} 
-                color="#FF6B00" 
+              <MaterialIcons
+                name={isDelivery ? "local-shipping" : "local-taxi"}
+                size={32}
+                color="#FF6B00"
               />
             </View>
             <Text style={styles.title}>

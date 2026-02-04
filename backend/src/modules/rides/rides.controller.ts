@@ -1,11 +1,10 @@
 import { Controller, Get, Post, Body, Param, Patch, Query, Request, BadRequestException, UseGuards } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { RidesService } from './rides.service';
+import { RidesService } from './services/rides.service';
 import { AutoAssignService } from './services/auto-assign.service';
 import { CreateRideDto } from './dto';
-import { Ride, RideDocument, RideStatus, RideType } from './schemas/ride.schema';
-// import { RideRequest, RideRequestDocument } from './schemas/ride-request.schema';
+import { Ride, RideDocument, RideType } from './schemas/ride.schema';
 import { AssignmentRequest, AssignmentRequestDocument } from './schemas/assignment-request.schema';
 import { Pricing } from './schemas/pricing.schema';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -17,7 +16,6 @@ export class RidesController {
     private readonly autoAssignService: AutoAssignService,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<Pricing>,
-    // @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
     @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
   ) {}
   @Get('analytics/revenue')
@@ -153,8 +151,11 @@ export class RidesController {
     console.log('🆕 [RidesController] Creating ride for customer:', customerId);
     const ride = await this.ridesService.create(createRideDto, customerId);
     
-    // Auto-assign driver if enabled in request
-    if (createRideDto.autoAssign && ride.rideType === RideType.HIRE) {
+    // Auto-assign driver for HIRE rides (default enabled unless explicitly disabled)
+    const shouldAutoAssign = ride.rideType === RideType.HIRE && 
+                            (createRideDto.autoAssign !== false); // Default to true
+    
+    if (shouldAutoAssign) {
       console.log('🤖 [RidesController] Auto-assigning driver for ride:', ride._id);
       try {
         const assignResult = await this.ridesService.autoAssignDriver(ride._id.toString());
@@ -219,17 +220,9 @@ export class RidesController {
     return this.ridesService.findByCustomerId(customerId);
   }
 
-  // @Get('driver/:id')
-  // async findByIdForDriver(@Param('id') id: string) {
-  //   return this.ridesService.findByIdForDriver(id);
-  // }
-
-  @Get('stats/:userId')
-  async getStats(
-    @Param('userId') userId: string,
-    @Query('userType') userType: 'driver' | 'customer',
-  ) {
-    return this.ridesService.getRideStats(userId, userType);
+  @Get('driver/:id')
+  async findByIdForDriver(@Param('id') id: string) {
+    return this.ridesService.findByIdForDriver(id);
   }
 
   // ============ Assignment Request Endpoints ============
@@ -347,176 +340,4 @@ export class RidesController {
   ) {
     return this.ridesService.rateRide(rideId, rating, review, ratedBy);
   }
-
-  // // Ride Requests Management
-  // @Post(':rideId/requests')
-  // async createRideRequest(
-  //   @Param('rideId') rideId: string,
-  //   @Body() body: {
-  //     customerId: string;
-  //     seats: number;
-  //     fare: number;
-  //     pickupAddress: string;
-  //     dropoffAddress: string;
-  //     pickupCoordinates: [number, number];
-  //     dropoffCoordinates: [number, number];
-  //     distance: number;
-  //   },
-  // ) {
-  //   try {
-  //     console.log('📝 [createRideRequest] Creating request with:', {
-  //       rideId,
-  //       customerId: body.customerId,
-  //       pickupAddress: body.pickupAddress,
-  //       dropoffAddress: body.dropoffAddress,
-  //       pickupCoordinates: body.pickupCoordinates,
-  //       dropoffCoordinates: body.dropoffCoordinates,
-  //     });
-      
-  //     // Create ride request
-  //     const request = new this.rideRequestModel({
-  //       rideId: new Types.ObjectId(rideId),
-  //       customerId: new Types.ObjectId(body.customerId),
-  //       status: 'pending',
-  //       seats: body.seats,
-  //       fare: body.fare,
-  //       pickupAddress: body.pickupAddress,
-  //       dropoffAddress: body.dropoffAddress,
-  //       pickupCoordinates: body.pickupCoordinates,
-  //       dropoffCoordinates: body.dropoffCoordinates,
-  //       distance: body.distance,
-  //     });
-
-  //     console.log('💾 [createRideRequest] Saving request document...');
-  //     const savedRequest = await request.save();
-  //     console.log('✅ [createRideRequest] Request saved successfully:', {
-  //       _id: savedRequest._id,
-  //       rideId: savedRequest.rideId,
-  //       customerId: savedRequest.customerId,
-  //       pickupCoordinates: savedRequest.pickupCoordinates,
-  //     });
-      
-  //     const populatedRequest = await savedRequest.populate('customerId', 'name phone rating');
-  //     console.log('✅ [createRideRequest] Request populated:', populatedRequest);
-  //     return populatedRequest;
-  //   } catch (error: any) {
-  //     console.error('❌ [createRideRequest] Error:', error.message, error.stack);
-  //     throw new BadRequestException(`Failed to create ride request: ${error.message}`);
-  //   }
-  // }
-
-  // @Get(':rideId/requests/:requestId')
-  // async getRideRequest(
-  //   @Param('rideId') rideId: string,
-  //   @Param('requestId') requestId: string,
-  // ) {
-  //   try {
-  //     const request = await this.rideRequestModel
-  //       .findById(new Types.ObjectId(requestId))
-  //       .populate('customerId', 'name phone rating');
-
-  //     if (!request) {
-  //       throw new Error('Request not found');
-  //     }
-
-  //     return request;
-  //   } catch (error: any) {
-  //     throw new Error(`Failed to get request: ${error.message}`);
-  //   }
-  // }
-
-  // @Get(':rideId/requests')
-  // async getRideRequests(@Param('rideId') rideId: string) {
-  //   return this.rideRequestModel
-  //     .find({ rideId: new Types.ObjectId(rideId), status: 'pending' })
-  //     .populate('customerId', 'name phone rating')
-  //     .sort({ createdAt: -1 })
-  // }
-
-  // @Patch(':rideId/requests/:requestId/accept')
-  // async acceptRideRequest(
-  //   @Param('rideId') rideId: string,
-  //   @Param('requestId') requestId: string,
-  // ) {
-  //   const request = await this.rideRequestModel.findByIdAndUpdate(
-  //     requestId,
-  //     { status: 'accepted' },
-  //     { new: true },
-  //   )
-
-  //   if (!request) {
-  //     throw new BadRequestException('Request not found')
-  //   }
-
-  //   return request
-  // }
-
-  // @Patch(':rideId/requests/:requestId/reject')
-  // async rejectRideRequest(
-  //   @Param('rideId') rideId: string,
-  //   @Param('requestId') requestId: string,
-  // ) {
-  //   // Update request status to rejected
-  //   const request = await this.rideRequestModel.findByIdAndUpdate(
-  //     requestId,
-  //     { status: 'rejected' },
-  //     { new: true },
-  //   )
-
-  //   return request
-  // }
-
-  // @Patch(':rideId/requests/:requestId/mark-arrived')
-  // async markArrivedAtPickup(
-  //   @Param('rideId') rideId: string,
-  //   @Param('requestId') requestId: string,
-  // ) {
-  //   const request = await this.rideRequestModel.findByIdAndUpdate(
-  //     requestId,
-  //     { status: 'arrived_at_pickup' },
-  //     { new: true },
-  //   )
-
-  //   if (!request) {
-  //     throw new BadRequestException('Request not found')
-  //   }
-
-  //   return request
-  // }
-
-  // @Patch(':rideId/requests/:requestId/start-journey')
-  // async startJourneyWithPassenger(
-  //   @Param('rideId') rideId: string,
-  //   @Param('requestId') requestId: string,
-  // ) {
-  //   const request = await this.rideRequestModel.findByIdAndUpdate(
-  //     requestId,
-  //     { status: 'in_progress' },
-  //     { new: true },
-  //   )
-
-  //   if (!request) {
-  //     throw new BadRequestException('Request not found')
-  //   }
-
-  //   return request
-  // }
-
-  // @Patch(':rideId/requests/:requestId/complete')
-  // async completePassengerJourney(
-  //   @Param('rideId') rideId: string,
-  //   @Param('requestId') requestId: string,
-  // ) {
-  //   const request = await this.rideRequestModel.findByIdAndUpdate(
-  //     requestId,
-  //     { status: 'completed' },
-  //     { new: true },
-  //   )
-
-  //   if (!request) {
-  //     throw new BadRequestException('Request not found')
-  //   }
-
-  //   return request
-  // }
 }
