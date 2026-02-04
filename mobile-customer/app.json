@@ -18,7 +18,8 @@
         "policy": "sdkVersion"
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Allow app to access your location"
+        "NSLocationWhenInUseUsageDescription": "Allow app to access your location for ride booking",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow app to access your location for ride tracking and history"
       },
       "config": {
         "googleMapsApiKey": "AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY"
@@ -35,6 +36,12 @@
       }
     },
     "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow app to access your location"
+        }
+      ],
       [
         "expo-font",
         {

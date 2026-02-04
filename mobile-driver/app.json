@@ -13,12 +13,17 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location"
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location",
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location"
         }
       ]
     ],
     "ios": {
-      "supportsTabletMode": true
+      "supportsTabletMode": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow the app to access your location while using the app to track rides and show nearby drivers",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow the app to access your location at all times to track your ride and location history"
+      }
     },
     "android": {
       "package": "com.datxe.driver",

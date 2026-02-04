@@ -16,6 +16,8 @@ export class Message {
 
   @Prop({ type: Types.ObjectId, ref: 'Delivery', required: false })
   deliveryId?: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'CombinedTrip', required: false })
+ combinedTripId?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
   senderId: Types.ObjectId;
@@ -70,5 +72,5 @@ export const MessageSchema = SchemaFactory.createForClass(Message);
 // Tạo index cho better query performance
 MessageSchema.index({ rideId: 1, createdAt: -1 });
 MessageSchema.index({ deliveryId: 1, createdAt: -1 });
-MessageSchema.index({ rideId: 1, senderId: 1 });
+MessageSchema.index({ combinedTripId: 1, createdAt: 1 });
 MessageSchema.index({ deliveryId: 1, senderId: 1 });

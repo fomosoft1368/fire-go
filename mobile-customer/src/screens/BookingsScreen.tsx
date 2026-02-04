@@ -178,21 +178,33 @@ export default function BookingsScreen() {
       // Merge rides + combined trips + deliveries
       const allBookings = [...rideHistory, ...formattedCombinedTrips, ...formattedDeliveries]
       
+      // ✅ Remove duplicates based on unique combination of id + rideType
+      const uniqueBookings = allBookings.filter((booking, index, self) => {
+        const uniqueKey = `${booking.id}_${booking.rideType}`
+        return index === self.findIndex((b) => `${b.id}_${b.rideType}` === uniqueKey)
+      })
+      
+      console.log('[BookingsScreen] Duplicate check:', {
+        total: allBookings.length,
+        unique: uniqueBookings.length,
+        removed: allBookings.length - uniqueBookings.length,
+      })
+      
       // Sort by booking time (newest first)
-      allBookings.sort((a, b) => {
+      uniqueBookings.sort((a, b) => {
         const timeA = new Date(a.bookingTime).getTime()
         const timeB = new Date(b.bookingTime).getTime()
         return timeB - timeA
       })
 
-      console.log('[BookingsScreen] Total bookings:', allBookings.length)
+      console.log('[BookingsScreen] Total bookings:', uniqueBookings.length)
       
-      setBookings(allBookings)
+      setBookings(uniqueBookings)
       
-      if (allBookings.length === 0) {
+      if (uniqueBookings.length === 0) {
         console.log('[BookingsScreen] No bookings found')
       } else {
-        console.log('[BookingsScreen] First booking:', JSON.stringify(allBookings[0], null, 2))
+        console.log('[BookingsScreen] First booking:', JSON.stringify(uniqueBookings[0], null, 2))
       }
     } catch (error: any) {
       console.error('[BookingsScreen] Error fetching rides:', {
@@ -378,7 +390,7 @@ export default function BookingsScreen() {
 
           return (
             <View
-              key={booking.id}
+              key={`${booking.id}_${booking.rideType}`}
               style={[styles.bookingCard, isCancelled && styles.bookingCardCancelled]}
             >
               {/* Card Header */}

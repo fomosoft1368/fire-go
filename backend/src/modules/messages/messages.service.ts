@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Message, MessageDocument } from './schemas/message.schema';
 import { CreateMessageDto } from './dto';
+import e from 'express';
 
 @Injectable()
 export class MessagesService {
@@ -41,8 +42,10 @@ export class MessagesService {
 
       if (hasRide) {
         messageData.rideId = new Types.ObjectId(createMessageDto.rideId);
-      } else {
+      } else if (hasDelivery) {
         messageData.deliveryId = new Types.ObjectId(createMessageDto.deliveryId);
+      } else  {
+        messageData.combinedTripId = new Types.ObjectId(createMessageDto.combinedTripId);
       }
 
       const message = await this.messageModel.create(messageData);
@@ -50,6 +53,7 @@ export class MessagesService {
       console.log(`[MessagesService] Message saved to DB:`, {
         messageId: message._id,
         rideId: createMessageDto.rideId,
+        combinedTripId: createMessageDto.combinedTripId,
         deliveryId: createMessageDto.deliveryId,
         sender: senderId,
         senderType: createMessageDto.senderType,
@@ -269,4 +273,68 @@ export class MessagesService {
       recipientId,
     });
   }
+
+  async getMessagesByCombinedTrip(
+    combinedTripId: string,
+    limit: number = 50,
+    skip: number = 0,
+  ): Promise<{
+    messages: MessageDocument[];
+    total: number;
+  }> {
+    const objectId = new Types.ObjectId(combinedTripId);  
+    const [messages, total] = await Promise.all([
+      this.messageModel
+        .find({ combinedTripId: objectId })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(skip)
+        .lean(),
+      this.messageModel.countDocuments({ combinedTripId: objectId }),
+    ]);
+    console.log(`[MessagesService] Retrieved messages for combined trip:`, {
+      combinedTripId,
+      count: messages.length, 
+      total,
+    });  
+    return {
+      messages: messages.reverse(), // Đảo lại để có thứ tự tăng dần (cũ -> mới)
+      total,
+    };
+  }
+  async getNewCombinedTripMessages(
+    combinedTripId: string,
+    sinceTimestamp: number,
+  ): Promise<MessageDocument[]> {
+    const messages = await this.messageModel
+      .find({
+        combinedTripId: new Types.ObjectId(combinedTripId),
+        createdAt: { $gt: new Date(sinceTimestamp) },
+      })
+      .sort({ createdAt: 1 })
+      .lean();
+    return messages;
+  }
+
+  async markCombinedTripMessagesAsRead(
+    combinedTripId: string,
+    recipientId: string,
+  ): Promise<void> {
+    await this.messageModel.updateMany(
+      {
+        combinedTripId: new Types.ObjectId(combinedTripId),
+        senderId: { $ne: new Types.ObjectId(recipientId) },
+        isRead: false,
+      },
+      {
+        isRead: true,
+        readAt: new Date(),
+      },
+    );
+    console.log(`[MessagesService] Marked combined trip messages as read:`, {
+      combinedTripId,
+      recipientId,
+    });
+  }
+  
 }

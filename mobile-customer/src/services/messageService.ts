@@ -46,72 +46,133 @@ export const messageService = {
   /**
    * Gửi tin nhắn
    */
-  async sendMessage(
-    tripId: string,
-    text: string,
-    senderType: 'customer' | 'driver',
-    tripType: 'ride' | 'delivery' = 'ride'
-  ) {
-    try {
-      const token = await AsyncStorage.getItem('authToken')
+  // async sendMessage(
+  //   tripId: string,
+  //   text: string,
+  //   senderType: 'customer' | 'driver',
+  //   tripType: 'ride' | 'delivery' | 'combinedtrip' = 'ride'
+  // ) {
+  //   try {
+  //     const token = await AsyncStorage.getItem('authToken')
 
-      if (!token) {
-        throw new Error('No auth token found. Please login again.')
-      }
+  //     if (!token) {
+  //       throw new Error('No auth token found. Please login again.')
+  //     }
 
-      if (!tripId || !text.trim()) {
-        throw new Error('TripId and text are required')
-      }
+  //     if (!tripId || !text.trim()) {
+  //       throw new Error('TripId and text are required')
+  //     }
 
-      console.log('[MessageService] Sending message:', {
-        tripId,
-        tripType,
-        textLength: text.length,
-        senderType,
-        tokenLength: token?.length,
-      })
+  //     console.log('[MessageService] Sending message:', {
+  //       tripId,
+  //       tripType,
+  //       textLength: text.length,
+  //       senderType,
+  //       tokenLength: token?.length,
+  //     })
 
-      const messageData: any = {
-        text,
-        senderType,
-        type: 'text',
-      }
+  //     const messageData: any = {
+  //       text,
+  //       senderType,
+  //       type: 'text',
+  //     }
 
-      if (tripType === 'ride') {
-        messageData.rideId = tripId
-      } else {
-        messageData.deliveryId = tripId
-      }
+  //     if (tripType === 'ride') {
+  //       messageData.rideId = tripId
+  //     } else {
+  //       messageData.deliveryId = tripId
+  //     }
 
-      const response = await apiClient.post(
-        '/messages',
-        messageData
-      )
+  //     const response = await apiClient.post(
+  //       '/messages',
+  //       messageData
+  //     )
 
-      console.log('[MessageService] Message sent successfully:', {
-        messageId: response.data.data?._id,
-        tripId,
-        tripType,
-        status: response.status,
-      })
+  //     console.log('[MessageService] Message sent successfully:', {
+  //       messageId: response.data.data?._id,
+  //       tripId,
+  //       tripType,
+  //       status: response.status,
+  //     })
 
-      return response.data.data
-    } catch (error: any) {
-      console.error('[MessageService] Send message error:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      })
-      throw error
+  //     return response.data.data
+  //   } catch (error: any) {
+  //     console.error('[MessageService] Send message error:', {
+  //       message: error.message,
+  //       response: error.response?.data,
+  //       status: error.response?.status,
+  //     })
+  //     throw error
+  //   }
+  // },
+async sendMessage(
+  tripId: string,
+  text: string,
+  senderType: 'customer' | 'driver',
+  tripType: 'ride' | 'delivery' | 'combinedtrip'
+) {
+  try {
+    const token = await AsyncStorage.getItem('authToken')
+
+    if (!token) {
+      throw new Error('No auth token found. Please login again.')
     }
-  },
 
+    if (!tripId || !text.trim()) {
+      throw new Error('TripId and text are required')
+    }
+
+    console.log('[MessageService] Sending message:', {
+      tripId,
+      tripType,
+      textLength: text.length,
+      senderType,
+      tokenLength: token?.length,
+    })
+
+    const messageData: any = {
+      text,
+      senderType,
+      type: 'text',
+    }
+
+    // Fix: Handle all trip types correctly
+    if (tripType === 'ride') {
+      messageData.rideId = tripId
+    } else if (tripType === 'delivery') {
+      messageData.deliveryId = tripId
+    } else if (tripType === 'combinedtrip') {
+      messageData.combinedTripId = tripId // ← Fix: Thêm field combinedTripId
+    }
+
+    const response = await apiClient.post(
+      '/messages',
+      messageData
+    )
+
+    console.log('[MessageService] Message sent successfully:', {
+      messageId: response.data.data?._id,
+      tripId,
+      tripType,
+      status: response.status,
+    })
+
+    return response.data.data
+  } catch (error: any) {
+    console.error('[MessageService] Send message error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    })
+    throw error
+  }
+},
   /**
    * Lấy danh sách tin nhắn
    */
   async getMessagesByTrip(
     tripId: string,
-    tripType: 'ride' | 'delivery' = 'ride',
+    tripType: 'ride' | 'delivery' | 'combinedtrip',
     limit: number = 50,
     skip: number = 0
   ) {
@@ -164,7 +225,7 @@ export const messageService = {
    */
   async getNewMessages(
     tripId: string,
-    tripType: 'ride' | 'delivery' = 'ride',
+    tripType: 'ride' | 'delivery' | 'combinedtrip',
     sinceTimestamp?: number
   ) {
     try {
@@ -223,7 +284,7 @@ export const messageService = {
    */
   async markAsRead(
     tripId: string,
-    tripType: 'ride' | 'delivery' = 'ride'
+    tripType: 'ride' | 'delivery' | 'combinedtrip'
   ) {
     try {
       const token = await AsyncStorage.getItem('authToken')

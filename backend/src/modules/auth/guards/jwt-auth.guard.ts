@@ -7,8 +7,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
     
-    console.log('[JwtAuthGuard] canActivate called');
-    console.log('[JwtAuthGuard] Auth header:', authHeader ? authHeader.substring(0, 30) + '...' : 'MISSING');
+ 
    
     return super.canActivate(context);
   }
@@ -24,7 +23,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       console.error('[JwtAuthGuard] Info:', info);
       console.error('[JwtAuthGuard] Auth header present:', !!authHeader);
     } else {
-      console.log('[JwtAuthGuard] Auth SUCCESS:', { userId: user.sub || user.id, role: user.role });
+      
     }
 
     return super.handleRequest(err, user, info, context);

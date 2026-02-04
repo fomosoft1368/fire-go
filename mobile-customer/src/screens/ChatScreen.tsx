@@ -34,7 +34,7 @@ interface Message {
 export default function ChatScreen() {
   const navigation = useNavigation<ChatScreenNavigationProp>()
   const route = useRoute<ChatScreenRouteProp>()
-  const { driver, rideId, deliveryId } = route.params || {}
+  const { driver, rideId, deliveryId, combinedTripId } = route.params || {}
   const user = useSelector((state: RootState) => state.auth.user)
   const [chatMessages, setChatMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
@@ -45,7 +45,7 @@ export default function ChatScreen() {
 
   // Load messages khi component mount
   useEffect(() => {
-    const tripId = rideId || deliveryId
+    const tripId = rideId || deliveryId || combinedTripId
     if (!tripId) {
       Alert.alert('Lỗi', 'Không tìm thấy ID chuyến đi')
       navigation.goBack()
@@ -60,12 +60,12 @@ export default function ChatScreen() {
     }, 5000)
 
     return () => clearInterval(pollInterval)
-  }, [rideId, deliveryId])
+  }, [rideId, deliveryId, combinedTripId])
 
   // Tải tin nhắn ban đầu
   const loadMessages = async () => {
-    const tripId = rideId || deliveryId
-    const tripType = rideId ? 'ride' : 'delivery'
+    const tripId = rideId || deliveryId || combinedTripId
+    const tripType = rideId ? 'ride' : deliveryId ? 'delivery' :  'combinedtrip'
     if (!tripId) {
       Alert.alert('Lỗi', 'Không tìm thấy ID chuyến đi')
       return
@@ -118,8 +118,8 @@ export default function ChatScreen() {
 
   // Poll tin nhắn mới
   const pollNewMessages = async () => {
-    const tripId = rideId || deliveryId
-    const tripType = rideId ? 'ride' : 'delivery'
+    const tripId = rideId || deliveryId || combinedTripId
+    const tripType = rideId ? 'ride' : deliveryId ? 'delivery' : 'combinedtrip'
     if (!tripId) return
 
     try {
@@ -162,6 +162,8 @@ export default function ChatScreen() {
       console.warn('[ChatScreen] Poll error:', {
         message: error.message,
         rideId,
+        deliveryId,
+        combinedTripId,
         status: error.response?.status,
       })
       // Tiếp tục polling ngay cả khi lỗi, không throw
@@ -170,8 +172,8 @@ export default function ChatScreen() {
 
   // Gửi tin nhắn
   const sendMessage = useCallback(async () => {
-    const tripId = rideId || deliveryId
-    const tripType = rideId ? 'ride' : 'delivery'
+    const tripId = rideId || deliveryId || combinedTripId
+    const tripType = rideId ? 'ride' : deliveryId ? 'delivery' : 'combinedtrip'
     // Prevent multiple sends
     if (sendingRef.current || !messageInput.trim() || !tripId || !user) {
       return
@@ -216,7 +218,7 @@ export default function ChatScreen() {
       sendingRef.current = false
       setSending(false)
     }
-  }, [messageInput, rideId, deliveryId, user])
+  }, [messageInput, rideId, deliveryId, combinedTripId, user])
 
   return (
     <SafeAreaView style={styles.chatContainer}>

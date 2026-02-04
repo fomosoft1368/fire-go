@@ -430,31 +430,36 @@ export default function DriverFoundScreen() {
                   
                   // ✅ CRITICAL: This API returns trip WITH customer's RideRequest data embedded
                   // Fields like requestStatus, customerFare, customerSeats come from RideRequest
-                  request = {
-                    _id: matchingTrip.requestId || `fromtrip_${matchingTrip._id}_${currentUserId}`,
-                    combinedTripId: combinedTripId,
-                    customerId: currentUserId,
-                    status: matchingTrip.requestStatus || matchingTrip.status, // ✅ Use requestStatus (from RideRequest), NOT trip status
-                    seats: matchingTrip.customerSeats || matchingTrip.seats || 1,
-                    fare: matchingTrip.customerFare || matchingTrip.fare || 0,
-                    tripType: 'combined_trip',
-                    pickupCoordinates: matchingTrip.customerPickupCoordinates || matchingTrip.pickupCoordinates || trip?.pickupLocation?.coordinates,
-                    dropoffCoordinates: matchingTrip.customerDropoffCoordinates || matchingTrip.dropoffCoordinates || trip?.dropoffLocation?.coordinates,
-                    pickupAddress: matchingTrip.customerPickupAddress || matchingTrip.pickupAddress || trip?.pickupAddress,
-                    dropoffAddress: matchingTrip.customerDropoffAddress || matchingTrip.dropoffAddress || trip?.dropoffAddress,
-                    createdAt: matchingTrip.createdAt || new Date().toISOString(),
-                    updatedAt: matchingTrip.updatedAt || new Date().toISOString(),
-                    driverId: trip?.driverId?._id,
+                  // ⚠️ IMPORTANT: Only create request if we have a valid requestId from backend
+                  if (matchingTrip.requestId) {
+                    request = {
+                      _id: matchingTrip.requestId,
+                      combinedTripId: combinedTripId,
+                      customerId: currentUserId,
+                      status: matchingTrip.requestStatus || matchingTrip.status, // ✅ Use requestStatus (from RideRequest), NOT trip status
+                      seats: matchingTrip.customerSeats || matchingTrip.seats || 1,
+                      fare: matchingTrip.customerFare || matchingTrip.fare || 0,
+                      tripType: 'combined_trip',
+                      pickupCoordinates: matchingTrip.customerPickupCoordinates || matchingTrip.pickupCoordinates || trip?.pickupLocation?.coordinates,
+                      dropoffCoordinates: matchingTrip.customerDropoffCoordinates || matchingTrip.dropoffCoordinates || trip?.dropoffLocation?.coordinates,
+                      pickupAddress: matchingTrip.customerPickupAddress || matchingTrip.pickupAddress || trip?.pickupAddress,
+                      dropoffAddress: matchingTrip.customerDropoffAddress || matchingTrip.dropoffAddress || trip?.dropoffAddress,
+                      createdAt: matchingTrip.createdAt || new Date().toISOString(),
+                      updatedAt: matchingTrip.updatedAt || new Date().toISOString(),
+                      driverId: trip?.driverId?._id,
+                    }
+                  } else {
+                    console.log('[DriverFoundScreen] ⚠️ No valid requestId found - cannot create request object')
                   }
                   
-                  console.log('[DriverFoundScreen] ✅ FALLBACK SUCCESS - Created request from user API:', {
-                    requestId: request._id,
-                    status: request.status,
-                    source: 'user API (customer/:id endpoint)',
-                    usedRequestStatus: !!matchingTrip.requestStatus,
-                    requestStatusValue: matchingTrip.requestStatus,
-                    tripStatusValue: matchingTrip.status,
-                  })
+                  // console.log('[DriverFoundScreen] ✅ FALLBACK SUCCESS - Created request from user API:', {
+                  //   requestId: request._id,
+                  //   status: request.status,
+                  //   source: 'user API (customer/:id endpoint)',
+                  //   usedRequestStatus: !!matchingTrip.requestStatus,
+                  //   requestStatusValue: matchingTrip.requestStatus,
+                  //   tripStatusValue: matchingTrip.status,
+                  // })
                 }
               } else {
                 const errorText = await userResponse.text()
@@ -611,6 +616,35 @@ export default function DriverFoundScreen() {
       setError(null)
     } catch (err: any) {
       console.error('Error loading trip details:', err)
+      
+      // ✅ Handle 404 - Trip not found (deleted or doesn't exist)
+      if (err.message?.includes('not found') || err.message?.includes('404')) {
+        console.log('[DriverFoundScreen] 🚨 Trip not found (404) - Stopping polling and navigating back')
+        
+        // Clear polling intervals
+        if (pollingInterval.current) {
+          clearInterval(pollingInterval.current)
+          pollingInterval.current = null
+        }
+        if (locationInterval.current) {
+          clearInterval(locationInterval.current)
+          locationInterval.current = null
+        }
+        
+        // Show alert and navigate back
+        Alert.alert(
+          'Chuyến đi không tồn tại',
+          'Chuyến đi đã bị hủy hoặc không còn tồn tại trong hệ thống.',
+          [
+            { 
+              text: 'OK', 
+              onPress: () => navigation.navigate('Home')
+            }
+          ]
+        )
+        return
+      }
+      
       setError(err.message || 'Failed to load trip details')
       setLoading(false)
     }
@@ -673,6 +707,14 @@ export default function DriverFoundScreen() {
       })
     } catch (err: any) {
       console.error('Error loading driver location:', err)
+      
+      // ✅ Handle 404 - Trip not found
+      if (err.message?.includes('not found') || err.message?.includes('404')) {
+        console.log('[DriverFoundScreen] 🚨 Trip not found in driver location - skipping location update')
+        // Don't clear intervals here - let loadTripDetails handle it
+        return
+      }
+      
       // Fallback to tripData location on error
       if (tripData?.driverId?.currentLocation?.coordinates) {
         const [lng, lat] = tripData.driverId.currentLocation.coordinates
@@ -813,31 +855,34 @@ export default function DriverFoundScreen() {
     }
   }
 
-  const handleChat = () => {
-    if (tripData?.driverId && rideRequest?._id) {
-      navigation.navigate('ChatScreen', {
-        driver: {
-          id: tripData.driverId._id,
-          name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
-          avatar: tripData.driverId.avatar || '',
-          rating: tripData.driverId.rating || 5,
-          totalRides: tripData.driverId.totalRides || 0,
-          carType: tripData.driverId.carType || 'Unknown',
-          licensePlate: tripData.driverId.licensePlate || '',
-          carColor: tripData.driverId.carColor || '',
-          distance: tripData.driverId.distance || 0,
-          eta: tripData.driverId.eta || 0,
-          phone: tripData.driverId.phone,
-          email: tripData.driverId.email,
-        },
-        rideId: rideRequest._id,
-      })
-    }
+ const handleChat = () => {
+  if (tripData?.driverId && combinedTripId) {
+    navigation.navigate('ChatScreen', {
+      driver: {
+        id: tripData.driverId._id,
+        name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
+        avatar: tripData.driverId.avatar || '',
+        rating: tripData.driverId.rating || 5,
+        totalRides: tripData.driverId.totalRides || 0,
+        carType: tripData.driverId.carType || 'Unknown',
+        licensePlate: tripData.driverId.licensePlate || '',
+        carColor: tripData.driverId.carColor || '',
+        distance: tripData.driverId.distance || 0,
+        eta: tripData.driverId.eta || 0,
+        phone: tripData.driverId.phone,
+        email: tripData.driverId.email,
+      },
+      // ✅ FIX: Gửi combinedTripId thay vì rideRequest._id
+      rideId: combinedTripId,
+      // ✅ FIX: Thêm tripType để ChatScreen biết loại trip
+      
+    })
   }
+}
 
   const handleCancelTrip = async () => {
-    // ✅ Chỉ cho phép hủy khi status = 'accepted'
-    if (rideRequest?.status !== 'accepted') {
+    // ✅ Chỉ cho phép hủy khi status = 'accepted' hoặc 'pending'
+    if (rideRequest?.status !== 'accepted' && rideRequest?.status !== 'pending') {
       Alert.alert(
         'Không thể hủy', 
         rideRequest?.status === 'arrived_at_pickup' || rideRequest?.status === 'in_progress'
@@ -853,20 +898,86 @@ export default function DriverFoundScreen() {
         text: 'Hủy chuyến',
         onPress: async () => {
           try {
-            if (!rideRequest?._id || !combinedTripId) {
-              Alert.alert('Lỗi', 'Không tìm thấy thông tin chuyến đi')
+            // ✅ CRITICAL: Validate request ID before calling API
+            // Check if it's a synthetic/fake ID that was created as fallback
+            const isSyntheticId = rideRequest?._id?.startsWith?.('synthetic_') || 
+                                  rideRequest?._id?.startsWith?.('fromtrip_') || 
+                                  rideRequest?._id?.startsWith?.('userapi_') ||
+                                  rideRequest?._id?.startsWith?.('fallback-')
+            
+            if (isSyntheticId) {
+              console.error('[handleCancelTrip] Cannot cancel with synthetic ID:', rideRequest._id)
+              Alert.alert(
+                'Lỗi dữ liệu',
+                'Không thể hủy chuyến đi do lỗi đồng bộ dữ liệu. Vui lòng tải lại ứng dụng và thử lại.',
+                [
+                  { text: 'Tải lại', onPress: () => navigation.navigate('Home') },
+                  { text: 'Đóng', style: 'cancel' }
+                ]
+              )
               return
             }
-
-            // Call API to cancel ride request
-            await combinedTripsService.cancelRideRequest(combinedTripId, rideRequest._id)
             
-            Alert.alert('Thành công', 'Chuyến đi đã bị hủy. Ghế của bạn đã được hoàn lại.', [
-              { text: 'OK', onPress: () => navigation.goBack() }
-            ])
+            // ✅ CRITICAL: Check trip type to call correct API
+            // - If tripType = 'combined_trip' OR createdBy = 'customer' → Combined trip (ghép xe)
+            // - If createdBy = 'driver' OR no tripType → Regular ride (chuyến đi thông thường)
+            const isCombinedTrip = rideRequest?.tripType === 'combined_trip' || tripData?.createdBy === 'customer'
+            
+            console.log('[handleCancelTrip] Cancelling trip:', {
+              tripId: combinedTripId || tripData?._id,
+              requestId: rideRequest?._id,
+              isCombinedTrip,
+              tripType: rideRequest?.tripType,
+              createdBy: tripData?.createdBy,
+              status: rideRequest?.status,
+              isSyntheticId,
+            })
+
+            if (isCombinedTrip) {
+              // Combined trip - cancel ride request
+              if (!rideRequest?._id || !combinedTripId) {
+                Alert.alert('Lỗi', 'Không tìm thấy thông tin chuyến đi')
+                return
+              }
+              
+              await combinedTripsService.cancelRideRequest(combinedTripId, rideRequest._id)
+              
+              Alert.alert('Thành công', 'Chuyến đi đã bị hủy. Ghế của bạn đã được hoàn lại.', [
+                { text: 'OK', onPress: () => navigation.navigate('Home') }
+              ])
+            } else {
+              // Regular ride - cancel entire ride
+              const rideId = combinedTripId || tripData?._id
+              if (!rideId) {
+                Alert.alert('Lỗi', 'Không tìm thấy thông tin chuyến đi')
+                return
+              }
+              
+              await rideService.cancelRide(rideId, 'customer', 'Khách hàng hủy chuyến')
+              
+              Alert.alert('Thành công', 'Chuyến đi đã bị hủy.', [
+                { text: 'OK', onPress: () => navigation.navigate('Home') }
+              ])
+            }
           } catch (err: any) {
             console.error('[handleCancelTrip] Error:', err)
-            Alert.alert('Lỗi', err.message || 'Không thể hủy chuyến đi')
+            
+            // ✅ Handle specific error cases
+            if (err.message?.includes('not found') || err.message?.includes('404')) {
+              Alert.alert(
+                'Chuyến đi không tồn tại',
+                'Chuyến đi đã bị hủy hoặc không còn tồn tại.',
+                [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
+              )
+            } else if (err.message?.includes('500') || err.message?.includes('Internal server error')) {
+              Alert.alert(
+                'Lỗi hệ thống',
+                'Không thể hủy chuyến đi. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.',
+                [{ text: 'OK' }]
+              )
+            } else {
+              Alert.alert('Lỗi', err.message || 'Không thể hủy chuyến đi')
+            }
           }
         },
         style: 'destructive',
@@ -960,6 +1071,20 @@ export default function DriverFoundScreen() {
   
   // Use driver location if available (real-time), else use stored coordinates
   const displayDriverLocation = driverLocation || tripData?.driverId?.currentLocation
+  
+  // ✅ Check if this is a synthetic/fallback request (invalid for API calls)
+  const isSyntheticRequest = rideRequest?._id?.startsWith?.('synthetic_') || 
+                             rideRequest?._id?.startsWith?.('fromtrip_') || 
+                             rideRequest?._id?.startsWith?.('userapi_') ||
+                             rideRequest?._id?.startsWith?.('fallback-')
+  
+  if (isSyntheticRequest) {
+    console.warn('[DriverFoundScreen] ⚠️ SYNTHETIC REQUEST DETECTED:', {
+      requestId: rideRequest._id,
+      warning: 'This request was created as fallback - API operations may fail',
+      shouldReload: true,
+    })
+  }
   
   // ✅ Use customer's pickup/dropoff from RideRequest, NOT driver's route from CombinedTrip
   const pickupCoords = rideRequest?.pickupCoordinates || tripData?.pickupLocation?.coordinates || [105.8542, 21.0285]
@@ -1220,8 +1345,8 @@ export default function DriverFoundScreen() {
           </View>
 
           {/* Secondary Action - Cancel */}
-          {/* ✅ Chỉ hiển thị nút hủy khi status = 'accepted' */}
-          {rideRequest?.status === 'accepted' && (
+          {/* ✅ Hiển thị nút hủy khi status = 'pending' hoặc 'accepted' */}
+          {(rideRequest?.status === 'pending' || rideRequest?.status === 'accepted') && (
             <TouchableOpacity
               style={styles.cancelButton}
               onPress={handleCancelTrip}
