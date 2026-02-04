@@ -688,7 +688,10 @@ export class CombinedTripsService implements OnModuleInit {
       // Exclude drivers who already have active trips OR rejected/timeout this trip
       const drivers = await this.driverModel.find({
         _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
-        status: 'online', // ✅ Only online drivers
+        $or: [
+          { status: 'online' },
+          { isOnline: true }
+        ], // ✅ Check both status fields
         currentLocation: {
           $near: {
             $geometry: {
@@ -847,7 +850,10 @@ export class CombinedTripsService implements OnModuleInit {
       // Find another driver (excluding busy drivers and the one who timed out)
       const drivers = await this.driverModel.find({
         _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
-        status: 'online',
+        $or: [
+          { status: 'online' },
+          { isOnline: true }
+        ], // ✅ Check both status fields
         currentLocation: {
           $near: {
             $geometry: {

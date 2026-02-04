@@ -419,6 +419,7 @@ export class DeliveryAutoAssignService {
       isAvailable: true,
       isOnline: true,
       isVerified: true,
+      driverTypes: 'delivery', // Chỉ tìm tài xế có loại delivery
       currentLocation: {
         $near: {
           $geometry: {
@@ -433,7 +434,7 @@ export class DeliveryAutoAssignService {
     .limit(10)
     .exec();
 
-    this.logger.log(`[getAvailableDriversWithScores] Found ${drivers.length} drivers matching criteria`);
+    this.logger.log(`[getAvailableDriversWithScores] Found ${drivers.length} delivery drivers matching criteria`);
 
     // Score drivers
     const driverScores: DriverScore[] = drivers.map((driver: any) => {

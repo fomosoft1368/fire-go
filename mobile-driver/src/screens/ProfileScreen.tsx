@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -10,19 +10,41 @@ import {
   Dimensions,
   StatusBar,
   Switch,
+  ActivityIndicator,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigation } from '@react-navigation/native'
 import { logout } from '../redux/slices/authSlice'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import type { RootState } from '../redux/store'
+import { driverService } from '../services/driverService'
 
 const { width } = Dimensions.get('window')
 
 export default function ProfileScreen() {
   const dispatch = useDispatch()
+  const navigation = useNavigation()
   const { user } = useSelector((state: RootState) => state.auth)
   const [isOnline, setIsOnline] = useState(true)
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchDriverStats()
+  }, [])
+
+  const fetchDriverStats = async () => {
+    try {
+      setLoading(true)
+      const statsData = await driverService.getStats(user?.id)
+      setStats(statsData)
+    } catch (error) {
+      console.error('Error fetching driver stats:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleLogout = () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
@@ -199,10 +221,31 @@ export default function ProfileScreen() {
             <Text style={styles.profileName}>{user?.name || 'Tài xế'}</Text>
             <Text style={styles.profileEmail}>{user?.email || 'email@example.com'}</Text>
 
+            {/* Driver Types Badges */}
+            {user?.driverTypes && user.driverTypes.length > 0 && (
+              <View style={styles.driverTypesBadges}>
+                {user.driverTypes.map((type: string, index: number) => {
+                  const typeLabels: Record<string, string> = {
+                    hire: 'Lái xe hộ',
+                    rideshare: 'Ghép xe',
+                    delivery: 'Vận chuyển',
+                  }
+                  return (
+                    <View key={index} style={styles.driverTypeBadge}>
+                      <Text style={styles.driverTypeBadgeText}>
+                        {typeLabels[type] || type}
+                      </Text>
+                    </View>
+                  )
+                })}
+              </View>
+            )}
+
             {/* Edit Button */}
             <TouchableOpacity
               style={styles.editButton}
               activeOpacity={0.8}
+              onPress={() => navigation.navigate('EditProfile' as never)}
             >
               <MaterialIcons name="edit" size={18} color={COLORS.primary} />
               <Text style={styles.editButtonText}>Chỉnh sửa hồ sơ</Text>
@@ -233,8 +276,16 @@ export default function ProfileScreen() {
             <View style={styles.statIconWrapper}>
               <MaterialIcons name="trending-up" size={24} color={COLORS.primary} />
             </View>
-            <Text style={styles.statValue}>25.5K</Text>
-            <Text style={styles.statLabel}>Thu nhập</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <>
+                <Text style={styles.statValue}>
+                  {stats?.totalEarnings ? `${(stats.totalEarnings / 1000).toFixed(1)}K` : '0'}
+                </Text>
+                <Text style={styles.statLabel}>Thu nhập</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -244,8 +295,14 @@ export default function ProfileScreen() {
             <View style={styles.statIconWrapper}>
               <MaterialIcons name="local-taxi" size={24} color={COLORS.primary} />
             </View>
-            <Text style={styles.statValue}>127</Text>
-            <Text style={styles.statLabel}>Chuyến xe</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <>
+                <Text style={styles.statValue}>{stats?.completedRides || 0}</Text>
+                <Text style={styles.statLabel}>Chuyến xe</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -255,25 +312,17 @@ export default function ProfileScreen() {
             <View style={styles.statIconWrapper}>
               <MaterialIcons name="star" size={24} color={COLORS.primary} />
             </View>
-            <Text style={styles.statValue}>4.8</Text>
-            <Text style={styles.statLabel}>Đánh giá</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <>
+                <Text style={styles.statValue}>
+                  {stats?.averageRating ? stats.averageRating.toFixed(1) : '0.0'}
+                </Text>
+                <Text style={styles.statLabel}>Đánh giá</Text>
+              </>
+            )}
           </TouchableOpacity>
-        </View>
-
-        {/* Online Status Toggle */}
-        <View style={styles.onlineToggleCard}>
-          <View>
-            <Text style={styles.onlineToggleTitle}>Trạng thái online</Text>
-            <Text style={styles.onlineToggleSubtext}>
-              {isOnline ? 'Bạn đang có sẵn nhận chuyến' : 'Bạn đang không có sẵn'}
-            </Text>
-          </View>
-          <Switch
-            value={isOnline}
-            onValueChange={setIsOnline}
-            trackColor={{ false: COLORS.darkBorder, true: COLORS.success + '50' }}
-            thumbColor={isOnline ? COLORS.success : COLORS.textSecondary}
-          />
         </View>
 
         {/* Account Section */}
@@ -398,6 +447,25 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 13,
     fontWeight: '700',
+  },
+  driverTypesBadges: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  driverTypeBadge: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs / 2,
+    backgroundColor: COLORS.primary + '20',
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '40',
+  },
+  driverTypeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
 
   // Status Card

@@ -155,6 +155,23 @@ export class DriversController {
     console.log('[DriversController] Updating driver status:', req.user.id, 'to:', status);
     return this.driversService.updateStatus(req.user.id, status);
   }
+
+  /**
+   * PATCH /api/drivers/me
+   * Cập nhật thông tin tài xế hiện tại
+   */
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async updateMyProfile(
+    @Request() req: any,
+    @Body() updateDriverDto: UpdateDriverDto,
+  ) {
+    console.log('[DriversController] Updating profile for driver:', req.user.id);
+    console.log('[DriversController] Update data:', JSON.stringify(updateDriverDto));
+    return this.driversService.update(req.user.id, updateDriverDto);
+  }
+
   /**
    * PATCH /api/drivers/online-status
    * Cập nhật online status (tài xế hiện tại)

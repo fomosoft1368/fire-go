@@ -21,6 +21,7 @@ import HomeScreen from './src/screens/HomeScreen'
 import TripsScreen from './src/screens/TripsScreen'
 import EarningsScreen from './src/screens/EarningsScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
+import EditProfileScreen from './src/screens/EditProfileScreen'
 import ActiveRideScreen from './src/screens/ActiveRideScreen'
 import RideRequestsScreen from './src/screens/RideRequestsScreen'
 import TopupScreen from './src/screens/TopupScreen'
@@ -178,6 +179,11 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="ChatScreen"
         component={ChatScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
         options={{ animationEnabled: true }}
       />
     </Stack.Navigator>
@@ -588,6 +594,7 @@ export default function App() {
           onAccept={handleAcceptAssignment}
           onReject={handleRejectAssignment}
           countdown={countdown}
+          driverTypes={store.getState().auth.user?.driverTypes || ['rideshare']}
         />
       </NavigationContainer>
     </Provider>

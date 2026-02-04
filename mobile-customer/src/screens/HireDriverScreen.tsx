@@ -97,7 +97,6 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
   const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
-  const [autoAssign, setAutoAssign] = useState(true) // Mặc định bật tự động chỉ định
 
   // Reset ride state khi cancel
   const resetRideState = () => {
@@ -430,7 +429,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         driverNote,
         isScheduled,
         scheduledTime: isScheduled ? scheduledDateTime.toISOString() : undefined,
-        autoAssign, // Tự động chỉ định tài xế
+        autoAssign: true, // Luôn tự động chỉ định tài xế
       }
 
       console.log('[HireDriverScreen] Creating ride with data:', rideData)
@@ -845,31 +844,6 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
               />
             </View>
           </View>
-
-          {/* Auto Assign Option */}
-          <TouchableOpacity 
-            style={[styles.autoAssignOption, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
-            onPress={() => setAutoAssign(!autoAssign)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.autoAssignLeft}>
-              <MaterialIcons name="autorenew" size={24} color="#FF6B00" />
-              <View style={styles.autoAssignTextContainer}>
-                <Text style={[styles.autoAssignTitle, { color: colors.text }]}>
-                  Tự động tìm tài xế
-                </Text>
-                <Text style={[styles.autoAssignDesc, { color: colors.textSecondary }]}>
-                  Hệ thống sẽ tự động chọn tài xế gần nhất và phù hợp nhất
-                </Text>
-              </View>
-            </View>
-            <View style={[
-              styles.checkbox, 
-              { borderColor: autoAssign ? '#FF6B00' : colors.border, backgroundColor: autoAssign ? '#FF6B00' : 'transparent' }
-            ]}>
-              {autoAssign && <MaterialIcons name="check" size={16} color="#fff" />}
-            </View>
-          </TouchableOpacity>
         </ScrollView>
         {/* Confirm Button */}
         <TouchableOpacity

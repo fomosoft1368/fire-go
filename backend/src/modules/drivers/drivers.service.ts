@@ -142,9 +142,21 @@ export class DriversService {
       throw new BadRequestException('Driver is suspended');
     }
 
+    // Sync isOnline field with status
+    const isOnline = status === DriverStatus.ONLINE;
+    const updateData: any = { 
+      status,
+      isOnline,
+      isAvailable: isOnline,
+    };
+    
+    if (isOnline) {
+      updateData.lastOnlineTime = new Date();
+    }
+
     return this.driverModel.findByIdAndUpdate(
       driverId,
-      { status },
+      updateData,
       { new: true },
     );
   }
@@ -182,11 +194,22 @@ export class DriversService {
   }
 
   async update(driverId: string, updateDriverDto: UpdateDriverDto): Promise<DriverDocument> {
-    return this.driverModel.findByIdAndUpdate(
-      driverId,
-      updateDriverDto,
-      { new: true },
-    );
+    try {
+      console.log('[DriversService] Updating driver:', driverId);
+      console.log('[DriversService] Update data:', JSON.stringify(updateDriverDto));
+      
+      const result = await this.driverModel.findByIdAndUpdate(
+        driverId,
+        updateDriverDto,
+        { new: true },
+      );
+      
+      console.log('[DriversService] Update successful');
+      return result;
+    } catch (error) {
+      console.error('[DriversService] Error updating driver:', error);
+      throw error;
+    }
   }
 
   async incrementRideStats(driverId: string, completed: boolean = true): Promise<void> {
@@ -365,10 +388,13 @@ export class DriversService {
 
   /**
    * Update driver heartbeat (keep alive)
+   * Also ensures isOnline and status are synced
    */
   async updateHeartbeat(driverId: string): Promise<void> {
     await this.driverModel.findByIdAndUpdate(driverId, {
       lastOnlineTime: new Date(),
+      isOnline: true,
+      status: DriverStatus.ONLINE,
     });
   }
 

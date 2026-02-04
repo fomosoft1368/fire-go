@@ -8,6 +8,7 @@ interface AssignmentRequestModalProps {
   onAccept: () => void
   onReject: () => void
   countdown: number
+  driverTypes?: string[] // Loại tài xế: hire, rideshare, delivery
 }
 
 const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
@@ -16,6 +17,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
   onAccept,
   onReject,
   countdown,
+  driverTypes = ['rideshare'], // Mặc định là rideshare
 }) => {
   const [pulseAnim] = useState(new Animated.Value(1))
 
@@ -43,6 +45,35 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
 
   // Check if this is a delivery or ride request
   const isDelivery = request.type === 'delivery'
+  const isRideshare = request.type === 'rideshare' || request.isShared
+  const isHire = request.type === 'hire' || (!isDelivery && !isRideshare)
+  
+  // Kiểm tra loại tài xế có phù hợp với loại request không
+  const canAcceptRequest = () => {
+    if (isDelivery) {
+      // Chỉ tài xế delivery mới nhận được đơn giao hàng
+      return driverTypes.includes('delivery')
+    } else if (isRideshare) {
+      // Chỉ tài xế rideshare mới nhận được cuốc ghép xe
+      return driverTypes.includes('rideshare')
+    } else if (isHire) {
+      // Chỉ tài xế hire mới nhận được cuốc lái xe hộ
+      return driverTypes.includes('hire')
+    }
+    return false
+  }
+
+  // Nếu tài xế không phù hợp với loại request, không hiển thị modal
+  if (!canAcceptRequest()) {
+    console.log('[AssignmentRequestModal] Driver types mismatch:', {
+      driverTypes,
+      requestType: request.type,
+      isDelivery,
+      isRideshare,
+      isHire,
+    })
+    return null
+  }
   
   // The request object structure can be:
   // 1. Direct ride/delivery object (has pickupAddress directly)

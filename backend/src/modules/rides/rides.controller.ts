@@ -1,13 +1,13 @@
 import { Controller, Get, Post, Body, Param, Patch, Query, Request, BadRequestException, UseGuards } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { RidesService } from '../services/rides.service';
-import { AutoAssignService } from '../services/auto-assign.service';
-import { CreateRideDto } from '../dto';
-import { Ride, RideDocument, RideType } from '../schemas/ride.schema';
-import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignment-request.schema';
-import { Pricing } from '../schemas/pricing.schema';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RidesService } from './services/rides.service';
+import { AutoAssignService } from './services/auto-assign.service';
+import { CreateRideDto } from './dto';
+import { Ride, RideDocument, RideType } from './schemas/ride.schema';
+import { AssignmentRequest, AssignmentRequestDocument } from './schemas/assignment-request.schema';
+import { Pricing } from './schemas/pricing.schema';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('api/rides')
 export class RidesController {
@@ -220,10 +220,10 @@ export class RidesController {
     return this.ridesService.findByCustomerId(customerId);
   }
 
-  // @Get('driver/:id')
-  // async findByIdForDriver(@Param('id') id: string) {
-  //   return this.ridesService.findByIdForDriver(id);
-  // }
+  @Get('driver/:id')
+  async findByIdForDriver(@Param('id') id: string) {
+    return this.ridesService.findByIdForDriver(id);
+  }
 
   // ============ Assignment Request Endpoints ============
   
