@@ -82,6 +82,10 @@ export default function RideSharing(props?: RideSharingProps) {
 
   const [fareEstimate, setFareEstimate] = useState<any>(null)
   const [drivers, setDrivers] = useState<any[]>([])
+  const [lastTrackedLocation, setLastTrackedLocation] = useState<[number, number] | null>(null)
+  const [isRecalculatingRoute, setIsRecalculatingRoute] = useState(false)
+  const locationWatcherRef = useRef<any>(null)
+  const recalculateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -90,8 +94,139 @@ export default function RideSharing(props?: RideSharingProps) {
   useEffect(() => {
     return () => {
       isMountedRef.current = false
+      // Clean up location watcher by calling .remove() on subscription
+      if (locationWatcherRef.current !== null) {
+        locationWatcherRef.current.remove()
+      }
+      // Clean up recalculate timeout
+      if (recalculateTimeoutRef.current) {
+        clearTimeout(recalculateTimeoutRef.current)
+      }
     }
   }, [])
+
+  /**
+   * Calculate distance between two coordinates using Haversine formula (km)
+   */
+  const calculateHaversineDistance = (
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number
+  ): number => {
+    const R = 6371; // Earth's radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  /**
+   * Start real-time location tracking
+   * ✅ Recalculates route when user moves >50m
+   */
+  useEffect(() => {
+    const startLocationTracking = async () => {
+      try {
+        // Only track if both locations are selected
+        if (!isPickupSelected || !isDropoffSelected) {
+          console.log('[RideSharing] 📍 Not tracking - waiting for both locations');
+          return;
+        }
+
+        console.log('[RideSharing] 🚀 Starting real-time location tracking...');
+
+        // Request permission
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('[RideSharing] ⚠️ Location permission denied');
+          return;
+        }
+
+        // Watch location changes
+        const watcher = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 5000, // Update every 5 seconds
+            distanceInterval: 10, // Update every 10m
+          },
+          async (location) => {
+            if (!isMountedRef.current) return;
+
+            const { latitude, longitude } = location.coords;
+            const currentCoords: [number, number] = [longitude, latitude];
+
+            console.log('[RideSharing] 📍 Location update:', {
+              latitude: latitude.toFixed(4),
+              longitude: longitude.toFixed(4),
+            });
+
+            // Check if moved >50m from pickup
+            const distanceFromPickup = calculateHaversineDistance(
+              latitude,
+              longitude,
+              pickupCoordinates[1],
+              pickupCoordinates[0]
+            );
+
+            console.log('[RideSharing] 📏 Distance from pickup:', distanceFromPickup.toFixed(2), 'km');
+
+            if (distanceFromPickup > 0.05) {
+              // Moved >50m
+              console.log('[RideSharing] ✅ User moved >50m, updating pickup location');
+
+              // Update pickup coordinates
+              setPickupCoordinates(currentCoords);
+              setLastTrackedLocation(currentCoords);
+
+              // Debounce route recalculation (wait 2 seconds before recalculating)
+              if (recalculateTimeoutRef.current) {
+                clearTimeout(recalculateTimeoutRef.current);
+              }
+
+              recalculateTimeoutRef.current = setTimeout(async () => {
+                console.log('[RideSharing] 🔄 Recalculating route after user moved...');
+                setIsRecalculatingRoute(true);
+
+                try {
+                  await calculateRoute(currentCoords, dropoffCoordinates);
+                  console.log('[RideSharing] ✅ Route recalculated successfully');
+                } catch (error) {
+                  console.error('[RideSharing] ❌ Route recalculation failed:', error);
+                } finally {
+                  setIsRecalculatingRoute(false);
+                }
+              }, 2000); // Wait 2 seconds after movement stops
+            }
+          }
+        );
+
+        locationWatcherRef.current = watcher;
+        console.log('[RideSharing] ✅ Location tracking started');
+      } catch (error) {
+        console.error('[RideSharing] ❌ Error starting location tracking:', error);
+      }
+    };
+
+    startLocationTracking();
+
+    // Cleanup on unmount
+    return () => {
+      if (locationWatcherRef.current !== null) {
+        locationWatcherRef.current.remove()
+        locationWatcherRef.current = null;
+        console.log('[RideSharing] 🛑 Location tracking stopped');
+      }
+    };
+  }, [isPickupSelected, isDropoffSelected, pickupCoordinates, dropoffCoordinates]);
 
   // Initialize pickup location with current user location
   useEffect(() => {
@@ -112,6 +247,8 @@ export default function RideSharing(props?: RideSharingProps) {
 
         const { latitude, longitude } = location.coords
         console.log('[RideSharing] 📍 Current position:', { latitude, longitude })
+        setPickupCoordinates([longitude, latitude])
+        setIsPickupSelected(true)
 
         // Reverse geocode to get address
         const address = await mapsService.reverseGeocode(latitude, longitude)
@@ -276,15 +413,8 @@ export default function RideSharing(props?: RideSharingProps) {
         // Continue without fare calculation
       }
 
-<<<<<<< HEAD
-      setRouteInfo({
-        distance: distance,
-=======
-      console.log('[HomeScreen] Final fareEstimate before setState:', fareEstimate);
-
       const routeData = {
-        distance: distanceKm,
->>>>>>> 951919d670107544aabc216c0306459f97f3a0d5
+        distance: distance,
         duration: duration,
         distanceText: distanceText,
         durationText: durationText,
@@ -330,6 +460,12 @@ export default function RideSharing(props?: RideSharingProps) {
       }
 
       // Validate coordinates exist and are valid
+      if (!routeInfo || !routeInfo.distance || !routeInfo.duration) {
+        Alert.alert('Lỗi', 'Vui lòng tính toán tuyến đường trước')
+        setIsLoading(false)
+        return
+      }
+
       if (!pickupCoordinates || !Array.isArray(pickupCoordinates) || pickupCoordinates.length !== 2) {
         Alert.alert('Lỗi', 'Vị trí đón khách không hợp lệ')
         console.error('[RideSharing] Invalid pickupCoordinates:', pickupCoordinates)
@@ -357,8 +493,8 @@ export default function RideSharing(props?: RideSharingProps) {
 
       // Navigate to FindingRideScreen
       navigation.navigate('FindingRideScreen', {
-        distance: routeData.distance,
-        duration: routeData.duration,
+        distance: routeInfo.distance,
+        duration: routeInfo.duration,
         startLng: pickupCoordinates[0],
         startLat: pickupCoordinates[1],
         endLng: dropoffCoordinates[0],
@@ -535,15 +671,15 @@ export default function RideSharing(props?: RideSharingProps) {
         </TouchableOpacity>
         <Text style={styles.logoText}>firego</Text>
 
-        {/* Map Display with Route */}
-        {/* Expand Map Button - Always visible */}
-        {/* <TouchableOpacity
-          style={[styles.expandMapButton, { backgroundColor: colors.primary }]}
-          onPress={handleExpandMap}
-          activeOpacity={0.8}
-        >
-          <MaterialIcons name="fullscreen" size={22} color="#fff" />
-        </TouchableOpacity> */}
+        {/* Live Location Update Badge */}
+        {isPickupSelected && isDropoffSelected && (
+          <View style={[styles.liveUpdateBadge, { backgroundColor: isRecalculatingRoute ? '#FFA500' : '#10B981' }]}>
+            <MaterialIcons name="my-location" size={14} color="#fff" />
+            <Text style={styles.liveUpdateText}>
+              {isRecalculatingRoute ? 'Cập nhật...' : 'Đang theo dõi'}
+            </Text>
+          </View>
+        )}
       </View>
       {/* Finding Ride Modal */}
       <FindingRideModal
@@ -827,10 +963,15 @@ export default function RideSharing(props?: RideSharingProps) {
           style={styles.confirmButton}
           onPress={handleFindRide}
           activeOpacity={0.8}
-          disabled={loading}
+          disabled={loading || isRecalculatingRoute}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
+          {loading || isRecalculatingRoute ? (
+            <>
+              <ActivityIndicator color="#fff" />
+              <Text style={styles.confirmButtonText}>
+                {isRecalculatingRoute ? 'Cập nhật tuyến đường...' : 'Tìm chuyến xe...'}
+              </Text>
+            </>
           ) : (
             <>
               <Text style={styles.confirmButtonText}>Tìm chuyến xe</Text>
@@ -874,6 +1015,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
     color: '#FF6B00',
+  },
+  liveUpdateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginLeft: 'auto',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  liveUpdateText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
   },
   card: {
     position: 'absolute',
