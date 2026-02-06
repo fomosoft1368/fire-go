@@ -162,6 +162,7 @@ export type RootStackParamList = {
     }
     rideId?: string
     deliveryId?: string
+    combinedTripId?: string
   }
   CancelTrip: {
     tripId: string

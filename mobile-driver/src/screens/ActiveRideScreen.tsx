@@ -1443,8 +1443,8 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   scrollEventThrottle={16}
                   onScroll={(e) => {
                     const contentOffsetX = e.nativeEvent.contentOffset.x
-                    // Calculate item width: 280 (card) + 12 (margin right) = 292
-                    const ITEM_WIDTH = 292
+                    // Calculate item width: 320 (card) + 12 (margin right) = 332
+                    const ITEM_WIDTH = 332
                     const newIndex = Math.round(contentOffsetX / ITEM_WIDTH)
                     const maxIndex = (ride.customerId?.length || 1) - 1
                     const finalIndex = Math.max(0, Math.min(newIndex, maxIndex))
@@ -1464,12 +1464,10 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   }}
                   renderItem={({ item, index }) => (
                     <View style={[styles.passengerCardItem, index === currentPassengerIndex && styles.passengerCardItemActive]}>
-                      {/* Avatar */}
                       <View style={styles.passengerCardAvatar}>
                         <MaterialIcons name="person" size={28} color={COLORS.primary} />
                       </View>
 
-                      {/* Info */}
                       <View style={styles.passengerCardInfo}>
                         <Text style={styles.passengerCardName}>
                           {typeof item === 'string' ? item : item.name || 'Khách hàng'}
@@ -1485,7 +1483,6 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                         </Text>
                       </View>
 
-                      {/* Action Buttons */}
                       <View style={styles.passengerCardActions}>
                         <TouchableOpacity 
                           style={styles.passengerActionBtn}
@@ -1525,6 +1522,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
             )}
 
             {/* Single passenger info - when only 1 passenger */}
+            
             {ride.customerId && ride.customerId.length === 1 && currentPassenger && (
               <View style={styles.passengerCard}>
                 <Text style={styles.cardTitle}>Khách hàng</Text>
@@ -1540,7 +1538,42 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                     </View>
                     <Text style={styles.passengerCardPhone}>{currentPassenger.phone}</Text>
                   </View>
+                  
+                  {/* Chat and Call Buttons */}
+                  <View style={styles.passengerCardActions}>
+                    <TouchableOpacity 
+                      style={styles.passengerActionBtn}
+                      onPress={() => {
+                        if (currentPassenger && ride) {
+                          screenNavigation.navigate('ChatScreen', {
+                            customer: {
+                              id: currentPassenger._id,
+                              name: currentPassenger.name,
+                              phone: currentPassenger.phone,
+                            },
+                            rideId: ride._id,
+                          } as any)
+                        }
+                      }}
+                    >
+                      <MaterialIcons name="chat" size={18} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.passengerActionBtn}
+                      onPress={() => {
+                        if (currentPassenger?.phone) {
+                          Alert.alert('Gọi khách', `Gọi ${currentPassenger.name}?`, [
+                            { text: 'Hủy', style: 'cancel' },
+                            { text: 'Gọi', onPress: () => console.log('Call:', currentPassenger.phone) },
+                          ])
+                        }
+                      }}
+                    >
+                      <MaterialIcons name="call" size={18} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
+                
               </View>
             )}
 
@@ -1896,7 +1929,8 @@ const styles = StyleSheet.create({
   },
   // Horizontal Carousel Card
   passengerCardItem: {
-    width: 280,
+    width: 320,
+    minHeight: 100,
     backgroundColor: `${COLORS.primary}15`,
     borderRadius: 12,
     padding: 14,
@@ -1905,7 +1939,6 @@ const styles = StyleSheet.create({
     borderColor: `${COLORS.primary}40`,
     flexDirection: 'row',
     gap: 12,
-    alignItems: 'center',
     opacity: 0.6,
   },
   passengerCardItemActive: {
@@ -1948,7 +1981,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   passengerCardActions: {
+    flexDirection: 'column',
     gap: 8,
+    justifyContent: 'center',
   },
   passengerActionBtn: {
     width: 40,

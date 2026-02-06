@@ -10,6 +10,10 @@ export class CreateMessageDto {
   @IsString()
   deliveryId?: string;
 
+  @IsOptional()
+  @IsString()
+  combinedTripId?: string;
+
   @IsNotEmpty()
   @IsString()
   text: string;

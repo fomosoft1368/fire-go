@@ -241,12 +241,7 @@ export class CombinedTripsService implements OnModuleInit {
     maxDistance: number = 10000,
   ): Promise<CombinedTrip[]> {
     try {
-      console.log('🔍 [findShareRides] Searching for combined trips:', {
-        pickupAddress,
-        lng,
-        lat,
-        maxDistance,
-      });
+      
 
       // Build query with both geospatial filter AND address filter
       const query: any = {
@@ -263,7 +258,7 @@ export class CombinedTripsService implements OnModuleInit {
         },
       };
 
-      console.log('📋 Geospatial query:', { lng, lat, maxDistance });
+      
 
       const trips = await this.combinedTripModel
         .find(query)
@@ -272,7 +267,7 @@ export class CombinedTripsService implements OnModuleInit {
         .sort({ requestedAt: -1 })
         .limit(10);
 
-      console.log('✅ Found trips within radius:', trips.length);
+     
       return trips;
     } catch (error) {
       console.error('❌ Error finding share rides:', error);
@@ -307,12 +302,7 @@ export class CombinedTripsService implements OnModuleInit {
         throw new NotFoundException('Combined trip not found');
       }
 
-      console.log('[CombinedTripsService] ✅ Trip found:', {
-        id: trip._id,
-        status: trip.status,
-        hasDriver: !!trip.driverId,
-        customerCount: trip.customerId?.length || 0,
-      });
+     
 
       // Enrich with RideRequest data
       return this.enrichCombinedTripWithCustomers(combinedTripId, trip);
@@ -330,12 +320,12 @@ export class CombinedTripsService implements OnModuleInit {
     trip: any,
   ): Promise<any> {
     try {
-      console.log('🔍 Searching RideRequests for combinedTripId:', combinedTripId);
+      
 
       let tripIdObj: Types.ObjectId;
       try {
         tripIdObj = new Types.ObjectId(combinedTripId);
-        console.log('✅ Converted combinedTripId to ObjectId:', tripIdObj.toString());
+       
       } catch (e) {
         console.error('❌ Failed to convert combinedTripId to ObjectId:', combinedTripId, e);
         tripIdObj = new Types.ObjectId(combinedTripId);
@@ -346,7 +336,7 @@ export class CombinedTripsService implements OnModuleInit {
         .populate('customerId', 'name phone rating firstName lastName avatar')
         .exec() as any[];
 
-      console.log('📋 RideRequests found:', requests.length);
+      
 
       let enrichedCustomers = [];
 
@@ -354,7 +344,7 @@ export class CombinedTripsService implements OnModuleInit {
       // This ensures driver rotation works - even if trip.customerId is empty/wrong,
       // we get customer data from RideRequests which always has current data
       if (requests.length > 0) {
-        console.log('✅ Building customer data from RideRequests (not trip.customerId)');
+       
         enrichedCustomers = requests.map((customerRequest: any) => {
           const customer = customerRequest.customerId; // This is populated customer object
           
@@ -378,7 +368,7 @@ export class CombinedTripsService implements OnModuleInit {
         });
       } else if (trip.customerId && trip.customerId.length > 0) {
         // ✅ FALLBACK: Use trip.customerId only if no RideRequests found
-        console.log('✅ Fallback: Using trip.customerId (no RideRequests found)');
+       
         const isPopulated = trip.customerId[0] && typeof trip.customerId[0] === 'object' && trip.customerId[0]._id;
 
         if (isPopulated) {
@@ -404,7 +394,7 @@ export class CombinedTripsService implements OnModuleInit {
         }
       }
 
-      console.log('✅ Final enriched customers count:', enrichedCustomers.length);
+      
 
       const tripObject = trip.toObject ? trip.toObject() : trip;
       const enrichedTrip = {
@@ -414,12 +404,7 @@ export class CombinedTripsService implements OnModuleInit {
         bookedSeats: (tripObject.totalSeats || 4) - (tripObject.availableSeats || 4),
       };
 
-      console.log('✅ Enriched trip data - status:', enrichedTrip.status, 'tripObject.status:', tripObject.status);
-      console.log('✅ Enriched trip seats:', {
-        totalSeats: enrichedTrip.totalSeats,
-        availableSeats: enrichedTrip.availableSeats,
-        bookedSeats: enrichedTrip.bookedSeats,
-      });
+    
 
       return enrichedTrip;
     } catch (error) {
@@ -501,7 +486,7 @@ export class CombinedTripsService implements OnModuleInit {
         trip.customerId = trip.customerId || [];
         trip.customerId.push(customerIdObj);
         await trip.save();
-        console.log('✅ Customer added to combined trip');
+        
       }
 
       return trip;
@@ -538,7 +523,7 @@ export class CombinedTripsService implements OnModuleInit {
         throw new BadRequestException('Combined trip has already been accepted by another driver');
       }
 
-      console.log('[CombinedTripsService] Updating combined trip with driverId:', driverId);
+      
       const updatedTrip = await this.combinedTripModel.findByIdAndUpdate(
         combinedTripId,
         {
@@ -569,7 +554,7 @@ export class CombinedTripsService implements OnModuleInit {
    */
   async createCustomerCombinedTrip(data: any): Promise<CombinedTrip> {
     try {
-      console.log('🚗 [CombinedTripsService] Creating customer combined trip:', data);
+      
 
       const locationHierarchy = extractLocationHierarchy(data.pickupAddress);
 
@@ -602,7 +587,7 @@ export class CombinedTripsService implements OnModuleInit {
       });
 
       const savedTrip = await trip.save();
-      console.log('✅ Customer combined trip created:', savedTrip._id);
+     
 
       return savedTrip;
     } catch (error) {

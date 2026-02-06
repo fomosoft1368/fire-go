@@ -224,6 +224,68 @@ export class MessagesController {
       message: 'Messages marked as read',
     };
   }
+  @Get('combinedtrip/:combinedTripId')
+  @UseGuards(JwtAuthGuard)
+  async getMessagesByCombinedTrip(
+    @Param('combinedTripId') combinedTripId: string,
+    @Query('limit') limit: number = 50,
+    @Query('skip') skip: number = 0,
+  ) {
+    const { messages, total } = await this.messagesService.getMessagesByCombinedTrip(
+      combinedTripId,
+      Math.min(limit, 100),
+      skip,
+    );
+
+    return {
+      success: true,
+      data: {
+        messages,
+        total,
+        limit,
+        skip,
+      },
+    };
+  }
+  @Get('combinedtrip/:combinedTripId/new')
+  @UseGuards(JwtAuthGuard)
+  async getNewCombinedTripMessages(
+    @Param('combinedTripId') combinedTripId: string,
+    @Query('since') since?: string,
+  ) {
+    const sinceTimestamp = since ? parseInt(since) : Date.now() - 60000;
+    const messages = await this.messagesService.getNewCombinedTripMessages(
+      combinedTripId,
+      sinceTimestamp,
+    );
+    return {
+      success: true,
+      data: {
+        messages,
+        count: messages.length,
+      },
+    };
+  }
+  @Post('combinedtrip/:combinedTripId/mark-as-read')
+  @UseGuards(JwtAuthGuard)
+  async markCombinedTripMessagesAsRead(
+    @Param('combinedTripId') combinedTripId: string,
+    @Request() req: any,
+  ) {
+    if (!req.user?.id) {
+      throw new BadRequestException('User ID not found');
+    }
+    await this.messagesService.markCombinedTripMessagesAsRead(combinedTripId, req.user.id);
+    return {
+      success: true,
+      message: 'Messages marked as read',
+    };
+  }
+
+  /** 
+   * 
+   **\
+   
 
   /**
    * DELETE /api/messages/:messageId

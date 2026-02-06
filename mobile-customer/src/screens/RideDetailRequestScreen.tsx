@@ -90,8 +90,21 @@ export default function RideDetailRequestScreen() {
             bookedSeats: updatedTrip.bookedSeats,
           })
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('[RideDetailRequestScreen] Error polling trip data:', error)
+        
+        // ✅ If trip not found (404), stop polling and go back
+        if (error?.message?.includes('not found') || error?.message?.includes('404')) {
+          console.log('[RideDetailRequestScreen] ⚠️ Trip not found - stopping poll and navigating back')
+          if (tripPollInterval.current) {
+            clearInterval(tripPollInterval.current)
+          }
+          Alert.alert(
+            'Chuyến đi không tồn tại',
+            'Chuyến đi này đã bị hủy hoặc không còn khả dụng.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          )
+        }
       }
     }
 

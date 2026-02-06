@@ -42,11 +42,7 @@ export class CombinedTripsController {
         throw new BadRequestException('Driver ID not found in authentication token');
       }
 
-      console.log('🆕 [CombinedTripsController] Creating combined trip for driver:', driverId);
-      console.log('📍 Received coordinates:', {
-        pickupCoordinates: createCombinedTripDto.pickupCoordinates,
-        dropoffCoordinates: createCombinedTripDto.dropoffCoordinates,
-      });
+     
 
       // Calculate totalFare if not provided
       let totalFare = createCombinedTripDto.totalFare;
@@ -79,12 +75,7 @@ export class CombinedTripsController {
         },
       };
 
-      console.log('📍 Converted to GeoJSON:', {
-        pickupLocation: tripData.pickupLocation,
-        dropoffLocation: tripData.dropoffLocation,
-        totalSeats: tripData.totalSeats,
-        availableSeats: tripData.availableSeats,
-      });
+      
 
       return await this.combinedTripsService.createCombinedTrip(tripData);
     } catch (error: any) {
@@ -356,8 +347,7 @@ export class CombinedTripsController {
     @Param('customerId') customerId: string,
   ) {
     try {
-      console.log('🔍 [CombinedTripsController] ROUTE MATCHED: customer/:customerId');
-      console.log('[CombinedTripsController] 📜 Getting combined trips for customer:', customerId);
+     
 
       // Validate customerId is a valid MongoDB ObjectId
       if (!Types.ObjectId.isValid(customerId)) {
@@ -391,17 +381,7 @@ export class CombinedTripsController {
         const trip = request.combinedTripId;
         if (!trip) return null;
 
-        console.log('[CombinedTripsController] Processing trip:', {
-          tripId: trip._id,
-          totalSeats: trip.totalSeats,
-          availableSeats: trip.availableSeats,
-          passengers: trip.passengers,
-          customerPickupAddress: request.pickupAddress,
-          customerDropoffAddress: request.dropoffAddress,
-          driverId: trip.driverId,
-          tripPickupAddress: trip.pickupAddress,
-          tripDropoffAddress: trip.dropoffAddress,
-        });
+       
 
         const tripObj = trip.toObject ? trip.toObject() : trip;
 
@@ -412,6 +392,8 @@ export class CombinedTripsController {
         // This is why we set customer fields AFTER spreading trip object
         return {
           ...tripObj,
+          // ✅ CRITICAL: Include requestId so frontend can cancel the request
+          requestId: request._id,
           // Override with customer's specific locations from RideRequest (these take priority)
           pickupAddress: request.pickupAddress,  // Customer's pickup, not driver's route
           dropoffAddress: request.dropoffAddress,  // Customer's dropoff, not driver's route
@@ -984,14 +966,28 @@ export class CombinedTripsController {
 
       console.log('[CombinedTripsController] ✅ Request marked as cancelled:', requestId);
 
-      // ✅ Free up seats on combined trip
+      // ✅ Free up seats on combined trip AND remove customer from customerId array
       const trip = await this.combinedTripsService.getCombinedTripsModel().findById(combinedTripId);
       if (trip) {
+        // Restore available seats
         trip.availableSeats += request.seats;
+        
+        // ✅ CRITICAL: Remove customer from customerId array
+        if (Array.isArray(trip.customerId)) {
+          trip.customerId = trip.customerId.filter(
+            (id) => String(id) !== String(request.customerId)
+          );
+          console.log('[CombinedTripsController] ✅ Removed customer from trip:', {
+            customerId: request.customerId,
+            remainingCustomers: trip.customerId.length,
+          });
+        }
+        
         await trip.save();
         console.log('[CombinedTripsController] ✅ Freed up seats:', {
           seats: request.seats,
           newAvailableSeats: trip.availableSeats,
+          remainingCustomers: trip.customerId?.length || 0,
         });
       }
 
