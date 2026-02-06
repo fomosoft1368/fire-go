@@ -198,9 +198,9 @@ export default function TripsScreen() {
           sourceType: 'delivery'
         })
       } else {
-        // Lái xe hộ -> ActiveDeliveryScreen
+        // Lái xe hộ -> ActiveDelivery (fix: screen name is "ActiveDelivery" not "ActiveDeliveryScreen")
         // @ts-ignore
-        navigation.navigate('ActiveDeliveryScreen', { 
+        navigation.navigate('ActiveDelivery', { 
           tripId: trip.id || trip._id,
           sourceType: 'ride'
         })

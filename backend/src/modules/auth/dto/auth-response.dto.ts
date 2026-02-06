@@ -8,5 +8,9 @@ export class AuthResponseDto {
     lastName: string;
     role: string;
     avatar?: string;
+    driverTypes?: string[];
+    isOnline?: boolean;
+    isAvailable?: boolean;
+    status?: string;
   };
 }

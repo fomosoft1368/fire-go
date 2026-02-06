@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as Location from 'expo-location'
 import { RootState } from '../redux/store'
 import type { RootStackParamList } from '../types'
 import { rideService } from '../services/rideService'
@@ -193,6 +194,41 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       if (pickupSearchTimeout) clearTimeout(pickupSearchTimeout)
       if (dropoffSearchTimeout) clearTimeout(dropoffSearchTimeout)
     }
+  }, [])
+
+  // Initialize pickup location with current user location
+  useEffect(() => {
+    const initializePickupLocation = async () => {
+      try {
+        console.log('[HireDriverScreen] 📍 Requesting location permission...')
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        
+        if (status !== 'granted') {
+          console.log('[HireDriverScreen] ⚠️ Location permission denied')
+          return
+        }
+
+        console.log('[HireDriverScreen] ✅ Getting current position...')
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        })
+
+        const { latitude, longitude } = location.coords
+        console.log('[HireDriverScreen] 📍 Current position:', { latitude, longitude })
+
+        // Reverse geocode to get address
+        const address = await mapsService.reverseGeocode(latitude, longitude)
+        console.log('[HireDriverScreen] 🏠 Address from coordinates:', address)
+        
+        setPickupLocation(address)
+      } catch (error) {
+        console.error('[HireDriverScreen] ❌ Error getting location:', error)
+        // Fallback to default location
+        setPickupLocation('Hà Nội, Việt Nam')
+      }
+    }
+
+    initializePickupLocation()
   }, [])
 
   const handleScheduleDateTime = (dateTime: Date) => {

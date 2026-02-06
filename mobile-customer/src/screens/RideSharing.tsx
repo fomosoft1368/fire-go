@@ -15,6 +15,7 @@ import {
   StatusBar,
   Modal,
 } from 'react-native'
+import * as Location from 'expo-location'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useSelector } from 'react-redux'
@@ -90,6 +91,41 @@ export default function RideSharing(props?: RideSharingProps) {
     return () => {
       isMountedRef.current = false
     }
+  }, [])
+
+  // Initialize pickup location with current user location
+  useEffect(() => {
+    const initializePickupLocation = async () => {
+      try {
+        console.log('[RideSharing] 📍 Requesting location permission...')
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        
+        if (status !== 'granted') {
+          console.log('[RideSharing] ⚠️ Location permission denied')
+          return
+        }
+
+        console.log('[RideSharing] ✅ Getting current position...')
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        })
+
+        const { latitude, longitude } = location.coords
+        console.log('[RideSharing] 📍 Current position:', { latitude, longitude })
+
+        // Reverse geocode to get address
+        const address = await mapsService.reverseGeocode(latitude, longitude)
+        console.log('[RideSharing] 🏠 Address from coordinates:', address)
+        
+        setPickupLocation(address)
+      } catch (error) {
+        console.error('[RideSharing] ❌ Error getting location:', error)
+        // Fallback to default location
+        setPickupLocation('Hà Nội, Việt Nam')
+      }
+    }
+
+    initializePickupLocation()
   }, [])
 
   // Pricing now loaded from backend via pricing.ts getPricingConfig()
@@ -218,7 +254,7 @@ export default function RideSharing(props?: RideSharingProps) {
       if (!distance || !duration || distance === 0 || duration === 0) {
         console.error('[RideSharing] Invalid distance or duration:', { distance, duration });
         Alert.alert('Lỗi', 'Không thể tính tuyến đường. Vui lòng kiểm tra địa chỉ và thử lại.');
-        return;
+        return null;
       }
 
       if (routeCoordinates.length === 0) {
@@ -240,14 +276,23 @@ export default function RideSharing(props?: RideSharingProps) {
         // Continue without fare calculation
       }
 
+<<<<<<< HEAD
       setRouteInfo({
         distance: distance,
+=======
+      console.log('[HomeScreen] Final fareEstimate before setState:', fareEstimate);
+
+      const routeData = {
+        distance: distanceKm,
+>>>>>>> 951919d670107544aabc216c0306459f97f3a0d5
         duration: duration,
         distanceText: distanceText,
         durationText: durationText,
         routeCoordinates: routeCoordinates,
         fareEstimate: fareEstimate,
-      });
+      };
+
+      setRouteInfo(routeData);
 
       if (fareEstimate) {
         setFareEstimate(fareEstimate);
@@ -262,6 +307,7 @@ export default function RideSharing(props?: RideSharingProps) {
     } catch (error: any) {
       console.error('[RideSharing] Route calculation error:', error);
       Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
+      return null;
     }
   };
 
@@ -282,18 +328,6 @@ export default function RideSharing(props?: RideSharingProps) {
         Alert.alert('Lỗi', 'Vui lòng đăng nhập trước')
         return
       }
-
-      // Nếu chưa tính giá, tính trước
-      // if (!routeInfo || !fareEstimate) {
-      //   Alert.alert(
-      //     'Chưa tính giá',
-      //     'Vui lòng chờ hệ thống tính toán hoặc kiểm tra lại địa chỉ!',
-      //     [{ text: 'OK' }]
-      //   )
-      //   return
-      // }
-
-      setIsLoading(true)
 
       // Validate coordinates exist and are valid
       if (!pickupCoordinates || !Array.isArray(pickupCoordinates) || pickupCoordinates.length !== 2) {
@@ -323,15 +357,14 @@ export default function RideSharing(props?: RideSharingProps) {
 
       // Navigate to FindingRideScreen
       navigation.navigate('FindingRideScreen', {
-        distance: routeInfo.distance,
-        duration: routeInfo.duration,
+        distance: routeData.distance,
+        duration: routeData.duration,
         startLng: pickupCoordinates[0],
         startLat: pickupCoordinates[1],
         endLng: dropoffCoordinates[0],
         endLat: dropoffCoordinates[1],
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
-       
       })
 
       setIsLoading(false)

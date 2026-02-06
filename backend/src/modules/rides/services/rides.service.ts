@@ -7,12 +7,14 @@ import { Pricing } from '../schemas/pricing.schema';
 import { CreateRideDto } from '../dto';
 import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 import { AutoAssignService } from './auto-assign.service';
+import { Driver, DriverDocument, DriverStatus } from '../../drivers/schemas/driver.schema';
 
 @Injectable()
 export class RidesService {
   constructor(
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<any>,
+    @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     private eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => AutoAssignService))
     private autoAssignService: AutoAssignService,
@@ -417,7 +419,19 @@ export class RidesService {
         throw new NotFoundException('Failed to update ride');
       }
 
-      console.log('[RidesService] Ride updated successfully, now populating...');
+      console.log('[RidesService] Ride updated successfully, now updating driver status...');
+
+      // IMPORTANT: Update driver status to ON_TRIP when accepting ride
+      try {
+        await this.driverModel.findByIdAndUpdate(driverId, {
+          status: DriverStatus.ON_TRIP,
+          isAvailable: false,
+        });
+        console.log(`[RidesService] ✅ Set driver ${driverId} to ON_TRIP status with isAvailable=false`);
+      } catch (driverUpdateError) {
+        console.warn('[RidesService] Warning: Could not update driver status:', driverUpdateError.message);
+        // Continue anyway - status update shouldn't fail the whole operation
+      }
 
       // Populate separately to handle potential errors
       try {
@@ -521,6 +535,16 @@ export class RidesService {
       { new: true },
     );
 
+    // IMPORTANT: Set driver back to ONLINE and available after completing ride
+    if (ride.driverId) {
+      const driverId = typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
+      await this.driverModel.findByIdAndUpdate(driverId, {
+        status: DriverStatus.ONLINE,
+        isAvailable: true,
+      });
+      console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE status with isAvailable=true after ride completion`);
+    }
+
     // Emit ride.completed event
     const extractedCustomerId = ride.customerId && typeof ride.customerId === 'object' 
       ? (ride.customerId as any)._id.toString() 
@@ -545,6 +569,16 @@ export class RidesService {
 
     if ([RideStatus.COMPLETED, RideStatus.CANCELLED].includes(ride.status)) {
       throw new BadRequestException('Ride cannot be cancelled');
+    }
+
+    // IMPORTANT: Set driver back to ONLINE and available after cancelling ride
+    if (ride.driverId) {
+      const driverId = typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
+      await this.driverModel.findByIdAndUpdate(driverId, {
+        status: DriverStatus.ONLINE,
+        isAvailable: true,
+      });
+      console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE status with isAvailable=true after ride cancellation`);
     }
 
     return this.rideModel.findByIdAndUpdate(

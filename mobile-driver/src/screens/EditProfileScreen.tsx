@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import type { RootState } from '../redux/store'
 import { driverService } from '../services/driverService'
@@ -35,6 +35,45 @@ export default function EditProfileScreen() {
 
   const [selectedDriverTypes, setSelectedDriverTypes] = useState<string[]>(
     user?.driverTypes || ['rideshare']
+  )
+
+  // Log để debug
+  useEffect(() => {
+    console.log('[EditProfile] Component mounted')
+    console.log('[EditProfile] User from Redux:', user)
+    console.log('[EditProfile] Driver Types from Redux:', user?.driverTypes)
+    console.log('[EditProfile] Selected Driver Types:', selectedDriverTypes)
+  }, [])
+
+  // Refresh data khi screen focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadProfile = async () => {
+        try {
+          console.log('[EditProfile] Screen focused, loading fresh profile...')
+          const profile = await driverService.getProfile()
+          console.log('[EditProfile] Fresh profile from API:', profile)
+          console.log('[EditProfile] Fresh driverTypes:', profile.driverTypes)
+          
+          // Update Redux
+          dispatch(updateUser(profile))
+          
+          // Update local state
+          setSelectedDriverTypes(profile.driverTypes || ['rideshare'])
+          setFormData({
+            name: profile.firstName && profile.lastName 
+              ? `${profile.firstName} ${profile.lastName}` 
+              : profile.name || '',
+            email: profile.email || '',
+            phone: profile.phone || profile.phoneNumber || '',
+          })
+        } catch (error) {
+          console.error('[EditProfile] Error loading profile:', error)
+        }
+      }
+      
+      loadProfile()
+    }, [])
   )
 
   const [saving, setSaving] = useState(false)
@@ -66,18 +105,23 @@ export default function EditProfileScreen() {
         driverTypes: selectedDriverTypes,
       }
       
-      console.log('[EditProfile] Saving profile:', updateData)
+      console.log('[EditProfile] Saving profile...') 
+      console.log('[EditProfile] Update data:', JSON.stringify(updateData, null, 2))
+      console.log('[EditProfile] Selected driverTypes:', selectedDriverTypes)
       
       const result = await driverService.updateMyProfile(updateData)
       
-      console.log('[EditProfile] Save successful:', result)
+      console.log('[EditProfile] ✅ Save successful')
+      console.log('[EditProfile] Result:', JSON.stringify(result, null, 2))
       
       // Refetch profile để đảm bảo dữ liệu đồng bộ
       const updatedProfile = await driverService.getProfile()
-      console.log('[EditProfile] Updated profile from API:', updatedProfile)
+      console.log('[EditProfile] ✅ Updated profile from API:', JSON.stringify(updatedProfile, null, 2))
+      console.log('[EditProfile] Updated driverTypes:', updatedProfile.driverTypes)
       
       // Cập nhật Redux state với dữ liệu mới nhất từ API
       dispatch(updateUser(updatedProfile))
+      console.log('[EditProfile] ✅ Redux updated')
       
       // Cập nhật AsyncStorage
       const currentUser = await AsyncStorage.getItem('user')
@@ -85,7 +129,7 @@ export default function EditProfileScreen() {
         const userObj = JSON.parse(currentUser)
         const mergedUser = { ...userObj, ...updatedProfile }
         await AsyncStorage.setItem('user', JSON.stringify(mergedUser))
-        console.log('[EditProfile] AsyncStorage updated')
+        console.log('[EditProfile] ✅ AsyncStorage updated')
       }
       
       Alert.alert(
@@ -99,7 +143,7 @@ export default function EditProfileScreen() {
         ]
       )
     } catch (error: any) {
-      console.error('[EditProfile] Error saving profile:', error)
+      console.error('[EditProfile] ❌ Error saving profile:', error)
       console.error('[EditProfile] Error response:', error?.response?.data)
       console.error('[EditProfile] Error message:', error?.message)
       Alert.alert(

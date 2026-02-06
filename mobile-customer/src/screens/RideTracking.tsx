@@ -325,12 +325,6 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: "#fff" }]}
-          onPress={() => navigation?.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Theo dõi chuyến đi</Text>
         <TouchableOpacity onPress={handleHelp}>
           <Text style={styles.helpText}>Trợ giúp</Text>

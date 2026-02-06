@@ -147,8 +147,13 @@ export class DriversService {
     const updateData: any = { 
       status,
       isOnline,
-      isAvailable: isOnline,
+      // CRITICAL FIX: When driver goes online, they should be available
+      // When offline, they are not available
+      // isAvailable only becomes false when driver accepts a trip
+      isAvailable: isOnline, // TRUE when online, FALSE when offline
     };
+    
+    console.log(`[DriversService] Updating driver ${driverId} status to ${status}, isOnline=${isOnline}, isAvailable=${isOnline}`);
     
     if (isOnline) {
       updateData.lastOnlineTime = new Date();

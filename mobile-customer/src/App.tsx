@@ -9,7 +9,7 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, BookingsScreen, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen } from './screens'
+import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory } from './screens'
 import { View, Text } from 'react-native'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
@@ -113,7 +113,7 @@ const MainNavigator = () => {
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
         tabBarStyle: {
-          backgroundColor: '#101922',
+          backgroundColor: '#fff',
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -132,9 +132,9 @@ const MainNavigator = () => {
       />
       <Tab.Screen
         name="Bookings"
-        component={BookingsScreen}
+        component={TripHistory}
         options={{
-          title: 'Hoạt động',
+          title: 'Các chuyến đi',
           headerShown: false,
         }}
       />

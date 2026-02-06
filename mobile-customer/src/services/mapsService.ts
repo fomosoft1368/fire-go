@@ -204,6 +204,43 @@ export const mapsService = {
   },
 
   /**
+   * Chuyển tọa độ thành địa chỉ (Reverse Geocoding)
+   */
+  async reverseGeocode(latitude: number, longitude: number): Promise<string> {
+    console.log('[MapsService] 🌍 Reverse geocoding:', { latitude, longitude })
+
+    // Nếu chưa có API key, sử dụng mock data
+    if (USE_MOCK_DATA) {
+      console.warn('[MapsService] ⚠️ Using MOCK data for reverse geocoding')
+      await new Promise(resolve => setTimeout(resolve, 300)) // Simulate delay
+      return `Hà Nội, Việt Nam (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`
+    }
+
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`
+
+      const response = await fetch(url)
+      const data = await response.json()
+
+      if (data.status === 'REQUEST_DENIED') {
+        console.error('[MapsService] ❌ API key invalid or APIs not enabled')
+        return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+      }
+
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        const formattedAddress = data.results[0].formatted_address
+        console.log('[MapsService] ✅ Reverse geocoding success:', formattedAddress)
+        return formattedAddress
+      }
+
+      return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+    } catch (error: any) {
+      console.error('[MapsService] Reverse geocoding error:', error)
+      return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+    }
+  },
+
+  /**
    * Chuyển địa chỉ thành tọa độ (Geocoding)
    */
   async geocodeAddress(address: string): Promise<GeocodeResult> {

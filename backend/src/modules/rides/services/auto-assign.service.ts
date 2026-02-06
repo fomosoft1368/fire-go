@@ -372,7 +372,7 @@ export class AutoAssignService {
     if (ride.rideType === 'hire') {
       requiredDriverType = 'hire';
     } else if (ride.rideType === 'share') {
-      requiredDriverType = 'share';
+      requiredDriverType = 'rideshare';
     } else {
       // Default to share nếu không xác định được
       requiredDriverType = 'share';
@@ -391,7 +391,7 @@ export class AutoAssignService {
       isSuspended: false,
       currentLocation: { $exists: true }, // Có vị trí hiện tại
       _id: { $nin: busyDriverIds }, // Không có trong danh sách đang bận
-      driverTypes: requiredDriverType, // Lọc theo loại tài xế
+      driverTypes: { $in: [requiredDriverType] }, // Tìm tài xế có requiredDriverType trong array driverTypes
     });
 
     this.logger.log('[AutoAssignService] Found available drivers:', {
