@@ -27,7 +27,7 @@ import type { RideBooking } from '../types'
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>
 
-export default function BookingsScreen() {
+export default function TripHistoryScreen() {
   const navigation = useNavigation<Navigation>()
   const user = useSelector((state: RootState) => state.auth.user)
   const [activeFilter, setActiveFilter] = useState('all')
@@ -294,9 +294,9 @@ export default function BookingsScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
+        {/* <TouchableOpacity style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <Text style={styles.headerTitle}>Lịch sử chuyến đi</Text>
         <TouchableOpacity style={styles.calendarButton} onPress={fetchRideHistory}>
           <MaterialIcons name="refresh" size={24} color="#fff" />
@@ -373,8 +373,6 @@ export default function BookingsScreen() {
           const badge = getStatusBadge(booking.status)
           const isCompleted = booking.status === 'completed'
           const isCancelled = booking.status === 'cancelled'
-          const rideIcon = getRideTypeIcon(booking.rideType)
-          const rideLabel = getRideTypeLabel(booking.rideType)
 
           return (
             <View
@@ -387,20 +385,14 @@ export default function BookingsScreen() {
                   <View
                     style={[
                       styles.iconContainer,
-                      booking.rideType === 'hire'
-                        ? styles.iconContainerHire
-                        : styles.iconContainerShare,
+                      booking.rideType === 'hire' ? styles.iconContainerHire : styles.iconContainerShare,
                     ]}
                   >
-                    <MaterialIcons
-                      name={rideIcon as any}
-                      size={20}
-                      color={booking.rideType === 'hire' ? '#FF6B00' : '#FF6B00'}
-                    />
+                    <MaterialIcons name={getRideTypeIcon(booking.rideType) as any} size={20} color="#FF6B00" />
                   </View>
                   <View style={styles.headerInfo}>
                     <View style={styles.titleRow}>
-                      <Text style={styles.rideTypeText}>{rideLabel}</Text>
+                      <Text style={styles.rideTypeText}>{getRideTypeLabel(booking.rideType)}</Text>
                       {badge && (
                         <View
                           style={[
@@ -428,140 +420,60 @@ export default function BookingsScreen() {
                 </Text>
               </View>
 
-              {/* Route Visualization */}
               <View style={styles.routeSection}>
                 <View style={styles.routeTimeline}>
-                  {/* Pickup Dot */}
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: isCancelled ? '#9ca3af' : '#10b981' },
-                      isCancelled && styles.dotCancelled,
-                    ]}
-                  />
-                  {/* Connector Line */}
-                  <View
-                    style={[
-                      styles.connectorLine,
-                      isCancelled && styles.connectorLineCancelled,
-                    ]}
-                  />
-                  {/* Dropoff Dot */}
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: isCancelled ? '#9ca3af' : '#ef4444' },
-                      isCancelled && styles.dotCancelled,
-                    ]}
-                  />
+                  <View style={[styles.dot, { backgroundColor: isCancelled ? '#9ca3af' : '#10b981' }, isCancelled && styles.dotCancelled]} />
+                  <View style={[styles.connectorLine, isCancelled && styles.connectorLineCancelled]} />
+                  <View style={[styles.dot, { backgroundColor: isCancelled ? '#9ca3af' : '#ef4444' }, isCancelled && styles.dotCancelled]} />
                 </View>
 
                 <View style={styles.routeInfo}>
-                  {/* Pickup Location */}
                   <View style={styles.locationItem}>
                     <Text style={styles.locationName}>{booking.pickupLocation}</Text>
-                    {booking.pickupDistrict && (
-                      <Text style={styles.locationSubtitle}>
-                        {booking.pickupDistrict}
-                      </Text>
-                    )}
+                    {booking.pickupDistrict && <Text style={styles.locationSubtitle}>{booking.pickupDistrict}</Text>}
                   </View>
-
-                  {/* Dropoff Location */}
                   <View style={styles.locationItem}>
-                    <Text style={styles.locationName}>
-                      {booking.dropoffLocation}
-                    </Text>
-                    {booking.dropoffDistrict && (
-                      <Text style={styles.locationSubtitle}>
-                        {booking.dropoffDistrict}
-                      </Text>
-                    )}
+                    <Text style={styles.locationName}>{booking.dropoffLocation}</Text>
+                    {booking.dropoffDistrict && <Text style={styles.locationSubtitle}>{booking.dropoffDistrict}</Text>}
                   </View>
                 </View>
               </View>
 
               {/* Card Footer */}
-              {isCompleted && booking.rideType === 'share' && (
-                <View style={styles.cardFooter}>
-                  <View style={styles.starsContainer}>
-                    {[0, 1, 2, 3, 4].map((i) => (
-                      <MaterialIcons
-                        key={i}
-                        name="star"
-                        size={20}
-                        color="#fbbf24"
-                        style={{ marginRight: 2 }}
-                      />
-                    ))}
-                  </View>
-                  <View style={styles.footerButtonGroup}>
-                    <TouchableOpacity 
-                      style={styles.detailButton}
-                      onPress={() => handleViewDetail(booking)}
-                    >
-                      <MaterialIcons name="info" size={14} color="#53d22d" />
-                      <Text style={styles.detailButtonText}>Chi tiết</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.rebookButton}>
-                      <MaterialIcons name="replay" size={16} color="#94a3b8" />
-                      <Text style={styles.rebookText}>Đặt lại</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-              {isCompleted && booking.rideType === 'share' && !booking.combinedTripId && (
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity 
-                    style={styles.detailButton}
-                    onPress={() => handleViewDetail(booking)}
-                  >
-                    <MaterialIcons name="info" size={14} color="#53d22d" />
-                    <Text style={styles.detailButtonText}>Chi tiết</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              {!isCompleted && booking.rideType === 'share' && (
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity 
-                    style={styles.detailButton}
-                    onPress={() => handleViewDetail(booking)}
-                  >
-                    <MaterialIcons name="info" size={14} color="#53d22d" />
-                    <Text style={styles.detailButtonText}>Chi tiết</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              {booking.rideType === 'delivery' && (
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity 
-                    style={styles.detailButton}
-                    onPress={() => handleViewDetail(booking)}
-                  >
-                    <MaterialIcons name="info" size={14} color="#53d22d" />
-                    <Text style={styles.detailButtonText}>Chi tiết</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              {isCompleted && booking.rideType === 'hire' && (
+              {booking.rideType === 'hire' && isCompleted ? (
                 <TouchableOpacity 
                   style={styles.rateButton}
                   onPress={() => openRatingModal(booking)}
                 >
-                  <MaterialIcons
-                    name="star-rate"
-                    size={18}
-                    color="#fff"
-                    style={{ marginRight: SPACING.sm }}
-                  />
+                  <MaterialIcons name="star-rate" size={18} color="#fff" style={{ marginRight: SPACING.sm }} />
                   <Text style={styles.rateButtonText}>Đánh giá tài xế</Text>
                 </TouchableOpacity>
+              ) : (
+                <View style={styles.cardFooter}>
+                  {isCompleted && booking.rideType === 'share' && (
+                    <View style={styles.starsContainer}>
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <MaterialIcons key={i} name="star" size={20} color="#fbbf24" style={{ marginRight: 2 }} />
+                      ))}
+                    </View>
+                  )}
+                  <View style={styles.footerButtonGroup}>
+                    <TouchableOpacity style={styles.detailButton} onPress={() => handleViewDetail(booking)}>
+                      <MaterialIcons name="info" size={14} color="#53d22d" />
+                      <Text style={styles.detailButtonText}>Chi tiết</Text>
+                    </TouchableOpacity>
+                    {isCompleted && booking.rideType === 'share' && (
+                      <TouchableOpacity style={styles.rebookButton}>
+                        <MaterialIcons name="replay" size={16} color="#94a3b8" />
+                        <Text style={styles.rebookText}>Đặt lại</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
               )}
             </View>
           )
         })}
-
-        <View style={{ height: SPACING.xxl }} />
               </>
             )}
           </>
@@ -710,7 +622,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     gap: SPACING.md,
-
   },
   filterTab: {
     paddingVertical: SPACING.sm,
@@ -749,7 +660,6 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
-    paddingBottom: SPACING.xxl,
   },
   loadingContainer: {
     flex: 1,

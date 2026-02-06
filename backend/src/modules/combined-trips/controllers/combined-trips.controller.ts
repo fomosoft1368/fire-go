@@ -13,9 +13,10 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CombinedTripsService } from '../services/combined-trips.service';
-import { CombinedTripStatus } from '../schemas/combined-trip.schema';
+import { CombinedTrip, CombinedTripStatus } from '../schemas/combined-trip.schema';
 import { JwtAuthGuard } from '../../../modules/auth/guards/jwt-auth.guard';
 import { RideRequest, RequestStatus } from '../schemas/ride-request.schema';
+import { Driver } from '../../drivers/schemas/driver.schema';
 import { Types } from 'mongoose';
 
 @Controller('api/combined-trips')
@@ -23,6 +24,8 @@ export class CombinedTripsController {
   constructor(
     private readonly combinedTripsService: CombinedTripsService,
     @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequest>,
+    @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTrip>,
+    @InjectModel(Driver.name) private driverModel: Model<Driver>,
   ) {}
 
   /**
@@ -1052,8 +1055,6 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-    
-
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
         { status: 'completed' },
@@ -1062,6 +1063,33 @@ export class CombinedTripsController {
 
       if (!request) {
         throw new BadRequestException('Request not found');
+      }
+
+      // IMPORTANT: Check if ALL passenger requests are completed
+      // If yes, set driver back to available
+      const trip = await this.combinedTripModel.findById(combinedTripId);
+      if (trip && trip.driverId) {
+        const allRequests = await this.rideRequestModel.find({
+          combinedTripId: new Types.ObjectId(combinedTripId),
+        });
+        
+        const allCompleted = allRequests.every(r => 
+          r.status === 'completed' || r.status === 'cancelled'
+        );
+        
+        if (allCompleted) {
+          const driverId = typeof trip.driverId === 'object' ? trip.driverId._id : trip.driverId;
+          await this.driverModel.findByIdAndUpdate(driverId, {
+            isAvailable: true,
+          });
+          console.log(`[CombinedTripsController] ✅ All passengers completed, set driver ${driverId} back to available`);
+          
+          // Also update combined trip status to completed
+          await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
+            status: CombinedTripStatus.COMPLETED,
+            completedAt: new Date(),
+          });
+        }
       }
 
       return { status: request.status };

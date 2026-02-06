@@ -13,7 +13,8 @@ import {
     Animated,
     TextInput,
 } from 'react-native'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import * as Location from 'expo-location'
+import { COLORS, SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
 import MapViewComponent from '../components/MapView'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { deliveryService } from '../services/deliveryService'
@@ -110,6 +111,107 @@ export default function Delivery(props?: DeliveryProps) {
     const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
     const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+    const [drivers, setDrivers] = useState<any[]>([])
+    
+    // Initialize pickup location with current user location
+    useEffect(() => {
+        const initializePickupLocation = async () => {
+            try {
+                console.log('[Delivery] 📍 Requesting location permission...')
+                const { status } = await Location.requestForegroundPermissionsAsync()
+                
+                if (status !== 'granted') {
+                    console.log('[Delivery] ⚠️ Location permission denied')
+                    return
+                }
+
+                console.log('[Delivery] ✅ Getting current position...')
+                const location = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.High,
+                })
+
+                const { latitude, longitude } = location.coords
+                console.log('[Delivery] 📍 Current position:', { latitude, longitude })
+
+                // Reverse geocode to get address
+                const address = await mapsService.reverseGeocode(latitude, longitude)
+                console.log('[Delivery] 🏠 Address from coordinates:', address)
+                
+                setPickup(address)
+            } catch (error) {
+                console.error('[Delivery] ❌ Error getting location:', error)
+                // Fallback to default location
+                setPickup('Hà Nội, Việt Nam')
+            }
+        }
+
+        initializePickupLocation()
+    }, [])
+    
+    // Fetch available drivers on app startup
+    useEffect(() => {
+        const fetchAvailableDrivers = async () => {
+            try {
+                console.log('[Delivery] 📍 Fetching drivers from /api/drivers/available')
+                const response = await fetch(`${API_BASE_URL}/drivers/available`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                })
+
+                console.log('[Delivery] Response status:', response.status)
+
+                if (response.ok) {
+                    const data = await response.json()
+                    console.log('✅ [Delivery] Raw API response:', JSON.stringify(data, null, 2))
+                    console.log('✅ [Delivery] Total drivers from API:', data?.length)
+
+                    if (!data || data.length === 0) {
+                        console.warn('⚠️ [Delivery] No drivers returned from API')
+                        setDrivers([])
+                        return
+                    }
+
+                    // Format drivers data from API response
+                    const driversForMap = data.map((driver: any, index: number) => {
+                        // Extract coordinates from GeoJSON format
+                        const coordinates = driver.currentLocation?.coordinates || []
+                        const fullName = `${driver.firstName || 'Tài'} ${driver.lastName || 'xế'}`
+
+                        console.log(`[Delivery] Driver ${index + 1}:`, {
+                            name: fullName,
+                            currentLocation: driver.currentLocation,
+                            coordinates: coordinates,
+                        })
+
+                        const formattedDriver = {
+                            id: driver._id,
+                            latitude: coordinates[1],
+                            longitude: coordinates[0],
+                            name: fullName,
+                            rating: driver.averageRating || 5,
+                            vehicle: driver.vehiclePlate || 'Chưa cập nhật',
+                            vehicleModel: driver.vehicleModel || '',
+                            totalRides: driver.totalRides || 0,
+                        }
+
+                        console.log('[Delivery] 🚗 Formatted driver:', formattedDriver)
+                        return formattedDriver
+                    })
+
+                    console.log('✅ [Delivery] Formatted drivers for map (total):', driversForMap.length)
+                    setDrivers(driversForMap)
+                } else {
+                    console.error('[Delivery] API error - status:', response.status)
+                    const errorText = await response.text()
+                    console.error('[Delivery] Error response:', errorText)
+                }
+            } catch (error) {
+                console.error('[Delivery] ❌ Fetch drivers error:', error)
+                setDrivers([])
+            }
+        }
+        fetchAvailableDrivers()
+    }, [])
     
     // ============ GIAO HÀNG - Dynamic Config ============
     const [goodsTypes, setGoodsTypes] = useState<DeliveryGoodsType[]>(GOODS_TYPES.map(g => ({ ...g, surcharge: 0 })))
@@ -454,6 +556,7 @@ export default function Delivery(props?: DeliveryProps) {
                         longitude: dropoffCoordinates[0],
                     } : undefined}
                     routeCoordinates={routeInfo?.routeCoordinates || []}
+                    drivers={drivers}
                 />
             </View>
             <View style={styles.header}>

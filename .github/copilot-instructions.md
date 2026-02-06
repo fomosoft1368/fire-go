@@ -1,50 +1,61 @@
 # Copilot Instructions for FireGo Monorepo
 
 ## Overview
-FireGo is a rideshare platform with four main components:
-- **backend/**: NestJS API server (TypeScript, MongoDB)
-- **web-admin/**: React + Vite admin dashboard
-- **mobile-customer/**: React Native app for customers
-- **mobile-driver/**: React Native app for drivers
+FireGo is a rideshare platform with four main components: **backend/** (NestJS API, MongoDB), **web-admin/** (React + Vite dashboard), **mobile-customer/** (React Native), **mobile-driver/** (React Native + Expo). All communication flows through backend REST APIs.
 
-## Key Architectural Patterns
-- **Backend** uses NestJS modules for each domain (drivers, rides, payment, etc.) in `src/modules/`. Shared logic is in `src/shared/`.
-- **Web Admin** and **Mobile Apps** use a clear separation: `components/`, `screens/` (or `pages/`), `services/` (API calls), `redux/` (state), `utils/`, and `types/`.
-- **API communication**: All frontends use REST APIs from the backend. See `services/` in each app for API patterns.
-- **MongoDB** is the only database. Connection config is in backend `.env` and `docker-compose.yml`.
+## Critical Architecture
+
+### Backend (NestJS + Mongoose)
+- **Module structure**: Each domain (drivers, rides, payment, etc.) is a NestJS module in `src/modules/` with its own controller, service, schema, DTO
+- **Shared utilities**: `src/shared/utils/` contains location parsing, `src/shared/constants/` for enums (RideStatus, RideType, DriverStatus)
+- **Event-driven**: Uses `@nestjs/event-emitter` for cross-module communication (e.g., ride auto-assignment triggers driver notifications)
+- **Schemas**: All models use `@Schema({ timestamps: true })` with Mongoose, enabling `createdAt`/`updatedAt` tracking
+- **Key modules**: `rides/` (core trip logic with OSRM routing), `drivers/` (status, location, approval), `delivery/` (separate from rides), `pricing/` (dynamic rates), `combined-trips/` (multi-passenger pooling), `payment/` (wallets, transactions)
+
+### Frontend Patterns
+- **Services layer**: All HTTP calls via Axios instances in `services/` directory (no direct fetch in components)
+- **Mobile apps** (Expo-based): Use `redux/slices/` for global state (auth, theme), local state for screens via `useState`, **polling pattern** for live updates (e.g., trip status every 2s via `setInterval`)
+- **Web Admin**: Uses Zustand for state management (see `store/`) instead of Redux
+- **Type safety**: TypeScript throughout; mobile apps have `types/` folder with API response interfaces
+
+### Data Flow
+1. **Rides**: Customer calls backend → Auto-assign service finds drivers → Event emits → Driver notification service triggers → Driver receives via socket/polling
+2. **Combined trips**: Multi-passenger pooling stored separately; UI polls `combinedTripsService.getCombinedTripDetail()` every 2s to sync seat availability
+3. **Delivery**: Separate module parallel to rides with its own auto-assign logic
 
 ## Developer Workflows
-- **Install all dependencies**: `npm install` at root, or `npm run install:all`
-- **Start all dev servers**: `npm run dev` (backend + web-admin), `npm run dev:full` (includes mobile-customer)
-- **Backend dev**: `cd backend && npm run start:dev`
-- **Web Admin dev**: `cd web-admin && npm run dev`
-- **Mobile dev**: `cd mobile-customer` or `cd mobile-driver`, then `npm run android` or `npm run ios`
-- **Database**: Start MongoDB with `docker-compose up -d`
-- **Linting**: `npm run lint` in any package
-- **Testing**: `npm run test` in any package
-- **Seeding**: Backend: `npm run seed` (runs `src/seed.ts`)
+- **Full setup**: `npm install` (monorepo) → `docker-compose up -d` (MongoDB) → `npm run dev` (backend + web) or `npm run dev:full`
+- **Backend**: `cd backend && npm run start:dev` → Swagger at `http://localhost:3000/api/docs`
+- **Web Admin**: `cd web-admin && npm run dev` → Vite at `http://localhost:5173`
+- **Mobile**: Expo-managed (`npm run android` / `npm run ios`); Android emulator uses `10.0.2.2` for localhost, real devices use `192.168.x.x`
+- **Database seeding**: `cd backend && npm run seed` (runs `src/seed.ts`)
+- **Debugging mobile**: Add `console.log()` and check Expo terminal output; use Redux DevTools for state inspection
 
-## Project Conventions
-- **TypeScript everywhere** (except legacy JS scripts)
-- **Env files**: Copy `.env.example` to `.env` in each package before running
-- **Component structure**: Place UI in `components/`, screens/pages in `screens/` or `pages/`, API logic in `services/`, state in `redux/`, helpers in `utils/`, types in `types/`
-- **Backend modules**: Add new features as a module in `src/modules/`
-- **API docs**: Swagger at `/api/docs` when backend is running
+## Project-Specific Patterns
 
-## Integration & External Dependencies
-- **Backend**: NestJS, Mongoose, JWT, Passport.js
-- **Web Admin**: React, Ant Design, Zustand, Axios, TailwindCSS
-- **Mobile**: React Native, Redux Toolkit, Axios, React Navigation, Maps
-- **All apps**: Use Axios for HTTP, see `services/` for API usage
+### API Requests
+- **Base URLs vary by context**: Mobile has different endpoints for emulator vs device (`process.env.REACT_APP_API_URL` or hardcoded fallback)
+- **Token management**: AuthService stores JWT in AsyncStorage (mobile) or localStorage (web); auto-refresh logic in service interceptors
+- **Error handling**: Wrap service calls in try-catch; API errors returned as `{ success: false, message: string }`
 
-## Examples
-- Add a new backend feature: create a module in `backend/src/modules/`, register in `app.module.ts`
-- Add a new screen: create in `screens/`, connect to API via `services/`, manage state in `redux/`
-- Add a new API call: implement in backend controller/service, document in Swagger, consume in frontend `services/`
+### State Syncing
+- **Mobile polling**: Screens that display live data (rides, driver location, trip status) use `setInterval` with cleanup in `useEffect` return
+- **Web Admin**: Ant Design form components; uses `axios` instance with base URL config in `api.ts`
 
-## References
-- See [README.md](../../README.md) for full setup, scripts, and troubleshooting
-- See `docs/` (if present) for API/database details
+### Component Organization
+- **Mobile screens** vs **Web pages**: Mobile uses `screens/` (full-screen navigated), Web uses `pages/` (routed via React Router)
+- **Reusable components**: `components/` folder; avoid business logic in UI components, delegate to services
+- **Hooks**: Custom hooks in `hooks/` folder (e.g., `useDebounce`, navigation hooks)
+
+## Common Commands
+- `npm run lint` — ESLint with auto-fix
+- `npm run test` — Jest (backend has unit/e2e, mobile/web have jest setup)
+- `npm run build` — Production build (backend: NestJS, web: Vite)
+
+## Integration Points
+- **Mapping**: OSRM (Free routing, no API key; backend calls `https://router.project-osrm.org/route/v1/driving/`) and Google Maps (web admin, requires API key in `.env`)
+- **MongoDB URI**: In backend `.env`; Docker Compose spins up instance locally
+- **External scripts**: Multiple `*.js` files in `backend/` root (e.g., `sync-driver-status.js`, `cleanup-zombie-drivers.js`) for maintenance tasks
 
 ---
-For any unclear conventions or missing documentation, ask for clarification or check the root README.
+For workflows involving trip polling or real-time updates, see `TRIP_POLLING_IMPLEMENTATION.md`.

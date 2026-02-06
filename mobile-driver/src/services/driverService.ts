@@ -656,6 +656,150 @@ export class DriverService {
       throw error;
     }
   }
+
+  /**
+   * Accept ride assignment request
+   */
+  async acceptRideAssignment(requestId: string): Promise<any> {
+    try {
+      console.log(`[DriverService] Accepting ride assignment request: ${requestId}`);
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.post(
+        `${this.baseURL}/rides/assignment-requests/${requestId}/accept`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log('[DriverService] ✅ Ride assignment accepted:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error accepting ride assignment:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Reject ride assignment request
+   */
+  async rejectRideAssignment(requestId: string): Promise<any> {
+    try {
+      console.log(`[DriverService] Rejecting ride assignment request: ${requestId}`);
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.post(
+        `${this.baseURL}/rides/assignment-requests/${requestId}/reject`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log('[DriverService] ✅ Ride assignment rejected:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error rejecting ride assignment:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Accept delivery assignment request
+   */
+  async acceptDeliveryAssignment(requestId: string): Promise<any> {
+    try {
+      console.log(`[DriverService] Accepting delivery assignment request: ${requestId}`);
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.post(
+        `${this.baseURL}/deliveries/assignment-requests/${requestId}/accept`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log('[DriverService] ✅ Delivery assignment accepted:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error accepting delivery assignment:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Reject delivery assignment request
+   */
+  async rejectDeliveryAssignment(requestId: string): Promise<any> {
+    try {
+      console.log(`[DriverService] Rejecting delivery assignment request: ${requestId}`);
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.post(
+        `${this.baseURL}/deliveries/assignment-requests/${requestId}/reject`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log('[DriverService] ✅ Delivery assignment rejected:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error rejecting delivery assignment:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Accept combined trip request
+   */
+  async acceptCombinedTripRequest(combinedTripId: string, requestId: string): Promise<any> {
+    try {
+      console.log(`[DriverService] Accepting combined trip request:`, { combinedTripId, requestId });
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.patch(
+        `${this.baseURL}/combined-trips/${combinedTripId}/requests/${requestId}/accept`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log('[DriverService] ✅ Combined trip request accepted:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error accepting combined trip request:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Reject combined trip request
+   */
+  async rejectCombinedTripRequest(combinedTripId: string, requestId: string): Promise<any> {
+    try {
+      console.log(`[DriverService] Rejecting combined trip request:`, { combinedTripId, requestId });
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.patch(
+        `${this.baseURL}/combined-trips/${combinedTripId}/requests/${requestId}/reject`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log('[DriverService] ✅ Combined trip request rejected:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error rejecting combined trip request:', error.message);
+      throw error;
+    }
+  }
 }
 
 export const driverService = new DriverService()

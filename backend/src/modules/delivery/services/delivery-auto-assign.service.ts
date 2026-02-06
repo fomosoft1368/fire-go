@@ -34,18 +34,25 @@ export class DeliveryAutoAssignService {
    */
   async autoAssignDriver(deliveryId: string): Promise<{ success: boolean; message: string; requestId?: string }> {
     try {
+      this.logger.log(`========== AUTO-ASSIGN START ==========`);
       this.logger.log(`[autoAssignDriver] Starting auto-assign for delivery: ${deliveryId}`);
 
       // Validate delivery ID
       if (!Types.ObjectId.isValid(deliveryId)) {
+        this.logger.error(`[autoAssignDriver] Invalid delivery ID: ${deliveryId}`);
         throw new BadRequestException('Invalid delivery ID');
       }
 
       // Find delivery
+      this.logger.log(`[autoAssignDriver] Fetching delivery from database...`);
       const delivery = await this.deliveryModel.findById(deliveryId).exec();
       if (!delivery) {
+        this.logger.error(`[autoAssignDriver] Delivery not found: ${deliveryId}`);
         throw new NotFoundException(`Delivery with ID ${deliveryId} not found`);
       }
+
+      this.logger.log(`[autoAssignDriver] ✅ Delivery found: ${delivery._id}`);
+      this.logger.log(`[autoAssignDriver] Current status: ${delivery.status}`);
 
       // Check if delivery is in valid status for assignment
       if (delivery.status !== DeliveryStatus.PENDING && delivery.status !== DeliveryStatus.FINDING_DRIVER) {
@@ -58,6 +65,7 @@ export class DeliveryAutoAssignService {
 
       // Update status to finding driver
       if (delivery.status === DeliveryStatus.PENDING) {
+        this.logger.log(`[autoAssignDriver] Updating status to FINDING_DRIVER...`);
         await this.deliveryModel.findByIdAndUpdate(deliveryId, {
           status: DeliveryStatus.FINDING_DRIVER,
         });
@@ -67,13 +75,17 @@ export class DeliveryAutoAssignService {
       const pickupLng = delivery.pickupCoordinates[0];
       const pickupLat = delivery.pickupCoordinates[1];
 
-      this.logger.log(`[autoAssignDriver] Finding drivers near: [${pickupLng}, ${pickupLat}]`);
+      this.logger.log(`[autoAssignDriver] Pickup coordinates: [${pickupLng}, ${pickupLat}]`);
+      this.logger.log(`[autoAssignDriver] Calling getAvailableDriversWithScores...`);
 
       // Find nearby available drivers and score them
       const driverScores = await this.getAvailableDriversWithScores(pickupLng, pickupLat);
 
+      this.logger.log(`[autoAssignDriver] Driver scores returned: ${driverScores.length} drivers`);
+
       if (driverScores.length === 0) {
-        this.logger.warn(`[autoAssignDriver] No available drivers found near delivery ${deliveryId}`);
+        this.logger.warn(`[autoAssignDriver] ❌ No available drivers found near delivery ${deliveryId}`);
+        this.logger.warn(`[autoAssignDriver] Updating delivery status to NO_DRIVER_AVAILABLE...`);
         await this.deliveryModel.findByIdAndUpdate(deliveryId, {
           status: DeliveryStatus.NO_DRIVER_AVAILABLE,
         });
@@ -86,9 +98,11 @@ export class DeliveryAutoAssignService {
       // Get the best driver (highest score)
       const selectedDriver = driverScores[0];
 
-      this.logger.log(`[autoAssignDriver] Selected driver: ${selectedDriver.driver._id} (score: ${selectedDriver.score})`);
+      this.logger.log(`[autoAssignDriver] ✅ Selected driver: ${selectedDriver.driver._id} (score: ${selectedDriver.score})`);
+      this.logger.log(`[autoAssignDriver] Driver name: ${selectedDriver.driver.firstName} ${selectedDriver.driver.lastName}`);
 
       // Create assignment request
+      this.logger.log(`[autoAssignDriver] Creating assignment request...`);
       const assignmentRequest = await this.createAssignmentRequest(
         deliveryId,
         selectedDriver.driver._id.toString(),
@@ -97,7 +111,7 @@ export class DeliveryAutoAssignService {
       );
 
       this.logger.log(
-        `Created assignment request ${assignmentRequest._id} for driver ${selectedDriver.driver._id}`
+        `[autoAssignDriver] ✅ Created assignment request ${assignmentRequest._id} for driver ${selectedDriver.driver._id}`
       );
 
       // Emit event để notify driver (via polling)
@@ -329,17 +343,25 @@ export class DeliveryAutoAssignService {
    * Driver reject assignment request
    */
   async rejectAssignmentRequest(requestId: string, driverId: string, reason?: string): Promise<void> {
+    this.logger.log(`[rejectAssignmentRequest] Driver ${driverId} rejecting request ${requestId}, reason: ${reason || 'none'}`);
+    
     const request = await this.assignmentRequestModel.findById(requestId);
 
     if (!request) {
+      this.logger.error(`[rejectAssignmentRequest] ❌ Request ${requestId} not found`);
       throw new NotFoundException('Assignment request not found');
     }
 
+    this.logger.log(`[rejectAssignmentRequest] Request found: status=${request.status}, driverId=${request.driverId}`);
+    this.logger.log(`[rejectAssignmentRequest] Comparing: request.driverId=${request.driverId.toString()} vs calling driverId=${driverId}`);
+
     if (request.driverId.toString() !== driverId) {
+      this.logger.error(`[rejectAssignmentRequest] ❌ Driver ID mismatch!`);
       throw new BadRequestException('This request is not for you');
     }
 
     if (request.status !== 'pending') {
+      this.logger.error(`[rejectAssignmentRequest] ❌ Request status is '${request.status}', not 'pending'`);
       throw new BadRequestException(`Request is already ${request.status}`);
     }
 
@@ -415,11 +437,24 @@ export class DeliveryAutoAssignService {
     // Debug: log query params
     this.logger.log(`[getAvailableDriversWithScores] Searching for drivers near [${lng}, ${lat}] within ${maxDistance}m`);
 
+    // Step 1: Check all drivers with delivery type (no location filter)
+    const allDeliveryDrivers = await this.driverModel.find({
+      driverTypes: { $in: ['delivery'] },
+    })
+    .select('_id firstName lastName isOnline isAvailable isVerified currentLocation driverTypes')
+    .exec();
+
+    this.logger.log(`[getAvailableDriversWithScores] Total drivers with delivery type: ${allDeliveryDrivers.length}`);
+    allDeliveryDrivers.forEach((d: any) => {
+      this.logger.log(`  - ${d.firstName} ${d.lastName} (${d._id}): online=${d.isOnline}, available=${d.isAvailable}, verified=${d.isVerified}, hasLocation=${!!d.currentLocation}`);
+    });
+
+    // Step 2: Now apply full filters
     const drivers = await this.driverModel.find({
       isAvailable: true,
       isOnline: true,
       isVerified: true,
-      driverTypes: 'delivery', // Chỉ tìm tài xế có loại delivery
+      driverTypes: { $in: ['delivery'] }, // Tìm tài xế có 'delivery' trong array driverTypes
       currentLocation: {
         $near: {
           $geometry: {
@@ -430,11 +465,14 @@ export class DeliveryAutoAssignService {
         },
       },
     })
-    .select('_id firstName lastName phone vehiclePlate currentLocation averageRating totalTrips')
+    .select('_id firstName lastName phone vehiclePlate currentLocation averageRating totalTrips driverTypes')
     .limit(10)
     .exec();
 
-    this.logger.log(`[getAvailableDriversWithScores] Found ${drivers.length} delivery drivers matching criteria`);
+    this.logger.log(`[getAvailableDriversWithScores] Found ${drivers.length} delivery drivers matching ALL criteria`);
+    drivers.forEach((d: any) => {
+      this.logger.log(`  ✅ ${d.firstName} ${d.lastName} (${d._id}) - driverTypes: ${d.driverTypes}`);
+    });
 
     // Score drivers
     const driverScores: DriverScore[] = drivers.map((driver: any) => {

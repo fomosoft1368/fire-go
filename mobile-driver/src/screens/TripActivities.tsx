@@ -54,7 +54,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         if (rideId) {
             fetchRideDetail()
             fetchUnreadCount()
-            
+
             // Poll unread count every 5 seconds
             const interval = setInterval(fetchUnreadCount, 5000)
             return () => clearInterval(interval)
@@ -64,7 +64,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
     // Lấy vị trí tài xế hiện tại
     useEffect(() => {
         let locationSubscription: Location.LocationSubscription | null = null
-        
+
         const startLocationTracking = async () => {
             try {
                 const { status } = await Location.requestForegroundPermissionsAsync()
@@ -129,7 +129,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         try {
             const API_URL = 'http://192.168.1.16:3000/api'
             const response = await fetch(`${API_URL}/rides/${rideId}`)
-            
+
             if (!response.ok) {
                 throw new Error('Failed to fetch ride details')
             }
@@ -137,7 +137,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             const data = await response.json()
             console.log('🚗 Trip data:', data)
             setRide(data)
-            
+
             // Set trip status based on ride status
             if (data.status === 'in_progress') {
                 setTripStatus('in_progress')
@@ -160,7 +160,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                     longitude: data.pickupCoordinates[1],
                 })
             }
-            
+
             if (data.dropoffLocation?.coordinates && data.dropoffLocation.coordinates.length === 2) {
                 const coords = {
                     latitude: data.dropoffLocation.coordinates[1],  // GeoJSON: [lng, lat]
@@ -208,24 +208,24 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             if (tripStatus === 'going_to_pickup') {
                 // Đang đến điểm đón: route từ driver location → pickup
                 if (!driverLocation || !pickupCoords) return
-                
+
                 originAddress = `${driverLocation.latitude},${driverLocation.longitude}`
                 destinationAddress = `${pickupCoords.latitude},${pickupCoords.longitude}`
-                
+
                 console.log('🗺️ Fetching route: Driver → Pickup')
             } else {
                 // Đã đến điểm đón hoặc đang trong chuyến: route từ pickup → dropoff
                 if (!pickupCoords || !dropoffCoords) return
-                
+
                 originAddress = `${pickupCoords.latitude},${pickupCoords.longitude}`
                 destinationAddress = `${dropoffCoords.latitude},${dropoffCoords.longitude}`
-                
+
                 console.log('🗺️ Fetching route: Pickup → Dropoff')
             }
-            
+
             const route = await mapsService.getRouteInfo(originAddress, destinationAddress)
             setRouteInfo(route)
-            
+
             console.log('✅ Route fetched:', {
                 status: tripStatus,
                 routePoints: route.routeCoordinates?.length || 0,
@@ -239,7 +239,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
 
     const fetchUnreadCount = async () => {
         if (!rideId) return
-        
+
         try {
             const AsyncStorage = require('@react-native-async-storage/async-storage').default
             const token = await AsyncStorage.getItem('token')
@@ -249,7 +249,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             const response = await fetch(`${API_URL}/messages/ride/${rideId}/unread-count`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
-            
+
             if (response.ok) {
                 const result = await response.json()
                 setUnreadCount(result.data?.unreadCount || 0)
@@ -281,10 +281,10 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             // In real app, you might want to update status on backend
             // For now, just update local state
             setTripStatus('arrived_at_pickup')
-            
+
             // Clear routeInfo để trigger re-fetch route mới (pickup → dropoff)
             setRouteInfo(null)
-            
+
             Alert.alert('Thành công', 'Đã đến điểm đón. Hãy chờ khách hàng.')
         } catch (error: any) {
             console.error('❌ Error updating status:', error.message)
@@ -306,10 +306,10 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
 
             const API_URL = 'http://192.168.1.16:3000/api'
             console.log('🚗 Starting trip:', rideId)
-            
+
             const response = await fetch(`${API_URL}/rides/${rideId}/start`, {
                 method: 'PATCH',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                 },
@@ -351,10 +351,10 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             const API_URL = 'http://192.168.1.16:3000/api'
             console.log('🏁 Completing trip:', rideId)
             console.log('🔍 Current ride status:', ride?.status)
-            
+
             const response = await fetch(`${API_URL}/rides/${rideId}/complete`, {
                 method: 'PATCH',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                 },
@@ -367,7 +367,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
 
             const updated = await response.json()
             console.log('✅ Trip completed:', updated)
-            
+
             // Navigate back to home screen (MainNavigator with tabs)
             navigation.reset({
                 index: 0,
@@ -414,16 +414,13 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                 />
             </View>
             <View style={styles.header}>
-                <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={handleGoBack}>
-                    <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
-                </TouchableOpacity>
                 <Text style={styles.logoText}>firego</Text>
             </View>
             <View style={styles.card}>
                 <View style={styles.handleBar} />
-                
-                <ScrollView 
-                    showsVerticalScrollIndicator={false} 
+
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
                     style={styles.cardContent}
                     contentContainerStyle={styles.cardContentContainer}
                 >
@@ -512,7 +509,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                             <MaterialIcons name="route" size={20} color="#9CA3AF" />
                             <Text style={styles.sectionTitle}>Lộ trình</Text>
                         </View>
-                        
+
                         {/* Pickup */}
                         <View style={styles.locationItem}>
                             <View style={styles.locationIconWrapper}>
@@ -562,7 +559,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
 
                 {/* Fixed Bottom Actions */}
                 <View style={styles.actionContainer}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.secondaryButton}
                         onPress={handleCall}
                         disabled={updating}
@@ -570,14 +567,14 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                         <MaterialIcons name="phone" size={20} color="#fff" />
                         <Text style={styles.secondaryButtonText}>Gọi khách</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={[styles.primaryButton, updating && { opacity: 0.6 }]}
                         onPress={
-                            tripStatus === 'going_to_pickup' 
-                                ? handleArrivedAtPickup 
+                            tripStatus === 'going_to_pickup'
+                                ? handleArrivedAtPickup
                                 : tripStatus === 'arrived_at_pickup'
-                                ? handleStartTrip
-                                : handleCompleteTrip
+                                    ? handleStartTrip
+                                    : handleCompleteTrip
                         }
                         disabled={updating}
                     >

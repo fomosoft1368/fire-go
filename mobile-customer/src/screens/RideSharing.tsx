@@ -15,6 +15,7 @@ import {
   StatusBar,
   Modal,
 } from 'react-native'
+import * as Location from 'expo-location'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useSelector } from 'react-redux'
@@ -89,6 +90,41 @@ export default function RideSharing(props?: RideSharingProps) {
     return () => {
       isMountedRef.current = false
     }
+  }, [])
+
+  // Initialize pickup location with current user location
+  useEffect(() => {
+    const initializePickupLocation = async () => {
+      try {
+        console.log('[RideSharing] 📍 Requesting location permission...')
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        
+        if (status !== 'granted') {
+          console.log('[RideSharing] ⚠️ Location permission denied')
+          return
+        }
+
+        console.log('[RideSharing] ✅ Getting current position...')
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        })
+
+        const { latitude, longitude } = location.coords
+        console.log('[RideSharing] 📍 Current position:', { latitude, longitude })
+
+        // Reverse geocode to get address
+        const address = await mapsService.reverseGeocode(latitude, longitude)
+        console.log('[RideSharing] 🏠 Address from coordinates:', address)
+        
+        setPickupLocation(address)
+      } catch (error) {
+        console.error('[RideSharing] ❌ Error getting location:', error)
+        // Fallback to default location
+        setPickupLocation('Hà Nội, Việt Nam')
+      }
+    }
+
+    initializePickupLocation()
   }, [])
 
   // Pricing now loaded from backend via pricing.ts getPricingConfig()
@@ -216,7 +252,7 @@ export default function RideSharing(props?: RideSharingProps) {
       if (!distance || !duration || distance === 0 || duration === 0) {
         console.error('[HomeScreen] Invalid distance or duration:', { distance, duration });
         Alert.alert('Lỗi', 'Không thể tính tuyến đường. Vui lòng kiểm tra địa chỉ và thử lại.');
-        return;
+        return null;
       }
 
       // Convert distance from meters to km if needed
@@ -239,14 +275,16 @@ export default function RideSharing(props?: RideSharingProps) {
 
       console.log('[HomeScreen] Final fareEstimate before setState:', fareEstimate);
 
-      setRouteInfo({
+      const routeData = {
         distance: distanceKm,
         duration: duration,
         distanceText: `${distanceKm.toFixed(1)} km`,
         durationText: `~${Math.ceil(duration / 60)} phút`,
         routeCoordinates: routeCoordinates,
         fareEstimate: fareEstimate,
-      });
+      };
+
+      setRouteInfo(routeData);
 
       // Also set the fareEstimate state
       if (fareEstimate) {
@@ -254,9 +292,13 @@ export default function RideSharing(props?: RideSharingProps) {
       }
 
       console.log('[HomeScreen] Route info set:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length, fare: fareEstimate });
+      
+      // Return the calculated route data
+      return routeData;
     } catch (error: any) {
       console.error('[HomeScreen] Route calculation error:', error);
       Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
+      return null;
     }
   };
 
@@ -278,36 +320,36 @@ export default function RideSharing(props?: RideSharingProps) {
         return
       }
 
-      // Nếu chưa tính giá, tính trước
-      // if (!routeInfo || !fareEstimate) {
-      //   Alert.alert(
-      //     'Chưa tính giá',
-      //     'Vui lòng chờ hệ thống tính toán hoặc kiểm tra lại địa chỉ!',
-      //     [{ text: 'OK' }]
-      //   )
-      //   return
-      // }
-
-      setIsLoading(true)
-
       // Validate coordinates exist and are valid
       if (!pickupCoordinates || !Array.isArray(pickupCoordinates) || pickupCoordinates.length !== 2) {
         Alert.alert('Lỗi', 'Vị trí đón khách không hợp lệ')
         console.error('[HomeScreen] Invalid pickupCoordinates:', pickupCoordinates)
-        setIsLoading(false)
         return
       }
 
       if (!dropoffCoordinates || !Array.isArray(dropoffCoordinates) || dropoffCoordinates.length !== 2) {
         Alert.alert('Lỗi', 'Vị trí trả khách không hợp lệ')
         console.error('[HomeScreen] Invalid dropoffCoordinates:', dropoffCoordinates)
-        setIsLoading(false)
         return
       }
 
+      setIsLoading(true)
+
+      // Nếu chưa tính route, tính trước
+      let routeData = routeInfo
+      if (!routeData) {
+        console.log('[HomeScreen] Route info not available, calculating...')
+        routeData = await calculateRoute(pickupCoordinates, dropoffCoordinates)
+        
+        if (!routeData) {
+          setIsLoading(false)
+          return
+        }
+      }
+
       console.log('[HomeScreen] Navigate to FindingRideScreen with params:', {
-        distance: routeInfo.distance,
-        duration: routeInfo.duration,
+        distance: routeData.distance,
+        duration: routeData.duration,
         startLng: pickupCoordinates[0],
         startLat: pickupCoordinates[1],
         endLng: dropoffCoordinates[0],
@@ -318,15 +360,14 @@ export default function RideSharing(props?: RideSharingProps) {
 
       // Navigate to FindingRideScreen
       navigation.navigate('FindingRideScreen', {
-        distance: routeInfo.distance,
-        duration: routeInfo.duration,
+        distance: routeData.distance,
+        duration: routeData.duration,
         startLng: pickupCoordinates[0],
         startLat: pickupCoordinates[1],
         endLng: dropoffCoordinates[0],
         endLat: dropoffCoordinates[1],
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
-       
       })
 
       setIsLoading(false)

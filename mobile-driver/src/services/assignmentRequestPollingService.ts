@@ -8,20 +8,22 @@ class AssignmentRequestPollingService {
   private isPolling = false
   private pollingInterval = 3000 // Poll every 3 seconds
   private onRequestCallback: ((request: any) => void) | null = null
+  private driverId: string | null = null
 
   /**
    * Bắt đầu polling để check assignment requests
    */
-  async startPolling(onRequestReceived: (request: any) => void) {
+  async startPolling(onRequestReceived: (request: any) => void, driverId?: string) {
     if (this.isPolling) {
       console.log('[AssignmentPolling] Already polling, skipping...')
       return
     }
 
     this.onRequestCallback = onRequestReceived
+    this.driverId = driverId || null
     this.isPolling = true
 
-    console.log('[AssignmentPolling] 🔄 Started polling for assignment requests')
+    console.log('[AssignmentPolling] 🔄 Started polling for assignment requests (driverId:', this.driverId, ')')
 
     // Poll ngay lập tức
     await this.checkForRequests()
@@ -48,7 +50,7 @@ class AssignmentRequestPollingService {
   }
 
   /**
-   * Check for pending assignment requests (both ride and delivery)
+   * Check for pending assignment requests (rides, deliveries, and combined trips)
    */
   private async checkForRequests() {
     try {
@@ -61,29 +63,47 @@ class AssignmentRequestPollingService {
 
       console.log('[AssignmentPolling] Checking for requests...')
 
-      // Check both ride and delivery requests in parallel
-      const [rideResponse, deliveryResponse] = await Promise.all([
+      // Prepare requests array
+      const requests = [
         fetch(`${API_URL}/rides/assignment-requests/pending`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`${API_URL}/deliveries/assignment-requests/pending`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-      ])
+      ]
 
-      console.log('[AssignmentPolling] Ride response:', rideResponse.status)
-      console.log('[AssignmentPolling] Delivery response:', deliveryResponse.status)
+      // Add combined trips requests if driverId is available
+      if (this.driverId) {
+        requests.push(
+          fetch(`${API_URL}/combined-trips/driver/${this.driverId}/pending-requests`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+      }
 
-      const rideRequests = rideResponse.ok ? await rideResponse.json() : []
-      const deliveryRequests = deliveryResponse.ok ? await deliveryResponse.json() : []
+      // Check all requests in parallel
+      const responses = await Promise.all(requests)
+
+      console.log('[AssignmentPolling] Ride response:', responses[0].status)
+      console.log('[AssignmentPolling] Delivery response:', responses[1].status)
+      if (responses[2]) {
+        console.log('[AssignmentPolling] Combined trips response:', responses[2].status)
+      }
+
+      const rideRequests = responses[0].ok ? await responses[0].json() : []
+      const deliveryRequests = responses[1].ok ? await responses[1].json() : []
+      const combinedTripRequests = responses[2]?.ok ? await responses[2].json() : []
 
       console.log('[AssignmentPolling] Ride requests:', rideRequests.length)
       console.log('[AssignmentPolling] Delivery requests:', deliveryRequests.length)
+      console.log('[AssignmentPolling] Combined trip requests:', combinedTripRequests.length)
 
       // Combine and sort by createdAt (newest first)
       const allRequests = [
         ...rideRequests.map((r: any) => ({ ...r, type: 'ride' })),
         ...deliveryRequests.map((r: any) => ({ ...r, type: 'delivery' })),
+        ...combinedTripRequests.map((r: any) => ({ ...r, type: 'rideshare' })),
       ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
       if (allRequests.length > 0) {

@@ -225,6 +225,10 @@ export class AuthService {
         lastName: driver.lastName,
         role: 'driver',
         avatar: driver.vehicleImage,
+        driverTypes: driver.driverTypes || ['rideshare'], // 🔥 ADD driverTypes
+        isOnline: driver.isOnline,
+        isAvailable: driver.isAvailable,
+        status: driver.status,
       },
     };
   }
@@ -258,6 +262,9 @@ export class AuthService {
         phone: driver.phone,
         role: 'driver',
         status: driver.status,
+        driverTypes: driver.driverTypes || ['rideshare'], // 🔥 ADD driverTypes
+        isOnline: driver.isOnline,
+        isAvailable: driver.isAvailable,
       };
     }
 

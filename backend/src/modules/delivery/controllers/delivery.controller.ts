@@ -29,25 +29,35 @@ export class DeliveryController {
   @Post()
   @UseGuards(JwtAuthGuard)
   async create(@Body() createDeliveryDto: CreateDeliveryDto, @Request() req) {
+    console.log('[DeliveryController] ========== CREATE DELIVERY START ==========');
     console.log('[DeliveryController] Creating delivery for user:', req.user);
     console.log('[DeliveryController] User ID:', req.user.id || req.user.sub);
-    console.log('[DeliveryController] DTO:', createDeliveryDto);
+    console.log('[DeliveryController] DTO:', JSON.stringify(createDeliveryDto, null, 2));
     
     const delivery = await this.deliveryService.create({
       ...createDeliveryDto,
       customerId: new Types.ObjectId(req.user.id || req.user.sub),
     });
 
+    console.log('[DeliveryController] ✅ Delivery created:', delivery._id);
+    console.log('[DeliveryController] Delivery status:', delivery.status);
+    console.log('[DeliveryController] Pickup coords:', delivery.pickupCoordinates);
+
     // Auto-assign driver asynchronously (don't wait for it)
+    console.log('[DeliveryController] Setting up auto-assign timer for 1 second...');
     setTimeout(async () => {
       try {
-        console.log('[DeliveryController] Auto-assigning driver for delivery:', delivery._id);
-        await this.deliveryAutoAssignService.autoAssignDriver(delivery._id.toString());
+        console.log('[DeliveryController] ⏰ Auto-assign timer triggered!');
+        console.log('[DeliveryController] Calling autoAssignDriver for delivery:', delivery._id.toString());
+        const result = await this.deliveryAutoAssignService.autoAssignDriver(delivery._id.toString());
+        console.log('[DeliveryController] Auto-assign result:', JSON.stringify(result, null, 2));
       } catch (error) {
-        console.error('[DeliveryController] Auto-assign error:', error);
+        console.error('[DeliveryController] ❌ Auto-assign error:', error);
+        console.error('[DeliveryController] Error stack:', error.stack);
       }
     }, 1000); // Wait 1 second before auto-assign
 
+    console.log('[DeliveryController] Returning delivery to client (auto-assign scheduled)');
     return delivery;
   }
 
@@ -135,7 +145,10 @@ export class DeliveryController {
   @UseGuards(JwtAuthGuard)
   async getPendingAssignmentRequests(@Request() req) {
     const driverId = req.user.id || req.user.sub;
-    return this.deliveryAutoAssignService.getPendingRequestsForDriver(driverId);
+    console.log('[DeliveryController] 🔍 Getting pending delivery assignment requests for driver:', driverId);
+    const requests = await this.deliveryAutoAssignService.getPendingRequestsForDriver(driverId);
+    console.log('[DeliveryController] 📋 Found', requests.length, 'pending delivery assignment requests');
+    return requests;
   }
 
   /**

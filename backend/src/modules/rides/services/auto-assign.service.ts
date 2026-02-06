@@ -365,16 +365,16 @@ export class AutoAssignService {
 
     // Xác định loại driver cần tìm dựa vào type của ride
     let requiredDriverType: string;
-    if (ride.type === 'hire') {
+    if (ride.rideType === 'hire') {
       requiredDriverType = 'hire';
-    } else if (ride.type === 'rideshare' || ride.isShared) {
+    } else if (ride.rideType === 'share') {
       requiredDriverType = 'rideshare';
     } else {
       // Default to rideshare nếu không xác định được
       requiredDriverType = 'rideshare';
     }
 
-    this.logger.log(`[AutoAssignService] Looking for drivers with type: ${requiredDriverType} for ride type: ${ride.type}`);
+    this.logger.log(`[AutoAssignService] Looking for drivers with type: ${requiredDriverType} for ride type: ${ride.rideType}`);
 
     // FIX: Query should consider both status='online' OR isOnline=true
     // AND filter by driverTypes array
@@ -387,7 +387,7 @@ export class AutoAssignService {
       isSuspended: false,
       currentLocation: { $exists: true }, // Có vị trí hiện tại
       _id: { $nin: busyDriverIds }, // Không có trong danh sách đang bận
-      driverTypes: requiredDriverType, // Lọc theo loại tài xế
+      driverTypes: { $in: [requiredDriverType] }, // Tìm tài xế có requiredDriverType trong array driverTypes
     });
 
     this.logger.log('[AutoAssignService] Found available drivers:', {

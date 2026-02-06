@@ -17,7 +17,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
   onAccept,
   onReject,
   countdown,
-  driverTypes = ['rideshare'], // Mặc định là rideshare
+  driverTypes = ['hire'], // Mặc định là rideshare
 }) => {
   const [pulseAnim] = useState(new Animated.Value(1))
 
@@ -41,40 +41,39 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
     }
   }, [visible])
 
-  if (!request || !visible) return null
+  console.log('[AssignmentRequestModal] 🔍 Render check:', {
+    visible,
+    hasRequest: !!request,
+    requestId: request?._id,
+    requestType: request?.type,
+    requestStatus: request?.status,
+    driverTypes,
+  })
 
-  // Check if this is a delivery or ride request
-  const isDelivery = request.type === 'delivery'
-  const isRideshare = request.type === 'rideshare' || request.isShared
-  const isHire = request.type === 'hire' || (!isDelivery && !isRideshare)
-  
-  // Kiểm tra loại tài xế có phù hợp với loại request không
-  const canAcceptRequest = () => {
-    if (isDelivery) {
-      // Chỉ tài xế delivery mới nhận được đơn giao hàng
-      return driverTypes.includes('delivery')
-    } else if (isRideshare) {
-      // Chỉ tài xế rideshare mới nhận được cuốc ghép xe
-      return driverTypes.includes('rideshare')
-    } else if (isHire) {
-      // Chỉ tài xế hire mới nhận được cuốc lái xe hộ
-      return driverTypes.includes('hire')
-    }
-    return false
+  if (!request || !visible) {
+    console.log('[AssignmentRequestModal] ❌ Not showing: request or visible is false')
+    return null
   }
 
-  // Nếu tài xế không phù hợp với loại request, không hiển thị modal
-  if (!canAcceptRequest()) {
-    console.log('[AssignmentRequestModal] Driver types mismatch:', {
+  // Check if this is a delivery request
+  const isDelivery = request.type === 'delivery'
+  
+  console.log('[AssignmentRequestModal] 🔍 Delivery check:', {
+    isDelivery,
+    hasDeliveryType: driverTypes.includes('delivery'),
+    willFilter: isDelivery && !driverTypes.includes('delivery'),
+  })
+  
+  // Chỉ filter delivery - các loại ride khác (hire, rideshare, share) đều hiển thị
+  if (isDelivery && !driverTypes.includes('delivery')) {
+    console.log('[AssignmentRequestModal] ❌ Driver cannot accept delivery:', {
       driverTypes,
       requestType: request.type,
-      isDelivery,
-      isRideshare,
-      isHire,
     })
     return null
   }
   
+  console.log('[AssignmentRequestModal] ✅ Showing modal for request:', request._id)
   // The request object structure can be:
   // 1. Direct ride/delivery object (has pickupAddress directly)
   // 2. Nested object with rideId/deliveryId property

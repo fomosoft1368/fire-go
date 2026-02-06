@@ -234,9 +234,9 @@ export class RidesController {
   @UseGuards(JwtAuthGuard)
   async getPendingAssignmentRequests(@Request() req: any) {
     const driverId = req.user.id;
-    const { assignmentRequestModel } = this as any;
+    console.log('[RidesController] 🔍 Getting pending assignment requests for driver:', driverId);
     
-    const requests = await assignmentRequestModel
+    const requests = await this.assignmentRequestModel
       .find({
         driverId: new Types.ObjectId(driverId),
         status: 'pending',
@@ -245,6 +245,7 @@ export class RidesController {
       .populate('rideId')
       .sort({ createdAt: -1 });
 
+    console.log('[RidesController] 📋 Found', requests.length, 'pending assignment requests');
     return requests;
   }
 
