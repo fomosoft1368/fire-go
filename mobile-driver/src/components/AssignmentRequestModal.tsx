@@ -41,7 +41,10 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
     }
   }, [visible])
 
-  if (!request || !visible) return null
+  if (!request || !visible) {
+    console.log('[AssignmentRequestModal] Hidden:', { hasRequest: !!request, visible, requestId: request?._id })
+    return null
+  }
 
   // Check if this is a delivery or ride request
   const isDelivery = request.type === 'delivery'
@@ -65,15 +68,18 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
 
   // Nếu tài xế không phù hợp với loại request, không hiển thị modal
   if (!canAcceptRequest()) {
-    console.log('[AssignmentRequestModal] Driver types mismatch:', {
+    console.log('[AssignmentRequestModal] ❌ Driver types mismatch:', {
       driverTypes,
       requestType: request.type,
       isDelivery,
       isRideshare,
       isHire,
+      canAccept: false,
     })
     return null
   }
+  
+  console.log('[AssignmentRequestModal] ✅ Showing modal for request:', request._id, 'type:', request.type)
   
   // The request object structure can be:
   // 1. Direct ride/delivery object (has pickupAddress directly)

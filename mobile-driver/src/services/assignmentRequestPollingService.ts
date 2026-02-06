@@ -6,7 +6,7 @@ const API_URL = API_BASE_URL
 class AssignmentRequestPollingService {
   private intervalId: NodeJS.Timeout | null = null
   private isPolling = false
-  private pollingInterval = 3000 // Poll every 3 seconds
+  private pollingInterval = 1000 // Poll every 1 second (was 3000)
   private onRequestCallback: ((request: any) => void) | null = null
 
   /**
@@ -71,14 +71,30 @@ class AssignmentRequestPollingService {
         }),
       ])
 
-      console.log('[AssignmentPolling] Ride response:', rideResponse.status)
-      console.log('[AssignmentPolling] Delivery response:', deliveryResponse.status)
+      console.log('[AssignmentPolling] Ride response status:', rideResponse.status)
+      console.log('[AssignmentPolling] Delivery response status:', deliveryResponse.status)
 
-      const rideRequests = rideResponse.ok ? await rideResponse.json() : []
-      const deliveryRequests = deliveryResponse.ok ? await deliveryResponse.json() : []
+      let rideRequests = []
+      let deliveryRequests = []
 
-      console.log('[AssignmentPolling] Ride requests:', rideRequests.length)
-      console.log('[AssignmentPolling] Delivery requests:', deliveryRequests.length)
+      if (rideResponse.ok) {
+        rideRequests = await rideResponse.json()
+        console.log('[AssignmentPolling] ✅ Ride requests received:', rideRequests.length)
+        if (rideRequests.length > 0) {
+          console.log('[AssignmentPolling] 📝 First ride request:', JSON.stringify(rideRequests[0], null, 2))
+        }
+      } else {
+        const errorText = await rideResponse.text()
+        console.error('[AssignmentPolling] ❌ Ride requests failed:', rideResponse.status, errorText)
+      }
+
+      if (deliveryResponse.ok) {
+        deliveryRequests = await deliveryResponse.json()
+        console.log('[AssignmentPolling] ✅ Delivery requests received:', deliveryRequests.length)
+      } else {
+        const errorText = await deliveryResponse.text()
+        console.error('[AssignmentPolling] ❌ Delivery requests failed:', deliveryResponse.status, errorText)
+      }
 
       // Combine and sort by createdAt (newest first)
       const allRequests = [

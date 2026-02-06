@@ -21,7 +21,6 @@ import type { RootState } from '../redux/store'
 import type { RootStackParamList, NearbyRide } from '../types'
 import { COLORS_DARK, COLORS_LIGHT, SPACING, BORDER_RADIUS } from '../constants'
 import { combinedTripsService } from '../services/combinedTripsService'
-import { rideService } from '../services/rideService'
 import { calculateFare } from '../utils/pricing'
 import MapViewComponent from '../components/MapView'
 
@@ -134,7 +133,8 @@ export default function RideDetailRequestScreen() {
         })
 
         // Get route from customer's pickup to dropoff
-        const directions = await rideService.getDirections(
+        // ✅ Use combinedTripsService for rideshare (with waypoints optimization)
+        const directions = await combinedTripsService.getDirections(
           pickupCoordinates[0],
           pickupCoordinates[1],
           dropoffCoordinates[0],
@@ -187,22 +187,25 @@ export default function RideDetailRequestScreen() {
           distanceKm,
           vehicleType,
           totalPassengers, // ✅ Discount dựa trên TỔNG SỐ NGƯỜI (bookedSeats + selectedSeats)
-          true // Check peak time
+          undefined, // ✅ Tự động check giờ cao điểm hiện tại (không hardcode)
+          undefined  // ✅ Không truyền multiplier (để tự động lấy từ config)
         )
-
+       
         // ✅ GIÁ CHO MỖI GHẾ = finalPrice (đã bao gồm discount theo totalPassengers)
         // Ví dụ: 
         // - 1 người trong xe + mình chọn 1 ghế = 2 người → discount 10%
         // - 1 người trong xe + mình chọn 2 ghế = 3 người → discount 15%
         // Giá cho KHÁCH NÀY = giá mỗi ghế × số ghế đã chọn
         const customerTotalFare = fareBreakdown.finalPrice * selectedSeats.length
-
+      
         setCustomerFare(customerTotalFare)
 
         console.log('[RideDetailRequestScreen] Customer fare calculated:', {
           rawPrice: fareBreakdown.rawPrice,
           basePrice: fareBreakdown.basePrice,
           finalPrice: fareBreakdown.finalPrice, // Giá MỖI GHẾ (đã có discount)
+          isPeakTime: fareBreakdown.isPeakTime,
+          peakMultiplier: fareBreakdown.peakMultiplier, // ✅ 1.0, 1.3, hoặc 1.5
           discountApplied: fareBreakdown.discountApplied + '%',
           totalPassengers, // Tổng số người trong xe
           selectedSeatsCount: selectedSeats.length, // Số ghế khách chọn
@@ -254,13 +257,24 @@ export default function RideDetailRequestScreen() {
       const fareToUse = customerFare || ride.totalFare
       const distanceToUse = customerDistance || ride.distance
 
+      // ✅ Tính lại fare để lấy peakMultiplier (cần gửi lên backend)
+      const fareBreakdownForRequest = await calculateFare(
+        distanceToUse,
+        tripData.vehicleType || tripData.driverId?.vehicleType || 'sedan',
+        bookedSeatsCount + selectedSeats.length,
+        undefined,
+        undefined
+      )
+
       console.log('💰 [RideDetailRequestScreen] Fare to send to backend:', {
         customerFare,
         selectedSeatsCount: selectedSeats.length,
         fareToUse, // ← Đây là GIÁ TỔNG cho tất cả ghế
+        isPeakTime: fareBreakdownForRequest.isPeakTime,
+        peakMultiplier: fareBreakdownForRequest.peakMultiplier,
         note: 'customerFare = pricePerSeat × selectedSeats, KHÔNG nhân lại!'
       })
-
+        
       // Create combined trip request
       const request = await combinedTripsService.createCombinedTripRequest(
         combinedTripId,
@@ -271,7 +285,9 @@ export default function RideDetailRequestScreen() {
         dropoffCoordinates,
         distanceToUse,
         fareToUse, // ✅ GIÁ TỔNG, đã bao gồm tất cả ghế
-        selectedSeats.length
+        selectedSeats.length,
+        fareBreakdownForRequest.isPeakTime, // ✅ Boolean
+        fareBreakdownForRequest.peakMultiplier // ✅ 1.0, 1.3, hoặc 1.5
       )
 
       console.log('✅ Request created:', request._id)
@@ -494,150 +510,104 @@ export default function RideDetailRequestScreen() {
                     <MaterialIcons name="directions-car" size={28} color={colors.textSecondary + '4D'} />
                   </View>
 
-                  {/* Seats Grid */}
+                  {/* Seats Grid - Dynamic rendering */}
                   <View style={styles.seatsContainer}>
-                    {/* Row 1 - Passenger Seat (Single) */}
-                    <View style={styles.seatsRow}>
-                      <View style={{ width: 48 }} /> {/* Empty space for driver side */}
-                      <TouchableOpacity
-                        disabled={seatsState[0] === 'occupied'}
-                        onPress={() => {
-                          if (selectedSeats.includes(0)) {
-                            setSelectedSeats(selectedSeats.filter(s => s !== 0))
-                          } else {
-                            setSelectedSeats([...selectedSeats, 0])
-                          }
-                        }}
-                        style={[
-                          styles.seatButtonCar,
-                          {
-                            backgroundColor:
-                              seatsState[0] === 'occupied'
-                                ? colors.border
-                                : selectedSeats.includes(0)
-                                  ? '#53d22d'
-                                  : 'transparent',
-                            borderColor:
-                              seatsState[0] === 'occupied'
-                                ? colors.border
-                                : selectedSeats.includes(0)
-                                  ? '#53d22d'
-                                  : colors.border,
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name={seatsState[0] === 'occupied' ? 'person' : selectedSeats.includes(0) ? 'check' : 'chair'}
-                          size={20}
-                          color={seatsState[0] === 'occupied' ? colors.textSecondary : selectedSeats.includes(0) ? 'black' : colors.textSecondary}
-                        />
-                      </TouchableOpacity>
-                    </View>
+                    {Array.from({ length: totalSeats }).map((_, index) => {
+                      // Layout: ghế 0 ở hàng đầu bên phải (passenger seat)
+                      // Ghế 1-6 ở hàng sau, 3 ghế mỗi hàng
+                      const isFirstSeat = index === 0
+                      const isBackRow = index > 0
+                      const backRowIndex = index - 1
+                      const showRow = isFirstSeat || (isBackRow && backRowIndex % 3 === 0)
 
-                    {/* Row 2 - Back Left and Back Right */}
-                    <View style={styles.seatsRow}>
-                      <TouchableOpacity
-                        disabled={seatsState[1] === 'occupied'}
-                        onPress={() => {
-                          if (selectedSeats.includes(1)) {
-                            setSelectedSeats(selectedSeats.filter(s => s !== 1))
-                          } else {
-                            setSelectedSeats([...selectedSeats, 1])
-                          }
-                        }}
-                        style={[
-                          styles.seatButtonCar,
-                          {
-                            backgroundColor:
-                              seatsState[1] === 'occupied'
-                                ? colors.border
-                                : selectedSeats.includes(1)
-                                  ? '#53d22d'
-                                  : 'transparent',
-                            borderColor:
-                              seatsState[1] === 'occupied'
-                                ? colors.border
-                                : selectedSeats.includes(1)
-                                  ? '#53d22d'
-                                  : colors.border,
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name={seatsState[1] === 'occupied' ? 'person' : selectedSeats.includes(1) ? 'check' : 'chair'}
-                          size={20}
-                          color={seatsState[1] === 'occupied' ? colors.textSecondary : selectedSeats.includes(1) ? 'black' : colors.textSecondary}
-                        />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        disabled={seatsState[2] === 'occupied'}
-                        onPress={() => {
-                          if (selectedSeats.includes(2)) {
-                            setSelectedSeats(selectedSeats.filter(s => s !== 2))
-                          } else {
-                            setSelectedSeats([...selectedSeats, 2])
-                          }
-                        }}
-                        style={[
-                          styles.seatButtonCar,
-                          {
-                            backgroundColor:
-                              seatsState[2] === 'occupied'
-                                ? colors.border
-                                : selectedSeats.includes(2)
-                                  ? '#53d22d'
-                                  : 'transparent',
-                            borderColor:
-                              seatsState[2] === 'occupied'
-                                ? colors.border
-                                : selectedSeats.includes(2)
-                                  ? '#53d22d'
-                                  : colors.border,
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name={seatsState[2] === 'occupied' ? 'person' : selectedSeats.includes(2) ? 'check' : 'chair'}
-                          size={20}
-                          color={seatsState[2] === 'occupied' ? colors.textSecondary : selectedSeats.includes(2) ? 'black' : colors.textSecondary}
-                        />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        disabled={seatsState[3] === 'occupied'}
-                        onPress={() => {
-                          if (selectedSeats.includes(3)) {
-                            setSelectedSeats(selectedSeats.filter(s => s !== 3))
-                          } else {
-                            setSelectedSeats([...selectedSeats, 3])
-                          }
-                        }}
-                        style={[
-                          styles.seatButtonCar,
-                          {
-                            backgroundColor:
-                              seatsState[3] === 'occupied'
-                                ? colors.border
-                                : selectedSeats.includes(3)
-                                  ? '#53d22d'
-                                  : 'transparent',
-                            borderColor:
-                              seatsState[3] === 'occupied'
-                                ? colors.border
-                                : selectedSeats.includes(3)
-                                  ? '#53d22d'
-                                  : colors.border,
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name={seatsState[3] === 'occupied' ? 'person' : selectedSeats.includes(3) ? 'check' : 'chair'}
-                          size={20}
-                          color={seatsState[3] === 'occupied' ? colors.textSecondary : selectedSeats.includes(3) ? 'black' : colors.textSecondary}
-                        />
-                      </TouchableOpacity>
-                    </View>
+                      return (
+                        <View key={index}>
+                          {showRow && (
+                            <View style={styles.seatsRow}>
+                              {isFirstSeat ? (
+                                <>
+                                  <View style={{ width: 48 }} />
+                                  <TouchableOpacity
+                                    disabled={seatsState[index] === 'occupied'}
+                                    onPress={() => {
+                                      if (selectedSeats.includes(index)) {
+                                        setSelectedSeats(selectedSeats.filter(s => s !== index))
+                                      } else {
+                                        setSelectedSeats([...selectedSeats, index])
+                                      }
+                                    }}
+                                    style={[
+                                      styles.seatButtonCar,
+                                      {
+                                        backgroundColor:
+                                          seatsState[index] === 'occupied'
+                                            ? colors.border
+                                            : selectedSeats.includes(index)
+                                              ? '#53d22d'
+                                              : 'transparent',
+                                        borderColor:
+                                          seatsState[index] === 'occupied'
+                                            ? colors.border
+                                            : selectedSeats.includes(index)
+                                              ? '#53d22d'
+                                              : colors.border,
+                                      },
+                                    ]}
+                                  >
+                                    <MaterialIcons
+                                      name={seatsState[index] === 'occupied' ? 'person' : selectedSeats.includes(index) ? 'check' : 'chair'}
+                                      size={20}
+                                      color={seatsState[index] === 'occupied' ? colors.textSecondary : selectedSeats.includes(index) ? 'black' : colors.textSecondary}
+                                    />
+                                  </TouchableOpacity>
+                                </>
+                              ) : (
+                                // Hàng sau: hiển thị tối đa 3 ghế mỗi hàng
+                                Array.from({ length: Math.min(3, totalSeats - index) }).map((_, colIndex) => {
+                                  const seatIndex = index + colIndex
+                                  return (
+                                    <TouchableOpacity
+                                      key={seatIndex}
+                                      disabled={seatsState[seatIndex] === 'occupied'}
+                                      onPress={() => {
+                                        if (selectedSeats.includes(seatIndex)) {
+                                          setSelectedSeats(selectedSeats.filter(s => s !== seatIndex))
+                                        } else {
+                                          setSelectedSeats([...selectedSeats, seatIndex])
+                                        }
+                                      }}
+                                      style={[
+                                        styles.seatButtonCar,
+                                        {
+                                          backgroundColor:
+                                            seatsState[seatIndex] === 'occupied'
+                                              ? colors.border
+                                              : selectedSeats.includes(seatIndex)
+                                                ? '#53d22d'
+                                                : 'transparent',
+                                          borderColor:
+                                            seatsState[seatIndex] === 'occupied'
+                                              ? colors.border
+                                              : selectedSeats.includes(seatIndex)
+                                                ? '#53d22d'
+                                                : colors.border,
+                                        },
+                                      ]}
+                                    >
+                                      <MaterialIcons
+                                        name={seatsState[seatIndex] === 'occupied' ? 'person' : selectedSeats.includes(seatIndex) ? 'check' : 'chair'}
+                                        size={20}
+                                        color={seatsState[seatIndex] === 'occupied' ? colors.textSecondary : selectedSeats.includes(seatIndex) ? 'black' : colors.textSecondary}
+                                      />
+                                    </TouchableOpacity>
+                                  )
+                                })
+                              )}
+                            </View>
+                          )}
+                        </View>
+                      )
+                    })}
                   </View>
                 </View>
 

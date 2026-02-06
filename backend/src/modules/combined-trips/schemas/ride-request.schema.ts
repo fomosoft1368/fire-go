@@ -12,8 +12,11 @@ export enum RequestStatus {
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
 }
+@Schema({ 
+  timestamps: true,
+  collection: 'combinedtriprequests',
+})
 
-@Schema({ timestamps: true })
 export class RideRequest extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Ride' })
   rideId?: Types.ObjectId
@@ -44,6 +47,12 @@ export class RideRequest extends Document {
 
   @Prop({ type: Number })
   fare?: number
+  
+  @Prop({ type: Boolean, default: false })
+  isPeakTime: boolean
+
+  @Prop({ type: Number, default: 1.0 })
+  peakMultiplier: number // 1.0 (giờ thường), 1.3 (sáng cao điểm), 1.5 (chiều cao điểm)
 
   @Prop({ type: [Number] }) // [lng, lat]
   pickupCoordinates?: number[]

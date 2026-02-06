@@ -33,7 +33,7 @@ export default function CreateRideScreen() {
   const [pickupCoords, setPickupCoords] = useState<[number, number] | null>(null)
   const [dropoffCoords, setDropoffCoords] = useState<[number, number] | null>(null)
   const [startDateTime, setStartDateTime] = useState(new Date())
-  const [remainingSeats, setRemainingSeats] = useState('4')
+  const [remainingSeats, setRemainingSeats] = useState('7')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [showDateTimePicker, setShowDateTimePicker] = useState(false)
@@ -290,7 +290,8 @@ export default function CreateRideScreen() {
         timeFare: timeFare,
         rideType: 'share' as const,
         startDateTime: startDateTime.toISOString(),
-        remainingSeats: parseInt(remainingSeats),
+        totalSeats: parseInt(remainingSeats), // ✅ Backend controller đọc field này
+        remainingSeats: parseInt(remainingSeats), // ✅ DTO require field này
         driverId: user?.id,
         notes: notes,
         createdBy: 'driver', //  Mark this trip as driver-created
@@ -468,10 +469,16 @@ export default function CreateRideScreen() {
             </View>
             <TextInput
               style={styles.input}
-              placeholder="Nhập số ghế còn lại (1-4)"
+              placeholder="Nhập số ghế còn lại (1-7)"
               placeholderTextColor={COLORS.textSecondary}
               value={remainingSeats}
-              onChangeText={setRemainingSeats}
+              onChangeText={(text) => {
+                // Chỉ cho phép nhập 1-7
+                const num = parseInt(text)
+                if (text === '' || (num >= 1 && num <= 7)) {
+                  setRemainingSeats(text)
+                }
+              }}
               keyboardType="number-pad"
               maxLength={1}
             />

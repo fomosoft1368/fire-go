@@ -811,7 +811,8 @@ export default function DriverFoundScreen() {
       })
       
       // Fetch route from OSRM - from driver location to CUSTOMER's dropoff
-      const directions = await rideService.getDirections(
+      // ✅ Use combinedTripsService for rideshare (with waypoints optimization)
+      const directions = await combinedTripsService.getDirections(
         driverLng,
         driverLat,
         customerLng,

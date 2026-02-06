@@ -1,6 +1,7 @@
 export class PassengerPriceDto {
   distance: number; // km
   isPeakTime?: boolean;
+  peakMultiplier?: number; // 1.0 (giờ thường), 1.3 (sáng), 1.5 (chiều)
   vehicleType: string; // 'sedan', 'suv', 'truck'
 }
 
@@ -12,6 +13,7 @@ export class PriceBreakdown {
   passengerIndex: number;
   distance: number;
   isPeakTime: boolean;
+  peakMultiplier: number; // 1.0 (giờ thường), 1.3 (sáng), 1.5 (chiều)
   vehicleType: string;
   rawPrice: number;
   basePrice: number;

@@ -233,19 +233,55 @@ export class RidesController {
   @Get('assignment-requests/pending')
   @UseGuards(JwtAuthGuard)
   async getPendingAssignmentRequests(@Request() req: any) {
-    const driverId = req.user.id;
-    const { assignmentRequestModel } = this as any;
+   
     
-    const requests = await assignmentRequestModel
+    const driverId = req.user.id || req.user.sub;
+ 
+    
+    // First check: find ALL requests for this driver (no status filter)
+    const allRequests = await this.assignmentRequestModel.find({
+      driverId: new Types.ObjectId(driverId),
+    });
+    
+    // Second check: find pending requests
+    const now = new Date();
+    const requests = await this.assignmentRequestModel
       .find({
         driverId: new Types.ObjectId(driverId),
         status: 'pending',
-        expiresAt: { $gt: new Date() },
+        expiresAt: { $gt: now },
       })
-      .populate('rideId')
+      .populate({
+        path: 'rideId',
+        select: 'customerId pickupAddress dropoffAddress totalFare rideType status'
+      })
       .sort({ createdAt: -1 });
 
-    return requests;
+    
+    if (requests.length > 0) {
+      
+    }
+
+    // Map responses to include type field for frontend
+    const mappedRequests = requests.map((assignmentReq: any) => {
+      // Get ride data from populated rideId (it's a full Ride document after populate)
+      const ride = assignmentReq.rideId as any;
+      const rideType = ride?.rideType || 'share';
+      
+      // Map rideType to type for frontend:
+      // 'hire' → 'hire' (lái xe hộ - private driver)
+      // 'share' → 'rideshare' (ghép xe - carpooling)
+      const requestType = rideType === 'hire' ? 'hire' : 'rideshare';
+      
+      return {
+        ...assignmentReq.toObject(),
+        type: requestType, // 'hire' or 'rideshare' for frontend modal
+        rideId: ride, // Keep ride details
+      };
+    });
+
+    console.log('[RidesController] ✅ Returning mapped requests:', mappedRequests.length);
+    return mappedRequests;
   }
 
   /**
