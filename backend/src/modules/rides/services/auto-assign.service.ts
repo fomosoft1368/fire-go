@@ -20,7 +20,7 @@ interface DriverScore {
 @Injectable()
 export class AutoAssignService {
   private readonly logger = new Logger(AutoAssignService.name);
-  private readonly REQUEST_TIMEOUT_SECONDS = 15; // Timeout 15 giây
+  private readonly REQUEST_TIMEOUT_SECONDS = 30; // Timeout 30 seconds (was 15) - gives frontend time to poll
   private timeoutHandlers = new Map<string, NodeJS.Timeout>(); // Track timeout handlers
 
   constructor(
@@ -110,6 +110,8 @@ export class AutoAssignService {
   ): Promise<AssignmentRequestDocument> {
     const expiresAt = new Date(Date.now() + this.REQUEST_TIMEOUT_SECONDS * 1000);
 
+    this.logger.log(`[createAssignmentRequest] Creating request for driver: ${driverId}, ride: ${rideId}, expires: ${expiresAt}`);
+
     const request = new this.assignmentRequestModel({
       rideId: new Types.ObjectId(rideId),
       driverId: new Types.ObjectId(driverId),
@@ -119,7 +121,9 @@ export class AutoAssignService {
       attemptNumber,
     });
 
-    return await request.save();
+    const saved = await request.save();
+    this.logger.log(`[createAssignmentRequest] ✅ Saved request ${saved._id} with driverId: ${saved.driverId}`);
+    return saved;
   }
 
   /**
@@ -363,15 +367,15 @@ export class AutoAssignService {
 
     const busyDriverIds = activeRides.map(r => r.driverId?.toString()).filter(Boolean);
 
-    // Xác định loại driver cần tìm dựa vào type của ride
+    // Xác định loại driver cần tìm dựa vào rideType của ride
     let requiredDriverType: string;
     if (ride.rideType === 'hire') {
       requiredDriverType = 'hire';
     } else if (ride.rideType === 'share') {
       requiredDriverType = 'rideshare';
     } else {
-      // Default to rideshare nếu không xác định được
-      requiredDriverType = 'rideshare';
+      // Default to share nếu không xác định được
+      requiredDriverType = 'share';
     }
 
     this.logger.log(`[AutoAssignService] Looking for drivers with type: ${requiredDriverType} for ride type: ${ride.rideType}`);

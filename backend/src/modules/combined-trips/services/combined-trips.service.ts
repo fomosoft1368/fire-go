@@ -63,7 +63,8 @@ export class CombinedTripsService implements OnModuleInit {
       for (let i = 0; i < seatsCount; i++) {
         passengers.push({
           distance: req.distance || 0,
-          isPeakTime: undefined,
+          isPeakTime: req.isPeakTime, // ✅ Dùng isPeakTime đã lưu
+          peakMultiplier: req.peakMultiplier, // ✅ Dùng peakMultiplier đã lưu (1.0, 1.3, 1.5)
           vehicleType: 'sedan',
         });
       }
@@ -96,6 +97,322 @@ export class CombinedTripsService implements OnModuleInit {
     }));
     
     console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${requests.length} ACTIVE requests in trip ${combinedTripId}`);
+  }
+
+  /**
+   * Get route directions using Google Maps API
+   * ✅ Returns accurate distance and duration
+   */
+  async getDirections(
+    startLng: number,
+    startLat: number,
+    endLng: number,
+    endLat: number,
+  ): Promise<any> {
+    try {
+      // Validate numbers
+      if (isNaN(startLng) || isNaN(startLat) || isNaN(endLng) || isNaN(endLat)) {
+        throw new BadRequestException('Invalid coordinates - must be numbers');
+      }
+
+      const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+      if (!googleMapsApiKey) {
+        throw new BadRequestException('Google Maps API key not configured');
+      }
+
+      // Google Maps format: latitude,longitude
+      const origin = `${startLat},${startLng}`;
+      const destination = `${endLat},${endLng}`;
+
+      console.log('📍 [CombinedTrips] Calling Google Maps Directions API');
+      console.log('   Origin:', origin);
+      console.log('   Destination:', destination);
+
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&key=${googleMapsApiKey}&mode=driving&region=vn`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error('Google Maps API error:', response.status, errorBody);
+        throw new BadRequestException(`Google Maps API error: ${response.status}`);
+      }
+
+      const data: any = await response.json();
+
+      console.log('✅ Google Maps Response received:', {
+        status: data.status,
+        routes: data.routes?.length,
+      });
+
+      // Check if route found
+      if (data.status === 'OK' && data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const leg = route.legs[0];
+
+        const distanceKm = leg.distance.value / 1000; // Convert meters to km
+        const durationMinutes = Math.ceil(leg.duration.value / 60); // Convert seconds to minutes
+
+        console.log('✅ Route found:', {
+          distanceKm: distanceKm.toFixed(2),
+          durationMinutes,
+          distanceText: leg.distance.text,
+          durationText: leg.duration.text,
+        });
+
+        // Decode the polyline
+        console.log('📍 Decoding polyline from Google Maps...');
+        const decodedCoordinates = this.decodePolyline(route.overview_polyline.points);
+        console.log('📍 Polyline decoded, coordinates:', decodedCoordinates.length);
+
+        const response = {
+          distance: distanceKm, // in km
+          duration: durationMinutes, // in minutes
+          distanceText: leg.distance.text,
+          durationText: leg.duration.text,
+          features: [
+            {
+              geometry: {
+                type: 'LineString',
+                coordinates: decodedCoordinates,
+              },
+              properties: {
+                summary: {
+                  distance: leg.distance.value,
+                  duration: leg.duration.value,
+                }
+              }
+            }
+          ]
+        };
+
+        console.log('📍 Final response:', {
+          distance: response.distance,
+          duration: response.duration,
+          distanceText: response.distanceText,
+          durationText: response.durationText,
+          coordinatesCount: response.features[0].geometry.coordinates.length,
+        });
+
+        return response;
+      } else {
+        console.error('No route found. Status:', data.status);
+        throw new BadRequestException(`No route found. Status: ${data.status}`);
+      }
+    } catch (err: any) {
+      console.error('❌ Error fetching directions from Google Maps:', err.message);
+      throw new BadRequestException(err.message || 'Failed to fetch directions');
+    }
+  }
+
+  /**
+   * Decode Google Maps polyline format to coordinates
+   * Reference: https://developers.google.com/maps/documentation/utilities/polylinealgorithm
+   */
+  private decodePolyline(encoded: string): any[] {
+    const inv = 1.0 / 1e5;
+    const decoded: any[] = [];
+    let previous = [0, 0];
+    let i = 0;
+
+    console.log('[decodePolyline] Decoding polyline of length:', encoded.length);
+
+    while (i < encoded.length) {
+      let ll = [0, 0];
+
+      for (let j = 0; j < 2; j++) {
+        let shift = 0;
+        let result = 0;
+        let byte = 0;
+
+        do {
+          byte = encoded.charCodeAt(i++) - 63;
+          result |= (byte & 0x1f) << shift;
+          shift += 5;
+        } while (byte >= 0x20);
+
+        ll[j] = previous[j] + (result & 1 ? ~(result >> 1) : result >> 1);
+        previous[j] = ll[j];
+      }
+
+      // Convert to [longitude, latitude] format for GeoJSON
+      const coordinate = [ll[1] * inv, ll[0] * inv];
+      decoded.push(coordinate);
+    }
+
+    console.log('[decodePolyline] Decoded total coordinates:', decoded.length);
+    if (decoded.length > 0) {
+      console.log('[decodePolyline] Sample coordinates:', decoded.slice(0, 3));
+      console.log('[decodePolyline] Last coordinate:', decoded[decoded.length - 1]);
+    }
+
+    return decoded;
+  }
+
+  /**
+   * Build coordinates with optimized Vietnam highway waypoints
+   * Forces OSRM to route along main highways instead of through Laos/Cambodia
+   */
+  private buildCoordinatesWithWaypoints(
+    startLng: number,
+    startLat: number,
+    endLng: number,
+    endLat: number,
+    directDistance: number,
+  ): string {
+    // ✅ Main Vietnam highway waypoints (North to South)
+    // These are strategic points along Vietnam's main North-South highway
+    const vietnamHighwayWaypoints = [
+      { lng: 105.8542, lat: 21.0285, name: 'Hà Nội' },           // North
+      { lng: 105.8500, lat: 19.8000, name: 'Thanh Hóa' },
+      { lng: 106.5000, lat: 18.0000, name: 'Huế' },
+      { lng: 107.0000, lat: 16.0000, name: 'Đà Nẵng' },
+      { lng: 109.2000, lat: 13.8000, name: 'Quy Nhơn' },
+      { lng: 108.0000, lat: 12.0000, name: 'Nha Trang' },
+      { lng: 107.5000, lat: 10.8000, name: 'TP.HCM area' },      // South
+    ];
+
+    let coordinates = `${startLng},${startLat}`;
+
+    // Nếu route > 300km, thêm waypoints gần start/end
+    if (directDistance > 300) {
+      console.log('🛣️ Long distance (>300km) - adding multiple waypoints');
+      
+      // Tìm 3-5 waypoints gần nhất trên đường chính
+      const relevantWaypoints = this.findRelevantWaypoints(
+        startLng, startLat, endLng, endLat,
+        vietnamHighwayWaypoints,
+        Math.min(5, Math.ceil(directDistance / 200)) // 1 waypoint per 200km
+      );
+
+      for (const wp of relevantWaypoints) {
+        coordinates += `;${wp.lng},${wp.lat}`;
+        console.log(`   Added waypoint: ${wp.name}`);
+      }
+    } else {
+      console.log('🛣️ Short/medium distance (<300km) - adding 1-2 waypoints');
+      // For short routes, add 1-2 strategic waypoints
+      const midLat = (startLat + endLat) / 2;
+      const midLng = (startLng + endLng) / 2;
+      
+      // Shift EAST to avoid Laos
+      const adjustedMidLng = midLng + 0.6;
+      
+      // Tìm waypoint gần nhất trên đường chính
+      const nearestWaypoint = this.findNearestWaypoint(
+        adjustedMidLng, midLat,
+        vietnamHighwayWaypoints
+      );
+      
+      if (nearestWaypoint) {
+        coordinates += `;${nearestWaypoint.lng},${nearestWaypoint.lat}`;
+        console.log(`   Added waypoint: ${nearestWaypoint.name}`);
+      }
+    }
+
+    // Add end point
+    coordinates += `;${endLng},${endLat}`;
+    
+    return coordinates;
+  }
+
+  /**
+   * Find relevant waypoints along Vietnam highway based on start/end coordinates
+   */
+  private findRelevantWaypoints(
+    startLng: number,
+    startLat: number,
+    endLng: number,
+    endLat: number,
+    allWaypoints: any[],
+    maxCount: number,
+  ): any[] {
+    // Sort waypoints by their position along the route
+    const sorted = allWaypoints
+      .map(wp => ({
+        ...wp,
+        // Score based on proximity to route and progression from start to end
+        score: this.calculateWaypointScore(startLat, startLng, endLat, endLng, wp.lat, wp.lng),
+      }))
+      .sort((a, b) => a.score - b.score)
+      .slice(0, maxCount);
+
+    return sorted;
+  }
+
+  /**
+   * Find nearest waypoint to a given coordinate
+   */
+  private findNearestWaypoint(
+    lng: number,
+    lat: number,
+    waypoints: any[],
+  ): any {
+    let nearest = waypoints[0];
+    let minDistance = this.calculateHaversineDistance(lat, lng, nearest.lat, nearest.lng);
+
+    for (const wp of waypoints) {
+      const dist = this.calculateHaversineDistance(lat, lng, wp.lat, wp.lng);
+      if (dist < minDistance) {
+        minDistance = dist;
+        nearest = wp;
+      }
+    }
+
+    return nearest;
+  }
+
+  /**
+   * Calculate score for waypoint relevance (lower = better fit for route)
+   */
+  private calculateWaypointScore(
+    startLat: number,
+    startLng: number,
+    endLat: number,
+    endLng: number,
+    waypointLat: number,
+    waypointLng: number,
+  ): number {
+    // Distance from waypoint to route line
+    // Using simple projection: how close waypoint is to line between start and end
+    const totalDistance = this.calculateHaversineDistance(startLat, startLng, endLat, endLng);
+    const distToStart = this.calculateHaversineDistance(startLat, startLng, waypointLat, waypointLng);
+    const distToEnd = this.calculateHaversineDistance(waypointLat, waypointLng, endLat, endLng);
+    
+    // Score = how much waypoint deviates from straight line
+    // Lower score = better alignment with route
+    const directSum = distToStart + distToEnd;
+    const deviation = Math.max(0, directSum - totalDistance);
+    
+    return deviation;
+  }
+
+  /**
+   * Calculate distance between two coordinates using Haversine formula
+   * Returns distance in kilometers
+   */
+  private calculateHaversineDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ): number {
+    const R = 6371; // Earth's radius in km
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLng = this.toRadians(lng2 - lng1);
+    
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) *
+      Math.cos(this.toRadians(lat2)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 
   /**
@@ -671,12 +988,14 @@ export class CombinedTripsService implements OnModuleInit {
 
       // Find available drivers within 10km radius, sorted by distance
       // Exclude drivers who already have active trips OR rejected/timeout this trip
+      // ✅ NGHIỆP VỤ: Chỉ tìm driver ONLINE + có loại RIDESHARE
       const drivers = await this.driverModel.find({
         _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
         $or: [
           { status: 'online' },
           { isOnline: true }
-        ], // ✅ Check both status fields
+        ], // Driver must be available
+        driverTypes: { $in: ['rideshare'] }, // ✅ CHỈ lấy driver có loại RIDESHARE
         currentLocation: {
           $near: {
             $geometry: {
@@ -688,19 +1007,20 @@ export class CombinedTripsService implements OnModuleInit {
         },
       }).limit(10); // Get top 10 nearest drivers
 
-      console.log('✅ Found available drivers within 10km (excluding busy):', drivers.length);
+      console.log('✅ Found RIDESHARE drivers within 10km (online + rideshare type):', drivers.length);
       
       if (drivers.length > 0) {
-        console.log('🚗 Driver details:', drivers.map(d => ({
+        console.log('🚗 RIDESHARE Driver details:', drivers.map(d => ({
           id: d._id,
           name: `${d.firstName} ${d.lastName}`,
           status: d.status,
+          driverTypes: d.driverTypes, // ✅ Show driver types
           location: d.currentLocation,
         })));
       }
 
       if (drivers.length === 0) {
-        console.warn('⚠️ No available drivers found - will retry in 30s');
+        console.warn('⚠️ No RIDESHARE drivers found (need: online + rideshare type) - will retry in 30s');
         // Don't mark as no_drivers_available - keep trying forever until customer cancels
         // Schedule retry after 30 seconds
         setTimeout(async () => {
@@ -833,12 +1153,14 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('📊 Total excluded drivers (busy + all rejected):', excludedDriverIds.length);
 
       // Find another driver (excluding busy drivers and the one who timed out)
+      // ✅ NGHIỆP VỤ: Chỉ tìm driver ONLINE + có loại RIDESHARE
       const drivers = await this.driverModel.find({
         _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
         $or: [
           { status: 'online' },
           { isOnline: true }
         ], // ✅ Check both status fields
+        driverTypes: { $in: ['rideshare'] }, // ✅ CHỈ lấy driver có loại RIDESHARE
         currentLocation: {
           $near: {
             $geometry: {

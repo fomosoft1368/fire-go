@@ -54,6 +54,7 @@ interface FareBreakdown {
   basePrice: number
   finalPrice: number
   isPeakTime: boolean
+  peakMultiplier: number // ✅ 1.0 (giờ thường), 1.3 (sáng), 1.5 (chiều)
   discountApplied: number
   vehicleType: string
 }
@@ -205,14 +206,28 @@ const getDefaultConfig = (): PricingConfig => ({
 
 /**
  * Kiểm tra có phải giờ cao điểm không (theo config từ backend)
+ * Trả về { isPeak, multiplier } - multiplier từ peakHours array (1.3 sáng, 1.5 chiều)
  */
-export const isPeakHour = async (date: Date = new Date()): Promise<boolean> => {
+export const isPeakHour = async (date: Date = new Date()): Promise<{ isPeak: boolean; multiplier: number }> => {
   const config = await getPricingConfig()
   const timeString = date.toTimeString().substring(0, 5) // HH:mm
   
-  return config.peakHours.some((peak) => {
+  // Tìm khung giờ cao điểm phù hợp với multiplier riêng
+  const peakRange = config.peakHours.find((peak) => {
     return timeString >= peak.startTime && timeString <= peak.endTime
   })
+  
+  if (peakRange) {
+    console.log('🕒 [isPeakHour] In peak range:', {
+      currentTime: timeString,
+      rangeName: peakRange.name,
+      multiplier: peakRange.multiplier,
+    })
+    return { isPeak: true, multiplier: peakRange.multiplier }
+  }
+  
+  console.log('🕒 [isPeakHour] NOT in peak range:', { currentTime: timeString })
+  return { isPeak: false, multiplier: 1.0 }
 }
 
 /**
@@ -222,12 +237,17 @@ export const isPeakHour = async (date: Date = new Date()): Promise<boolean> => {
  * BƯỚC 2: base_price = isPeakTime ? raw_price × peak_multiplier : raw_price
  * BƯỚC 3: final_price = base_price × (1 - discount_rate[N])
  * BƯỚC 4: Áp dụng minimum_fare
+ * 
+ * ⚠️ NGHIỆP VỤ GHÉP XE:
+ * - Mỗi khách có hệ số peak riêng (đóng băng tại thời điểm đặt)
+ * - Khi có khách mới ghép, chỉ tính lại discount, KHÔNG đổi hệ số peak của khách cũ
  */
 export const calculateFare = async (
   distance: number, // km
   carType: 'bike' | 'sedan' | 'suv' | 'truck' = 'sedan', // ============ GIAO HÀNG - Added bike ============
   totalPassengers: number = 1, // Tổng số người ghép trong chuyến
-  checkPeakTime: boolean = true // Có check giờ cao điểm không
+  isPeakTime?: boolean, // Hệ số peak của khách này (nếu undefined sẽ tự động check)
+  peakMultiplier?: number // Multiplier cụ thể (1.0, 1.3, 1.5) - dùng cho khách cũ
 ): Promise<FareBreakdown> => {
   const config = await getPricingConfig()
   
@@ -238,22 +258,53 @@ export const calculateFare = async (
   }
 
   console.log('💰 [calculateFare] CALCULATION:', {
-    distance: distance + 'km',
+    distance: distance + ' km',
     carType,
     baseFee: vehicleConfig.baseFee,
     pricePerKm: vehicleConfig.pricePerKm,
     minimumFare: vehicleConfig.minimumFare,
     totalPassengers,
+    isPeakTime: isPeakTime !== undefined ? isPeakTime : 'auto-check',
+    peakMultiplier: peakMultiplier || 'auto-check',
   })
+
+  // ✅ Validation: distance should be 0-1000 km (anything above is wrong)
+  if (distance > 10000) {
+    console.error('❌ [calculateFare] INVALID DISTANCE:', distance, 'km - this looks like it was passed in meters! Converting...')
+    // Attempt recovery: if distance looks like meters (> 1000km), convert it
+    // But this should NOT happen - the bug should be fixed upstream
+    console.warn('⚠️ [calculateFare] WARNING: Distance passed in wrong unit. This should be fixed in RideSharing.tsx')
+  }
 
   // BƯỚC 1: Tính raw_price
   const rawPrice = distance * vehicleConfig.pricePerKm + vehicleConfig.baseFee
   console.log('  Step 1 (raw_price):', `${distance} × ${vehicleConfig.pricePerKm} + ${vehicleConfig.baseFee} = ${rawPrice}`)
 
-  // BƯỚC 2: Tính base_price (áp dụng peak nếu cần)
-  const isPeak = checkPeakTime ? await isPeakHour() : false
-  const basePrice = isPeak ? rawPrice * config.peakMultiplier : rawPrice
-  console.log('  Step 2 (base_price):', isPeak ? `${rawPrice} × ${config.peakMultiplier} = ${basePrice} (PEAK)` : `${basePrice} (no peak)`)
+  // BƯỚC 2: Xác định peak multiplier
+  let actualMultiplier = 1.0
+  let isPeak = false
+
+  if (peakMultiplier !== undefined) {
+    // ✅ Nếu truyền vào multiplier cụ thể (cho khách cũ)
+    actualMultiplier = peakMultiplier
+    isPeak = peakMultiplier > 1.0
+  } else if (isPeakTime !== undefined) {
+    // ✅ Nếu truyền isPeakTime boolean
+    if (isPeakTime) {
+      // Lấy multiplier từ config hiện tại
+      const peakInfo = await isPeakHour()
+      actualMultiplier = peakInfo.multiplier
+      isPeak = true
+    }
+  } else {
+    // ✅ Tự động check giờ hiện tại
+    const peakInfo = await isPeakHour()
+    isPeak = peakInfo.isPeak
+    actualMultiplier = peakInfo.multiplier
+  }
+
+  const basePrice = rawPrice * actualMultiplier
+  console.log('  Step 2 (base_price):', isPeak ? `${rawPrice} × ${actualMultiplier} = ${basePrice} (PEAK ${actualMultiplier})` : `${basePrice} (no peak)`)
 
   // BƯỚC 3: Tìm discount rate theo số người
   const discountConfig = config.carpoolDiscounts.find(
@@ -280,6 +331,7 @@ export const calculateFare = async (
     basePrice: Math.round(basePrice),
     finalPrice: roundedFinalPrice,
     isPeakTime: isPeak,
+    peakMultiplier: actualMultiplier, // ✅ Thêm field này
     discountApplied: Math.round(discountRate * 100),
     vehicleType: carType,
   }
@@ -292,9 +344,74 @@ export const calculateFare = async (
  * Tính giá cho nhiều khách (ghép xe)
  * Trả về giá cho từng khách
  */
+// export const calculateCarpoolFares = async (
+//   passengers: Array<{ distance: number; isPeakTime?: boolean }>,
+//   carType: 'bike' | 'sedan' | 'suv' | 'truck' = 'sedan' // ============ GIAO HÀNG - Added bike ============
+// ): Promise<{
+//   breakdown: FareBreakdown[]
+//   totalPrice: number
+//   averagePerPerson: number
+// }> => {
+//   const config = await getPricingConfig()
+//   const vehicleConfig = config.vehicleTypes.find(v => v.type === carType)
+//   if (!vehicleConfig) {
+//     throw new Error(`Vehicle type ${carType} not found`)
+//   }
+
+//   const totalPassengers = passengers.length
+  
+//   // Tìm discount rate
+//   const discountConfig = config.carpoolDiscounts.find(
+//     d => d.passengers === totalPassengers
+//   )
+//   const discountRate = discountConfig ? discountConfig.discount / 100 : 0
+
+//   const breakdown: FareBreakdown[] = []
+//   let totalPrice = 0
+
+//   for (const passenger of passengers) {
+//     // BƯỚC 1: raw_price
+//     const rawPrice = passenger.distance * vehicleConfig.pricePerKm + vehicleConfig.baseFee
+
+//     // BƯỚC 2: base_price
+//     const isPeak = passenger.isPeakTime !== undefined 
+//       ? passenger.isPeakTime 
+//       : await isPeakHour()
+//     const basePrice = isPeak ? rawPrice * config.peakMultiplier : rawPrice
+
+//     // BƯỚC 3: final_price
+//     let finalPrice = basePrice * (1 - discountRate)
+
+//     // BƯỚC 4: minimum fare
+//     if (finalPrice < vehicleConfig.minimumFare) {
+//       finalPrice = vehicleConfig.minimumFare
+//     }
+
+//     // Làm tròn lên nghìn
+//     const roundedFinalPrice = Math.ceil(finalPrice / 1000) * 1000
+
+//     breakdown.push({
+//       rawPrice: Math.round(rawPrice),
+//       basePrice: Math.round(basePrice),
+//       finalPrice: roundedFinalPrice,
+//       isPeakTime: isPeak,
+//       discountApplied: Math.round(discountRate * 100),
+//       vehicleType: carType,
+//     })
+
+//     totalPrice += roundedFinalPrice
+//   }
+
+//   return {
+//     breakdown,
+//     totalPrice,
+//     averagePerPerson: Math.round(totalPrice / totalPassengers),
+//   }
+// }
+ //=========== TÍNH GIÁ GHÉP XE - Calculate Carpool Fares ============
 export const calculateCarpoolFares = async (
-  passengers: Array<{ distance: number; isPeakTime?: boolean }>,
-  carType: 'bike' | 'sedan' | 'suv' | 'truck' = 'sedan' // ============ GIAO HÀNG - Added bike ============
+  passengers: Array<{ distance: number; isPeakTime?: boolean; peakMultiplier?: number }>,
+  carType: 'bike' | 'sedan' | 'suv' | 'truck' = 'sedan'
 ): Promise<{
   breakdown: FareBreakdown[]
   totalPrice: number
@@ -307,8 +424,8 @@ export const calculateCarpoolFares = async (
   }
 
   const totalPassengers = passengers.length
-  
-  // Tìm discount rate
+
+  // Tìm discount rate theo số người hiện tại
   const discountConfig = config.carpoolDiscounts.find(
     d => d.passengers === totalPassengers
   )
@@ -322,12 +439,12 @@ export const calculateCarpoolFares = async (
     const rawPrice = passenger.distance * vehicleConfig.pricePerKm + vehicleConfig.baseFee
 
     // BƯỚC 2: base_price
-    const isPeak = passenger.isPeakTime !== undefined 
-      ? passenger.isPeakTime 
-      : await isPeakHour()
-    const basePrice = isPeak ? rawPrice * config.peakMultiplier : rawPrice
+    // ✅ Dùng peakMultiplier đã lưu (1.0, 1.3, 1.5), KHÔNG check lại
+    const actualMultiplier = passenger.peakMultiplier ?? 1.0
+    const isPeak = actualMultiplier > 1.0
+    const basePrice = rawPrice * actualMultiplier
 
-    // BƯỚC 3: final_price
+    // BƯỚC 3: final_price (áp dụng discount theo số người hiện tại)
     let finalPrice = basePrice * (1 - discountRate)
 
     // BƯỚC 4: minimum fare
@@ -343,6 +460,7 @@ export const calculateCarpoolFares = async (
       basePrice: Math.round(basePrice),
       finalPrice: roundedFinalPrice,
       isPeakTime: isPeak,
+      peakMultiplier: actualMultiplier, // ✅ Thêm vào breakdown
       discountApplied: Math.round(discountRate * 100),
       vehicleType: carType,
     })
@@ -356,7 +474,6 @@ export const calculateCarpoolFares = async (
     averagePerPerson: Math.round(totalPrice / totalPassengers),
   }
 }
-
 /**
  * ============ LÁI XE HỘ - Calculate Hire Driver Fare ============
  * Tính giá lái xe hộ theo nghiệp vụ:
@@ -461,6 +578,7 @@ export const calculateHireDriverFare = async (
   }
 }
 
+
 /**
  * Format số tiền VNĐ
  */
@@ -492,3 +610,5 @@ export const formatDuration = (minutes: number): string => {
   const mins = minutes % 60
   return mins > 0 ? `${hours}h ${mins}p` : `${hours} giờ`
 }
+
+

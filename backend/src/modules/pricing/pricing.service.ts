@@ -58,10 +58,10 @@ export class PricingService {
       // BƯỚC 1: Tính raw_price cho NGƯỜI NÀY
       const rawPrice = passenger.distance * vehicleConfig.pricePerKm + vehicleConfig.baseFee;
 
-      // BƯỚC 2: Tính base_price (áp dụng peak nếu NGƯỜI NÀY trong giờ cao điểm)
-      const basePrice = passenger.isPeakTime
-        ? rawPrice * config.peakMultiplier
-        : rawPrice;
+      // BƯỚC 2: Tính base_price
+      // ✅ Dùng peakMultiplier đã lưu (1.0, 1.3, 1.5), KHÔNG check lại time
+      const actualMultiplier = passenger.peakMultiplier ?? 1.0;
+      const basePrice = rawPrice * actualMultiplier;
 
       // BƯỚC 3: Tính final_price (áp dụng CÙNG discount cho tất cả)
       let finalPrice = basePrice * (1 - discountRate);
@@ -74,6 +74,7 @@ export class PricingService {
       console.log(`  [Passenger ${index + 1}]:`, {
         distance: passenger.distance + 'km',
         isPeakTime: passenger.isPeakTime,
+        peakMultiplier: actualMultiplier,
         rawPrice,
         basePrice,
         discount: Math.round(discountRate * 100) + '%',
@@ -84,6 +85,7 @@ export class PricingService {
         passengerIndex: index + 1,
         distance: passenger.distance,
         isPeakTime: passenger.isPeakTime || false,
+        peakMultiplier: actualMultiplier, // ✅ Lưu vào breakdown
         vehicleType: passenger.vehicleType,
         rawPrice: Math.round(rawPrice),
         basePrice: Math.round(basePrice),

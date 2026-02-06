@@ -28,6 +28,7 @@ import { API_BASE_URL } from '../constants/config'
 import MapViewComponent from '../components/MapView'
 import FindingRideModal from '../components/FindingRideModal'
 import { rideService } from '../services/rideService'
+import { combinedTripsService } from '../services/combinedTripsService'
 import { mapsService } from '../services/mapsService'
 
 const { height } = Dimensions.get('window')
@@ -196,107 +197,122 @@ export default function RideSharing(props?: RideSharingProps) {
 
   const calculateRoute = async (startCoords: [number, number], endCoords: [number, number]) => {
     try {
-      console.log('[HomeScreen] Calculating route...');
-      const directions = await rideService.getDirections(
+      console.log('[RideSharing] Calculating route...');
+      // ✅ Use combinedTripsService for rideshare
+      const directions = await combinedTripsService.getDirections(
         startCoords[0],
         startCoords[1],
         endCoords[0],
         endCoords[1],
       );
 
-      console.log('[HomeScreen] Raw directions response:', directions);
+      console.log('[RideSharing] Raw directions response:', JSON.stringify(directions, null, 2));
 
       // Handle different response formats from backend
       let distance = 0;
       let duration = 0;
+      let distanceText = '';
+      let durationText = '';
       let routeCoordinates: Array<{ latitude: number, longitude: number }> = [];
 
-      // Format: features[0].geometry.coordinates and properties.summary (from backend)
-      if (directions.features?.[0]) {
-        const feature = directions.features[0];
-
-        // Get distance and duration
-        if (feature.properties?.summary) {
-          distance = feature.properties.summary.distance;
-          duration = feature.properties.summary.duration;
-        }
-
-        // Get route coordinates from geometry
-        if (feature.geometry?.coordinates) {
-          // OSRM returns coordinates as [lng, lat] pairs
-          routeCoordinates = feature.geometry.coordinates.map((coord: [number, number]) => ({
-            latitude: coord[1],
-            longitude: coord[0],
-          }));
-        }
-      }
-      // Fallback: direct properties
-      else if (directions.distance !== undefined && directions.duration !== undefined) {
-        distance = directions.distance;
-        duration = directions.duration;
-      }
-      // Fallback: routes array
-      else if (directions.routes?.[0]) {
-        distance = directions.routes[0].distance;
-        duration = directions.routes[0].duration;
-        if (directions.routes[0].geometry?.coordinates) {
-          routeCoordinates = directions.routes[0].geometry.coordinates.map((coord: [number, number]) => ({
-            latitude: coord[1],
-            longitude: coord[0],
-          }));
-        }
+      // ✅ PRIMARY: Top-level distance (KM) and duration (MINUTES) from Google Maps
+      if (directions.distance !== undefined && directions.duration !== undefined) {
+        distance = directions.distance;  // Already in KM from backend
+        duration = directions.duration;  // Already in MINUTES from backend
+        distanceText = directions.distanceText || `${distance.toFixed(1)} km`;
+        durationText = directions.durationText || `~${Math.ceil(duration / 60)} phút`;
+        console.log('[RideSharing] Using top-level distance/duration:', { distance, duration, distanceText, durationText });
       }
 
-      console.log('[HomeScreen] Extracted:', { distance, duration, routeCoordinatesCount: routeCoordinates.length });
+      // ✅ Extract route coordinates from features/geometry
+      if (directions.features?.[0]?.geometry?.coordinates) {
+        const coordinates = directions.features[0].geometry.coordinates;
+        console.log('[RideSharing] Found coordinates in features[0].geometry.coordinates, count:', coordinates.length);
+        console.log('[RideSharing] Sample coordinates:', coordinates.slice(0, 3));
+        
+        // Convert [lng, lat] to { latitude, longitude }
+        routeCoordinates = coordinates.map((coord: any) => {
+          if (Array.isArray(coord)) {
+            return {
+              latitude: coord[1],
+              longitude: coord[0],
+            };
+          }
+          return coord; // Already formatted
+        });
+        console.log('[RideSharing] Converted to routeCoordinates, count:', routeCoordinates.length);
+      }
+
+      console.log('[RideSharing] Extracted:', { 
+        distance, 
+        duration, 
+        distanceText,
+        durationText,
+        routeCoordinatesCount: routeCoordinates.length 
+      });
 
       if (!distance || !duration || distance === 0 || duration === 0) {
-        console.error('[HomeScreen] Invalid distance or duration:', { distance, duration });
+        console.error('[RideSharing] Invalid distance or duration:', { distance, duration });
         Alert.alert('Lỗi', 'Không thể tính tuyến đường. Vui lòng kiểm tra địa chỉ và thử lại.');
         return null;
       }
 
-      // Convert distance from meters to km if needed
-      const distanceKm = distance > 500 ? distance / 1000 : distance;
+      if (routeCoordinates.length === 0) {
+        console.warn('[RideSharing] ⚠️ No route coordinates extracted, map will not show polyline');
+      }
 
       // Calculate fare in realtime
       let fareEstimate = null;
       try {
-        console.log('[HomeScreen] About to calculate fare for:', { distanceKm, duration, vehicleType: 'basic' });
+        console.log('[RideSharing] Calculating fare for:', { distance, duration, vehicleType: 'basic' });
         fareEstimate = await rideService.calculateFare(
-          distanceKm,
-          duration / 60, // Convert seconds to minutes
-          'basic' // Default to basic vehicle type
+          distance,
+          duration,
+          'basic'
         );
-        console.log('[HomeScreen] Fare result received:', fareEstimate);
+        console.log('[RideSharing] Fare result:', fareEstimate);
       } catch (fareError) {
-        console.error('[HomeScreen] Fare calculation threw error:', fareError);
+        console.error('[RideSharing] Fare calculation error:', fareError);
         // Continue without fare calculation
       }
 
+<<<<<<< HEAD
       console.log('[HomeScreen] Final fareEstimate before setState:', fareEstimate);
 
       const routeData = {
         distance: distanceKm,
+=======
+      setRouteInfo({
+        distance: distance,
+>>>>>>> ae71f43ecbdf9fb301fd8428d5b32f951f5b8fe5
         duration: duration,
-        distanceText: `${distanceKm.toFixed(1)} km`,
-        durationText: `~${Math.ceil(duration / 60)} phút`,
+        distanceText: distanceText,
+        durationText: durationText,
         routeCoordinates: routeCoordinates,
         fareEstimate: fareEstimate,
       };
 
       setRouteInfo(routeData);
 
-      // Also set the fareEstimate state
       if (fareEstimate) {
         setFareEstimate(fareEstimate);
       }
 
+<<<<<<< HEAD
       console.log('[HomeScreen] Route info set:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length, fare: fareEstimate });
       
       // Return the calculated route data
       return routeData;
+=======
+      console.log('[RideSharing] ✅ Route info updated successfully', { 
+        distance, 
+        duration, 
+        routeCount: routeCoordinates.length,
+        fare: fareEstimate?.totalFare 
+      });
+>>>>>>> ae71f43ecbdf9fb301fd8428d5b32f951f5b8fe5
     } catch (error: any) {
-      console.error('[HomeScreen] Route calculation error:', error);
+      console.error('[RideSharing] Route calculation error:', error);
       Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
       return null;
     }
@@ -375,7 +391,7 @@ export default function RideSharing(props?: RideSharingProps) {
       if (!isMountedRef.current) return
 
       setIsLoading(false)
-      console.error('[HomeScreen] handleFindRide error:', error)
+      console.error('[RideSharing] handleFindRide error:', error)
       Alert.alert('Lỗi', error.message || 'Không thể xử lý yêu cầu')
     }
   }

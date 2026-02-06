@@ -99,13 +99,17 @@ export const combinedTripsService = {
     dropoffCoordinates: [number, number],
     distance: number,
     fare: number,
-    seats: number = 1
+    seats: number = 1,
+    isPeakTime: boolean = false,
+    peakMultiplier: number = 1.0,
   ) {
     try {
       console.log('[CombinedTripsService] Creating combined trip request:', {
         combinedTripId,
         customerId,
         pickupAddress,
+        isPeakTime,
+        peakMultiplier,
       })
 
       const token = await AsyncStorage.getItem('authToken')
@@ -128,6 +132,8 @@ export const combinedTripsService = {
           pickupCoordinates,
           dropoffCoordinates,
           distance,
+          isPeakTime,
+          peakMultiplier,
         }),
       })
 
@@ -321,6 +327,48 @@ export const combinedTripsService = {
       return result
     } catch (error: any) {
       console.error('[CombinedTripsService] ❌ Cancel ride request error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Get route directions for rideshare trips
+   * ✅ Optimized for Vietnam - adds waypoints for long distances
+   */
+  async getDirections(
+    startLng: number,
+    startLat: number,
+    endLng: number,
+    endLat: number,
+  ) {
+    try {
+      const url = `${API_BASE_URL}/combined-trips/directions?startLng=${startLng}&startLat=${startLat}&endLng=${endLng}&endLat=${endLat}`
+      
+      console.log('[CombinedTripsService] 🗺️ Getting directions:', {
+        start: [startLng, startLat],
+        end: [endLng, endLat],
+      })
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to get directions')
+      }
+
+      const data = await response.json()
+      console.log('[CombinedTripsService] ✅ Directions received:', {
+        distance: data.distance,
+        duration: data.duration,
+      })
+      return data
+    } catch (error: any) {
+      console.error('[CombinedTripsService] ❌ Error getting directions:', error)
       throw error
     }
   },

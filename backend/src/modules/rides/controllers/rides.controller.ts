@@ -240,9 +240,12 @@ export class RidesController {
       .find({
         driverId: new Types.ObjectId(driverId),
         status: 'pending',
-        expiresAt: { $gt: new Date() },
+        expiresAt: { $gt: now },
       })
-      .populate('rideId')
+      .populate({
+        path: 'rideId',
+        select: 'customerId pickupAddress dropoffAddress totalFare rideType status'
+      })
       .sort({ createdAt: -1 });
 
     console.log('[RidesController] 📋 Found', requests.length, 'pending assignment requests');

@@ -121,7 +121,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
       if (distance > 0) {
         console.log('[FindingRideScreen] Calculating fare independently...', { distance, seats })
         try {
-          const distanceKm = distance > 500 ? distance / 1000 : distance
+          // ✅ Distance is ALREADY in KM from params - no conversion needed!
+          const distanceKm = distance
 
           // Tính giá cho TỪNG loại xe (cho 1 NGƯỜI, chưa giảm giá)
           const [sedanFare, suvFare, truckFare] = await Promise.all([
@@ -143,7 +144,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
             premium: truckFare.finalPrice,
           })
         } catch (error) {
-          console.error('[FindingRideScreen] Error calculating fare:', error)
+         
           // Fallback prices
           setVehiclePrices({
             basic: 50000,
@@ -647,7 +648,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
         <View style={styles.cardHeader}>
           {/* Driver Info */}
           <View style={styles.driverSection}>
-            <View style={[styles.driverAvatar, { borderColor: isFirstCard ? '#38e07b' : colors.border }]}>
+            <View style={[styles.driverAvatar, { borderColor: isFirstCard ? '#FF6B00' : colors.border }]}>
               <MaterialIcons name="person" size={32} color={colors.textSecondary} />
             </View>
             <View style={styles.driverInfo}>
@@ -686,7 +687,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                   <View
                     style={[
                       styles.progressFill,
-                      { backgroundColor: '#38e07b', width: '98%' },
+                      { backgroundColor: '#FF6B00', width: '98%' },
                     ]}
                   />
                 </View>
@@ -722,7 +723,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
           {isFirstCard ? (
             <>
               <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: '#38e07b' }]}
+                style={[styles.primaryButton, { backgroundColor: '#FF6B00' }]}
                 onPress={() => handleSelectRide(item)}
                 activeOpacity={0.8}
               >
@@ -772,7 +773,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
         <View style={styles.routeVisualization}>
           <View style={styles.routeMarkers}>
             <View style={styles.pickupMarker}>
-              <View style={[styles.markerDot, { borderColor: '#38e07b' }]} />
+              <View style={[styles.markerDot, { borderColor: '#FF6B00' }]} />
             </View>
             <View style={styles.routeConnector} />
             <View style={styles.dropoffMarker}>
@@ -819,8 +820,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
             style={[
               styles.filterChip,
               {
-                backgroundColor: activeFilter === filter.id ? '#38e07b' : colors.bg,
-                borderColor: activeFilter === filter.id ? '#38e07b' : colors.border,
+                backgroundColor: activeFilter === filter.id ? '#FF6B00' : colors.bg,
+                borderColor: activeFilter === filter.id ? '#FF6B00' : colors.border,
               },
             ]}
             onPress={() => setActiveFilter(filter.id)}
@@ -849,13 +850,13 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
         <Text style={[styles.resultsTitle, { color: colors.text }]}>
           Kết quả: {rides.length} chuyến
         </Text>
-        <Text style={[styles.sortText, { color: '#38e07b' }]}>Sắp xếp: Phù hợp nhất</Text>
+        <Text style={[styles.sortText, { color: '#FF6B00' }]}>Sắp xếp: Phù hợp nhất</Text>
       </View>
 
       {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#38e07b" />
+          <ActivityIndicator size="large" color="#FF6B00" />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Đang tải chuyến xe...</Text>
         </View>
       ) : error ? (
@@ -863,7 +864,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
           <MaterialIcons name="error-outline" size={48} color={colors.textSecondary} />
           <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
           <TouchableOpacity
-            style={[styles.retryButton, { backgroundColor: '#38e07b' }]}
+            style={[styles.retryButton, { backgroundColor: '#FF6B00' }]}
             onPress={() => fetchShareRides()}
           >
             <Text style={styles.retryButtonText}>Thử lại</Text>
@@ -880,10 +881,10 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
           ListHeaderComponent={
             <View>
               {/* Create New Trip Card - Grab-like flow */}
-              <View style={[styles.createTripCard, { backgroundColor: colors.bgSecondary, borderColor: '#38e07b' }]}>
+              <View style={[styles.createTripCard, { backgroundColor: colors.bgSecondary, borderColor: '#FF6B00' }]}>
                 <View style={styles.createTripHeader}>
                   <View style={styles.createTripIcon}>
-                    <MaterialIcons name="add-circle" size={28} color="#38e07b" />
+                    <MaterialIcons name="add-circle" size={28} color="#FF6B00" />
                   </View>
                   <View style={styles.createTripInfo}>
                     <Text style={[styles.createTripTitle, { color: colors.text }]}>
@@ -894,13 +895,13 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     </Text>
                   </View>
                   {creatingNewTrip && (
-                    <ActivityIndicator color="#38e07b" />
+                    <ActivityIndicator color="#FF6B00" />
                   )}
                 </View>
 
                 {creatingNewTrip ? (
                   <View style={styles.searchingContainer}>
-                    <Text style={[styles.searchingText, { color: '#38e07b' }]}>
+                    <Text style={[styles.searchingText, { color: '#FF6B00' }]}>
                       🔍 Đang tìm tài xế gần bạn...
                     </Text>
                     <Text style={[styles.searchingSubtext, { color: colors.textSecondary }]}>
@@ -912,7 +913,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                           style={[
                             styles.progressFill,
                             {
-                              backgroundColor: '#38e07b',
+                              backgroundColor: '#FF6B00',
                               transform: [
                                 {
                                   scaleX: scanAnim,
@@ -933,7 +934,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                   </View>
                 ) : (
                   <TouchableOpacity
-                    style={[styles.createTripButton, { backgroundColor: '#38e07b' }]}
+                    style={[styles.createTripButton, { backgroundColor: '#FF6B00' }]}
                     onPress={openVehicleModal}
                     activeOpacity={0.8}
                   >
@@ -1131,8 +1132,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     style={[
                       styles.vehicleOption,
                       {
-                        backgroundColor: selectedVehicleType === 'basic' ? '#38e07b20' : colors.bg,
-                        borderColor: selectedVehicleType === 'basic' ? '#38e07b' : colors.border,
+                        backgroundColor: selectedVehicleType === 'basic' ? '#FF6B0020' : colors.bg,
+                        borderColor: selectedVehicleType === 'basic' ? '#FF6B00' : colors.border,
                       },
                     ]}
                     onPress={() => setSelectedVehicleType('basic')}
@@ -1142,7 +1143,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                       <MaterialIcons
                         name="directions-car"
                         size={32}
-                        color={selectedVehicleType === 'basic' ? '#38e07b' : colors.textSecondary}
+                        color={selectedVehicleType === 'basic' ? '#FF6B00' : colors.textSecondary}
                       />
                     </View>
                     <View style={styles.vehicleDetails}>
@@ -1157,7 +1158,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                       </Text>
                       {selectedVehicleType === 'basic' && (
                         <View style={styles.selectedBadge}>
-                          <MaterialIcons name="check-circle" size={20} color="#38e07b" />
+                          <MaterialIcons name="check-circle" size={20} color="#FF6B00" />
                         </View>
                       )}
                     </View>
@@ -1168,8 +1169,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     style={[
                       styles.vehicleOption,
                       {
-                        backgroundColor: selectedVehicleType === 'comfort' ? '#38e07b20' : colors.bg,
-                        borderColor: selectedVehicleType === 'comfort' ? '#38e07b' : colors.border,
+                        backgroundColor: selectedVehicleType === 'comfort' ? '#FF6B0020' : colors.bg,
+                        borderColor: selectedVehicleType === 'comfort' ? '#FF6B00' : colors.border,
                       },
                     ]}
                     onPress={() => setSelectedVehicleType('comfort')}
@@ -1179,7 +1180,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                       <MaterialIcons
                         name="airport-shuttle"
                         size={32}
-                        color={selectedVehicleType === 'comfort' ? '#38e07b' : colors.textSecondary}
+                        color={selectedVehicleType === 'comfort' ? '#FF6B00' : colors.textSecondary}
                       />
                     </View>
                     <View style={styles.vehicleDetails}>
@@ -1194,7 +1195,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                       </Text>
                       {selectedVehicleType === 'comfort' && (
                         <View style={styles.selectedBadge}>
-                          <MaterialIcons name="check-circle" size={20} color="#38e07b" />
+                          <MaterialIcons name="check-circle" size={20} color="#FF6B00" />
                         </View>
                       )}
                     </View>
@@ -1205,8 +1206,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     style={[
                       styles.vehicleOption,
                       {
-                        backgroundColor: selectedVehicleType === 'premium' ? '#38e07b20' : colors.bg,
-                        borderColor: selectedVehicleType === 'premium' ? '#38e07b' : colors.border,
+                        backgroundColor: selectedVehicleType === 'premium' ? '#FF6B0020' : colors.bg,
+                        borderColor: selectedVehicleType === 'premium' ? '#FF6B00' : colors.border,
                       },
                     ]}
                     onPress={() => setSelectedVehicleType('premium')}
@@ -1216,7 +1217,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                       <MaterialIcons
                         name="car-rental"
                         size={32}
-                        color={selectedVehicleType === 'premium' ? '#38e07b' : colors.textSecondary}
+                        color={selectedVehicleType === 'premium' ? '#FF6B00' : colors.textSecondary}
                       />
                     </View>
                     <View style={styles.vehicleDetails}>
@@ -1231,7 +1232,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                       </Text>
                       {selectedVehicleType === 'premium' && (
                         <View style={styles.selectedBadge}>
-                          <MaterialIcons name="check-circle" size={20} color="#38e07b" />
+                          <MaterialIcons name="check-circle" size={20} color="#FF6B00" />
                         </View>
                       )}
                     </View>
@@ -1240,7 +1241,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
 
                 {/* Confirm Button */}
                 <TouchableOpacity
-                  style={[styles.confirmButton, { backgroundColor: '#38e07b' }]}
+                  style={[styles.confirmButton, { backgroundColor: '#FF6B00' }]}
                   onPress={handleCreateNewTrip}
                   activeOpacity={0.8}
                 >
@@ -1331,7 +1332,7 @@ const styles = StyleSheet.create({
   distanceText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#38e07b',
+    color: '#38e07b', // màu chữ km
   },
 
   /* Filter Chips */
@@ -1391,7 +1392,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -10,
     left: SPACING.lg,
-    backgroundColor: '#38e07b',
+    backgroundColor: '#FF6B00',
     paddingHorizontal: SPACING.md,
     paddingVertical: 4,
     borderRadius: BORDER_RADIUS.md,
@@ -1484,7 +1485,7 @@ const styles = StyleSheet.create({
   matchPercent: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#38e07b',
+    color: '#FF6B00',
   },
   progressBar: {
     height: 6,
@@ -1643,7 +1644,7 @@ const styles = StyleSheet.create({
   expandLink: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#38e07b',
+    color: '#FF6B00',
   },
 
   /* Promo Card */

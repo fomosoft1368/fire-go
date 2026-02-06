@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # ✅ OSRM Server - Vietnam only map
+  osrm:
+    image: osrm/osrm-backend:v5.28.0
+    container_name: fire-go-osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount Vietnam OSM data
+      - ./osrm-data:/data
+    command: >
+      sh -c "
+      # Start OSRM server with the Vietnam profile
+      osrm-routed --algorithm mld /data/vietnam-latest.osrm
+      "
+    environment:
+      - OSRM_ALGORITHM=mld  # MLD algorithm for faster routing
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - fire-go-network
+
+networks:
+  fire-go-network:
+    driver: bridge

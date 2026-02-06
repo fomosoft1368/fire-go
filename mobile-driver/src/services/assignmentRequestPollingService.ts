@@ -6,7 +6,7 @@ const API_URL = API_BASE_URL
 class AssignmentRequestPollingService {
   private intervalId: NodeJS.Timeout | null = null
   private isPolling = false
-  private pollingInterval = 3000 // Poll every 3 seconds
+  private pollingInterval = 1000 // Poll every 1 second (was 3000)
   private onRequestCallback: ((request: any) => void) | null = null
   private driverId: string | null = null
 

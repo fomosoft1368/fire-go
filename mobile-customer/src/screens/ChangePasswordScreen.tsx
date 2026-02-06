@@ -128,7 +128,7 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
         console.log('[ChangePassword] Could not decode token:', e)
       }
     
-      const url = `${process.env.REACT_APP_API_URL || 'http://192.168.1.16:3000/api'}/customers/change-password`
+      const url = `${process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'}/customers/change-password`
       console.log('[ChangePassword] Request URL:', url)
       console.log('[ChangePassword] Authorization:', `Bearer ${token.substring(0, 20)}...`)
       

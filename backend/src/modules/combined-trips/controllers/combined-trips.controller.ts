@@ -42,7 +42,12 @@ export class CombinedTripsController {
         throw new BadRequestException('Driver ID not found in authentication token');
       }
 
-     
+      // ✅ DEBUG: Check what totalSeats value is received
+      console.log('🔍 [CreateTrip] Received DTO:', {
+        totalSeats: createCombinedTripDto.totalSeats,
+        remainingSeats: createCombinedTripDto.remainingSeats,
+        fullDto: createCombinedTripDto,
+      });
 
       // Calculate totalFare if not provided
       let totalFare = createCombinedTripDto.totalFare;
@@ -55,14 +60,21 @@ export class CombinedTripsController {
         console.log('💰 Calculated totalFare:', totalFare);
       }
 
+      // ✅ FIX: Use totalSeats with proper fallback (only default if undefined, not if 0)
+      const totalSeatsValue = createCombinedTripDto.totalSeats !== undefined 
+        ? createCombinedTripDto.totalSeats 
+        : (createCombinedTripDto.remainingSeats || 4);
+      
+      console.log('✅ [CreateTrip] Using totalSeats:', totalSeatsValue);
+
       const tripData = {
         ...createCombinedTripDto,
         driverId: new Types.ObjectId(driverId),
         customerId: [],
         requestedAt: new Date(),
         totalFare, // Include calculated totalFare
-        totalSeats: createCombinedTripDto.totalSeats || 4, // Ensure totalSeats is set
-        availableSeats: createCombinedTripDto.totalSeats || 4, // ✅ CRITICAL: availableSeats = totalSeats when creating new trip (no customers yet)
+        totalSeats: totalSeatsValue, // ✅ Use calculated value
+        availableSeats: totalSeatsValue, // ✅ Same value for available seats
         createdBy: 'driver', // ✅ Mark this trip as driver-created
         // Convert coordinates to GeoJSON format
         pickupLocation: {
@@ -275,6 +287,44 @@ export class CombinedTripsController {
       return rides;
     } catch (error: any) {
       console.error('[CombinedTripsController] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /combined-trips/directions
+   * Get route directions for rideshare trips with automatic waypoints
+   * ✅ Optimized for Vietnam - adds waypoints for long distances
+   */
+  @Get('directions')
+  async getDirections(
+    @Query('startLng') startLng: number,
+    @Query('startLat') startLat: number,
+    @Query('endLng') endLng: number,
+    @Query('endLat') endLat: number,
+  ) {
+    try {
+      console.log('[CombinedTripsController] Getting directions for rideshare:', {
+        start: [startLng, startLat],
+        end: [endLng, endLat],
+      });
+
+      if (!startLng || !startLat || !endLng || !endLat) {
+        throw new BadRequestException(
+          'startLng, startLat, endLng, and endLat are required',
+        );
+      }
+
+      const directions = await this.combinedTripsService.getDirections(
+        Number(startLng),
+        Number(startLat),
+        Number(endLng),
+        Number(endLat),
+      );
+
+      return directions;
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error getting directions:', error);
       throw error;
     }
   }
@@ -525,6 +575,8 @@ export class CombinedTripsController {
       pickupCoordinates: [number, number];
       dropoffCoordinates: [number, number];
       distance: number;
+      isPeakTime?: boolean;
+      peakMultiplier?: number;
     },
   ) {
     try {
@@ -586,6 +638,8 @@ export class CombinedTripsController {
         distance: body.distance,
         fare: body.fare,
         seats: body.seats,
+        isPeakTime: body.isPeakTime ?? false, // ✅ Save peak time status
+        peakMultiplier: body.peakMultiplier ?? 1.0, // ✅ Save multiplier (1.0, 1.3, 1.5)
         status: 'pending',
         createdAt: new Date(),
         updatedAt: new Date(),
