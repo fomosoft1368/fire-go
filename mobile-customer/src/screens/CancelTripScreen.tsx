@@ -156,84 +156,68 @@ export default function CancelTripScreen({ route }: CancelTripScreenProps) {
           style={styles.backButton}
           disabled={isSubmitting}
         >
-          <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
+          <MaterialIcons name="arrow-back" size={28} color="#FF6B00" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hủy {getTripTypeName()}</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Hủy chuyến</Text>
+          <Text style={styles.headerSubtitle}>{getTripTypeName()}</Text>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Trip Info (Optional) */}
-        {tripDetails && (
-          <View style={styles.tripInfoCard}>
-            <MaterialIcons
-              name="info-outline"
-              size={24}
-              color={COLORS.primary}
-              style={styles.infoIcon}
-            />
-            <View style={styles.tripInfoText}>
-              <Text style={styles.tripInfoTitle}>Thông tin chuyến đi</Text>
-              {tripDetails.pickupAddress && (
-                <Text style={styles.tripInfoDetail} numberOfLines={1}>
-                  Từ: {tripDetails.pickupAddress}
-                </Text>
-              )}
-              {tripDetails.dropoffAddress && (
-                <Text style={styles.tripInfoDetail} numberOfLines={1}>
-                  Đến: {tripDetails.dropoffAddress}
-                </Text>
-              )}
-            </View>
+        {/* Illustration Section */}
+        <View style={styles.illustrationContainer}>
+          <View style={styles.iconContainer}>
+            <MaterialIcons name="cancel" size={64} color="#FF6B00" />
           </View>
-        )}
+        </View>
 
-        {/* Instructions */}
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructionsTitle}>
-            Vui lòng cho chúng tôi biết lý do bạn muốn hủy chuyến đi
-          </Text>
-          <Text style={styles.instructionsSubtitle}>
-            Điều này giúp chúng tôi cải thiện dịch vụ tốt hơn
+        {/* Main Message */}
+        <View style={styles.messageContainer}>
+          <Text style={styles.messageTitle}>Cho chúng tôi biết lý do</Text>
+          <Text style={styles.messageSubtitle}>
+            Phản hồi của bạn giúp chúng tôi cải thiện dịch vụ
           </Text>
         </View>
 
-        {/* Cancel Reasons */}
-        <View style={styles.reasonsContainer}>
+        {/* Cancel Reasons - Grid Style */}
+        <View style={styles.reasonsGrid}>
           {cancelReasons.map((reason) => (
             <TouchableOpacity
               key={reason.id}
               style={[
-                styles.reasonButton,
-                selectedReason === reason.id && styles.reasonButtonSelected,
+                styles.reasonCard,
+                selectedReason === reason.id && styles.reasonCardSelected,
               ]}
               onPress={() => handleSelectReason(reason.id)}
               disabled={isSubmitting}
+              activeOpacity={0.8}
             >
-              <MaterialIcons
-                name={reason.icon as any}
-                size={24}
-                color={
-                  selectedReason === reason.id
-                    ? COLORS.primary
-                    : COLORS.textSecondary
-                }
-              />
+              <View
+                style={[
+                  styles.reasonIconBackground,
+                  selectedReason === reason.id && styles.reasonIconBackgroundSelected,
+                ]}
+              >
+                <MaterialIcons
+                  name={reason.icon as any}
+                  size={32}
+                  color={selectedReason === reason.id ? '#FF6B00' : '#6B7280'}
+                />
+              </View>
               <Text
                 style={[
-                  styles.reasonText,
-                  selectedReason === reason.id && styles.reasonTextSelected,
+                  styles.reasonCardText,
+                  selectedReason === reason.id && styles.reasonCardTextSelected,
                 ]}
+                numberOfLines={2}
               >
                 {reason.label}
               </Text>
               {selectedReason === reason.id && (
-                <MaterialIcons
-                  name="check-circle"
-                  size={24}
-                  color={COLORS.primary}
-                  style={styles.checkIcon}
-                />
+                <View style={styles.selectedBadge}>
+                  <MaterialIcons name="check" size={16} color="#fff" />
+                </View>
               )}
             </TouchableOpacity>
           ))}
@@ -241,67 +225,77 @@ export default function CancelTripScreen({ route }: CancelTripScreenProps) {
 
         {/* Other Reason Input */}
         {selectedReason === 'other' && (
-          <View style={styles.otherReasonContainer}>
-            <Text style={styles.otherReasonLabel}>Chi tiết lý do</Text>
+          <View style={styles.customReasonSection}>
+            <Text style={styles.customReasonLabel}>Giải thích chi tiết</Text>
             <TextInput
-              style={styles.otherReasonInput}
-              placeholder="Nhập lý do hủy chuyến..."
-              placeholderTextColor={COLORS.textSecondary}
+              style={styles.customReasonInput}
+              placeholder="Hãy cho chúng tôi biết tại sao bạn muốn hủy..."
+              placeholderTextColor="#D1D5DB"
               value={otherReason}
               onChangeText={setOtherReason}
               multiline
-              numberOfLines={4}
+              numberOfLines={5}
               textAlignVertical="top"
               editable={!isSubmitting}
               maxLength={200}
+              cursorColor="#FF6B00"
             />
-            <Text style={styles.characterCount}>
-              {otherReason.length}/200
+            <Text style={styles.characterLimit}>
+              {otherReason.length}/200 ký tự
             </Text>
           </View>
         )}
 
-        {/* Policy Notice */}
-        <View style={styles.policyNotice}>
-          <MaterialIcons
-            name="warning"
-            size={20}
-            color={COLORS.warning}
-            style={styles.warningIcon}
-          />
-          <Text style={styles.policyText}>
-            Lưu ý: Hủy chuyến nhiều lần có thể ảnh hưởng đến tài khoản của bạn.
-            Vui lòng chỉ hủy khi thực sự cần thiết.
-          </Text>
+        {/* Warning Message */}
+        <View style={styles.warningBox}>
+          <View style={styles.warningContent}>
+            <MaterialIcons
+              name="info"
+              size={24}
+              color="#F59E0B"
+              style={styles.warningIconBox}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.warningTitle}>Lưu ý quan trọng</Text>
+              <Text style={styles.warningMessage}>
+                Hủy liên tục có thể ảnh hưởng đến tài khoản. Chỉ hủy khi thực sự cần thiết.
+              </Text>
+            </View>
+          </View>
         </View>
+
+        {/* Spacer */}
+        <View style={{ height: 20 }} />
       </ScrollView>
 
       {/* Bottom Buttons */}
       <View style={styles.bottomContainer}>
         <TouchableOpacity
           style={[
-            styles.cancelButton,
-            (!selectedReason || isSubmitting) && styles.cancelButtonDisabled,
+            styles.cancelConfirmButton,
+            (!selectedReason || isSubmitting) && styles.cancelConfirmButtonDisabled,
           ]}
           onPress={handleCancel}
           disabled={!selectedReason || isSubmitting}
+          activeOpacity={0.85}
         >
           {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#fff" size="small" />
           ) : (
             <>
-              <MaterialIcons name="cancel" size={20} color="#fff" />
-              <Text style={styles.cancelButtonText}>Xác nhận hủy chuyến</Text>
+              <Text style={styles.cancelConfirmButtonText}>Xác nhận hủy</Text>
+              <MaterialIcons name="arrow-forward" size={20} color="#fff" />
             </>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.keepTripButton}
+          style={styles.keepTripButtonNew}
           onPress={() => navigation.goBack()}
           disabled={isSubmitting}
+          activeOpacity={0.7}
         >
-          <Text style={styles.keepTripButtonText}>Giữ chuyến đi</Text>
+          <Text style={styles.keepTripButtonTextNew}>Tiếp tục chuyến đi</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -311,179 +305,247 @@ export default function CancelTripScreen({ route }: CancelTripScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#F3F4F6',
   },
   backButton: {
-    padding: SPACING.xs,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    marginRight: SPACING.md,
   },
   headerTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 2,
+    fontWeight: '500',
   },
   content: {
     flex: 1,
   },
-  tripInfoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    margin: SPACING.md,
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  infoIcon: {
-    marginRight: SPACING.sm,
-  },
-  tripInfoText: {
-    flex: 1,
-  },
-  tripInfoTitle: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  tripInfoDetail: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xxs,
-  },
-  instructionsContainer: {
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.sm,
-  },
-  instructionsTitle: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  instructionsSubtitle: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-  },
-  reasonsContainer: {
-    paddingHorizontal: SPACING.md,
-  },
-  reasonButton: {
-    flexDirection: 'row',
+  illustrationContainer: {
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+    paddingVertical: SPACING.lg,
+    paddingTop: SPACING.xl,
   },
-  reasonButtonSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: `${COLORS.primary}10`,
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  reasonText: {
-    flex: 1,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
-    marginLeft: SPACING.sm,
+  messageContainer: {
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+    alignItems: 'center',
   },
-  reasonTextSelected: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  checkIcon: {
-    marginLeft: SPACING.sm,
-  },
-  otherReasonContainer: {
-    paddingHorizontal: SPACING.md,
-    marginTop: SPACING.sm,
-  },
-  otherReasonLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.text,
+  messageTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: SPACING.xs,
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
-  otherReasonInput: {
+  messageSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  reasonsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.lg,
+    justifyContent: 'space-between',
+  },
+  reasonCard: {
+    width: '48%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    position: 'relative',
+  },
+  reasonCardSelected: {
+    borderColor: '#FF6B00',
+    backgroundColor: 'rgba(255, 107, 0, 0.05)',
+  },
+  reasonIconBackground: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  reasonIconBackgroundSelected: {
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+  },
+  reasonCardText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  reasonCardTextSelected: {
+    color: '#FF6B00',
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  customReasonSection: {
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: SPACING.md,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  customReasonLabel: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: SPACING.sm,
+    letterSpacing: 0.2,
+  },
+  customReasonInput: {
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.md,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
     padding: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.text,
+    fontSize: 14,
+    color: '#111827',
     minHeight: 100,
+    fontFamily: 'System',
+    fontWeight: '500',
+    lineHeight: 20,
   },
-  characterCount: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+  characterLimit: {
+    fontSize: 12,
+    color: '#9CA3AF',
     textAlign: 'right',
     marginTop: SPACING.xs,
+    fontWeight: '600',
   },
-  policyNotice: {
-    flexDirection: 'row',
-    backgroundColor: `${COLORS.warning}15`,
-    margin: SPACING.md,
+  warningBox: {
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 16,
     padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.warning,
+    borderLeftWidth: 5,
+    borderLeftColor: '#F59E0B',
   },
-  warningIcon: {
+  warningContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  warningIconBox: {
     marginRight: SPACING.sm,
     marginTop: 2,
   },
-  policyText: {
-    flex: 1,
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.text,
-    lineHeight: 20,
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 4,
+    letterSpacing: 0.2,
+  },
+  warningMessage: {
+    fontSize: 13,
+    color: '#92400E',
+    lineHeight: 19,
+    fontWeight: '500',
   },
   bottomContainer: {
     backgroundColor: '#fff',
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 12,
   },
-  cancelButton: {
+  cancelConfirmButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.error,
+    backgroundColor: '#EF4444',
     paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: 14,
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  cancelButtonDisabled: {
-    backgroundColor: COLORS.border,
-    opacity: 0.6,
+  cancelConfirmButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+    shadowOpacity: 0,
   },
-  cancelButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
+  cancelConfirmButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: '#fff',
-    marginLeft: SPACING.xs,
+    letterSpacing: 0.3,
   },
-  keepTripButton: {
+  keepTripButtonNew: {
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: SPACING.sm,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 107, 0, 0.08)',
   },
-  keepTripButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    color: COLORS.primary,
+  keepTripButtonTextNew: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FF6B00',
+    letterSpacing: 0.2,
   },
 })
