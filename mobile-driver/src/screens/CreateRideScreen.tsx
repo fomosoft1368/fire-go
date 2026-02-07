@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   View,
   Text,
@@ -9,9 +9,12 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   FlatList,
+  Dimensions,
+  Animated,
+  PanResponder,
+  Keyboard,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
@@ -22,7 +25,17 @@ import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { API_BASE_URL } from '../constants/config'
 import { driverService } from '../services/driverService'
 import { placesService } from '../services/placesService'
+import MapViewComponent from '../components/MapView'
 import type { RootState } from '../redux/store'
+
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window')
+
+// Bottom sheet snap points
+const SNAP_POINTS = {
+  MIN: SCREEN_HEIGHT * 0.25,    // 25% - Chỉ thấy header
+  MID: SCREEN_HEIGHT * 0.55,    // 55% - Thấy inputs chính
+  MAX: SCREEN_HEIGHT * 0.90,    // 90% - Full content
+}
 
 export default function CreateRideScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
@@ -37,6 +50,61 @@ export default function CreateRideScreen() {
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [showDateTimePicker, setShowDateTimePicker] = useState(false)
+  
+  // Map state
+  const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([])
+  const [distance, setDistance] = useState<number>(0)
+  const [duration, setDuration] = useState<number>(0)
+  const [loadingRoute, setLoadingRoute] = useState(false)
+
+  // Bottom sheet state
+  const sheetPosition = useRef(new Animated.Value(SNAP_POINTS.MID)).current
+  const [currentSnapPoint, setCurrentSnapPoint] = useState(SNAP_POINTS.MID)
+  const scrollViewRef = useRef<ScrollView>(null)
+
+  // PanResponder for bottom sheet drag
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only handle vertical drags
+        return Math.abs(gestureState.dy) > 5
+      },
+      onPanResponderGrant: () => {
+        // Dismiss keyboard when starting to drag
+        Keyboard.dismiss()
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newPosition = currentSnapPoint - gestureState.dy
+        // Constrain between MIN and MAX
+        if (newPosition >= SNAP_POINTS.MIN && newPosition <= SNAP_POINTS.MAX) {
+          sheetPosition.setValue(newPosition)
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const newPosition = currentSnapPoint - gestureState.dy
+        let targetSnapPoint = SNAP_POINTS.MID
+
+        // Determine closest snap point
+        if (newPosition < SNAP_POINTS.MIN + 50) {
+          targetSnapPoint = SNAP_POINTS.MIN
+        } else if (newPosition < SNAP_POINTS.MID + 50) {
+          targetSnapPoint = SNAP_POINTS.MID
+        } else {
+          targetSnapPoint = SNAP_POINTS.MAX
+        }
+
+        // Animate to snap point
+        Animated.spring(sheetPosition, {
+          toValue: targetSnapPoint,
+          useNativeDriver: false,
+          tension: 50,
+          friction: 10,
+        }).start()
+        setCurrentSnapPoint(targetSnapPoint)
+      },
+    })
+  ).current
 
   // Places API state
   const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
@@ -49,6 +117,52 @@ export default function CreateRideScreen() {
   // Debounce timers
   const pickupDebounceTimer = useRef<NodeJS.Timeout | null>(null)
   const dropoffDebounceTimer = useRef<NodeJS.Timeout | null>(null)
+
+  // Fetch route polyline when both coords are available
+  useEffect(() => {
+    if (pickupCoords && dropoffCoords) {
+      fetchRoute()
+    } else {
+      setRouteCoordinates([])
+      setDistance(0)
+      setDuration(0)
+    }
+  }, [pickupCoords, dropoffCoords])
+
+  // Fetch route from backend
+  const fetchRoute = async () => {
+    if (!pickupCoords || !dropoffCoords) return
+
+    setLoadingRoute(true)
+    try {
+      const url = `${API_BASE_URL}/rides/directions?startLng=${pickupCoords[0]}&startLat=${pickupCoords[1]}&endLng=${dropoffCoords[0]}&endLat=${dropoffCoords[1]}`
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch route')
+      }
+
+      const data = await response.json()
+      
+      // Convert GeoJSON coordinates [lng, lat] to React Native Maps format
+      if (data.features && data.features[0]?.geometry?.coordinates) {
+        const coords = data.features[0].geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => ({
+            latitude: lat,
+            longitude: lng,
+          })
+        )
+        setRouteCoordinates(coords)
+      }
+      
+      setDistance(data.distance || 0)
+      setDuration(data.duration || 0)
+    } catch (error) {
+      console.error('Error fetching route:', error)
+    } finally {
+      setLoadingRoute(false)
+    }
+  }
 
   // Search pickup places with debounce
   const handlePickupLocationChange = (text: string) => {
@@ -246,33 +360,13 @@ export default function CreateRideScreen() {
       Alert.alert('Lỗi', 'Vui lòng nhập số ghế còn lại hợp lệ')
       return
     }
+    if (distance === 0 || duration === 0) {
+      Alert.alert('Lỗi', 'Không thể tính toán quãng đường. Vui lòng chọn lại địa điểm')
+      return
+    }
 
     setLoading(true)
     try {
-      console.log('📍 Pickup coords:', pickupCoords)
-      console.log('📍 Dropoff coords:', dropoffCoords)
-
-      // Gọi backend API để lấy khoảng cách và thời gian chính xác
-      const directionUrl = `${API_BASE_URL}/rides/directions?startLng=${pickupCoords[0]}&startLat=${pickupCoords[1]}&endLng=${dropoffCoords[0]}&endLat=${dropoffCoords[1]}`
-      console.log('📍 Direction URL:', directionUrl)
-
-      const response = await fetch(directionUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error(`Không thể tính toán quảng đường (${response.status})`)
-      }
-
-      const directionData = await response.json()
-      const distance = directionData.distance || 0 // km
-      const duration = directionData.duration || 0 // minutes
-
-      console.log('✅ Distance:', distance, 'km, Duration:', duration, 'minutes')
-
       // Tính giá (cơ sở: 10k, theo khoảng cách: 5k/km, theo thời gian: 1k/phút)
       const baseFare = 10000
       const distanceFare = Math.round(distance * 5000)
@@ -281,8 +375,8 @@ export default function CreateRideScreen() {
       const rideData = {
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
-        pickupCoordinates: pickupCoords, // [longitude, latitude] - THỰC
-        dropoffCoordinates: dropoffCoords, // [longitude, latitude] - THỰC
+        pickupCoordinates: pickupCoords, // [longitude, latitude]
+        dropoffCoordinates: dropoffCoords, // [longitude, latitude]
         distance: Math.round(distance * 10) / 10,
         duration: duration,
         baseFare: baseFare,
@@ -290,15 +384,12 @@ export default function CreateRideScreen() {
         timeFare: timeFare,
         rideType: 'share' as const,
         startDateTime: startDateTime.toISOString(),
-        totalSeats: parseInt(remainingSeats), // ✅ Backend controller đọc field này
-        remainingSeats: parseInt(remainingSeats), // ✅ DTO require field này
+        totalSeats: parseInt(remainingSeats),
+        remainingSeats: parseInt(remainingSeats),
         driverId: user?.id,
         notes: notes,
-        createdBy: 'driver', //  Mark this trip as driver-created
-        // Status sẽ được set bởi backend thành PENDING
+        createdBy: 'driver',
       }
-
-      console.log('📍 Ride data with REAL coordinates:', rideData)
 
       await driverService.createRide(rideData)
       
@@ -319,14 +410,6 @@ export default function CreateRideScreen() {
     }
   }
 
-  const currentDateTime = new Date().toLocaleString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-
   const startDateTimeFormatted = startDateTime.toLocaleString('vi-VN', {
     year: 'numeric',
     month: '2-digit',
@@ -336,29 +419,74 @@ export default function CreateRideScreen() {
   })
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoid}
+    <View style={styles.container}>
+      {/* Full-screen Map Background */}
+      <MapViewComponent
+        height={SCREEN_HEIGHT}
+        pickupCoords={pickupCoords ? { latitude: pickupCoords[1], longitude: pickupCoords[0] } : undefined}
+        dropoffCoords={dropoffCoords ? { latitude: dropoffCoords[1], longitude: dropoffCoords[0] } : undefined}
+        routeCoordinates={routeCoordinates}
+      />
+
+      {/* Route Info Overlay */}
+      {loadingRoute && (
+        <View style={styles.loadingRouteOverlay}>
+          <ActivityIndicator size="small" color={COLORS.primary} />
+          <Text style={styles.loadingRouteText}>Đang tính đường đi...</Text>
+        </View>
+      )}
+      {distance > 0 && duration > 0 && (
+        <View style={styles.routeInfoCard}>
+          <View style={styles.routeInfoItem}>
+            <MaterialIcons name="straighten" size={16} color={COLORS.primary} />
+            <Text style={styles.routeInfoText}>{distance.toFixed(1)} km</Text>
+          </View>
+          <View style={styles.routeInfoDivider} />
+          <View style={styles.routeInfoItem}>
+            <MaterialIcons name="access-time" size={16} color={COLORS.primary} />
+            <Text style={styles.routeInfoText}>{duration} phút</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Back Button */}
+      <SafeAreaView style={styles.backButtonContainer}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+      </SafeAreaView>
+
+      {/* Bottom Sheet */}
+      <Animated.View
+        style={[
+          styles.bottomSheet,
+          {
+            height: sheetPosition,
+          },
+        ]}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Tạo chuyến xe ghép</Text>
-          <View style={styles.placeholder} />
+        {/* Drag Handle */}
+        <View {...panResponder.panHandlers} style={styles.dragHandleContainer}>
+          <View style={styles.dragHandle} />
+          <Text style={styles.sheetTitle}>Tạo chuyến xe ghép</Text>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Sheet Content */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.sheetContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          scrollEventThrottle={16}
+        >
           {/* Pickup Location */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <MaterialIcons name="location-on" size={20} color={COLORS.primary} />
-              <Text style={styles.sectionTitle}>Vị trí xuất phát</Text>
+              <MaterialIcons name="location-on" size={18} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>Điểm xuất phát</Text>
             </View>
             <View style={styles.inputContainer}>
               <TextInput
@@ -367,7 +495,15 @@ export default function CreateRideScreen() {
                 placeholderTextColor={COLORS.textSecondary}
                 value={pickupLocation}
                 onChangeText={handlePickupLocationChange}
-                onFocus={() => setShowPickupSuggestions(true)}
+                onFocus={() => {
+                  setShowPickupSuggestions(true)
+                  // Expand sheet when focusing input
+                  Animated.spring(sheetPosition, {
+                    toValue: SNAP_POINTS.MAX,
+                    useNativeDriver: false,
+                  }).start()
+                  setCurrentSnapPoint(SNAP_POINTS.MAX)
+                }}
               />
               {isSearchingPickup && (
                 <ActivityIndicator size="small" color={COLORS.primary} style={styles.searchIndicator} />
@@ -386,7 +522,7 @@ export default function CreateRideScreen() {
                       style={styles.suggestionItem}
                       onPress={() => selectPickupPlace(item)}
                     >
-                      <MaterialIcons name="location-on" size={16} color={COLORS.primary} style={styles.suggestionIcon} />
+                      <MaterialIcons name="location-on" size={14} color={COLORS.primary} />
                       <View style={styles.suggestionContent}>
                         <Text style={styles.suggestionName}>{item.name}</Text>
                         {item.address && item.address !== item.name && (
@@ -403,8 +539,8 @@ export default function CreateRideScreen() {
           {/* Dropoff Location */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <MaterialIcons name="location-on" size={20} color="#FF6B6B" />
-              <Text style={styles.sectionTitle}>Vị trí đích đến</Text>
+              <MaterialIcons name="location-on" size={18} color="#FF6B6B" />
+              <Text style={styles.sectionTitle}>Điểm đến</Text>
             </View>
             <View style={styles.inputContainer}>
               <TextInput
@@ -413,7 +549,14 @@ export default function CreateRideScreen() {
                 placeholderTextColor={COLORS.textSecondary}
                 value={dropoffLocation}
                 onChangeText={handleDropoffLocationChange}
-                onFocus={() => setShowDropoffSuggestions(true)}
+                onFocus={() => {
+                  setShowDropoffSuggestions(true)
+                  Animated.spring(sheetPosition, {
+                    toValue: SNAP_POINTS.MAX,
+                    useNativeDriver: false,
+                  }).start()
+                  setCurrentSnapPoint(SNAP_POINTS.MAX)
+                }}
               />
               {isSearchingDropoff && (
                 <ActivityIndicator size="small" color={COLORS.primary} style={styles.searchIndicator} />
@@ -432,7 +575,7 @@ export default function CreateRideScreen() {
                       style={styles.suggestionItem}
                       onPress={() => selectDropoffPlace(item)}
                     >
-                      <MaterialIcons name="location-on" size={16} color="#FF6B6B" style={styles.suggestionIcon} />
+                      <MaterialIcons name="location-on" size={14} color="#FF6B6B" />
                       <View style={styles.suggestionContent}>
                         <Text style={styles.suggestionName}>{item.name}</Text>
                         {item.address && item.address !== item.name && (
@@ -446,86 +589,65 @@ export default function CreateRideScreen() {
             )}
           </View>
 
-          {/* Start DateTime */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="schedule" size={20} color={COLORS.primary} />
-              <Text style={styles.sectionTitle}>Thời gian bắt đầu</Text>
+          {/* Trip Details */}
+          <View style={styles.detailsCard}>
+            <Text style={styles.cardTitle}>Chi tiết chuyến xe</Text>
+            
+            {/* Start DateTime */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Thời gian xuất phát</Text>
+              <TouchableOpacity
+                style={styles.dateTimeButton}
+                onPress={() => setShowDateTimePicker(true)}
+              >
+                <MaterialIcons name="calendar-today" size={16} color={COLORS.primary} />
+                <Text style={styles.dateTimeText}>{startDateTimeFormatted}</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.dateTimeButton}
-              onPress={() => setShowDateTimePicker(true)}
-            >
-              <MaterialIcons name="calendar-today" size={20} color={COLORS.primary} />
-              <Text style={styles.dateTimeText}>{startDateTimeFormatted}</Text>
-            </TouchableOpacity>
+
+            {/* Remaining Seats */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Số ghế khách</Text>
+              <View style={styles.seatsSelector}>
+                {[1, 2, 3, 4, 5, 6, 7].map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={[
+                      styles.seatButton,
+                      remainingSeats === num.toString() && styles.seatButtonActive,
+                    ]}
+                    onPress={() => setRemainingSeats(num.toString())}
+                  >
+                    <Text
+                      style={[
+                        styles.seatButtonText,
+                        remainingSeats === num.toString() && styles.seatButtonTextActive,
+                      ]}
+                    >
+                      {num}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Notes */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Ghi chú</Text>
+              <TextInput
+                style={styles.notesInput}
+                placeholder="VD: Xe có wifi, nước uống..."
+                placeholderTextColor={COLORS.textSecondary}
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={2}
+                textAlignVertical="top"
+              />
+            </View>
           </View>
 
-          {/* Remaining Seats */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="event-seat" size={20} color={COLORS.primary} />
-              <Text style={styles.sectionTitle}>Số ghế còn lại</Text>
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Nhập số ghế còn lại (1-7)"
-              placeholderTextColor={COLORS.textSecondary}
-              value={remainingSeats}
-              onChangeText={(text) => {
-                // Chỉ cho phép nhập 1-7
-                const num = parseInt(text)
-                if (text === '' || (num >= 1 && num <= 7)) {
-                  setRemainingSeats(text)
-                }
-              }}
-              keyboardType="number-pad"
-              maxLength={1}
-            />
-          </View>
-
-          {/* Notes */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="notes" size={20} color={COLORS.primary} />
-              <Text style={styles.sectionTitle}>Ghi chú (không bắt buộc)</Text>
-            </View>
-            <TextInput
-              style={[styles.input, styles.notesInput]}
-              placeholder="Nhập ghi chú về chuyến xe"
-              placeholderTextColor={COLORS.textSecondary}
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
-
-          {/* Summary Card */}
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Tóm tắt chuyến xe</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Loại chuyến:</Text>
-              <Text style={styles.summaryValue}>Ghép xe</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Bắt đầu:</Text>
-              <Text style={styles.summaryValue}>{startDateTimeFormatted}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Số ghế:</Text>
-              <Text style={styles.summaryValue}>{remainingSeats || '-'}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Ngày tạo:</Text>
-              <Text style={styles.summaryValue}>{currentDateTime}</Text>
-            </View>
-          </View>
-        </ScrollView>
-
-        {/* Create Button */}
-        <View style={styles.footer}>
+          {/* Create Button */}
           <TouchableOpacity
             style={[styles.createButton, loading && styles.createButtonDisabled]}
             onPress={handleCreateRide}
@@ -540,8 +662,11 @@ export default function CreateRideScreen() {
               </>
             )}
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+
+          {/* Bottom padding for last item */}
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </Animated.View>
 
       {/* DateTime Picker */}
       {showDateTimePicker && (
@@ -553,7 +678,7 @@ export default function CreateRideScreen() {
           minimumDate={new Date()}
         />
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -562,58 +687,160 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.darkBg,
   },
-  keyboardAvoid: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  backButtonContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
-    paddingTop: 35,
+    paddingTop: SPACING.sm,
   },
   backButton: {
-    padding: SPACING.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  headerTitle: {
-    fontSize: 18,
+  loadingRouteOverlay: {
+    position: 'absolute',
+    top: 60,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    zIndex: 5,
+  },
+  loadingRouteText: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  routeInfoCard: {
+    position: 'absolute',
+    top: 60,
+    left: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    zIndex: 5,
+  },
+  routeInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  routeInfoDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: COLORS.darkBorder,
+  },
+  routeInfoText: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  bottomSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.darkCard,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  dragHandleContainer: {
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.sm,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.darkBorder,
+  },
+  dragHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: COLORS.textSecondary,
+    borderRadius: 3,
+    marginBottom: SPACING.sm,
+  },
+  sheetTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: COLORS.text,
   },
-  placeholder: {
-    width: 40,
-  },
-  content: {
+  sheetContent: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
+    paddingTop: SPACING.md,
   },
   section: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.md,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
+    gap: SPACING.xs,
+    marginBottom: SPACING.xs,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  detailsCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.darkBorder,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
     color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  fieldContainer: {
+    marginBottom: SPACING.md,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
   },
   input: {
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: COLORS.darkBorder,
     borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.sm,
     color: COLORS.text,
-    fontSize: 14,
+    fontSize: 13,
   },
   inputContainer: {
     position: 'relative',
@@ -631,20 +858,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     borderBottomLeftRadius: BORDER_RADIUS.md,
     borderBottomRightRadius: BORDER_RADIUS.md,
-    maxHeight: 300,
+    maxHeight: 160,
     marginTop: -1,
   },
   suggestionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.darkBorder,
-    gap: SPACING.sm,
-  },
-  suggestionIcon: {
-    marginRight: SPACING.sm,
+    gap: SPACING.xs,
   },
   suggestionContent: {
     flex: 1,
@@ -658,81 +882,83 @@ const styles = StyleSheet.create({
   suggestionAddress: {
     fontSize: 11,
     color: COLORS.textSecondary,
-    fontWeight: '400',
   },
   notesInput: {
-    minHeight: 100,
-    paddingTop: SPACING.md,
-  },
-  dateTimeButton: {
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: COLORS.darkBorder,
     borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.sm,
+    color: COLORS.text,
+    fontSize: 13,
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  dateTimeButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: COLORS.darkBorder,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.xs,
   },
   dateTimeText: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.text,
-    fontWeight: '500',
+    fontWeight: '600',
     flex: 1,
   },
-  summaryCard: {
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.xl,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
-  },
-  summaryTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.md,
-  },
-  summaryRow: {
+  seatsSelector: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: SPACING.xs,
+    flexWrap: 'wrap',
+  },
+  seatButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: COLORS.darkBorder,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
   },
-  summaryLabel: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    fontWeight: '500',
+  seatButtonActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
-  summaryValue: {
-    fontSize: 13,
+  seatButtonText: {
+    fontSize: 15,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.textSecondary,
   },
-  footer: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.darkBorder,
+  seatButtonTextActive: {
+    color: '#fff',
   },
   createButton: {
     backgroundColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.lg,
+    paddingVertical: SPACING.md,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: SPACING.sm,
+    marginBottom: SPACING.md,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   createButtonDisabled: {
     opacity: 0.6,
   },
   createButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#fff',
   },

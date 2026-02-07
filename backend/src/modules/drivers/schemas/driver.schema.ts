@@ -196,6 +196,23 @@ export class Driver {
   @Prop({ default: false })
   isAvailable: boolean;
 
+  // Wallet fields (Driver Wallet System)
+  @Prop({ default: 0 })
+  walletBalance: number; // Số dư ví hiện tại (VNĐ)
+
+  @Prop({ default: 100000 })
+  minimumBalance: number; // Số dư tối thiểu để nhận cuốc (VNĐ)
+
+  @Prop({ default: 0 })
+  pendingBalance: number; // Số tiền đang chờ xử lý
+
+  @Prop({ default: false })
+  isWalletLocked: boolean; // Khóa ví khi số dư < minimumBalance
+
+  // Commission rate is dynamic from PricingConfig (not stored per driver)
+  // Use PricingConfig.driverShare to calculate: commissionRate = 100 - driverShare
+  // Example: driverShare=80 → app takes 20% commission
+
   @Prop({ default: false })
   isSuspended: boolean;
 

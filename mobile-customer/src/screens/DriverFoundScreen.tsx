@@ -994,7 +994,7 @@ export default function DriverFoundScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#53d22d" />
+          <ActivityIndicator size="large" color="#FF6B00" />
           <Text style={[styles.loadingText, { color: colors.text }]}>Đang tải thông tin chuyến đi...</Text>
         </View>
       </SafeAreaView>
@@ -1008,7 +1008,7 @@ export default function DriverFoundScreen() {
           <MaterialIcons name="error-outline" size={48} color={colors.textSecondary} />
           <Text style={[styles.errorText, { color: colors.text }]}>{error || 'Không thể tải chuyến đi'}</Text>
           <TouchableOpacity
-            style={[styles.retryButton, { backgroundColor: '#53d22d' }]}
+            style={[styles.retryButton, { backgroundColor: '#FF6B00' }]}
             onPress={loadTripDetails}
           >
             <Text style={styles.retryButtonText}>Thử lại</Text>
@@ -1235,7 +1235,7 @@ export default function DriverFoundScreen() {
             onPress={handleShare}
           >
             <View style={styles.shareIconContainer}>
-              <MaterialIcons name="share-location" size={16} color="#53d22d" />
+              <MaterialIcons name="share-location" size={16} color="#FF6B00" />
             </View>
             <Text style={[styles.shareButtonText, { color: colors.text }]}>Chia sẻ hành trình</Text>
           </TouchableOpacity>
@@ -1260,7 +1260,7 @@ export default function DriverFoundScreen() {
             <View>
               <Text style={[styles.statusTitle, { color: colors.text }]}>{statusLabel}</Text>
               <View style={styles.estimatedTimeRow}>
-                <MaterialIcons name="schedule" size={18} color="#53d22d" />
+                <MaterialIcons name="schedule" size={18} color="#FF6B00" />
                 <Text style={styles.estimatedTime}>{estimatedTime}</Text>
               </View>
             </View>
@@ -1272,7 +1272,7 @@ export default function DriverFoundScreen() {
                 <View style={[styles.avatarSmall, { backgroundColor: colors.border }]}>
                   <Text style={styles.avatarText}>Tôi</Text>
                 </View>
-                <View style={[styles.avatarSmall, { backgroundColor: '#53d22d', marginLeft: -8 }]}>
+                <View style={[styles.avatarSmall, { backgroundColor: '#FF6B00', marginLeft: -8 }]}>
                   <Text style={styles.avatarTextWhite}>K2</Text>
                 </View>
                 <View
@@ -1331,7 +1331,7 @@ export default function DriverFoundScreen() {
               style={[styles.actionButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
               onPress={handleChat}
             >
-              <MaterialIcons name="chat-bubble" size={20} color="#53d22d" />
+              <MaterialIcons name="chat-bubble" size={20} color="#FF6B00" />
               <Text style={[styles.actionButtonText, { color: colors.text }]}>Nhắn tin</Text>
               <View style={styles.notificationDot} />
             </TouchableOpacity>
@@ -1340,7 +1340,7 @@ export default function DriverFoundScreen() {
               style={[styles.actionButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
               onPress={handleCall}
             >
-              <MaterialIcons name="call" size={20} color="#4ade80" />
+              <MaterialIcons name="call" size={20} color="#FF6B00" />
               <Text style={[styles.actionButtonText, { color: colors.text }]}>Gọi điện</Text>
             </TouchableOpacity>
           </View>
@@ -1522,7 +1522,7 @@ const styles = StyleSheet.create({
   estimatedTime: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#53d22d',
+    color: '#FF6B00',
   },
   carpoolVisualizer: {
     alignItems: 'flex-end',
@@ -1622,7 +1622,7 @@ const styles = StyleSheet.create({
   firegoBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#53d22d',
+    color: '#FF6B00',
   },
   vehicleInfo: {
     fontSize: 13,
