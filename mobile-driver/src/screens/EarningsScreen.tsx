@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { LinearGradient } from 'expo-linear-gradient'
+import { COLORS, SPACING } from '../constants'
 import { walletService } from '../services/walletService'
-
-const { width } = Dimensions.get('window')
 
 interface EarningsData {
   balance: number
@@ -160,32 +159,49 @@ export default function EarningsScreen({ navigation }: any) {
               <Text style={styles.walletLabel}>Số dư khả dụng</Text>
             </View>
 
-          <Text style={styles.balanceAmount}>
-            {balance.toLocaleString('vi-VN')}đ
-          </Text>
-          <Text style={styles.pendingAmount}>
-            Chế độ: {pending.toLocaleString('vi-VN')}đ
-          </Text>
+            <View style={styles.balanceMainRow}>
+              <View style={styles.balanceLeft}>
+                <Text style={styles.balanceAmount}>
+                  {(mockEarnings.balance / 1000000).toFixed(1)}
+                </Text>
+                <Text style={styles.balanceCurrency}>triệu đ</Text>
+              </View>
+              <View style={styles.trendBadge}>
+                <MaterialIcons name="trending-up" size={16} color="#fff" />
+                <Text style={styles.trendText}>+12%</Text>
+              </View>
+            </View>
+            
+            <Text style={styles.pendingAmount}>
+              Chế độ: {mockEarnings.pending.toLocaleString('vi-VN')}đ
+            </Text>
 
-          <View style={styles.balanceActions}>
-            <TouchableOpacity 
-              style={styles.withdrawBtn}
-              onPress={() => navigation?.navigate('Topup')}
-            >
-              <MaterialIcons name="add-circle-outline" size={18} color={COLORS.text} />
-              <Text style={styles.withdrawBtnText}>Nạp tiền</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.withdrawBtn}
-              onPress={() => navigation?.navigate('Withdraw')}
-            >
-              <MaterialIcons name="wallet" size={18} color={COLORS.text} />
-              <Text style={styles.withdrawBtnText}>Rút tiền</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.moreBtn}>
-              <MaterialIcons name="more-vert" size={20} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
+            <View style={styles.balanceActions}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation?.navigate('Topup')}
+              >
+                <View style={styles.actionIconBox}>
+                  <MaterialIcons name="add" size={20} color="#FF6B00" />
+                </View>
+                <Text style={styles.actionButtonText}>Nạp tiền</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={styles.actionIconBox}>
+                  <MaterialIcons name="wallet" size={20} color="#FF6B00" />
+                </View>
+                <Text style={styles.actionButtonText}>Rút tiền</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={styles.actionIconBox}>
+                  <MaterialIcons name="history" size={20} color="#FF6B00" />
+                </View>
+                <Text style={styles.actionButtonText}>Lịch sử</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
 
         {/* Time Filter */}
@@ -253,24 +269,37 @@ export default function EarningsScreen({ navigation }: any) {
 
         {/* Stats */}
         <View style={styles.statsSection}>
-          <StatCard
-            icon="local-taxi"
-            iconBg="#ff6b2620"
-            value={stats.tripCount.toString()}
-            label="CHUYẾN XE"
-          />
-          <StatCard
-            icon="star"
-            iconBg="#ffb80020"
-            value={stats.avgRating.toFixed(1)}
-            label="ĐÁNH GIÁ"
-          />
-          <StatCard
-            icon="card-giftcard"
-            iconBg="#10b98120"
-            value={`${(stats.bonusAmount / 1000).toFixed(0)}k`}
-            label="THƯỞNG"
-          />
+          <Text style={styles.sectionTitle}>Tổng quan</Text>
+          <View style={styles.statsGrid}>
+            <StatCard
+              icon="local-taxi"
+              iconColor="#FF6B00"
+              iconBg="#fff5eb"
+              value="24"
+              label="Chuyến xe"
+            />
+            <StatCard
+              icon="star"
+              iconColor="#fbbf24"
+              iconBg="#fef3c7"
+              value="4.9"
+              label="Đánh giá"
+            />
+            <StatCard
+              icon="schedule"
+              iconColor="#10b981"
+              iconBg="#d1fae5"
+              value="8.5h"
+              label="Trực tuyến"
+            />
+            <StatCard
+              icon="card-giftcard"
+              iconColor="#8b5cf6"
+              iconBg="#ede9fe"
+              value="50k"
+              label="Thưởng"
+            />
+          </View>
         </View>
 
         {/* Transactions */}

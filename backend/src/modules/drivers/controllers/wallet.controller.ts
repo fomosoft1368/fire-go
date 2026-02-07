@@ -26,7 +26,7 @@ class WithdrawDto {
   note?: string;
 }
 
-@Controller('drivers/wallet')
+@Controller('api/wallet')
 @UseGuards(JwtAuthGuard)
 export class WalletController {
   constructor(

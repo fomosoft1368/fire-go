@@ -66,7 +66,7 @@ class WalletService {
   async getBalance(): Promise<WalletBalance> {
     try {
       const headers = await this.getHeaders();
-      const response = await axios.get(`${API_BASE_URL}/drivers/wallet/balance`, {
+      const response = await axios.get(`${API_BASE_URL}/wallet/balance`, {
         headers,
       });
       return response.data;
@@ -82,7 +82,7 @@ class WalletService {
     try {
       const headers = await this.getHeaders();
       const response = await axios.post(
-        `${API_BASE_URL}/drivers/wallet/topup`,
+        `${API_BASE_URL}/wallet/topup`,
         data,
         { headers }
       );
@@ -108,7 +108,7 @@ class WalletService {
     try {
       const headers = await this.getHeaders();
       const response = await axios.post(
-        `${API_BASE_URL}/drivers/wallet/sepay/create`,
+        `${API_BASE_URL}/wallet/sepay/create`,
         { amount, note },
         { headers }
       );
@@ -125,7 +125,7 @@ class WalletService {
     try {
       const headers = await this.getHeaders();
       const response = await axios.post(
-        `${API_BASE_URL}/drivers/wallet/withdraw`,
+        `${API_BASE_URL}/wallet/withdraw`,
         data,
         { headers }
       );
@@ -142,7 +142,7 @@ class WalletService {
     try {
       const headers = await this.getHeaders();
       const response = await axios.get(
-        `${API_BASE_URL}/drivers/wallet/transactions?limit=${limit}&skip=${skip}`,
+        `${API_BASE_URL}/wallet/transactions?limit=${limit}&skip=${skip}`,
         { headers }
       );
       return response.data;
@@ -157,7 +157,7 @@ class WalletService {
   async getStats(): Promise<WalletStats> {
     try {
       const headers = await this.getHeaders();
-      const response = await axios.get(`${API_BASE_URL}/drivers/wallet/stats`, {
+      const response = await axios.get(`${API_BASE_URL}/wallet/stats`, {
         headers,
       });
       return response.data;
