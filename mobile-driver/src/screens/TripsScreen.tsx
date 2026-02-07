@@ -166,15 +166,15 @@ export default function TripsScreen() {
   }
   const renderTripCard = (trip: Trip) => {
     const statusConfig: any = {
-      completed: { label: 'Hoàn thành', color: COLORS.success },
-      cancelled: { label: 'Đã hủy', color: COLORS.danger },
-      upcoming: { label: 'Sắp tới', color: COLORS.warning },
-      pending: { label: 'Chờ xử lý', color: COLORS.warning },
-      accepted: { label: 'Đã chấp nhận', color: COLORS.primary },
-      in_progress: { label: 'Đang thực hiện', color: COLORS.primary },
+      completed: { label: 'Hoàn thành', color: '#10b981', icon: 'check-circle' },
+      cancelled: { label: 'Đã hủy', color: '#ef4444', icon: 'cancel' },
+      upcoming: { label: 'Sắp tới', color: '#f59e0b', icon: 'schedule' },
+      pending: { label: 'Chờ xử lý', color: '#f59e0b', icon: 'hourglass-empty' },
+      accepted: { label: 'Đã chấp nhận', color: '#FF6B00', icon: 'thumb-up' },
+      in_progress: { label: 'Đang thực hiện', color: '#FF6B00', icon: 'directions-car' },
     }
 
-    const config = statusConfig[trip.status] || { label: trip.status || 'Không xác định', color: COLORS.textSecondary }
+    const config = statusConfig[trip.status] || { label: trip.status || 'Không xác định', color: '#64748b', icon: 'help' }
 
     const handleViewDetails = () => {
       console.log('📍 View trip details:', { 
@@ -214,52 +214,80 @@ export default function TripsScreen() {
         onPress={handleViewDetails}
         activeOpacity={0.7}
       >
-        <View style={styles.tripHeader}>
-          <View style={styles.tripLocation}>
-            <View style={styles.locationDot} />
-            <View style={styles.locationInfo}>
-              <Text style={styles.pickupText} numberOfLines={1}>{trip.pickupLocation}</Text>
-              <Text style={styles.arrow}>↓</Text>
-              <Text style={styles.dropoffText} numberOfLines={1}>{trip.dropoffLocation}</Text>
+        {/* Trip Type Badge - Top Right */}
+        <View style={[
+          styles.tripTypeBadge,
+          { backgroundColor: trip.sourceType === 'combined_trip' ? '#10b981' : trip.sourceType === 'delivery' ? '#f59e0b' : '#6366f1' }
+        ]}>
+          <MaterialIcons 
+            name={trip.sourceType === 'combined_trip' ? 'group' : trip.sourceType === 'delivery' ? 'local-shipping' : 'drive-eta'}
+            size={14}
+            color="#fff"
+          />
+          <Text style={styles.tripTypeBadgeText}>
+            {trip.sourceType === 'combined_trip' ? 'Ghép xe' : trip.sourceType === 'delivery' ? 'Giao hàng' : 'Lái xe hộ'}
+          </Text>
+        </View>
+
+        {/* Location Section */}
+        <View style={styles.locationSection}>
+          <View style={styles.locationRow}>
+            <View style={styles.locationIconWrapper}>
+              <View style={styles.pickupDot} />
+            </View>
+            <View style={styles.locationTextWrapper}>
+              <Text style={styles.locationLabel}>Điểm đón</Text>
+              <Text style={styles.locationText} numberOfLines={1}>{trip.pickupLocation}</Text>
             </View>
           </View>
-          <View style={styles.badgesContainer}>
-            {/* Trip Type Badge */}
-            <View style={[
-              styles.typeBadge, 
-              { backgroundColor: trip.sourceType === 'combined_trip' ? '#10b98120' : trip.sourceType === 'delivery' ? '#f5931120' : '#6366f120' }
-            ]}>
-              <Text style={[
-                styles.typeBadgeText,
-                { color: trip.sourceType === 'combined_trip' ? COLORS.success : trip.sourceType === 'delivery' ? '#f59311' : '#6366f1' }
-              ]}>
-                {trip.sourceType === 'combined_trip' ? 'Ghép xe' : trip.sourceType === 'delivery' ? 'Đặt hàng' : 'Lái xe hộ'}
-              </Text>
+          
+          <View style={styles.locationConnector} />
+          
+          <View style={styles.locationRow}>
+            <View style={styles.locationIconWrapper}>
+              <MaterialIcons name="location-on" size={20} color="#FF6B00" />
             </View>
-            
-            {/* Status Badge */}
-            <View style={[styles.statusBadge, { backgroundColor: config.color + '20' }]}>
-              <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+            <View style={styles.locationTextWrapper}>
+              <Text style={styles.locationLabel}>Điểm đến</Text>
+              <Text style={styles.locationText} numberOfLines={1}>{trip.dropoffLocation}</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.tripMeta}>
-          <View style={styles.metaItem}>
-            <MaterialIcons name="route" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{trip.distance}</Text>
+        {/* Info Row */}
+        <View style={styles.infoRow}>
+          <View style={styles.infoItem}>
+            <View style={styles.infoIconBox}>
+              <MaterialIcons name="route" size={18} color="#FF6B00" />
+            </View>
+            <Text style={styles.infoText}>{trip.distance}</Text>
           </View>
-          <View style={styles.metaItem}>
-            <MaterialIcons name="schedule" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.metaText}>{trip.date}</Text>
+          
+          <View style={styles.infoItem}>
+            <View style={styles.infoIconBox}>
+              <MaterialIcons name="schedule" size={18} color="#64748b" />
+            </View>
+            <Text style={styles.infoText}>{trip.date}</Text>
           </View>
-          <Text style={styles.amount}>{trip.amount.toLocaleString('vi-VN')}đ</Text>
+        </View>
+
+        {/* Bottom Section */}
+        <View style={styles.bottomSection}>
+          <View style={[styles.statusChip, { backgroundColor: config.color + '15' }]}>
+            <MaterialIcons name={config.icon} size={16} color={config.color} />
+            <Text style={[styles.statusChipText, { color: config.color }]}>{config.label}</Text>
+          </View>
+          
+          <View style={styles.amountBox}>
+            <Text style={styles.amountLabel}>Thu nhập</Text>
+            <Text style={styles.amountValue}>{trip.amount.toLocaleString('vi-VN')}đ</Text>
+          </View>
         </View>
 
         {trip.rating && (
-          <View style={styles.ratingRow}>
-            <MaterialIcons name="star" size={16} color={COLORS.warning} />
-            <Text style={styles.ratingValue}>{trip.rating} sao</Text>
+          <View style={styles.ratingBanner}>
+            <MaterialIcons name="star" size={16} color="#fbbf24" />
+            <Text style={styles.ratingText}>Đánh giá: {trip.rating}/5</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -278,35 +306,69 @@ export default function TripsScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Chuyến đi</Text>
+          <View>
+            <Text style={styles.title}>Chuyến đi của tôi</Text>
+            <Text style={styles.subtitle}>{filteredTrips.length} chuyến đi</Text>
+          </View>
+          <TouchableOpacity style={styles.filterIconButton}>
+            <MaterialIcons name="filter-list" size={24} color="#0f172a" />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.filterTabs}>
+        {/* Filter Tabs */}
+        <View style={styles.filterContainer}>
           <TouchableOpacity 
-            style={activeFilter === 'all' ? styles.filterTabActive : styles.filterTab}
+            style={[styles.filterTab, activeFilter === 'all' && styles.filterTabActive]}
             onPress={() => setActiveFilter('all')}
+            activeOpacity={0.7}
           >
-            <Text style={activeFilter === 'all' ? styles.filterTabTextActive : styles.filterTabText}>Tất cả</Text>
+            <MaterialIcons 
+              name="apps" 
+              size={20} 
+              color={activeFilter === 'all' ? '#fff' : '#64748b'} 
+            />
+            <Text style={[styles.filterTabText, activeFilter === 'all' && styles.filterTabTextActive]}>
+              Tất cả
+            </Text>
           </TouchableOpacity>
+          
           <TouchableOpacity 
-            style={activeFilter === 'completed' ? styles.filterTabActive : styles.filterTab}
+            style={[styles.filterTab, activeFilter === 'completed' && styles.filterTabActive]}
             onPress={() => setActiveFilter('completed')}
+            activeOpacity={0.7}
           >
-            <Text style={activeFilter === 'completed' ? styles.filterTabTextActive : styles.filterTabText}>Hoàn thành</Text>
+            <MaterialIcons 
+              name="check-circle" 
+              size={20} 
+              color={activeFilter === 'completed' ? '#fff' : '#64748b'} 
+            />
+            <Text style={[styles.filterTabText, activeFilter === 'completed' && styles.filterTabTextActive]}>
+              Hoàn thành
+            </Text>
           </TouchableOpacity>
+          
           <TouchableOpacity 
-            style={activeFilter === 'upcoming' ? styles.filterTabActive : styles.filterTab}
+            style={[styles.filterTab, activeFilter === 'upcoming' && styles.filterTabActive]}
             onPress={() => setActiveFilter('upcoming')}
+            activeOpacity={0.7}
           >
-            <Text style={activeFilter === 'upcoming' ? styles.filterTabTextActive : styles.filterTabText}>Sắp tới</Text>
+            <MaterialIcons 
+              name="schedule" 
+              size={20} 
+              color={activeFilter === 'upcoming' ? '#fff' : '#64748b'} 
+            />
+            <Text style={[styles.filterTabText, activeFilter === 'upcoming' && styles.filterTabTextActive]}>
+              Sắp tới
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* Loading State */}
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
+            <ActivityIndicator size="large" color="#FF6B00" />
             <Text style={styles.loadingText}>Đang tải danh sách chuyến đi...</Text>
           </View>
         )}
@@ -314,9 +376,12 @@ export default function TripsScreen() {
         {/* Error State */}
         {error && !loading && (
           <View style={styles.errorContainer}>
-            <MaterialIcons name="error-outline" size={48} color={COLORS.danger} />
+            <View style={styles.errorIconBox}>
+              <MaterialIcons name="error-outline" size={56} color="#ef4444" />
+            </View>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={fetchTrips}>
+              <MaterialIcons name="refresh" size={20} color="#fff" />
               <Text style={styles.retryButtonText}>Thử lại</Text>
             </TouchableOpacity>
           </View>
@@ -331,8 +396,11 @@ export default function TripsScreen() {
               </View>
             ) : (
               <View style={styles.emptyContainer}>
-                <MaterialIcons name="directions-car" size={48} color={COLORS.textSecondary} />
+                <View style={styles.emptyIconBox}>
+                  <MaterialIcons name="inbox" size={56} color="#cbd5e1" />
+                </View>
                 <Text style={styles.emptyText}>Chưa có chuyến đi nào</Text>
+                <Text style={styles.emptySubText}>Các chuyến đi của bạn sẽ hiển thị ở đây</Text>
               </View>
             )}
           </>
@@ -345,194 +413,315 @@ export default function TripsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: '#f8fafc',
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl,
+    backgroundColor: '#f8fafc',
   },
   header: {
-    paddingVertical: SPACING.lg,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xxl + SPACING.lg,
+    paddingBottom: SPACING.xl,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.text,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
-  filterTabs: {
+  subtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  filterIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
-    marginBottom: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
-    paddingBottom: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
   filterTab: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.md,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: 12,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 24,
   },
   filterTabActive: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.primary,
+    backgroundColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   filterTabText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748b',
+    letterSpacing: -0.2,
   },
   filterTabTextActive: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
+    color: '#fff',
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.xl * 2,
+    paddingVertical: SPACING.xl * 3,
   },
   loadingText: {
     marginTop: SPACING.lg,
-    color: COLORS.textSecondary,
-    fontSize: 14,
+    color: '#64748b',
+    fontSize: 15,
+    fontWeight: '500',
   },
   errorContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.xl * 2,
+    paddingVertical: SPACING.xl * 3,
+    paddingHorizontal: SPACING.xl,
   },
   errorText: {
     marginTop: SPACING.lg,
-    color: COLORS.danger,
-    fontSize: 14,
+    color: '#ef4444',
+    fontSize: 15,
+    fontWeight: '600',
     textAlign: 'center',
   },
   retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
     marginTop: SPACING.lg,
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: '#FF6B00',
+    borderRadius: 24,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   retryButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 15,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.xl * 2,
+    paddingVertical: SPACING.xl * 3,
+    paddingHorizontal: SPACING.xl,
   },
   emptyText: {
     marginTop: SPACING.lg,
-    color: COLORS.textSecondary,
+    color: '#0f172a',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  emptySubText: {
+    marginTop: SPACING.sm,
+    color: '#64748b',
     fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  emptyIconBox: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorIconBox: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#fee2e2',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tripsList: {
-    marginBottom: SPACING.xl,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xl,
   },
   tripCard: {
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#fff',
+    borderRadius: 20,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    position: 'relative',
+    overflow: 'visible',
   },
-  tripHeader: {
+  tripTypeBadge: {
+    position: 'absolute',
+    top: -8,
+    right: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tripTypeBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  locationSection: {
     marginBottom: SPACING.lg,
   },
-  tripLocation: {
-    flex: 1,
+  locationRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: SPACING.md,
   },
-  badgesContainer: {
-    flexDirection: 'column',
-    gap: SPACING.xs,
-    alignItems: 'flex-end',
+  locationIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
   },
-  typeBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.sm,
+  pickupDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10b981',
   },
-  typeBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+  locationConnector: {
+    width: 2,
+    height: 16,
+    backgroundColor: '#e2e8f0',
+    marginLeft: 15,
+    marginVertical: 4,
   },
-  locationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
-    marginTop: SPACING.xs,
-  },
-  locationInfo: {
+  locationTextWrapper: {
     flex: 1,
   },
-  pickupText: {
+  locationLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  locationText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.2,
   },
-  arrow: {
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  dropoffText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  statusBadge: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  tripMeta: {
+  infoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: SPACING.lg,
+    marginBottom: SPACING.lg,
     paddingBottom: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
-    marginBottom: SPACING.md,
+    borderBottomColor: '#f1f5f9',
   },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  metaText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  amount: {
-    marginLeft: 'auto',
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  ratingRow: {
+  infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
   },
-  ratingValue: {
+  infoIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff5eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoText: {
     fontSize: 13,
-    color: COLORS.text,
+    color: '#64748b',
     fontWeight: '600',
+  },
+  bottomSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 20,
+  },
+  statusChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  amountBox: {
+    alignItems: 'flex-end',
+  },
+  amountLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  amountValue: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#FF6B00',
+    letterSpacing: -0.5,
+  },
+  ratingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 12,
+    marginTop: SPACING.md,
+  },
+  ratingText: {
+    fontSize: 13,
+    color: '#92400e',
+    fontWeight: '700',
   },
 })

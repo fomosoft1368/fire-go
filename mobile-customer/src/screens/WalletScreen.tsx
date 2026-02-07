@@ -231,6 +231,11 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Ví của tôi</Text>
+      </View>
+
       <ScrollView
         style={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -265,7 +270,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
               style={[styles.actionBtn, styles.depositBtn]}
               onPress={() => setShowDepositModal(true)}
             >
-              <MaterialIcons name="arrow-downward" size={20} color="#fff" />
+              <MaterialIcons name="arrow-downward" size={20} color="#FF6B00" />
               <Text style={styles.actionBtnText}>Nạp tiền</Text>
             </TouchableOpacity>
 
@@ -274,7 +279,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
               onPress={() => setShowWithdrawModal(true)}
             >
               <MaterialIcons name="arrow-upward" size={20} color="#fff" />
-              <Text style={styles.actionBtnText}>Rút tiền</Text>
+              <Text style={[styles.actionBtnText, { color: '#fff' }]}>Rút tiền</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -309,8 +314,18 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nạp tiền</Text>
-              <TouchableOpacity onPress={() => setShowDepositModal(false)}>
-                <MaterialIcons name="close" size={24} color={COLORS.text} />
+              <TouchableOpacity 
+                onPress={() => setShowDepositModal(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: '#f1f5f9',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <MaterialIcons name="close" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -401,8 +416,18 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Rút tiền</Text>
-              <TouchableOpacity onPress={() => setShowWithdrawModal(false)}>
-                <MaterialIcons name="close" size={24} color={COLORS.text} />
+              <TouchableOpacity 
+                onPress={() => setShowWithdrawModal(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: '#f1f5f9',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <MaterialIcons name="close" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -510,7 +535,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
                 loadData()
               }}
             >
-              <MaterialIcons name="close" size={28} color={COLORS.text} />
+              <MaterialIcons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
 
             <ScrollView style={styles.qrScrollView}>
@@ -685,11 +710,46 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#f8fafc',
   },
+  
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xl,
+    paddingBottom: SPACING.lg,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff5eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
   content: {
     flex: 1,
-    paddingTop: SPACING.xxl,
   },
   loadingContainer: {
     flex: 1,
@@ -699,11 +759,16 @@ const styles = StyleSheet.create({
 
   // Wallet Card
   walletCard: {
-    margin: SPACING.lg,
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.lg,
+    margin: SPACING.xl,
+    backgroundColor: '#FF6B00',
+    borderRadius: 20,
+    padding: SPACING.xl,
     overflow: 'hidden',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
   },
   walletHeader: {
     flexDirection: 'row',
@@ -712,20 +777,26 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   walletLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#fff',
-    opacity: 0.8,
+    opacity: 0.9,
     marginBottom: SPACING.sm,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   walletBalance: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontWeight: '800',
     color: '#fff',
+    letterSpacing: -1,
   },
 
   walletStats: {
     flexDirection: 'row',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 16,
+    padding: SPACING.lg,
   },
   statBox: {
     flex: 1,
@@ -733,18 +804,20 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: '#fff',
-    opacity: 0.8,
+    opacity: 0.9,
     marginBottom: SPACING.xs,
+    fontWeight: '600',
   },
   statValue: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#fff',
+    letterSpacing: -0.5,
   },
   divider: {
     width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginHorizontal: SPACING.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    marginHorizontal: SPACING.lg,
   },
 
   actions: {
@@ -753,96 +826,120 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: 14,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   depositBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: '#fff',
   },
   withdrawBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   actionBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    color: '#FF6B00',
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: -0.2,
   },
 
   // Section
   section: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.lg,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
   },
   seeAll: {
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.primary,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
 
   // Transactions
   transactionsList: {
-    gap: SPACING.sm,
+    gap: SPACING.md,
   },
   transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.bgSecondary,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: SPACING.lg,
     marginBottom: SPACING.sm,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   transactionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.md,
+    marginRight: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   transactionContent: {
     flex: 1,
   },
   transactionType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+    letterSpacing: -0.2,
   },
   transactionDate: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
   },
   transactionRight: {
     alignItems: 'flex-end',
     gap: SPACING.sm,
   },
   transactionAmount: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
   statusBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 
   emptyState: {
@@ -850,82 +947,91 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xl * 2,
   },
   emptyText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
+    fontSize: 15,
+    color: '#64748b',
     marginTop: SPACING.md,
+    fontWeight: '500',
   },
 
   // Modal
   modal: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.bgSecondary,
-    borderTopLeftRadius: BORDER_RADIUS.xl,
-    borderTopRightRadius: BORDER_RADIUS.xl,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xl,
+    paddingBottom: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#f1f5f9',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
   },
   modalBody: {
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.lg,
   },
 
   formLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
     marginTop: SPACING.lg,
     marginBottom: SPACING.sm,
+    letterSpacing: -0.2,
   },
   formInput: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.bg,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e2e8f0',
     marginBottom: SPACING.md,
   },
   textInput: {
     flex: 1,
-    fontSize: 14,
-    color: COLORS.text,
+    fontSize: 15,
+    color: '#0f172a',
+    fontWeight: '500',
   },
 
   balanceInfo: {
-    backgroundColor: COLORS.bg,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
+    backgroundColor: '#fff5eb',
+    borderRadius: 16,
+    padding: SPACING.lg,
+    marginBottom: SPACING.xl,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
   },
   balanceLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#64748b',
     marginBottom: SPACING.sm,
+    fontWeight: '600',
   },
   balanceValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '800',
     color: COLORS.primary,
+    letterSpacing: -0.5,
   },
 
   methodSelector: {
@@ -934,101 +1040,123 @@ const styles = StyleSheet.create({
   methodOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.bg,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
     borderWidth: 2,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.sm,
+    borderColor: '#e2e8f0',
+    marginBottom: SPACING.md,
   },
   methodOptionSelected: {
     borderColor: COLORS.primary,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    backgroundColor: '#fff5eb',
   },
   methodInfo: {
     flex: 1,
   },
   methodName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+    letterSpacing: -0.2,
   },
   methodDetails: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
   },
 
   addPaymentMethodBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.bg,
+    paddingVertical: SPACING.xl,
+    borderRadius: 12,
+    backgroundColor: '#fff',
     borderWidth: 2,
     borderColor: COLORS.primary,
     borderStyle: 'dashed',
     gap: SPACING.md,
   },
   addPaymentMethodText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.primary,
+    letterSpacing: -0.2,
   },
 
   modalFooter: {
     flexDirection: 'row',
     gap: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: '#f1f5f9',
   },
   footerBtn: {
     flex: 1,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: 14,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cancelBtn: {
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e2e8f0',
   },
   cancelBtnText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontWeight: '700',
+    color: '#64748b',
+    letterSpacing: -0.2,
   },
   submitBtn: {
     backgroundColor: COLORS.primary,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   submitBtnText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
+    letterSpacing: -0.2,
   },
 
   // QR Modal
   qrModalContainer: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#f8fafc',
   },
   qrModalContent: {
     flex: 1,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.xl,
   },
   qrCloseBtn: {
     alignSelf: 'flex-end',
-    paddingRight: SPACING.lg,
+    paddingRight: SPACING.xl,
     paddingBottom: SPACING.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   qrScrollView: {
     flex: 1,
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
   },
   qrContent: {
     paddingVertical: SPACING.xl,
@@ -1038,148 +1166,184 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   qrTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginTop: SPACING.md,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginTop: SPACING.lg,
+    letterSpacing: -0.5,
   },
   qrInfo: {
-    backgroundColor: COLORS.bgSecondary,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: SPACING.xl,
     marginBottom: SPACING.lg,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   qrLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#64748b',
     marginBottom: SPACING.sm,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   qrValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '800',
     color: COLORS.primary,
     fontFamily: 'monospace',
+    letterSpacing: -0.3,
   },
   qrCodeContainer: {
-    backgroundColor: COLORS.bgSecondary,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: SPACING.xl,
     marginBottom: SPACING.lg,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   qrCodeLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.md,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: SPACING.lg,
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
   qrCodeBox: {
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
   qrCodeImage: {
-    width: 220,
-    height: 220,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+    width: 240,
+    height: 240,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: '#e2e8f0',
   },
   qrCodeLoading: {
-    width: 220,
-    height: 220,
+    width: 240,
+    height: 240,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.bg,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: '#e2e8f0',
   },
   qrCodeLoadingText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#64748b',
     marginTop: SPACING.md,
+    fontWeight: '500',
   },
   qrCodeNote: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#64748b',
     fontStyle: 'italic',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontWeight: '500',
   },
   bankInfo: {
-    backgroundColor: COLORS.bg,
-    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   bankInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#e2e8f0',
   },
   bankInfoColumn: {
     flex: 1,
   },
   bankInfoLabel: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: '#64748b',
     marginBottom: SPACING.xs,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   bankInfoValue: {
-    fontSize: 14,
-    color: COLORS.text,
-    fontWeight: 'bold',
+    fontSize: 15,
+    color: '#0f172a',
+    fontWeight: '800',
     fontFamily: 'monospace',
+    letterSpacing: -0.2,
   },
   copyButton: {
     padding: SPACING.md,
+    backgroundColor: '#fff5eb',
+    borderRadius: 8,
   },
   qrBox: {
-    backgroundColor: '#FFF8E1',
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
+    backgroundColor: '#fff5eb',
+    borderRadius: 16,
+    padding: SPACING.xl,
     marginBottom: SPACING.lg,
     borderLeftWidth: 4,
     borderLeftColor: '#FF9800',
   },
   qrBoxTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     color: '#F57C00',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
+    letterSpacing: -0.2,
   },
   qrBoxText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#E65100',
-    lineHeight: 20,
-    marginBottom: SPACING.xs,
+    lineHeight: 22,
+    marginBottom: SPACING.sm,
+    fontWeight: '500',
   },
   qrWarning: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
+    backgroundColor: '#dbeafe',
+    borderRadius: 16,
+    padding: SPACING.xl,
     marginBottom: SPACING.xl,
     gap: SPACING.md,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
   },
   qrWarningText: {
     flex: 1,
-    fontSize: 13,
-    color: '#1976D2',
-    lineHeight: 20,
+    fontSize: 14,
+    color: '#1e40af',
+    lineHeight: 22,
+    fontWeight: '500',
   },
   qrActionBtn: {
     backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.lg,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
     marginBottom: SPACING.xl,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   qrActionBtnText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#fff',
+    letterSpacing: -0.3,
   },
 })

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -14,8 +14,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { logout } from '../redux/slices/authSlice'
 import { authService } from '../services/authService'
 import type { RootState } from '../redux/store'
-import { COLORS, COLORS_DARK, COLORS_LIGHT } from '../constants'
-import { SPACING, BORDER_RADIUS } from '../constants'
+import { COLORS, SPACING } from '../constants'
 
 interface MenuItem {
   icon: string
@@ -36,9 +35,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const [isDarkMode, setIsDarkMode] = useState(themeMode === 'dark')
-
-  // Get colors based on theme
-  const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
 
   console.log('User data in ProfileScreen:', user)
 
@@ -76,13 +72,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           <View style={styles.menuLeft}>
             <View style={[
               styles.iconContainer,
-              item.isDanger && styles.iconContainerDanger,
-              !item.isDanger && { backgroundColor: COLORS.primary }
+              item.isDanger 
+                ? styles.iconContainerDanger 
+                : { backgroundColor: '#fff5eb' }
             ]}>
               <MaterialIcons
                 name={item.icon as any}
                 size={20}
-                color={item.isDanger ? '#fff' : '#fff'}
+                color={item.isDanger ? '#ef4444' : COLORS.primary}
               />
             </View>
             <Text
@@ -102,8 +99,8 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
                   setIsDarkMode(newValue)
                 }
               }}
-              trackColor={{ false: colors.border, true: COLORS.primary + '50' }}
-              thumbColor={isDarkMode ? COLORS.primary : colors.textSecondary}
+              trackColor={{ false: '#e2e8f0', true: COLORS.primary + '50' }}
+              thumbColor={isDarkMode ? COLORS.primary : '#94a3b8'}
             />
           ) : (
             <>
@@ -113,7 +110,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
               <MaterialIcons
                 name="chevron-right"
                 size={20}
-                color={item.isDanger ? COLORS.danger : COLORS.textSecondary}
+                color={item.isDanger ? '#ef4444' : '#94a3b8'}
               />
             </>
           )}
@@ -197,11 +194,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Tài khoản</Text>
+      </View>
+
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.avatarContainer}>
-          <View style={[styles.avatarInner, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <MaterialIcons name="person" size={48} color={COLORS.primary} />
+          <View style={styles.avatarInner}>
+            <MaterialIcons name="person" size={56} color="#fff" />
           </View>
         </View>
         <Text style={styles.profileName} numberOfLines={1} ellipsizeMode="tail">
@@ -219,77 +221,59 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         </TouchableOpacity>
       </View>
 
-      {/* Stats */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{user?.completedRides || 0}</Text>
-          <Text style={styles.statLabel}>Chuyến</Text>
+      {/* Driver Registration Card */}
+      <TouchableOpacity 
+        style={styles.driverRegistrationCard}
+        activeOpacity={0.9}
+        onPress={() => Alert.alert('Đăng ký tài xế', 'Chức năng đang được phát triển')}
+      >
+        <View style={styles.driverCardGradient}>
+          <View style={styles.driverCardDecor1} />
+          <View style={styles.driverCardDecor2} />
+          
+          <View style={styles.driverCardContent}>
+            <View style={styles.driverCardIconBox}>
+              <MaterialIcons name="local-taxi" size={32} color="#fff" />
+            </View>
+            <View style={styles.driverCardTextContent}>
+              <Text style={styles.driverCardTitle}>Bạn muốn trở thành tài xế?</Text>
+              <Text style={styles.driverCardDescription}>
+                Đăng ký ngay để bắt đầu kiếm tiền với FireGo
+              </Text>
+            </View>
+            <View style={styles.driverCardArrow}>
+              <MaterialIcons name="arrow-forward" size={24} color="#fff" />
+            </View>
+          </View>
         </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{user?.averageRating || 0}</Text>
-          <Text style={styles.statLabel}>Đánh giá</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{user?.totalSpent ? `${(user.totalSpent / 1000).toFixed(1)}K` : '0'}</Text>
-          <Text style={styles.statLabel}>Tiêu dùng</Text>
-        </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Premium/Status Card */}
-      <View
-        style={[
-          styles.premiumCard,
-          {
-            backgroundColor: `${colors.primary}15`,
-            borderColor: `${colors.primary}30`,
-          },
-        ]}
-      >
+      <View style={styles.premiumCard}>
         <View style={styles.premiumContent}>
-          <View>
-            <Text style={[styles.premiumLabel, { color: colors.text }]}>
-              Thành viên thường
-            </Text>
-            <Text
-              style={[styles.premiumSubtext, { color: colors.textSecondary }]}
-            >
-              Tham gia từ tháng 3, 2024
-            </Text>
+          <View style={styles.premiumLeft}>
+            <MaterialIcons name="star" size={24} color="#FF6B00" />
+            <View>
+              <Text style={styles.premiumLabel}>Thành viên thường</Text>
+              <Text style={styles.premiumSubtext}>Tham gia từ tháng 3, 2024</Text>
+            </View>
           </View>
-          <View style={styles.premiumIcon}>
-            <MaterialIcons
-              name="star"
-              size={28}
-              color={colors.primary}
-            />
-          </View>
+          <MaterialIcons name="chevron-right" size={24} color="#64748b" />
         </View>
       </View>
 
-      {/* Sections */}
       <MenuSection title="Tài khoản" items={accountItems} />
       <MenuSection title="Cài đặt" items={settingsItems} />
       <MenuSection title="Hỗ trợ & Thông tin" items={supportItems} />
 
-      {/* Logout Button */}
       <View style={styles.logoutSection}>
         <TouchableOpacity
-          style={[
-            styles.logoutButton,
-            {
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              borderColor: 'rgba(239, 68, 68, 0.3)',
-            },
-          ]}
+          style={styles.logoutButton}
           onPress={handleLogout}
           activeOpacity={0.8}
         >
-          <MaterialIcons name="logout" size={20} color={colors.danger} />
-          <Text style={[styles.logoutText, { color: colors.danger }]}>
-            Đăng xuất
-          </Text>
+          <MaterialIcons name="logout" size={20} color="#ef4444" />
+          <Text style={styles.logoutText}>Đăng xuất</Text>
         </TouchableOpacity>
       </View>
 
@@ -301,243 +285,278 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bgSecondary,
-    paddingTop: SPACING.xxl,
+    backgroundColor: '#f8fafc',
   },
-
-  // Profile Header Styles
+  header: {
+    backgroundColor: '#fff',
+    paddingTop: 60,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
   profileHeader: {
-    paddingBottom: SPACING.xl,
+    backgroundColor: '#fff',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
     alignItems: 'center',
-  },
-  headerBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 180,
-    opacity: 0.08,
-  },
-  profileContent: {
-    alignItems: 'center',
-    paddingTop: SPACING.xl,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   avatarContainer: {
-    marginBottom: SPACING.lg,
-    marginTop: SPACING.xl,
-    position: 'relative',
-  },
-  avatarInner: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    justifyContent: 'center',
+    backgroundColor: '#fff5eb',
     alignItems: 'center',
-    borderWidth: 2,
-    shadowColor: '#000',
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#FF6B00',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
     elevation: 8,
   },
-  verifiedBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
+  avatarInner: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
-    borderWidth: 2,
+    justifyContent: 'center',
   },
   profileName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: SPACING.xs,
-    maxWidth: '90%',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
   },
   profileEmail: {
-    fontSize: 13,
-    marginBottom: SPACING.lg,
-    color: '#ccc',
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 20,
   },
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1.5,
-    gap: SPACING.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff5eb',
+    borderRadius: 20,
+    gap: 6,
   },
   editButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
-
+  
+  // Driver Registration Card
+  driverRegistrationCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  driverCardGradient: {
+    backgroundColor: COLORS.primary,
+    padding: 20,
+    minHeight: 120,
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  driverCardDecor1: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    top: -30,
+    right: -30,
+  },
+  driverCardDecor2: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    bottom: -20,
+    left: -20,
+  },
+  driverCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    zIndex: 1,
+  },
+  driverCardIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  driverCardTextContent: {
+    flex: 1,
+  },
+  driverCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  driverCardDescription: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 18,
+  },
+  driverCardArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
   // Premium Card
   premiumCard: {
-    marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    padding: SPACING.lg,
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   premiumContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  premiumLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   premiumLabel: {
     fontSize: 15,
-    fontWeight: '700',
-    marginBottom: SPACING.xs,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 2,
   },
   premiumSubtext: {
-    fontSize: 12,
+    fontSize: 13,
+    color: '#64748b',
   },
-  premiumIcon: {
-    opacity: 0.3,
-  },
-
-  // Stats Container
-  statsContainer: {
-    flexDirection: 'row',
-    marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.xl,
-    gap: SPACING.md,
-  },
-  statItem: {
-    flex: 1,
-    borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.lg,
-    paddingHorizontal: SPACING.md,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  statIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: SPACING.xs,
-    color: '#fff',
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#999',
-  },
-
+  
   // Menu Section
   section: {
-    marginHorizontal: SPACING.lg,
-    marginVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.md,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    color: '#fff',
-  },
-  menuContainer: {
-    overflow: 'hidden',
+    padding: 16,
+    paddingBottom: 12,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    minHeight: 56,
   },
   menuItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: '#f1f5f9',
   },
   menuLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
     flex: 1,
+    gap: 12,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   iconContainerDanger: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-  },
-  menuTextWrapper: {
-    flex: 1,
+    backgroundColor: '#fef2f2',
   },
   menuLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: SPACING.xs / 2,
-    color: '#fff',
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#0f172a',
+    flex: 1,
   },
   menuLabelDanger: {
     color: '#ef4444',
   },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  menuRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
   menuValue: {
-    fontSize: 13,
-    maxWidth: 100,
-    color: '#999',
+    fontSize: 14,
+    color: '#64748b',
+    marginRight: 8,
+    maxWidth: 120,
   },
-
-  // Stats Divider
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginHorizontal: SPACING.md,
-  },
-
+  
   // Logout Section
   logoutSection: {
-    paddingHorizontal: SPACING.lg,
-    marginVertical: SPACING.xl,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.lg,
-    gap: SPACING.md,
+    gap: 8,
+    paddingVertical: 14,
+    backgroundColor: '#fff',
+    borderRadius: 12,
     borderWidth: 1,
+    borderColor: '#fecaca',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   logoutText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    color: '#ef4444',
   },
-}
-)
+})

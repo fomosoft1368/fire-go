@@ -20,6 +20,7 @@ import RegisterScreen from './src/screens/RegisterScreen'
 import HomeScreen from './src/screens/HomeScreen'
 import TripsScreen from './src/screens/TripsScreen'
 import EarningsScreen from './src/screens/EarningsScreen'
+import SupportScreen from './src/screens/SupportScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
 import EditProfileScreen from './src/screens/EditProfileScreen'
 import ActiveRideScreen from './src/screens/ActiveRideScreen'
@@ -32,6 +33,8 @@ import TripActivities from './src/screens/TripActivities'
 import DeliveryRequestsScreen from './src/screens/DeliveryRequestsScreen'
 import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
 import ChatScreen from './src/screens/ChatScreen'
+import NotificationScreen from './src/screens/Notification'
+import NotificationDetailScreen from './src/screens/NotificationDetail'
 import GlobalRequestModal from './src/components/GlobalRequestModal'
 //
 
@@ -87,7 +90,7 @@ const MainNavigator = () => (
       tabBarActiveTintColor: COLORS.primary,
       tabBarInactiveTintColor: COLORS.textSecondary,
       tabBarStyle: {
-backgroundColor: '#101922',
+      backgroundColor: '#fff',
       },
       tabBarLabelStyle: {
         fontSize: 11,
@@ -184,6 +187,21 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="EditProfile"
         component={EditProfileScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="Support"
+        component={SupportScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="NotificationDetail"
+        component={NotificationDetailScreen}
         options={{ animationEnabled: true }}
       />
     </Stack.Navigator>

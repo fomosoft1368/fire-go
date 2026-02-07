@@ -8,9 +8,9 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
-  Switch,
+  Image,
 } from 'react-native'
-import { MaterialIcons } from '@expo/vector-icons'
+import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
@@ -26,17 +26,17 @@ import { updateUser } from '../redux/slices/authSlice'
 
 export default function HomeScreen() {
   const [isOnline, setIsOnline] = useState(false) // Default offline until loaded from API
-  const [autoAssignEnabled, setAutoAssignEnabled] = useState(true)
   const [activeFilter, setActiveFilter] = useState<'all' | 'pool' | 'assist'>('all')
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  
+  const [unreadNotifications, setUnreadNotifications] = useState(3) // Mock data, fetch from API later
+
   // Assignment request modal state
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
   const [currentRequest, setCurrentRequest] = useState<any>(null)
   const [requestCountdown, setRequestCountdown] = useState(15)
-  
+
   const { user } = useSelector((state: RootState) => state.auth)
   const dispatch = useDispatch()
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
@@ -47,12 +47,12 @@ export default function HomeScreen() {
       try {
         console.log('[HomeScreen] 📥 Fetching driver profile...')
         const profile = await driverService.getProfile()
-        console.log('[HomeScreen] ✅ Profile loaded:', { 
-          isOnline: profile.isOnline, 
+        console.log('[HomeScreen] ✅ Profile loaded:', {
+          isOnline: profile.isOnline,
           status: profile.status,
           driverTypes: profile.driverTypes,
         })
-        
+
         // 🔥 UPDATE Redux user with fresh profile data including driverTypes
         dispatch(updateUser({
           driverTypes: profile.driverTypes,
@@ -60,7 +60,7 @@ export default function HomeScreen() {
           isAvailable: profile.isAvailable,
           status: profile.status,
         }))
-        
+
         // Set online status from profile
         setIsOnline(profile.isOnline || false)
       } catch (error) {
@@ -69,7 +69,7 @@ export default function HomeScreen() {
         setIsOnline(false)
       }
     }
-    
+
     fetchDriverProfile()
   }, [])
 
@@ -78,13 +78,13 @@ export default function HomeScreen() {
     try {
       console.log('[HomeScreen] Toggling online status:', value)
       setIsOnline(value)
-      
+
       // Call API to update online status in database
       await driverService.setOnlineStatus(value)
-      
+
       // Also update available status
       await driverService.setAvailableStatus(value)
-      
+
       console.log('[HomeScreen] ✅ Online status updated in database')
     } catch (error) {
       console.error('[HomeScreen] Error updating online status:', error)
@@ -98,10 +98,10 @@ export default function HomeScreen() {
     if (isOnline && user?.id) {
       console.log('[HomeScreen] 🟢 Driver is online, starting location tracking')
       locationTrackingService.startTracking(user.id)
-      
+
       console.log('[HomeScreen] 🔄 Starting assignment polling')
       console.log('[HomeScreen] 👤 User driverTypes:', user?.driverTypes)
-      
+
       assignmentRequestPollingService.startPolling((request) => {
         console.log('[HomeScreen] 📨 New assignment request:', {
           requestId: request?._id,
@@ -110,7 +110,7 @@ export default function HomeScreen() {
           rideType: request?.rideId?.rideType,
           isShared: request?.rideId?.isShared,
         })
-        
+
         // Chỉ hiển thị modal nếu request có status là "pending"
         if (request && request.status === 'pending') {
           console.log('[HomeScreen] ✅ Request is pending, showing modal')
@@ -138,7 +138,7 @@ export default function HomeScreen() {
   // Countdown timer cho assignment request modal
   useEffect(() => {
     let timer: NodeJS.Timeout
-    
+
     if (showAssignmentModal && currentRequest && requestCountdown > 0) {
       timer = setTimeout(() => {
         setRequestCountdown(requestCountdown - 1)
@@ -148,7 +148,7 @@ export default function HomeScreen() {
       console.log('[HomeScreen] ⏰ Auto-rejecting due to timeout')
       handleRejectRequest()
     }
-    
+
     return () => {
       if (timer) clearTimeout(timer)
     }
@@ -235,30 +235,30 @@ export default function HomeScreen() {
   const handleAcceptRequest = async () => {
     console.log('[HomeScreen] 🎯 handleAcceptRequest CALLED')
     console.log('[HomeScreen] 🔍 currentRequest:', currentRequest)
-    
+
     try {
       if (!currentRequest) {
         console.log('[HomeScreen] ⚠️ currentRequest is null/undefined, aborting')
         return
       }
-      
+
       console.log('[HomeScreen] 🟢 Accepting request:', currentRequest._id)
       console.log('[HomeScreen] 📋 Full request data:', JSON.stringify(currentRequest, null, 2))
-      
+
       const isDelivery = currentRequest.type === 'delivery'
       const isRideshare = currentRequest.type === 'rideshare' // Combined trip
       const requestId = currentRequest._id
-      
+
       if (isDelivery) {
         // Accept delivery request
         const response = await driverService.acceptDeliveryAssignment(requestId)
         console.log('[HomeScreen] ✅ Delivery assignment accepted:', response)
-        
+
         // Lấy deliveryId từ response hoặc từ currentRequest
         const deliveryId = response?.deliveryId || currentRequest.deliveryId?._id || currentRequest.deliveryId
-        
+
         // Navigate vào ActiveDelivery cho vận chuyển (note: screen name is "ActiveDelivery" not "ActiveDeliveryScreen")
-        navigation.navigate('ActiveDelivery', { 
+        navigation.navigate('ActiveDelivery', {
           deliveryId,
           sourceType: 'delivery'
         })
@@ -266,39 +266,39 @@ export default function HomeScreen() {
         // Accept combined trip request (ghép xe)
         const combinedTripId = currentRequest.combinedTripId?._id || currentRequest.combinedTripId
         console.log('[HomeScreen] 🔄 Accepting combined trip request:', { requestId, combinedTripId })
-        
+
         const response = await driverService.acceptCombinedTripRequest(combinedTripId, requestId)
         console.log('[HomeScreen] ✅ Combined trip request accepted:', response)
-        
+
         // Navigate vào ActiveRideScreen cho ghép xe
-        navigation.navigate('ActiveRideScreen', { 
+        navigation.navigate('ActiveRideScreen', {
           combinedTripId,
-          sourceType: 'combined_trip' 
+          sourceType: 'combined_trip'
         })
       } else {
         // Accept ride request (lái xe hộ - hire)
         console.log('[HomeScreen] 🔵 About to accept ride assignment, requestId:', requestId)
-        
+
         try {
           const response = await driverService.acceptRideAssignment(requestId)
           console.log('[HomeScreen] ✅ Ride assignment accepted - FULL RESPONSE:', JSON.stringify(response, null, 2))
-          
+
           // Response là ride object với _id
           const rideId = response?._id || response?.id || currentRequest.rideId?._id || currentRequest.rideId
-          
+
           console.log('[HomeScreen] 🚗 Extracted rideId:', rideId)
           console.log('[HomeScreen] 🔍 Response keys:', Object.keys(response || {}))
-          
+
           if (!rideId) {
             console.error('[HomeScreen] ❌ Cannot find rideId from response or currentRequest')
             console.error('[HomeScreen] 📋 currentRequest:', JSON.stringify(currentRequest, null, 2))
             throw new Error('Không tìm thấy ID chuyến đi')
           }
-          
+
           console.log('[HomeScreen] 🚗 Navigating to TripActivities with rideId:', rideId)
-          
+
           // Navigate vào TripActivities cho lái xe hộ (hire)
-          navigation.navigate('TripActivities', { 
+          navigation.navigate('TripActivities', {
             rideId
           })
         } catch (acceptError: any) {
@@ -311,11 +311,11 @@ export default function HomeScreen() {
           throw acceptError
         }
       }
-      
+
       // Close modal
       setShowAssignmentModal(false)
       setCurrentRequest(null)
-      
+
       // Refresh rides list
       fetchAvailableRides()
     } catch (error) {
@@ -334,7 +334,7 @@ export default function HomeScreen() {
         setCurrentRequest(null)
         return
       }
-      
+
       // Kiểm tra request status trước khi reject
       if (currentRequest.status !== 'pending') {
         console.log('[HomeScreen] ⚠️ Request not pending (status:', currentRequest.status, '), cannot reject')
@@ -342,13 +342,13 @@ export default function HomeScreen() {
         setCurrentRequest(null)
         return
       }
-      
+
       console.log('[HomeScreen] 🔴 Rejecting request:', currentRequest._id)
-      
+
       const isDelivery = currentRequest.type === 'delivery'
       const isRideshare = currentRequest.type === 'rideshare'
       const requestId = currentRequest._id
-      
+
       if (isDelivery) {
         await driverService.rejectDeliveryAssignment(requestId)
       } else if (isRideshare) {
@@ -358,9 +358,9 @@ export default function HomeScreen() {
       } else {
         await driverService.rejectRideAssignment(requestId)
       }
-      
+
       console.log('[HomeScreen] ✅ Request rejected')
-      
+
       // Close modal
       setShowAssignmentModal(false)
       setCurrentRequest(null)
@@ -378,7 +378,7 @@ export default function HomeScreen() {
     const isShareRide = isCombinedTrip || ride.rideType === 'share'
 
     const pickupAddr = ride.pickupAddress || 'Điểm đón'
-    
+
     console.log('📍 [formatRideData] Ride data:', {
       _id: ride._id,
       sourceType: ride.sourceType,
@@ -426,17 +426,17 @@ export default function HomeScreen() {
 
       const rideId = ride._id || ride.id
       const sourceType = ride.sourceType // 'ride' or 'combined_trip'
-      
-      console.log('🚗 Viewing ride:', { 
-        rideId, 
-        sourceType, 
+
+      console.log('🚗 Viewing ride:', {
+        rideId,
+        sourceType,
         rideType: ride.rideType,
-        badge: ride.badge 
+        badge: ride.badge
       })
 
       const isCombinedTrip = sourceType === 'combined_trip'
       const isHire = ride.rideType === 'hire' || ride.badge === 'LAI XE HỘ'
-      
+
       // 1. Lái xe hộ (hire) - không phải combined trip
       if (isHire && !isCombinedTrip) {
         console.log('📍 Navigating to ActiveRideScreen for HIRE ride')
@@ -455,11 +455,11 @@ export default function HomeScreen() {
         } else {
           console.log('✅ This is your own combined trip, skipping accept')
         }
-        
+
         console.log('📍 Navigating to ActiveRideScreen for COMBINED TRIP')
-        navigation.navigate('ActiveRideScreen', { 
-          combinedTripId: rideId, 
-          sourceType: 'combined_trip' 
+        navigation.navigate('ActiveRideScreen', {
+          combinedTripId: rideId,
+          sourceType: 'combined_trip'
         })
         return
       }
@@ -467,10 +467,10 @@ export default function HomeScreen() {
       // 3. Ride thông thường khác (fallback)
       await driverService.acceptRide(rideId, user.id)
       Alert.alert('Thành công', `Bạn đã nhận cuốc`)
-      
+
       console.log('📍 Navigating to ActiveRideScreen for regular ride')
       navigation.navigate('ActiveRideScreen', { rideId, sourceType: 'ride' })
-      
+
     } catch (error: any) {
       console.error('Lỗi khi nhận cuốc:', error)
       let msg = 'Không thể nhận cuốc. Vui lòng thử lại.'
@@ -495,17 +495,41 @@ export default function HomeScreen() {
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Xin chào,</Text>
-            <Text style={styles.driverName}>
-              {user?.firstName && user?.lastName
-                ? `${user.firstName} ${user.lastName}`
-                : user?.name || 'Tài xế'}
-            </Text>
+          <View style={styles.headerLeft}>
+            <View style={styles.avatarContainer}>
+              {user?.avatar ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarText}>
+                    {user?.firstName?.[0] || user?.name?.[0] || 'T'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View>
+              <Text style={styles.greeting}>Xin chào 👋</Text>
+              <Text style={styles.driverName}>
+                {user?.firstName && user?.lastName
+                  ? `${user.firstName} ${user.lastName}`
+                  : user?.name || 'Tài xế'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.statusBadge}>
-            <View style={[styles.statusDot, isOnline && styles.statusOnline]} />
-            <Text style={styles.statusText}>{isOnline ? 'Trực tuyến' : 'Ngoại tuyến'}</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => navigation.navigate('Notifications' as never)}
+            >
+              <Ionicons name="notifications-outline" size={24} color="#333" />
+              {/* {unreadNotifications > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </Text>
+                </View>
+              )} */}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -516,6 +540,7 @@ export default function HomeScreen() {
           increase={2}
           isOnline={isOnline}
           onToggleOnline={handleToggleOnline}
+          onViewDetails={() => navigation.navigate('Earnings' as never)}
         />
         {/* Filter Buttons */}
         <FilterButtons activeFilter={activeFilter} onFilterChange={setActiveFilter} />
@@ -594,7 +619,7 @@ export default function HomeScreen() {
         onPress={() => navigation.navigate('MapScreen')}
         activeOpacity={0.8}
       >
-        <MaterialIcons name="location-on" size={24} color="#fff" />
+        <MaterialIcons name="location-on" size={28} color="#fff" />
       </TouchableOpacity>
 
       {/* Assignment Request Modal */}
@@ -657,7 +682,7 @@ const FilterButton: React.FC<FilterButtonProps> = ({ label, icon, active, onPres
       <MaterialIcons
         name={icon as any}
         size={20}
-        color={active ? COLORS.primary : COLORS.textSecondary}
+        color={active ? '#fff' : '#64748b'}
       />
       <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
     </TouchableOpacity>
@@ -667,57 +692,136 @@ const FilterButton: React.FC<FilterButtonProps> = ({ label, icon, active, onPres
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: '#f8fafc',
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl,
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.xl,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xxl + SPACING.lg,
+    paddingBottom: SPACING.xl,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  notificationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  notificationBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  avatarContainer: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  avatarPlaceholder: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  avatarText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+    textTransform: 'uppercase',
   },
   greeting: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 4,
+    fontWeight: '500',
   },
   driverName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.darkCard,
-    paddingVertical: 6,
-    paddingHorizontal: SPACING.md,
-    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: 24,
     gap: SPACING.sm,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.danger,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#ef4444',
   },
   statusOnline: {
-    backgroundColor: COLORS.success,
+    backgroundColor: '#10b981',
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.2,
   },
   filterContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
     marginBottom: SPACING.lg,
   },
   filterButton: {
@@ -726,41 +830,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    paddingVertical: 12,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 24,
+    borderWidth: 0,
   },
   filterButtonActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '10',
+    backgroundColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   filterText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748b',
+    letterSpacing: -0.2,
   },
   filterTextActive: {
-    color: COLORS.primary,
+    color: '#fff',
   },
   ridesSection: {
     marginBottom: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
   },
   sectionTitleContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
   },
   refreshButton: {
     padding: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full,
+    borderRadius: 20,
+    backgroundColor: '#fff5eb',
   },
   buttonGroup: {
     flexDirection: 'row',
@@ -768,178 +879,106 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   createRideButton: {
-    width: 36,
-    height: 36,
-    borderRadius: BORDER_RADIUS.full,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.xxl,
-    gap: SPACING.md,
+    paddingVertical: SPACING.xxl * 2,
+    gap: SPACING.lg,
   },
   loadingText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontSize: 15,
+    color: '#64748b',
     fontWeight: '500',
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.xxl,
+    paddingVertical: SPACING.xxl * 2,
     gap: SPACING.md,
   },
   emptyText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
+    fontSize: 16,
+    color: '#0f172a',
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   emptySubText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    color: '#64748b',
     textAlign: 'center',
+    fontWeight: '500',
   },
   mapButton: {
     position: 'absolute',
     bottom: 32,
     right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#FF6B00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 8,
   },
-  // ============ Auto-Assign Card Styles ============
-  autoAssignCard: {
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
-  },
-  autoAssignHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  autoAssignTitleSection: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  autoAssignIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  autoAssignIconActive: {
-    backgroundColor: 'rgba(255, 107, 0, 0.15)',
-  },
-  autoAssignTitle: {
-    flex: 1,
-  },
-  autoAssignTitleText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  autoAssignSubtext: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '500',
-  },
-  autoAssignStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.darkBorder,
-  },
-  statItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  statIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statContent: {
-    flex: 1,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    fontWeight: '500',
-  },
-  statValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  statDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: COLORS.darkBorder,
-    marginHorizontal: SPACING.sm,
-  },
   deliveryButton: {
-    marginHorizontal: SPACING.lg,
+    marginHorizontal: SPACING.xl,
     marginBottom: SPACING.lg,
     backgroundColor: '#fff',
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: 16,
     padding: SPACING.lg,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+    elevation: 2,
   },
   deliveryButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
+    gap: SPACING.lg,
   },
   deliveryIconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFE8DC',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#fff5eb',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   deliveryInfo: {
     flex: 1,
   },
   deliveryTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: '#111',
+    fontWeight: '800',
+    color: '#0f172a',
     marginBottom: 4,
+    letterSpacing: -0.3,
   },
   deliverySubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
+    fontWeight: '500',
   },
 })

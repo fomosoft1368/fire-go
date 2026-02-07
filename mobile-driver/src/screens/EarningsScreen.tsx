@@ -1,9 +1,8 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions } from 'react-native'
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
-
-const { width } = Dimensions.get('window')
+import { LinearGradient } from 'expo-linear-gradient'
+import { SPACING } from '../constants'
 
 interface EarningsData {
   balance: number
@@ -82,132 +81,183 @@ export default function EarningsScreen({ navigation }: any) {
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation?.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Quản lý thu nhập</Text>
-          <TouchableOpacity>
-            <Text style={styles.supportLink}>Hỗ trợ</Text>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Thu nhập</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.supportButton}
+            onPress={() => navigation?.navigate('Support')}
+          >
+            <MaterialIcons name="help-outline" size={24} color="#0f172a" />
           </TouchableOpacity>
         </View>
 
         {/* Balance Card */}
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceHeader}>
-            <View style={styles.walletIcon}>
-              <MaterialIcons name="account-balance-wallet" size={20} color={COLORS.primary} />
+        <View style={styles.balanceCardWrapper}>
+          <LinearGradient
+            colors={['#FF8A3D', '#FF6B00', '#E85D00']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.balanceCard}
+          >
+            {/* Decorative circles */}
+            <View style={styles.decorCircle1} />
+            <View style={styles.decorCircle2} />
+            
+            <View style={styles.balanceHeader}>
+              <View style={styles.walletIconBox}>
+                <MaterialIcons name="account-balance-wallet" size={24} color="#fff" />
+              </View>
+              <Text style={styles.walletLabel}>Số dư khả dụng</Text>
             </View>
-            <Text style={styles.walletLabel}>Số dư khả dụng</Text>
-          </View>
 
-          <Text style={styles.balanceAmount}>
-            {mockEarnings.balance.toLocaleString('vi-VN')}đ
-          </Text>
-          <Text style={styles.pendingAmount}>
-            Chế độ: {mockEarnings.pending.toLocaleString('vi-VN')}đ
-          </Text>
+            <View style={styles.balanceMainRow}>
+              <View style={styles.balanceLeft}>
+                <Text style={styles.balanceAmount}>
+                  {(mockEarnings.balance / 1000000).toFixed(1)}
+                </Text>
+                <Text style={styles.balanceCurrency}>triệu đ</Text>
+              </View>
+              <View style={styles.trendBadge}>
+                <MaterialIcons name="trending-up" size={16} color="#fff" />
+                <Text style={styles.trendText}>+12%</Text>
+              </View>
+            </View>
+            
+            <Text style={styles.pendingAmount}>
+              Chế độ: {mockEarnings.pending.toLocaleString('vi-VN')}đ
+            </Text>
 
-          <View style={styles.balanceActions}>
-            <TouchableOpacity 
-              style={styles.withdrawBtn}
-              onPress={() => navigation?.navigate('Topup')}
-            >
-              <MaterialIcons name="add-circle-outline" size={18} color={COLORS.text} />
-              <Text style={styles.withdrawBtnText}>Nạp tiền</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.withdrawBtn}>
-              <MaterialIcons name="wallet" size={18} color={COLORS.text} />
-              <Text style={styles.withdrawBtnText}>Rút tiền</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.moreBtn}>
-              <MaterialIcons name="more-vert" size={20} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
+            <View style={styles.balanceActions}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation?.navigate('Topup')}
+              >
+                <View style={styles.actionIconBox}>
+                  <MaterialIcons name="add" size={20} color="#FF6B00" />
+                </View>
+                <Text style={styles.actionButtonText}>Nạp tiền</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={styles.actionIconBox}>
+                  <MaterialIcons name="wallet" size={20} color="#FF6B00" />
+                </View>
+                <Text style={styles.actionButtonText}>Rút tiền</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={styles.actionIconBox}>
+                  <MaterialIcons name="history" size={20} color="#FF6B00" />
+                </View>
+                <Text style={styles.actionButtonText}>Lịch sử</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
 
         {/* Time Filter */}
-        <View style={styles.timeFilter}>
-          <FilterButton
-            label="Ngày"
-            active={timeFilter === 'day'}
-            onPress={() => setTimeFilter('day')}
-          />
-          <FilterButton
-            label="Tuần"
-            active={timeFilter === 'week'}
-            onPress={() => setTimeFilter('week')}
-          />
-          <FilterButton
-            label="Tháng"
-            active={timeFilter === 'month'}
-            onPress={() => setTimeFilter('month')}
-          />
+        <View style={styles.filterSection}>
+          <Text style={styles.sectionTitle}>Thống kê</Text>
+          <View style={styles.timeFilter}>
+            <FilterButton
+              label="Ngày"
+              active={timeFilter === 'day'}
+              onPress={() => setTimeFilter('day')}
+            />
+            <FilterButton
+              label="Tuần"
+              active={timeFilter === 'week'}
+              onPress={() => setTimeFilter('week')}
+            />
+            <FilterButton
+              label="Tháng"
+              active={timeFilter === 'month'}
+              onPress={() => setTimeFilter('month')}
+            />
+          </View>
         </View>
 
         {/* Chart */}
         <View style={styles.chartSection}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Biểu đồ thu nhập</Text>
-            <View style={styles.percentageBadge}>
-              <MaterialIcons name="trending-up" size={14} color={COLORS.success} />
-              <Text style={styles.percentageText}>+12%</Text>
+            <Text style={styles.chartTitle}>Biểu đồ thu nhập tuần</Text>
+            <View style={styles.chartTotal}>
+              <Text style={styles.chartTotalLabel}>Tổng</Text>
+              <Text style={styles.chartTotalValue}>
+                {(mockDailyData.reduce((sum, d) => sum + d.amount, 0) / 1000000).toFixed(1)}tr
+              </Text>
             </View>
           </View>
 
           <View style={styles.chart}>
             {mockDailyData.map((item, index) => {
-              const height = (item.amount / maxAmount) * 180
+              const height = (item.amount / maxAmount) * 160
+              const isHighest = item.amount === maxAmount
               return (
                 <View key={index} style={styles.barContainer}>
-                  <View
-                    style={[
-                      styles.bar,
-                      {
-                        height,
-                        backgroundColor: item.day === 'T6' ? COLORS.primary : COLORS.darkBorder,
-                      },
-                    ]}
-                  />
-                  <Text style={styles.barLabel}>{item.day}</Text>
+                  <View style={styles.barWrapper}>
+                    {isHighest && (
+                      <Text style={styles.barValue}>
+                        {(item.amount / 1000000).toFixed(1)}tr
+                      </Text>
+                    )}
+                    <LinearGradient
+                      colors={isHighest ? ['#FF8A3D', '#FF6B00'] : ['#e2e8f0', '#cbd5e1']}
+                      style={[
+                        styles.bar,
+                        { height: Math.max(height, 20) },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.barLabel, isHighest && styles.barLabelActive]}>
+                    {item.day}
+                  </Text>
                 </View>
               )
             })}
-          </View>
-
-          {/* Max Amount Label */}
-          <View style={styles.chartMaxLabel}>
-            <Text style={styles.maxAmount}>
-              {(maxAmount / 1000000).toFixed(1)}tr
-            </Text>
           </View>
         </View>
 
         {/* Stats */}
         <View style={styles.statsSection}>
-          <StatCard
-            icon="local-taxi"
-            iconBg="#ff6b2620"
-            value="24"
-            label="CHUYẾN XE"
-          />
-          <StatCard
-            icon="star"
-            iconBg="#ffb80020"
-            value="4.9"
-            label="ĐÁNH GIÁ"
-          />
-          <StatCard
-            icon="card-giftcard"
-            iconBg="#10b98120"
-            value="50k"
-            label="THƯỞNG"
-          />
+          <Text style={styles.sectionTitle}>Tổng quan</Text>
+          <View style={styles.statsGrid}>
+            <StatCard
+              icon="local-taxi"
+              iconColor="#FF6B00"
+              iconBg="#fff5eb"
+              value="24"
+              label="Chuyến xe"
+            />
+            <StatCard
+              icon="star"
+              iconColor="#fbbf24"
+              iconBg="#fef3c7"
+              value="4.9"
+              label="Đánh giá"
+            />
+            <StatCard
+              icon="schedule"
+              iconColor="#10b981"
+              iconBg="#d1fae5"
+              value="8.5h"
+              label="Trực tuyến"
+            />
+            <StatCard
+              icon="card-giftcard"
+              iconColor="#8b5cf6"
+              iconBg="#ede9fe"
+              value="50k"
+              label="Thưởng"
+            />
+          </View>
         </View>
 
         {/* Transactions */}
         <View style={styles.transactionsSection}>
           <View style={styles.transactionHeader}>
-            <Text style={styles.transactionTitle}>Giao dịch gần đây</Text>
+            <Text style={styles.sectionTitle}>Giao dịch gần đây</Text>
             <TouchableOpacity>
               <Text style={styles.seeAllLink}>Xem tất cả</Text>
             </TouchableOpacity>
@@ -239,18 +289,21 @@ const FilterButton: React.FC<FilterButtonProps> = ({ label, active, onPress }) =
 
 interface StatCardProps {
   icon: string
+  iconColor: string
   iconBg: string
   value: string
   label: string
 }
 
-const StatCard: React.FC<StatCardProps> = ({ icon, iconBg, value, label }) => (
+const StatCard: React.FC<StatCardProps> = ({ icon, iconColor, iconBg, value, label }) => (
   <View style={styles.statCard}>
-    <View style={[styles.statIcon, { backgroundColor: iconBg }]}>
-      <MaterialIcons name={icon as any} size={24} color={COLORS.text} />
+    <View style={[styles.statIconBox, { backgroundColor: iconBg }]}>
+      <MaterialIcons name={icon as any} size={24} color={iconColor} />
     </View>
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.statInfo}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
   </View>
 )
 
@@ -260,15 +313,15 @@ interface TransactionItemProps {
 
 const TransactionItem: React.FC<TransactionItemProps> = ({ transaction }) => {
   const getIconColor = () => {
-    if (transaction.type === 'completed') return COLORS.primary
-    if (transaction.type === 'withdrawal') return '#ff6b6b'
-    return COLORS.success
+    if (transaction.type === 'completed') return '#FF6B00'
+    if (transaction.type === 'withdrawal') return '#ef4444'
+    return '#10b981'
   }
 
   const getIconBg = () => {
-    if (transaction.type === 'completed') return COLORS.primary + '20'
-    if (transaction.type === 'withdrawal') return '#ff6b6b20'
-    return COLORS.success + '20'
+    if (transaction.type === 'completed') return '#fff5eb'
+    if (transaction.type === 'withdrawal') return '#fee2e2'
+    return '#d1fae5'
   }
 
   return (
@@ -287,9 +340,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction }) => {
       <Text
         style={[
           styles.transactionAmount,
-          transaction.amount > 0
-            ? { color: COLORS.success }
-            : { color: COLORS.text },
+          { color: transaction.amount > 0 ? '#10b981' : '#64748b' },
         ]}
       >
         {transaction.amount > 0 ? '+' : ''}
@@ -302,217 +353,343 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: '#f8fafc',
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
-    paddingHorizontal: SPACING.lg,
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: SPACING.lg,
-    marginBottom: SPACING.md,
-    paddingTop: 45,
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xxl + SPACING.lg,
+    paddingBottom: SPACING.xl,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.3,
   },
-  supportLink: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  supportButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  balanceCardWrapper: {
+    marginHorizontal: SPACING.xl,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
   balanceCard: {
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.xl,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderRadius: 24,
+    padding: SPACING.xl,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  decorCircle1: {
+    position: 'absolute',
+    top: -50,
+    right: -50,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  decorCircle2: {
+    position: 'absolute',
+    bottom: -30,
+    left: -30,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   balanceHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+    zIndex: 1,
   },
-  walletIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary + '20',
+  walletIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.sm,
   },
   walletLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
+  },
+  balanceMainRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: SPACING.sm,
+    zIndex: 1,
+  },
+  balanceLeft: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
   balanceAmount: {
-    fontSize: 32,
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: -2,
+  },
+  balanceCurrency: {
+    fontSize: 20,
     fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginLeft: 6,
+  },
+  trendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  trendText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '800',
   },
   pendingAmount: {
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: 'rgba(255, 255, 255, 0.75)',
     marginBottom: SPACING.lg,
+    fontWeight: '500',
+    zIndex: 1,
   },
   balanceActions: {
     flexDirection: 'row',
     gap: SPACING.md,
+    zIndex: 1,
   },
-  withdrawBtn: {
+  actionButton: {
     flex: 1,
-    backgroundColor: '#ff6b2d',
-    borderRadius: BORDER_RADIUS.md,
-    paddingVertical: SPACING.md,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.xs,
   },
-  withdrawBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  moreBtn: {
+  actionIconBox: {
     width: 48,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  filterSection: {
+    paddingHorizontal: SPACING.xl,
+    marginBottom: SPACING.lg,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+    marginBottom: SPACING.md,
   },
   timeFilter: {
     flexDirection: 'row',
-    gap: SPACING.sm,
-    marginBottom: SPACING.lg,
+    gap: SPACING.md,
   },
   filterBtn: {
     flex: 1,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.darkCard,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    paddingVertical: 12,
+    borderRadius: 24,
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
   },
   filterBtnActive: {
-    backgroundColor: COLORS.primary + '20',
-    borderColor: COLORS.primary,
+    backgroundColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   filterText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748b',
+    letterSpacing: -0.2,
   },
   filterTextActive: {
-    color: COLORS.primary,
+    color: '#fff',
   },
   chartSection: {
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: SPACING.xl,
+    marginHorizontal: SPACING.xl,
     marginBottom: SPACING.xl,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
   chartTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.3,
   },
-  percentageBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
+  chartTotal: {
+    alignItems: 'flex-end',
   },
-  percentageText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#10b981',
+  chartTotalLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  chartTotalValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FF6B00',
+    letterSpacing: -0.5,
   },
   chart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    height: 200,
-    marginBottom: SPACING.lg,
+    height: 180,
   },
   barContainer: {
     flex: 1,
     alignItems: 'center',
-    marginHorizontal: 2,
+    justifyContent: 'flex-end',
+  },
+  barWrapper: {
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  barValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FF6B00',
+    marginBottom: 4,
   },
   bar: {
-    width: '80%',
-    borderRadius: BORDER_RADIUS.sm,
-    marginBottom: SPACING.sm,
+    width: 32,
+    borderRadius: 8,
   },
   barLabel: {
     fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  chartMaxLabel: {
-    position: 'absolute',
-    top: 10,
-    right: SPACING.lg,
-  },
-  maxAmount: {
-    fontSize: 12,
+    color: '#64748b',
     fontWeight: '600',
-    color: COLORS.textSecondary,
-    backgroundColor: COLORS.darkBg,
-    paddingHorizontal: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  barLabelActive: {
+    color: '#FF6B00',
+    fontWeight: '800',
   },
   statsSection: {
-    flexDirection: 'row',
-    gap: SPACING.md,
+    paddingHorizontal: SPACING.xl,
     marginBottom: SPACING.xl,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+  statsGrid: {
+    flexDirection: 'column',
+    gap: SPACING.md,
   },
-  statIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  statCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: SPACING.lg,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginRight: SPACING.md,
+  },
+  statInfo: {
+    flex: 1,
   },
   statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 2,
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#64748b',
   },
   transactionsSection: {
+    paddingHorizontal: SPACING.xl,
     marginBottom: SPACING.xl,
   },
   transactionHeader: {
@@ -521,31 +698,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
-  transactionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
   seeAllLink: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontWeight: '600',
+    fontSize: 14,
+    color: '#FF6B00',
+    fontWeight: '700',
   },
   transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.darkCard,
-    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: '#fff',
+    borderRadius: 16,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.lg,
     marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   transactionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.md,
@@ -553,16 +728,21 @@ const styles = StyleSheet.create({
   transactionInfo: {
     flex: 1,
   },
-  transactionTime: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
-  },
-  transactionAmount: {
+  transactionTitle: {
     fontSize: 14,
     fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.2,
   },
-  success: {
-    color: COLORS.success,
+  transactionTime: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
 })

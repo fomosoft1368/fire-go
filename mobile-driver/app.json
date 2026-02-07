@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "dat-xe-driver-app",
-    "slug": "dat-xe-driver",
+    "name": "firego-driver",
+    "slug": "firego-driver",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
@@ -32,7 +32,7 @@
       }
     },
     "android": {
-      "package": "com.datxe.driver",
+      "package": "com.firego.driver",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"

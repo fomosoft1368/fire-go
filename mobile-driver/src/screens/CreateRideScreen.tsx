@@ -501,27 +501,6 @@ export default function CreateRideScreen() {
               textAlignVertical="top"
             />
           </View>
-
-          {/* Summary Card */}
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Tóm tắt chuyến xe</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Loại chuyến:</Text>
-              <Text style={styles.summaryValue}>Ghép xe</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Bắt đầu:</Text>
-              <Text style={styles.summaryValue}>{startDateTimeFormatted}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Số ghế:</Text>
-              <Text style={styles.summaryValue}>{remainingSeats || '-'}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Ngày tạo:</Text>
-              <Text style={styles.summaryValue}>{currentDateTime}</Text>
-            </View>
-          </View>
         </ScrollView>
 
         {/* Create Button */}
