@@ -241,7 +241,7 @@ export class RidesController {
       .find({
         driverId: new Types.ObjectId(driverId),
         status: 'pending',
-        expiresAt: { $gt: now },
+        expiresAt: { $gt: new Date() },
       })
       .populate({
         path: 'rideId',

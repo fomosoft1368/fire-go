@@ -230,20 +230,10 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
   }
 
   const handleCancelRide = () => {
-    Alert.alert(
-      'Hủy chuyến đi',
-      'Bạn có chắc chắn muốn hủy chuyến đi này không?',
-      [
-        { text: 'Không', style: 'cancel' },
-        {
-          text: 'Hủy chuyến',
-          style: 'destructive',
-          onPress: () => {
-            navigation?.goBack()
-          },
-        },
-      ]
-    )
+    navigation?.navigate('CancelTripScreen', { 
+      rideId: rideId,
+      rideType: ride?.rideType || 'hire',
+    })
   }
 
   const handleHelp = () => {

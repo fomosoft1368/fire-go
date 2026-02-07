@@ -95,12 +95,15 @@ export const RideCard: React.FC<RideCardProps> = ({ ride, onAccept }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: '#fff',
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   badgeContainer: {
     flexDirection: 'row',
@@ -109,9 +112,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   priceText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: '#FF6B00',
   },
   infoContainer: {
     marginBottom: SPACING.md,
@@ -124,9 +127,10 @@ const styles = StyleSheet.create({
   },
   locationText: {
     flex: 1,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
+    fontSize: 14,
+    color: '#0f172a',
+    lineHeight: 20,
+    fontWeight: '500',
   },
   timeContainer: {
     flexDirection: 'row',
@@ -134,7 +138,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
+    borderBottomColor: '#e2e8f0',
     marginBottom: SPACING.md,
   },
   timeItem: {
@@ -143,8 +147,9 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   timeText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
   },
   ratingItem: {
     flexDirection: 'row',
@@ -153,19 +158,24 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   ratingText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    color: COLORS.text,
+    color: '#0f172a',
   },
   acceptButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#FF6B00',
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     alignItems: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   acceptButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#fff',
   },
 })

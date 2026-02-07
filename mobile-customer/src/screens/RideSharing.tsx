@@ -413,8 +413,15 @@ export default function RideSharing(props?: RideSharingProps) {
         // Continue without fare calculation
       }
 
+<<<<<<< HEAD
       const routeData = {
         distance: distance,
+=======
+      console.log('[HomeScreen] Final fareEstimate before setState:', fareEstimate);
+
+      const routeData = {
+        distance: distanceKm,
+>>>>>>> 4b6cc1d8cc367e295f35bbef6c2c0dce610dbb04
         duration: duration,
         distanceText: distanceText,
         durationText: durationText,
@@ -428,12 +435,19 @@ export default function RideSharing(props?: RideSharingProps) {
         setFareEstimate(fareEstimate);
       }
 
+<<<<<<< HEAD
       console.log('[RideSharing] ✅ Route info updated successfully', { 
         distance, 
         duration, 
         routeCount: routeCoordinates.length,
         fare: fareEstimate?.totalFare 
       });
+=======
+      console.log('[HomeScreen] Route info set:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length, fare: fareEstimate });
+      
+      // Return the calculated route data
+      return routeData;
+>>>>>>> 4b6cc1d8cc367e295f35bbef6c2c0dce610dbb04
     } catch (error: any) {
       console.error('[RideSharing] Route calculation error:', error);
       Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
