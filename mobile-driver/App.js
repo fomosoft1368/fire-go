@@ -159,6 +159,11 @@ const HomeStackNavigator = () => {
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
+        name="Withdraw"
+        component={require('./src/screens/WithdrawScreen').default}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
         name="PaymentWebView"
         component={PaymentWebViewScreen}
         options={{ animationEnabled: true }}

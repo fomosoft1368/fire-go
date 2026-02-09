@@ -3,12 +3,33 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { DriversService } from './drivers.service';
 import { DriversController } from './drivers.controller';
 import { Driver, DriverSchema } from './schemas/driver.schema';
+import { WalletService } from './services/wallet.service';
+import { SepayService } from './services/sepay.service';
+import { WalletController } from './controllers/wallet.controller';
+import { WalletAdminController } from './controllers/wallet-admin.controller';
+import { SepayWebhookController } from './controllers/sepay-webhook.controller';
+import {
+  WalletTransaction,
+  WalletTransactionSchema,
+} from './schemas/wallet-transaction.schema';
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Driver.name, schema: DriverSchema }])],
-  controllers: [DriversController],
-  providers: [DriversService],
-  exports: [DriversService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Driver.name, schema: DriverSchema },
+      { name: WalletTransaction.name, schema: WalletTransactionSchema },
+    ]),
+    PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
+  ],
+  controllers: [
+    SepayWebhookController, // Webhook must be first (specific path)
+    WalletAdminController,  // Admin routes
+    WalletController,       // Driver wallet routes
+    DriversController,      // Driver routes (must be last, has :id wildcard)
+  ],
+  providers: [DriversService, WalletService, SepayService],
+  exports: [DriversService, WalletService, SepayService],
 })
 export class DriversModule implements OnModuleInit {
   constructor(private readonly driversService: DriversService) {}

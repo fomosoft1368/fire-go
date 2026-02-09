@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native'
+import React, { useState, useEffect } from 'react'
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { SPACING } from '../constants'
+import { COLORS, SPACING } from '../constants'
+import { walletService } from '../services/walletService'
 
 interface EarningsData {
   balance: number
@@ -73,8 +74,55 @@ const mockTransactions: Transaction[] = [
 
 export default function EarningsScreen({ navigation }: any) {
   const [timeFilter, setTimeFilter] = useState<'day' | 'week' | 'month'>('week')
+  const [loading, setLoading] = useState(true)
+  const [balance, setBalance] = useState(0)
+  const [pending, setPending] = useState(0)
+  const [stats, setStats] = useState({
+    thisWeek: 0,
+    thisMonth: 0,
+    total: 0,
+    tripCount: 0,
+    avgRating: 0,
+    bonusAmount: 0,
+  })
+  const [transactions, setTransactions] = useState<any[]>([])
+
+  useEffect(() => {
+    fetchWalletData()
+  }, [])
+
+  const fetchWalletData = async () => {
+    try {
+      setLoading(true)
+      const [balanceData, statsData, transactionsData] = await Promise.all([
+        walletService.getBalance(),
+        walletService.getStats(),
+        walletService.getTransactions(10),
+      ])
+
+      setBalance(balanceData.balance)
+      setPending(balanceData.pending)
+      setStats(statsData)
+      setTransactions(transactionsData)
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể tải dữ liệu ví')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const maxAmount = Math.max(...mockDailyData.map((d) => d.amount))
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={{ color: COLORS.textSecondary, marginTop: SPACING.md }}>Đang tải...</Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -263,9 +311,18 @@ export default function EarningsScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          {mockTransactions.map((transaction) => (
-            <TransactionItem key={transaction.id} transaction={transaction} />
-          ))}
+          {transactions.length > 0 ? (
+            transactions.map((transaction) => (
+              <RealTransactionItem key={transaction._id} transaction={transaction} />
+            ))
+          ) : (
+            <View style={{ padding: SPACING.xl, alignItems: 'center' }}>
+              <MaterialIcons name="receipt-long" size={48} color={COLORS.textSecondary} />
+              <Text style={{ color: COLORS.textSecondary, marginTop: SPACING.md }}>
+                Chưa có giao dịch nào
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -341,6 +398,63 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction }) => {
         style={[
           styles.transactionAmount,
           { color: transaction.amount > 0 ? '#10b981' : '#64748b' },
+        ]}
+      >
+        {transaction.amount > 0 ? '+' : ''}
+        {transaction.amount.toLocaleString('vi-VN')}đ
+      </Text>
+    </View>
+  )
+}
+
+// Component cho real transactions từ API
+const RealTransactionItem: React.FC<{ transaction: any }> = ({ transaction }) => {
+  const getIconAndColor = () => {
+    switch (transaction.type) {
+      case 'topup':
+        return { icon: 'add-circle-outline', color: COLORS.success, bg: COLORS.success + '20' }
+      case 'withdrawal':
+        return { icon: 'account-balance', color: '#ff6b6b', bg: '#ff6b6b20' }
+      case 'commission':
+        return { icon: 'local-taxi', color: COLORS.primary, bg: COLORS.primary + '20' }
+      case 'bonus':
+        return { icon: 'card-giftcard', color: COLORS.success, bg: COLORS.success + '20' }
+      default:
+        return { icon: 'receipt', color: COLORS.textSecondary, bg: COLORS.darkBorder }
+    }
+  }
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    
+    if (hours < 1) return 'Vừa xong'
+    if (hours < 24) return `${hours} giờ trước`
+    
+    const days = Math.floor(hours / 24)
+    if (days === 1) return 'Hôm qua'
+    if (days < 7) return `${days} ngày trước`
+    
+    return date.toLocaleDateString('vi-VN')
+  }
+
+  const { icon, color, bg } = getIconAndColor()
+
+  return (
+    <View style={styles.transactionItem}>
+      <View style={[styles.transactionIcon, { backgroundColor: bg }]}>
+        <MaterialIcons name={icon as any} size={20} color={color} />
+      </View>
+      <View style={styles.transactionInfo}>
+        <Text style={styles.transactionTitle}>{transaction.description}</Text>
+        <Text style={styles.transactionTime}>{formatDate(transaction.createdAt)}</Text>
+      </View>
+      <Text
+        style={[
+          styles.transactionAmount,
+          transaction.amount > 0 ? { color: COLORS.success } : { color: '#ff6b6b' },
         ]}
       >
         {transaction.amount > 0 ? '+' : ''}

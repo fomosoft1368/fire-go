@@ -128,7 +128,22 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('   Origin:', origin);
       console.log('   Destination:', destination);
 
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&key=${googleMapsApiKey}&mode=driving&region=vn`;
+      // ✅ OPTIMIZED: Request MULTIPLE routes and pick the SHORTEST one
+      // Thêm parameters để ưu tiên đường cao tốc/đường lớn và lấy route ngắn nhất
+      const params = new URLSearchParams({
+        origin,
+        destination,
+        key: googleMapsApiKey,
+        mode: 'driving',
+        region: 'vn',
+        language: 'vi',
+        alternatives: 'true', // ✅ Lấy nhiều routes để so sánh
+        avoid: 'ferries', // ✅ Tránh đường phà
+        units: 'metric',
+        // ✅ Không set traffic_model vì sẽ bị charge thêm, chỉ dùng bản free
+      });
+
+      const url = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
 
       const response = await fetch(url);
 
@@ -147,7 +162,26 @@ export class CombinedTripsService implements OnModuleInit {
 
       // Check if route found
       if (data.status === 'OK' && data.routes && data.routes.length > 0) {
-        const route = data.routes[0];
+        // ✅ CRITICAL: Chọn route NGẮN NHẤT (shortest distance)
+        // Google trả về nhiều routes, ta chọn route có khoảng cách ngắn nhất
+        console.log('🔍 Analyzing all routes to find shortest...');
+        
+        let shortestRoute = data.routes[0];
+        let shortestDistance = data.routes[0].legs[0].distance.value;
+
+        for (const route of data.routes) {
+          const routeDistance = route.legs[0].distance.value;
+          console.log(`📏 Route option: ${(routeDistance / 1000).toFixed(2)}km - ${route.summary}`);
+          
+          if (routeDistance < shortestDistance) {
+            shortestRoute = route;
+            shortestDistance = routeDistance;
+          }
+        }
+
+        console.log(`✅ Selected SHORTEST route: ${(shortestDistance / 1000).toFixed(2)}km - ${shortestRoute.summary}`);
+
+        const route = shortestRoute;
         const leg = route.legs[0];
 
         const distanceKm = leg.distance.value / 1000; // Convert meters to km

@@ -237,6 +237,7 @@ export class RidesController {
     const driverId = req.user.id;
     console.log('[RidesController] 🔍 Getting pending assignment requests for driver:', driverId);
     
+    const now = new Date();
     const requests = await this.assignmentRequestModel
       .find({
         driverId: new Types.ObjectId(driverId),

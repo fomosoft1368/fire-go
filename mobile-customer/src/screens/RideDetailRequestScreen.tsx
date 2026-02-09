@@ -290,11 +290,7 @@ export default function RideDetailRequestScreen() {
         fareBreakdownForRequest.peakMultiplier // ✅ 1.0, 1.3, hoặc 1.5
       )
 
-      console.log('✅ Request created:', request._id)
-      console.log('📤 Request sent to driver ID:', tripData.driverId?._id || tripData.driverId)
-      console.log('👤 Driver name:', tripData.driverId?.firstName, tripData.driverId?.lastName)
-      console.log('🚗 Combined Trip ID:', combinedTripId)
-      console.log('📋 Full request data:', JSON.stringify(request, null, 2))
+    
       setRequestStatus('pending')
 
       // Start polling for status changes
@@ -433,7 +429,7 @@ export default function RideDetailRequestScreen() {
               <View style={[styles.driverSection, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
                 <View style={styles.driverRow}>
                   <View style={styles.driverAvatarContainer}>
-                    <View style={[styles.driverAvatar, { backgroundColor: '#53d22d' }]}>
+                    <View style={[styles.driverAvatar, { backgroundColor: '#FF6B00' }]}>
                       <MaterialIcons name="person" size={28} color="black" />
                     </View>
                     <View style={styles.verifiedBadge}>
@@ -543,13 +539,13 @@ export default function RideDetailRequestScreen() {
                                           seatsState[index] === 'occupied'
                                             ? colors.border
                                             : selectedSeats.includes(index)
-                                              ? '#53d22d'
+                                              ? '#FF6B00'
                                               : 'transparent',
                                         borderColor:
                                           seatsState[index] === 'occupied'
                                             ? colors.border
                                             : selectedSeats.includes(index)
-                                              ? '#53d22d'
+                                              ? '#FF6B00'
                                               : colors.border,
                                       },
                                     ]}
@@ -583,13 +579,13 @@ export default function RideDetailRequestScreen() {
                                             seatsState[seatIndex] === 'occupied'
                                               ? colors.border
                                               : selectedSeats.includes(seatIndex)
-                                                ? '#53d22d'
+                                                ? '#FF6B00'
                                                 : 'transparent',
                                           borderColor:
                                             seatsState[seatIndex] === 'occupied'
                                               ? colors.border
                                               : selectedSeats.includes(seatIndex)
-                                                ? '#53d22d'
+                                                ? '#FF6B00'
                                                 : colors.border,
                                         },
                                       ]}
@@ -618,7 +614,7 @@ export default function RideDetailRequestScreen() {
                     <Text style={[styles.legendText, { color: colors.textSecondary }]}>Trống</Text>
                   </View>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: '#53d22d' }]} />
+                    <View style={[styles.legendDot, { backgroundColor: '#FF6B00' }]} />
                     <Text style={[styles.legendText, { color: colors.text }]}>Đang chọn</Text>
                   </View>
                   <View style={styles.legendItem}>
@@ -629,7 +625,7 @@ export default function RideDetailRequestScreen() {
               </View>
 
               {/* Insurance / Policy Card */}
-              <View style={[styles.policyCard, { backgroundColor: '#53d22d' + '15', borderColor: '#53d22d' + '30' }]}>
+              <View style={[styles.policyCard, { backgroundColor: '#FF6B00' + '15', borderColor: '#FF6B00' + '30' }]}>
                 <MaterialIcons name="shield" size={24} color="#53d22d" style={{ marginTop: 2 }} />
                 <View style={styles.policyContent}>
                   <Text style={[styles.policyTitle, { color: colors.text }]}>Bảo hiểm chuyến đi</Text>
@@ -659,7 +655,7 @@ export default function RideDetailRequestScreen() {
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.bookButton, { backgroundColor: '#53d22d' }]}
+              style={[styles.bookButton, { backgroundColor: '#FF6B00' }]}
               onPress={handleRequestRide}
               disabled={requesting || availableSeats < 0 || calculatingFare || selectedSeats.length === 0}
             >
@@ -933,7 +929,7 @@ const styles = StyleSheet.create({
   seatsAvailableText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#53d22d',
+    color: '#FF6B00',
   },
   carLayout: {
     borderRadius: 32,

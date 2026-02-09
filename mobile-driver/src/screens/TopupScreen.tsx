@@ -12,10 +12,12 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Clipboard,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
-import { paymentService } from '../services/paymentService'
+import { walletService } from '../services/walletService'
 
 const PRESET_AMOUNTS = [100000, 200000, 500000, 1000000, 2000000, 5000000]
 
@@ -53,6 +55,16 @@ export default function TopupScreen({ navigation }: any) {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('vnpay')
   const [isProcessing, setIsProcessing] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showSepayModal, setShowSepayModal] = useState(false)
+  const [sepayData, setSepayData] = useState<{
+    qrCodeUrl: string;
+    accountNo: string;
+    accountName: string;
+    bankName: string;
+    amount: number;
+    content: string;
+    transactionId: string;
+  } | null>(null)
 
   const amount = selectedAmount || (customAmount ? parseInt(customAmount) : 0)
 
@@ -93,20 +105,25 @@ export default function TopupScreen({ navigation }: any) {
         paymentMethod: selectedPaymentMethod,
       })
 
-      if (selectedPaymentMethod === 'vnpay') {
-        // Gọi VNpay payment
-        const paymentUrl = await paymentService.createVNPayPayment(amount)
+      if (selectedPaymentMethod === 'bank') {
+        // Sepay bank transfer QR code
+        const result = await walletService.createSepayPayment(amount)
+        console.log('[TopupScreen] Sepay payment created:', result)
         
-        if (paymentUrl) {
-          console.log('[TopupScreen] VNPay URL received:', paymentUrl)
-          // Mở WebView với VNpay URL
-          navigation?.navigate('PaymentWebView', {
-            paymentUrl,
-            amount,
-            type: 'topup',
-          })
-          setShowPaymentModal(false)
-        }
+        setSepayData({
+          qrCodeUrl: result.qrCodeUrl,
+          accountNo: result.accountNo,
+          accountName: result.accountName,
+          bankName: result.bankName,
+          amount: result.amount,
+          content: result.content,
+          transactionId: result.transactionId,
+        })
+        
+        setShowPaymentModal(false)
+        setShowSepayModal(true)
+      } else if (selectedPaymentMethod === 'vnpay') {
+        Alert.alert('Thông báo', 'VNPay đang được tích hợp')
       } else {
         Alert.alert('Thông báo', 'Phương thức này đang được phát triển')
       }
@@ -116,6 +133,11 @@ export default function TopupScreen({ navigation }: any) {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const copyToClipboard = (text: string, label: string) => {
+    Clipboard.setString(text)
+    Alert.alert('Thành công', `Đã sao chép ${label}`)
   }
 
   return (
@@ -350,6 +372,139 @@ export default function TopupScreen({ navigation }: any) {
               </View>
             </View>
           </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Sepay QR Code Modal */}
+      <Modal
+        visible={showSepayModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSepayModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.sepayModalContent}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chuyển khoản ngân hàng</Text>
+              <TouchableOpacity onPress={() => {
+                setShowSepayModal(false)
+                navigation?.goBack()
+              }}>
+                <MaterialIcons name="close" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* QR Code */}
+              {sepayData && (
+                <>
+                  <View style={styles.qrContainer}>
+                    <Image
+                      source={{ uri: sepayData.qrCodeUrl }}
+                      style={styles.qrCode}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.qrHint}>Quét mã QR để chuyển khoản</Text>
+                  </View>
+
+                  {/* Bank Info */}
+                  <View style={styles.bankInfoSection}>
+                    <Text style={styles.bankInfoTitle}>Hoặc chuyển khoản thủ công</Text>
+
+                    {/* Bank Name */}
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Ngân hàng</Text>
+                      <View style={styles.infoValueContainer}>
+                        <Text style={styles.infoValue}>{sepayData.bankName}</Text>
+                      </View>
+                    </View>
+
+                    {/* Account Number */}
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Số tài khoản</Text>
+                      <View style={styles.infoValueContainer}>
+                        <Text style={styles.infoValue}>{sepayData.accountNo}</Text>
+                        <TouchableOpacity
+                          onPress={() => copyToClipboard(sepayData.accountNo, 'số tài khoản')}
+                        >
+                          <MaterialIcons name="content-copy" size={18} color={COLORS.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Account Name */}
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Chủ tài khoản</Text>
+                      <View style={styles.infoValueContainer}>
+                        <Text style={styles.infoValue}>{sepayData.accountName}</Text>
+                      </View>
+                    </View>
+
+                    {/* Amount */}
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Số tiền</Text>
+                      <View style={styles.infoValueContainer}>
+                        <Text style={[styles.infoValue, styles.amountHighlight]}>
+                          {sepayData.amount.toLocaleString('vi-VN')}đ
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => copyToClipboard(sepayData.amount.toString(), 'số tiền')}
+                        >
+                          <MaterialIcons name="content-copy" size={18} color={COLORS.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Transfer Content */}
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Nội dung</Text>
+                      <View style={styles.infoValueContainer}>
+                        <Text style={[styles.infoValue, styles.contentHighlight]}>
+                          {sepayData.content}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => copyToClipboard(sepayData.content, 'nội dung chuyển khoản')}
+                        >
+                          <MaterialIcons name="content-copy" size={18} color={COLORS.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Warning Box */}
+                  <View style={styles.warningBox}>
+                    <MaterialIcons name="warning" size={20} color="#FFA726" />
+                    <Text style={styles.warningText}>
+                      Vui lòng nhập chính xác nội dung chuyển khoản để hệ thống tự động cập nhật số dư
+                    </Text>
+                  </View>
+
+                  {/* Instructions */}
+                  <View style={styles.instructionsBox}>
+                    <Text style={styles.instructionsTitle}>Hướng dẫn:</Text>
+                    <Text style={styles.instructionItem}>1. Quét mã QR hoặc nhập thông tin thủ công</Text>
+                    <Text style={styles.instructionItem}>2. Kiểm tra kỹ nội dung chuyển khoản</Text>
+                    <Text style={styles.instructionItem}>3. Hoàn tất giao dịch trên app ngân hàng</Text>
+                    <Text style={styles.instructionItem}>4. Số dư sẽ được cập nhật trong 1-2 phút</Text>
+                  </View>
+
+                  {/* Done Button */}
+                  <TouchableOpacity
+                    style={styles.doneButton}
+                    onPress={() => {
+                      setShowSepayModal(false)
+                      navigation?.goBack()
+                    }}
+                  >
+                    <Text style={styles.doneButtonText}>Đã chuyển khoản</Text>
+                  </TouchableOpacity>
+
+                  <View style={{ height: 40 }} />
+                </>
+              )}
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -690,6 +845,122 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     fontSize: 14,
     fontWeight: '600',
+    color: COLORS.text,
+  },
+  
+  // Sepay Modal Styles
+  sepayModalContent: {
+    backgroundColor: COLORS.darkCard,
+    borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    maxHeight: '95%',
+  },
+  qrContainer: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+  },
+  qrCode: {
+    width: 280,
+    height: 280,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#fff',
+    padding: SPACING.md,
+  },
+  qrHint: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.md,
+  },
+  bankInfoSection: {
+    backgroundColor: COLORS.darkBg,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  bankInfoTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  infoRow: {
+    marginBottom: SPACING.md,
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  infoValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.darkCard,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    flex: 1,
+  },
+  amountHighlight: {
+    color: COLORS.primary,
+    fontSize: 16,
+  },
+  contentHighlight: {
+    color: COLORS.primary,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFA726' + '15',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFA726',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 12,
+    color: COLORS.text,
+    lineHeight: 18,
+  },
+  instructionsBox: {
+    backgroundColor: COLORS.darkBg,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  instructionsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  instructionItem: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+    lineHeight: 20,
+  },
+  doneButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.lg,
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  doneButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.text,
   },
 })
