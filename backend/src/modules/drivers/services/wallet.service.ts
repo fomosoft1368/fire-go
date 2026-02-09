@@ -336,4 +336,126 @@ export class WalletService {
       bonusAmount,
     };
   }
+
+  /**
+   * Find pending transaction by transfer content
+   * Used by Sepay webhook to match bank transfer with transaction
+   */
+  async findPendingTransactionByContent(transactionId: string) {
+    // Extract last 8 chars from transaction ID (matching Sepay QR content format)
+    const contentMatch = transactionId.substring(Math.max(0, transactionId.length - 8)).toUpperCase();
+    
+    console.log('[WalletService] Searching for transaction with ID ending:', contentMatch);
+
+    // Find transaction with matching ID (pending topup)
+    const transaction = await this.walletTransactionModel.findOne({
+      _id: new Types.ObjectId(transactionId),
+      type: TransactionType.TOPUP,
+      status: TransactionStatus.PENDING,
+    });
+
+    if (!transaction) {
+      console.log('[WalletService] ❌ Transaction not found or already completed:', transactionId);
+      return null;
+    }
+
+    console.log('[WalletService] ✅ Found pending transaction:', transaction._id);
+    return transaction;
+  }
+
+  /**
+   * Complete topup transaction after bank transfer confirmed
+   * Called by Sepay webhook
+   */
+  async completeTopupTransaction(transactionId: string, sepayTransactionId: string) {
+    const transaction = await this.walletTransactionModel.findById(transactionId);
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    if (transaction.status !== TransactionStatus.PENDING) {
+      console.log('[WalletService] ⚠️ Transaction already processed:', transaction.status);
+      return transaction;
+    }
+
+    // Update transaction status
+    transaction.status = TransactionStatus.COMPLETED;
+    transaction.completedAt = new Date();
+    transaction.description = `${transaction.description} - Sepay: ${sepayTransactionId}`;
+    await transaction.save();
+
+    // Update driver wallet balance
+    const driver = await this.driverModel.findById(transaction.driverId);
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    const balanceBefore = driver.walletBalance;
+    const balanceAfter = balanceBefore + transaction.amount;
+
+    driver.walletBalance = balanceAfter;
+
+    // Unlock wallet if balance is sufficient
+    if (driver.walletBalance >= driver.minimumBalance) {
+      driver.isWalletLocked = false;
+    }
+
+    await driver.save();
+
+    // Update transaction balance fields
+    transaction.balanceBefore = balanceBefore;
+    transaction.balanceAfter = balanceAfter;
+    await transaction.save();
+
+    console.log('[WalletService] ✅ Topup completed:', {
+      transactionId,
+      driverId: driver._id,
+      amount: transaction.amount,
+      newBalance: balanceAfter,
+    });
+
+    return transaction;
+  }
+
+  /**
+   * Get all wallet transactions (for admin)
+   */
+  async getAllTransactions(limit: number = 50, skip: number = 0, filters?: {
+    type?: TransactionType;
+    status?: TransactionStatus;
+    driverId?: string;
+  }) {
+    const query: any = {};
+
+    if (filters?.type) {
+      query.type = filters.type;
+    }
+
+    if (filters?.status) {
+      query.status = filters.status;
+    }
+
+    if (filters?.driverId) {
+      query.driverId = new Types.ObjectId(filters.driverId);
+    }
+
+    const transactions = await this.walletTransactionModel
+      .find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(skip)
+      .populate('driverId', 'firstName lastName phoneNumber')
+      .lean();
+
+    const total = await this.walletTransactionModel.countDocuments(query);
+
+    return {
+      transactions,
+      total,
+      limit,
+      skip,
+    };
+  }
 }
+

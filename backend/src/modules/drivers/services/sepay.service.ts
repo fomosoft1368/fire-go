@@ -75,6 +75,23 @@ export class SepayService {
   }
 
   /**
+   * Verify Sepay webhook signature
+   * In production, use HMAC-SHA256 with secret key from Sepay
+   */
+  verifyWebhookSignature(payload: string, signature: string): boolean {
+    // TODO: Implement real signature verification when you have Sepay secret key
+    // const crypto = require('crypto');
+    // const hmac = crypto.createHmac('sha256', SEPAY_SECRET_KEY);
+    // hmac.update(payload);
+    // const computedSignature = hmac.digest('hex');
+    // return computedSignature === signature;
+
+    // For now, accept all (development only!)
+    console.log('[SepayService] ⚠️ Signature verification skipped (development mode)');
+    return true;
+  }
+
+  /**
    * Validate transaction content format
    * Format: NAPVI + 8 chars transaction ID
    */

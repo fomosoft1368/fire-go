@@ -6,6 +6,8 @@ import { Driver, DriverSchema } from './schemas/driver.schema';
 import { WalletService } from './services/wallet.service';
 import { SepayService } from './services/sepay.service';
 import { WalletController } from './controllers/wallet.controller';
+import { WalletAdminController } from './controllers/wallet-admin.controller';
+import { SepayWebhookController } from './controllers/sepay-webhook.controller';
 import {
   WalletTransaction,
   WalletTransactionSchema,
@@ -20,7 +22,12 @@ import { PricingModule } from '../pricing/pricing.module';
     ]),
     PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
   ],
-  controllers: [WalletController, DriversController], // WalletController MUST be first (more specific routes)
+  controllers: [
+    SepayWebhookController, // Webhook must be first (specific path)
+    WalletAdminController,  // Admin routes
+    WalletController,       // Driver wallet routes
+    DriversController,      // Driver routes (must be last, has :id wildcard)
+  ],
   providers: [DriversService, WalletService, SepayService],
   exports: [DriversService, WalletService, SepayService],
 })

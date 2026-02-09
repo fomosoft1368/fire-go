@@ -731,7 +731,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60,
     left: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(10, 10, 10, 0.85)',
     borderRadius: BORDER_RADIUS.lg,
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
