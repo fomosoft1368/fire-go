@@ -11,13 +11,16 @@ import {
     Modal,
     FlatList,
     Animated,
+    Image,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import * as Location from 'expo-location'
+import * as ImagePicker from 'expo-image-picker'
 import { COLORS } from '../constants'
 import MapViewComponent from '../components/MapView'
 import ChatScreen from './ChatScreen'
 import { mapsService } from '../services/mapsService'
+import { vehicleConditionService } from '../services/vehicleConditionService'
 interface TripActivitiesProps {
     navigation: any
     route: any
@@ -42,11 +45,13 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
     const [updating, setUpdating] = useState(false)
     const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
     const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
-    const [tripStatus, setTripStatus] = useState<'going_to_pickup' | 'arrived_at_pickup' | 'in_progress'>('going_to_pickup')
+    const [tripStatus, setTripStatus] = useState<'going_to_pickup' | 'arrived_at_pickup' | 'vehicle-condition-checked' | 'in_progress'>('going_to_pickup')
     const [showChat, setShowChat] = useState(false)
     const [unreadCount, setUnreadCount] = useState(0)
     const [routeInfo, setRouteInfo] = useState<any>(null)
     const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+    const [showVehicleCheckModal, setShowVehicleCheckModal] = useState(false)
+    const [vehiclePhotos, setVehiclePhotos] = useState<string[]>([])
 
     const rideId = route?.params?.rideId
 
@@ -118,7 +123,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         if (tripStatus === 'going_to_pickup' && driverLocation && pickupCoords) {
             // Đang đến điểm đón: hiển thị route từ driver → pickup
             fetchRoute()
-        } else if ((tripStatus === 'arrived_at_pickup' || tripStatus === 'in_progress') && pickupCoords && dropoffCoords) {
+        } else if ((tripStatus === 'arrived_at_pickup' || tripStatus === 'vehicle-condition-checked' || tripStatus === 'in_progress') && pickupCoords && dropoffCoords) {
             // Đã đến điểm đón hoặc đang trong chuyến: hiển thị route từ pickup → dropoff
             fetchRoute()
         }
@@ -127,7 +132,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
     const fetchRideDetail = async () => {
         setLoading(true)
         try {
-            const API_URL = 'http://192.168.1.18:3000/api'
+            const API_URL = 'http://192.168.1.16:3000/api'
             const response = await fetch(`${API_URL}/rides/${rideId}`)
 
             if (!response.ok) {
@@ -245,7 +250,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             const token = await AsyncStorage.getItem('token')
             if (!token) return
 
-            const API_URL = 'http://192.168.1.18:3000/api'
+            const API_URL = 'http://192.168.1.16:3000/api'
             const response = await fetch(`${API_URL}/messages/ride/${rideId}/unread-count`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
@@ -294,6 +299,79 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         }
     }
 
+    const handleVehicleCheck = async () => {
+        // Mở modal để chụp ảnh xe
+        setShowVehicleCheckModal(true)
+    }
+
+    const handleTakePhoto = async () => {
+        if (vehiclePhotos.length >= 5) {
+            Alert.alert('Giới hạn ảnh', 'Bạn chỉ có thể chụp tối đa 5 ảnh')
+            return
+        }
+
+        try {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync()
+            if (status !== 'granted') {
+                Alert.alert('Quyền truy cập', 'Cần cấp quyền sử dụng camera để chụp ảnh xe')
+                return
+            }
+
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.3, // Giảm xuống 30% để tránh vượt 16MB MongoDB limit
+            })
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+                setVehiclePhotos([...vehiclePhotos, result.assets[0].uri])
+            }
+        } catch (error) {
+            console.error('❌ Error taking photo:', error)
+            Alert.alert('Lỗi', 'Không thể chụp ảnh')
+        }
+    }
+
+    const handleRemovePhoto = (index: number) => {
+        const newPhotos = vehiclePhotos.filter((_, i) => i !== index)
+        setVehiclePhotos(newPhotos)
+    }
+
+    const handleConfirmVehicleCheck = async () => {
+        if (vehiclePhotos.length === 0) {
+            Alert.alert('Thiếu ảnh', 'Vui lòng chụp ít nhất 1 ảnh xe trước khi xác nhận')
+            return
+        }
+
+        setUpdating(true)
+        try {
+            console.log(`📤 Uploading ${vehiclePhotos.length} images...`)
+            
+            // Upload ảnh lên server (lưu base64 trong MongoDB)
+            const result = await vehicleConditionService.uploadVehicleCondition(
+                rideId,
+                'pre-trip',
+                vehiclePhotos
+            )
+
+            console.log('✅ Vehicle condition saved:', result)
+            
+            setTripStatus('vehicle-condition-checked')
+            setShowVehicleCheckModal(false)
+            
+            Alert.alert(
+                'Thành công', 
+                `Đã lưu ${vehiclePhotos.length} ảnh kiểm tra xe.\nSẵn sàng bắt đầu chuyến đi.`
+            )
+        } catch (error: any) {
+            console.error('❌ Error uploading vehicle condition:', error.message)
+            Alert.alert('Lỗi', error.message || 'Không thể lưu ảnh. Vui lòng thử lại.')
+        } finally {
+            setUpdating(false)
+        }
+    }
+
     const handleStartTrip = async () => {
         setUpdating(true)
         try {
@@ -304,7 +382,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                 throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
             }
 
-            const API_URL = 'http://192.168.1.18:3000/api'
+            const API_URL = 'http://192.168.1.16:3000/api'
             console.log('🚗 Starting trip:', rideId)
 
             const response = await fetch(`${API_URL}/rides/${rideId}/start`, {
@@ -348,7 +426,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                 throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
             }
 
-            const API_URL = 'http://192.168.1.18:3000/api'
+            const API_URL = 'http://192.168.1.16:3000/api'
             console.log('🏁 Completing trip:', rideId)
             console.log('🔍 Current ride status:', ride?.status)
 
@@ -461,6 +539,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                             <Text style={styles.statusText}>
                                 {tripStatus === 'going_to_pickup' && 'Đang đến điểm đón'}
                                 {tripStatus === 'arrived_at_pickup' && 'Đã đến điểm đón'}
+                                {tripStatus === 'vehicle-condition-checked' && 'Đã kiểm tra xe'}
                                 {tripStatus === 'in_progress' && 'Đang trong chuyến'}
                             </Text>
                         </View>
@@ -560,21 +639,15 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                 {/* Fixed Bottom Actions */}
                 <View style={styles.actionContainer}>
                     <TouchableOpacity
-                        style={styles.secondaryButton}
-                        onPress={handleCall}
-                        disabled={updating}
-                    >
-                        <MaterialIcons name="phone" size={20} color="#fff" />
-                        <Text style={styles.secondaryButtonText}>Gọi khách</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
                         style={[styles.primaryButton, updating && { opacity: 0.6 }]}
                         onPress={
                             tripStatus === 'going_to_pickup'
                                 ? handleArrivedAtPickup
                                 : tripStatus === 'arrived_at_pickup'
-                                    ? handleStartTrip
-                                    : handleCompleteTrip
+                                    ? handleVehicleCheck
+                                    : tripStatus === 'vehicle-condition-checked'
+                                        ? handleStartTrip
+                                        : handleCompleteTrip
                         }
                         disabled={updating}
                     >
@@ -585,7 +658,8 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                                 <MaterialIcons name="check-circle" size={20} color="#000" />
                                 <Text style={styles.primaryButtonText}>
                                     {tripStatus === 'going_to_pickup' && 'Đã đến điểm đón'}
-                                    {tripStatus === 'arrived_at_pickup' && 'Bắt đầu'}
+                                    {tripStatus === 'arrived_at_pickup' && 'Kiểm tra xe'}
+                                    {tripStatus === 'vehicle-condition-checked' && 'Bắt đầu'}
                                     {tripStatus === 'in_progress' && 'Hoàn Thành'}
                                 </Text>
                             </>
@@ -593,6 +667,82 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                     </TouchableOpacity>
                 </View>
             </View>
+
+            {/* Vehicle Check Modal */}
+            <Modal
+                visible={showVehicleCheckModal}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setShowVehicleCheckModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.vehicleCheckModal}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Kiểm tra tình trạng xe</Text>
+                            <TouchableOpacity
+                                onPress={() => setShowVehicleCheckModal(false)}
+                                style={styles.closeButton}
+                            >
+                                <MaterialIcons name="close" size={24} color="#9CA3AF" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.modalSubtitle}>
+                            Chụp ảnh xe từ nhiều góc độ (tối đa 5 ảnh)
+                        </Text>
+
+                        <ScrollView style={styles.photoList} showsVerticalScrollIndicator={false}>
+                            <View style={styles.photoGrid}>
+                                {vehiclePhotos.map((photo, index) => (
+                                    <View key={index} style={styles.photoItem}>
+                                        <Image source={{ uri: photo }} style={styles.photoImage} />
+                                        <TouchableOpacity
+                                            style={styles.removePhotoButton}
+                                            onPress={() => handleRemovePhoto(index)}
+                                        >
+                                            <MaterialIcons name="close" size={16} color="#fff" />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+
+                                {vehiclePhotos.length < 5 && (
+                                    <TouchableOpacity
+                                        style={styles.addPhotoButton}
+                                        onPress={handleTakePhoto}
+                                    >
+                                        <MaterialIcons name="add-a-photo" size={32} color="#FF6B00" />
+                                        <Text style={styles.addPhotoText}>Chụp ảnh</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        </ScrollView>
+
+                        <View style={styles.photoCounter}>
+                            <MaterialIcons name="photo-camera" size={16} color="#9CA3AF" />
+                            <Text style={styles.photoCounterText}>
+                                {vehiclePhotos.length}/5 ảnh
+                            </Text>
+                        </View>
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.modalConfirmButton,
+                                    (vehiclePhotos.length === 0 || updating) && { opacity: 0.5 }
+                                ]}
+                                onPress={handleConfirmVehicleCheck}
+                                disabled={vehiclePhotos.length === 0 || updating}
+                            >
+                                {updating ? (
+                                    <ActivityIndicator size="small" color="#000" />
+                                ) : (
+                                    <Text style={styles.modalConfirmButtonText}>Xác nhận</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     )
 }
@@ -1016,6 +1166,139 @@ const styles = StyleSheet.create({
     },
     primaryButtonText: {
         fontSize: 14,
+        fontWeight: '700',
+        color: '#000',
+    },
+    // Vehicle Check Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'flex-end',
+    },
+    vehicleCheckModal: {
+        backgroundColor: '#1a202c',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingTop: 20,
+        paddingBottom: 30,
+        paddingHorizontal: 20,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    closeButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#374151',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalSubtitle: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        marginBottom: 20,
+    },
+    photoList: {
+        maxHeight: 300,
+        marginBottom: 16,
+    },
+    photoGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    photoItem: {
+        width: '30%',
+        aspectRatio: 1,
+        borderRadius: 12,
+        overflow: 'hidden',
+        position: 'relative',
+        backgroundColor: '#374151',
+    },
+    photoImage: {
+        width: '100%',
+        height: '100%',
+    },
+    removePhotoButton: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    addPhotoButton: {
+        width: '30%',
+        aspectRatio: 1,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#FF6B00',
+        borderStyle: 'dashed',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#374151',
+    },
+    addPhotoText: {
+        fontSize: 12,
+        color: '#FF6B00',
+        marginTop: 4,
+        fontWeight: '600',
+    },
+    photoCounter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 12,
+        backgroundColor: '#374151',
+        borderRadius: 8,
+        marginBottom: 16,
+    },
+    photoCounterText: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        fontWeight: '600',
+    },
+    modalActions: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    modalCancelButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#374151',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalCancelButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#9CA3AF',
+    },
+    modalConfirmButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#FF6B00',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalConfirmButtonText: {
+        fontSize: 16,
         fontWeight: '700',
         color: '#000',
     },

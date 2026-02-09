@@ -135,10 +135,6 @@ export default function ProfileScreen() {
       icon: 'lock-outline',
       label: 'Đổi mật khẩu',
     },
-    {
-      icon: 'payment',
-      label: 'Phương thức thanh toán',
-    },
   ]
 
   const settingsItems: MenuItem[] = [

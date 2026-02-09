@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { RidesService } from '../services/rides.service';
 import { AutoAssignService } from '../services/auto-assign.service';
 import { CreateRideDto } from '../dto';
+import { UploadVehicleConditionDto } from '../dto/upload-vehicle-condition.dto';
 import { Ride, RideDocument, RideType } from '../schemas/ride.schema';
 import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignment-request.schema';
 import { Pricing } from '../schemas/pricing.schema';
@@ -343,5 +344,45 @@ export class RidesController {
     @Body('ratedBy') ratedBy?: 'driver' | 'customer',
   ) {
     return this.ridesService.rateRide(rideId, rating, review, ratedBy);
+  }
+
+  /**
+   * Upload vehicle condition images (pre-trip or post-trip)
+   * Maximum 5 images: front, back, left, right, interior
+   * Images are sent as base64 strings in JSON body
+   */
+  @Post(':id/vehicle-condition/upload')
+  @UseGuards(JwtAuthGuard)
+  async uploadVehicleCondition(
+    @Param('id') rideId: string,
+    @Body() dto: UploadVehicleConditionDto,
+    @Request() req: any,
+  ) {
+    console.log('🚗 [Vehicle Condition Upload] Request received');
+    console.log('   Ride ID:', rideId);
+    console.log('   Phase:', dto.phase);
+    console.log('   Number of images:', dto.images?.length || 0);
+    console.log('   User:', req.user?.id || 'no user');
+
+    if (!dto.images || dto.images.length === 0) {
+      throw new BadRequestException('At least one image is required');
+    }
+
+    if (dto.images.length > 5) {
+      throw new BadRequestException('Maximum 5 images allowed');
+    }
+
+    const result = await this.ridesService.uploadVehicleCondition(rideId, dto.phase, dto.images);
+    console.log('✅ [Vehicle Condition Upload] Success');
+    return result;
+  }
+
+  /**
+   * Get vehicle condition info for a ride
+   */
+  @Get(':id/vehicle-condition')
+  @UseGuards(JwtAuthGuard)
+  async getVehicleCondition(@Param('id') rideId: string) {
+    return this.ridesService.getVehicleCondition(rideId);
   }
 }

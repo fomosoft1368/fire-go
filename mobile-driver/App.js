@@ -35,7 +35,6 @@ import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
 import ChatScreen from './src/screens/ChatScreen'
 import NotificationScreen from './src/screens/Notification'
 import NotificationDetailScreen from './src/screens/NotificationDetail'
-import GlobalRequestModal from './src/components/GlobalRequestModal'
 //
 
 
@@ -340,7 +339,7 @@ console.log('[App] Fetching user profile with token...')
         for (const trip of allCombinedTrips) {
           if (!isMounted) return
 
-          const API_URL = 'http://192.168.1.18:3000/api'
+          const API_URL = 'http://192.168.1.16:3000/api'
           try {
             // Get auth token
             const token = await AsyncStorage.getItem('token')
@@ -603,7 +602,6 @@ export default function App() {
     <Provider store={store}>
       <NavigationContainer ref={navigationRef}>
         <RootNavigator />
-        <GlobalRequestModal />
         
         {/* Global Assignment Request Modal */}
         <AssignmentRequestModal
