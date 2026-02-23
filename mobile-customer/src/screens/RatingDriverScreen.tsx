@@ -55,7 +55,7 @@ export default function RatingDriverScreen({ navigation, route }: RatingDriverSc
       const AsyncStorage = require('@react-native-async-storage/async-storage').default
       const token = await AsyncStorage.getItem('token')
       
-      const API_URL = 'http://192.168.1.18:3000/api'
+      const API_URL = 'http://192.168.1.16:3000/api'
       console.log('🔍 [Rating] API URL:', `${API_URL}/rides/${rideId}/rate`)
       
       const response = await fetch(`${API_URL}/rides/${rideId}/rate`, {

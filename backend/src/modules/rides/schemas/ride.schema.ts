@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { VehicleCondition, VehicleConditionSchema } from './vehicle-condition.schema';
 
 export type RideDocument = Ride & Document;
 
@@ -201,6 +202,13 @@ export class Ride {
 
   @Prop()
   cancellationBy?: 'driver' | 'customer';
+
+  // Vehicle condition check (pre-trip and post-trip)
+  @Prop({ type: VehicleConditionSchema, default: () => ({
+    preTrip: { completed: false, images: {}, capturedAt: null },
+    postTrip: { completed: false, images: {}, capturedAt: null }
+  }) })
+  vehicleCondition?: VehicleCondition;
 }
 
 export const RideSchema = SchemaFactory.createForClass(Ride);

@@ -9,7 +9,7 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen } from './screens'
+import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen } from './screens'
 import { View, Text } from 'react-native'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
@@ -232,6 +232,9 @@ const RootNavigator = () => {
             <Stack.Screen name="DeliveryCompleted" component={DeliveryCompleted} />
             <Stack.Screen name="DriverFound" component={DriverFoundScreen} />
             <Stack.Screen name="ChatScreen" component={ChatScreen} />
+            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+            <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+            <Stack.Screen name="Support" component={SupportScreen} />
           </Stack.Group>
         </>
       ) : (

@@ -172,6 +172,9 @@ export type RootStackParamList = {
       dropoffAddress?: string
     }
   }
+  PrivacyPolicy: undefined
+  TermsOfService: undefined
+  Support: undefined
 }
 
 // API Response Types

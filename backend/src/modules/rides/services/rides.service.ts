@@ -5,6 +5,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Ride, RideDocument, RideStatus, RideType } from '../schemas/ride.schema';
 import { Pricing } from '../schemas/pricing.schema';
 import { CreateRideDto } from '../dto';
+import { TripPhaseEnum } from '../dto/upload-vehicle-condition.dto';
 import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 import { AutoAssignService } from './auto-assign.service';
 import { Driver, DriverDocument, DriverStatus } from '../../drivers/schemas/driver.schema';
@@ -1053,5 +1054,94 @@ export class RidesService {
   async autoAssignDriver(rideId: string): Promise<{ success: boolean; message: string; requestId?: string }> {
     console.log('[RidesService] 🤖 Auto-assigning driver for ride:', rideId);
     return this.autoAssignService.autoAssignDriver(rideId);
+  }
+
+  /**
+   * Upload vehicle condition images (pre-trip or post-trip)
+   * Temporarily stores base64 images in MongoDB
+   * TODO: Migrate to Google Cloud Storage later
+   */
+  async uploadVehicleCondition(
+    rideId: string,
+    phase: TripPhaseEnum,
+    base64Images: string[],
+  ): Promise<any> {
+    console.log(`📸 [Service] uploadVehicleCondition called`);
+    console.log(`   Ride ID: ${rideId}`);
+    console.log(`   Phase: ${phase}`);
+    console.log(`   Images count: ${base64Images.length}`);
+
+    const ride = await this.rideModel.findById(rideId);
+    if (!ride) {
+      console.error(`❌ [Service] Ride not found: ${rideId}`);
+      throw new NotFoundException('Ride not found');
+    }
+    console.log(`✅ [Service] Ride found`);
+
+    // Map images to positions (in order: front, back, left, right, interior)
+    const availablePositions: Array<'front' | 'back' | 'left' | 'right' | 'interior'> = 
+      ['front', 'back', 'left', 'right', 'interior'];
+
+    const imageMap: Record<string, string> = {};
+    for (let i = 0; i < base64Images.length && i < availablePositions.length; i++) {
+      const imageSize = base64Images[i].length;
+      console.log(`   Mapping image ${i + 1} to position '${availablePositions[i]}' (size: ${imageSize} chars)`);
+      imageMap[availablePositions[i]] = base64Images[i];
+    }
+
+    // Update ride document
+    const phaseField = phase === TripPhaseEnum.PRE_TRIP ? 'preTrip' : 'postTrip';
+    console.log(`📝 [Service] Updating field: vehicleCondition.${phaseField}`);
+    
+    if (!ride.vehicleCondition) {
+      console.log(`   Creating new vehicleCondition object`);
+      ride.vehicleCondition = {
+        preTrip: { completed: false, images: {}, capturedAt: null },
+        postTrip: { completed: false, images: {}, capturedAt: null },
+      };
+    }
+
+    // Update images and set as completed
+    ride.vehicleCondition[phaseField].images = {
+      ...ride.vehicleCondition[phaseField].images,
+      ...imageMap,
+    };
+    ride.vehicleCondition[phaseField].completed = true;
+    ride.vehicleCondition[phaseField].capturedAt = new Date();
+
+    console.log(`💾 [Service] Saving to database...`);
+    try {
+      await ride.save();
+      console.log(`✅ [Service] Saved successfully!`);
+    } catch (saveError) {
+      console.error(`❌ [Service] Save failed:`, saveError);
+      throw saveError;
+    }
+
+    console.log(`✅ Vehicle condition ${phase} saved for ride ${rideId}`);
+
+    return {
+      success: true,
+      message: `${phase} images uploaded successfully`,
+      data: ride.vehicleCondition,
+    };
+  }
+
+  /**
+   * Get vehicle condition info for a ride
+   */
+  async getVehicleCondition(rideId: string): Promise<any> {
+    const ride = await this.rideModel.findById(rideId).select('vehicleCondition');
+    if (!ride) {
+      throw new NotFoundException('Ride not found');
+    }
+
+    return {
+      success: true,
+      data: ride.vehicleCondition || {
+        preTrip: { completed: false, images: {}, capturedAt: null },
+        postTrip: { completed: false, images: {}, capturedAt: null },
+      },
+    };
   }
 }

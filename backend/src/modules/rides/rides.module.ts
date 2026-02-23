@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { MongooseModule } from '@nestjs/mongoose'
+import { MulterModule } from '@nestjs/platform-express'
 import { RidesService } from './services/rides.service'
 import { RidesController } from './controllers/rides.controller'
 import { Ride, RideSchema } from './schemas/ride.schema'
@@ -17,6 +18,12 @@ import { CombinedTripsModule } from '../combined-trips/combined-trips.module'
       { name: AssignmentRequest.name, schema: AssignmentRequestSchema },
       { name: Driver.name, schema: DriverSchema },
     ]),
+    MulterModule.register({
+      dest: './uploads',
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB per file
+      },
+    }),
     CombinedTripsModule,
   ],
   controllers: [RidesController],

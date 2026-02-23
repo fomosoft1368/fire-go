@@ -1,14 +1,25 @@
-import React, { useEffect, useState } from 'react'
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Dimensions,
+} from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+
+const { height } = Dimensions.get('window')
 
 interface AssignmentRequestModalProps {
   visible: boolean
   request: any | null
-  onAccept: () => void
-  onReject: () => void
+  onAccept: () => Promise<void>
+  onReject: () => Promise<void>
   countdown: number
-  driverTypes?: string[] // Loại tài xế: hire, rideshare, delivery
+  driverTypes?: string[]
 }
 
 const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
@@ -17,176 +28,251 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
   onAccept,
   onReject,
   countdown,
-  driverTypes = ['hire'], // Mặc định là rideshare
+  driverTypes = ['hire'],
 }) => {
-  const [pulseAnim] = useState(new Animated.Value(1))
+  const [isAccepting, setIsAccepting] = useState(false)
+  const [isRejecting, setIsRejecting] = useState(false)
 
-  useEffect(() => {
-    if (visible) {
-      // Pulse animation
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.05,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start()
+  const requestData = useMemo(() => {
+    if (!request) return null
+
+    const isDelivery = request.type === 'delivery'
+    const data = request.rideId || request.deliveryId || request
+    const rideType = data.rideType || request.rideType
+    const isShared = data.isShared || request.rideId?.isShared
+    
+    // Xác định loại dịch vụ
+    let serviceType: 'delivery' | 'rideshare' | 'hire' = 'hire'
+    let serviceBadge = 'LÁI XE HỘ'
+    let serviceBadgeColor = '#6200ea'
+    
+    if (isDelivery) {
+      serviceType = 'delivery'
+      serviceBadge = 'GIAO HÀNG'
+      serviceBadgeColor = '#FF6B00'
+    } else if (rideType === 'share' || isShared) {
+      serviceType = 'rideshare'
+      serviceBadge = 'GHÉP XE'
+      serviceBadgeColor = '#ff9900'
+    } else if (rideType === 'hire') {
+      serviceType = 'hire'
+      serviceBadge = 'LÁI XE HỘ'
+      serviceBadgeColor = '#6200ea'
     }
-  }, [visible])
 
-  console.log('[AssignmentRequestModal] 🔍 Render check:', {
-    visible,
-    hasRequest: !!request,
-    requestId: request?._id,
-    requestType: request?.type,
-    requestStatus: request?.status,
-    driverTypes,
-  })
+    return {
+      serviceType,
+      serviceBadge,
+      serviceBadgeColor,
+      isDelivery,
+      pickupAddress: data.pickupAddress || 'Địa điểm đón',
+      dropoffAddress: data.dropoffAddress || data.deliveryAddress || 'Địa điểm đến',
+      fare: data.totalFare || data.deliveryFee || 0,
+      customerName: request.customerId?.name || data.customerId?.name || 'Khách hàng',
+      customerRating: request.customerId?.rating || data.customerId?.rating || 5.0,
+      seats: data.seats || request.seats || 1,
+      notes: data.notes || request.notes,
+      distance: data.distance || request.distance,
+      duration: data.duration || request.duration,
+    }
+  }, [request])
 
-  if (!request || !visible) {
-    console.log('[AssignmentRequestModal] ❌ Not showing: request or visible is false')
+  const handleAccept = useCallback(async () => {
+    setIsAccepting(true)
+    try {
+      await onAccept()
+    } catch (error) {
+      console.error('Error accepting:', error)
+    } finally {
+      setIsAccepting(false)
+    }
+  }, [onAccept])
+
+  const handleReject = useCallback(async () => {
+    setIsRejecting(true)
+    try {
+      await onReject()
+    } catch (error) {
+      console.error('Error rejecting:', error)
+    } finally {
+      setIsRejecting(false)
+    }
+  }, [onReject])
+
+  if (!request || !visible || !requestData) return null
+
+  // Filter delivery requests if driver doesn't have delivery type
+  if (requestData.isDelivery && !driverTypes.includes('delivery')) {
     return null
   }
 
-  // Check if this is a delivery request
-  const isDelivery = request.type === 'delivery'
-  
-  console.log('[AssignmentRequestModal] 🔍 Delivery check:', {
-    isDelivery,
-    hasDeliveryType: driverTypes.includes('delivery'),
-    willFilter: isDelivery && !driverTypes.includes('delivery'),
-  })
-  
-  // Chỉ filter delivery - các loại ride khác (hire, rideshare, share) đều hiển thị
-  if (isDelivery && !driverTypes.includes('delivery')) {
-    console.log('[AssignmentRequestModal] ❌ Driver cannot accept delivery:', {
-      driverTypes,
-      requestType: request.type,
-    })
-    return null
-  }
-  
-  console.log('[AssignmentRequestModal] ✅ Showing modal for request:', request._id)
-  // The request object structure can be:
-  // 1. Direct ride/delivery object (has pickupAddress directly)
-  // 2. Nested object with rideId/deliveryId property
-  const data = request.rideId || request.deliveryId || request
-
-  const pickupAddress = data.pickupAddress || 'Địa điểm đón'
-  const dropoffAddress = data.dropoffAddress || data.deliveryAddress || 'Địa điểm đến'
-  const fare = data.totalFare || data.deliveryFee || 0
+  const progressPercent = (countdown / 15) * 100
+  const timerColor = countdown <= 5 ? '#f44336' : countdown <= 10 ? '#FF6B00' : '#4CAF50'
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onReject}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleReject}>
       <View style={styles.overlay}>
-        <Animated.View style={[styles.modalContainer, { transform: [{ scale: pulseAnim }] }]}>
+        <View style={styles.modalContainer}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.iconContainer}>
+            <View style={styles.headerContent}>
               <MaterialIcons
-                name={isDelivery ? "local-shipping" : "local-taxi"}
-                size={32}
-                color="#FF6B00"
+                name={requestData.isDelivery ? 'local-shipping' : 'notifications-active'}
+                size={28}
+                color={COLORS.primary}
               />
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.headerTitle}>Yêu cầu mới</Text>
+                <View style={[styles.serviceBadge, { backgroundColor: `${requestData.serviceBadgeColor}20` }]}>
+                  <Text style={[styles.serviceBadgeText, { color: requestData.serviceBadgeColor }]}>
+                    {requestData.serviceBadge}
+                  </Text>
+                </View>
+              </View>
             </View>
-            <Text style={styles.title}>
-              {isDelivery ? '📦 Đơn giao hàng mới!' : '🎉 Cuốc xe mới!'}
-            </Text>
-            <Text style={styles.subtitle}>
-              {isDelivery ? 'Bạn nhận được yêu cầu giao hàng' : 'Bạn nhận được yêu cầu đặt xe'}
-            </Text>
+            <Text style={styles.timerText}>{countdown}s</Text>
           </View>
 
-          {/* Request Info */}
-          <View style={styles.rideInfo}>
-            {/* Pickup */}
-            <View style={styles.locationRow}>
-              <View style={styles.locationIcon}>
-                <MaterialIcons name="trip-origin" size={20} color="#4caf50" />
+          {/* Timer Progress Bar */}
+          <View style={styles.timerBar}>
+            <View
+              style={[styles.timerProgress, { width: `${progressPercent}%`, backgroundColor: timerColor }]}
+            />
+          </View>
+
+          {/* Customer Info - Hiển thị cho Ghép xe và Lái xe hộ */}
+          {!requestData.isDelivery && (
+            <View style={styles.customerSection}>
+              <View style={styles.avatar}>
+                <MaterialIcons name="person" size={32} color={COLORS.primary} />
               </View>
-              <View style={styles.locationText}>
-                <Text style={styles.locationLabel}>
-                  {isDelivery ? 'Địa chỉ lấy hàng' : 'Điểm đón'}
-                </Text>
-                <Text style={styles.locationAddress} numberOfLines={2}>
-                  {pickupAddress}
-                </Text>
+              <View style={styles.customerInfo}>
+                <Text style={styles.customerName}>{requestData.customerName}</Text>
+                <View style={styles.ratingRow}>
+                  <MaterialIcons name="star" size={14} color="#FFB800" />
+                  <Text style={styles.ratingText}>
+                    {requestData.customerRating.toFixed(1)}
+                  </Text>
+                  {requestData.serviceType === 'rideshare' && (
+                    <Text style={styles.ratingText}> • {requestData.seats} chỗ</Text>
+                  )}
+                </View>
+              </View>
+              <View style={styles.priceBox}>
+                <Text style={styles.price}>+{(requestData.fare / 1000).toFixed(0)}k</Text>
               </View>
             </View>
+          )}
 
-            {/* Divider */}
+          {/* Route Info */}
+          <View style={styles.routeSection}>
             <View style={styles.routeLine} />
-
-            {/* Dropoff */}
-            <View style={styles.locationRow}>
-              <View style={styles.locationIcon}>
-                <MaterialIcons name="place" size={20} color="#f44336" />
+            <View style={styles.routePoints}>
+              {/* Pickup */}
+              <View style={styles.routePoint}>
+                <View style={styles.dotPickup} />
+                <View style={styles.pointContent}>
+                  <Text style={styles.pointLabel}>
+                    {requestData.isDelivery ? 'Lấy hàng' : 'Điểm đón'}
+                  </Text>
+                  <Text style={styles.pointAddress} numberOfLines={2}>
+                    {requestData.pickupAddress}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.locationText}>
-                <Text style={styles.locationLabel}>
-                  {isDelivery ? 'Địa chỉ giao hàng' : 'Điểm đến'}
-                </Text>
-                <Text style={styles.locationAddress} numberOfLines={2}>
-                  {dropoffAddress}
-                </Text>
+
+              {/* Dropoff */}
+              <View style={styles.routePoint}>
+                <View style={styles.dotDropoff} />
+                <View style={styles.pointContent}>
+                  <Text style={styles.pointLabel}>
+                    {requestData.isDelivery ? 'Giao hàng' : 'Điểm đến'}
+                  </Text>
+                  <Text style={styles.pointAddress} numberOfLines={2}>
+                    {requestData.dropoffAddress}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
 
-          {/* Fare */}
-          <View style={styles.fareContainer}>
-            <MaterialIcons name="attach-money" size={24} color="#4caf50" />
-            <Text style={styles.fareText}>{fare.toLocaleString('vi-VN')} đ</Text>
-          </View>
-
-          {/* Countdown Timer */}
-          <View style={styles.timerContainer}>
-            <Text style={styles.timerText}>Tự động từ chối sau {countdown}s</Text>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${(countdown / 15) * 100}%` },
-                ]}
-              />
+          {/* Trip Info - Distance & Duration */}
+          {(requestData.distance || requestData.duration) && (
+            <View style={styles.tripInfoContainer}>
+              {requestData.distance && (
+                <View style={styles.tripInfoItem}>
+                  <MaterialIcons name="straighten" size={16} color="#6b7280" />
+                  <Text style={styles.tripInfoText}>
+                    {(requestData.distance / 1000).toFixed(1)} km
+                  </Text>
+                </View>
+              )}
+              {requestData.duration && (
+                <View style={styles.tripInfoItem}>
+                  <MaterialIcons name="schedule" size={16} color="#6b7280" />
+                  <Text style={styles.tripInfoText}>
+                    ~{Math.ceil(requestData.duration / 60)} phút
+                  </Text>
+                </View>
+              )}
             </View>
-          </View>
+          )}
+
+          {/* Delivery Fare or Notes */}
+          {requestData.isDelivery ? (
+            <View style={styles.fareContainer}>
+              <MaterialIcons name="attach-money" size={24} color="#4caf50" />
+              <Text style={styles.fareText}>{requestData.fare.toLocaleString('vi-VN')} đ</Text>
+            </View>
+          ) : (
+            requestData.notes && (
+              <View style={styles.notesBox}>
+                <MaterialIcons name="note" size={16} color={COLORS.primary} />
+                <Text style={styles.notesText}>{requestData.notes}</Text>
+              </View>
+            )
+          )}
 
           {/* Action Buttons */}
-          <View style={styles.actionButtons}>
+          <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.button, styles.rejectButton]}
-              onPress={onReject}
-              activeOpacity={0.8}
+              style={[styles.btn, styles.rejectBtn]}
+              onPress={handleReject}
+              disabled={isRejecting || isAccepting}
             >
-              <MaterialIcons name="close" size={20} color="#fff" />
-              <Text style={styles.buttonText}>Từ chối</Text>
+              {isRejecting ? (
+                <ActivityIndicator size="small" color="#f44336" />
+              ) : (
+                <>
+                  <MaterialIcons name="close" size={20} color="#f44336" />
+                  <Text style={styles.rejectBtnText}>Từ chối</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.button, styles.acceptButton]}
-              onPress={onAccept}
-              activeOpacity={0.8}
+              style={[styles.btn, styles.acceptBtn]}
+              onPress={handleAccept}
+              disabled={isAccepting || isRejecting}
             >
-              <MaterialIcons name="check" size={20} color="#fff" />
-              <Text style={styles.buttonText}>
-                {isDelivery ? 'Nhận đơn' : 'Nhận cuốc'}
-              </Text>
+              {isAccepting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <MaterialIcons name="check-circle" size={20} color="#fff" />
+                  <Text style={styles.acceptBtnText}>
+                    {requestData.serviceType === 'delivery' 
+                      ? 'Nhận đơn' 
+                      : requestData.serviceType === 'rideshare'
+                      ? 'Nhận ghép'
+                      : 'Nhận cuốc'
+                    }
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
-        </Animated.View>
+        </View>
       </View>
     </Modal>
   )
@@ -195,141 +281,246 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
   modalContainer: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
+    borderRadius: BORDER_RADIUS.xl,
+    width: '90%',
+    maxWidth: 420,
+    maxHeight: height * 0.85,
+    padding: SPACING.xl,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowRadius: 16,
+    elevation: 20,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: SPACING.lg,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFE8DC',
-    justifyContent: 'center',
+  headerContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: SPACING.md,
+    flex: 1,
   },
-  title: {
-    fontSize: 22,
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '700',
     color: '#111',
-    marginBottom: 4,
+    marginBottom: SPACING.xs,
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
+  serviceBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.sm,
   },
-  rideInfo: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+  serviceBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  locationRow: {
+  timerText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  timerBar: {
+    height: 6,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 3,
+    marginBottom: SPACING.lg,
+    overflow: 'hidden',
+  },
+  timerProgress: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  customerSection: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+    paddingBottom: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  locationIcon: {
-    width: 32,
-    height: 32,
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${COLORS.primary}15`,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  locationText: {
+  customerInfo: {
     flex: 1,
-    marginLeft: 8,
   },
-  locationLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  locationAddress: {
-    fontSize: 14,
-    fontWeight: '600',
+  customerName: {
+    fontSize: 16,
+    fontWeight: '700',
     color: '#111',
+    marginBottom: SPACING.xs,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  ratingText: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  priceBox: {
+    backgroundColor: `${COLORS.primary}15`,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  price: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  routeSection: {
+    marginBottom: SPACING.lg,
+    paddingLeft: SPACING.md,
   },
   routeLine: {
+    position: 'absolute',
+    left: 24,
+    top: 30,
+    bottom: 0,
     width: 2,
-    height: 20,
-    backgroundColor: '#ddd',
-    marginLeft: 15,
-    marginVertical: 4,
+    backgroundColor: '#e5e7eb',
+  },
+  routePoints: {
+    gap: SPACING.lg,
+  },
+  routePoint: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  dotPickup: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#4caf50',
+    marginTop: SPACING.xs,
+  },
+  dotDropoff: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#f44336',
+    marginTop: SPACING.xs,
+  },
+  pointContent: {
+    flex: 1,
+  },
+  pointLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  pointAddress: {
+    fontSize: 14,
+    color: '#111',
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  notesBox: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    flexDirection: 'row',
+    gap: SPACING.md,
+    alignItems: 'flex-start',
+  },
+  notesText: {
+    fontSize: 13,
+    color: '#4b5563',
+    flex: 1,
+    lineHeight: 18,
+  },
+  tripInfoContainer: {
+    flexDirection: 'row',
+    gap: SPACING.lg,
+    marginBottom: SPACING.lg,
+    paddingHorizontal: SPACING.sm,
+  },
+  tripInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  tripInfoText: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '600',
   },
   fareContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#e8f5e9',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
   },
   fareText: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#4caf50',
     marginLeft: 8,
   },
-  timerContainer: {
-    marginBottom: 20,
-  },
-  timerText: {
-    textAlign: 'center',
-    fontSize: 13,
-    color: '#f44336',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#ffcdd2',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#f44336',
-    borderRadius: 2,
-  },
-  actionButtons: {
+  buttonContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: SPACING.md,
   },
-  button: {
+  btn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
+    gap: SPACING.sm,
+    paddingVertical: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    minHeight: 52,
   },
-  rejectButton: {
-    backgroundColor: '#f44336',
+  rejectBtn: {
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#f44336',
   },
-  acceptButton: {
-    backgroundColor: '#4caf50',
-  },
-  buttonText: {
+  rejectBtnText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#f44336',
+  },
+  acceptBtn: {
+    backgroundColor: '#4caf50',
+    flex: 1.3,
+  },
+  acceptBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: '#fff',
   },
 })

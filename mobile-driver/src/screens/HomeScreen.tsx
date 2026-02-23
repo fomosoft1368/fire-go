@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   View,
   Text,
@@ -9,8 +9,10 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  PanResponder,
+  Animated,
 } from 'react-native'
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
@@ -25,17 +27,39 @@ import type { RideItem } from '../types'
 import { updateUser } from '../redux/slices/authSlice'
 
 export default function HomeScreen() {
-  const [isOnline, setIsOnline] = useState(false) // Default offline until loaded from API
+  const [isOnline, setIsOnline] = useState(false)
   const [activeFilter, setActiveFilter] = useState<'all' | 'pool' | 'assist'>('all')
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [unreadNotifications, setUnreadNotifications] = useState(3) // Mock data, fetch from API later
 
   // Assignment request modal state
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
   const [currentRequest, setCurrentRequest] = useState<any>(null)
   const [requestCountdown, setRequestCountdown] = useState(15)
+
+  // Draggable map button state
+  const mapButtonPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: Animated.event(
+        [
+          null,
+          { dx: mapButtonPan.x, dy: mapButtonPan.y },
+        ],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: (evt, gestureState) => {
+        // Optional: Add snapback animation or boundary checking here
+        Animated.spring(mapButtonPan, {
+          toValue: { x: gestureState.dx, y: gestureState.dy },
+          useNativeDriver: false,
+        }).start()
+      },
+    })
+  ).current
 
   const { user } = useSelector((state: RootState) => state.auth)
   const dispatch = useDispatch()
@@ -53,7 +77,6 @@ export default function HomeScreen() {
           driverTypes: profile.driverTypes,
         })
 
-        // 🔥 UPDATE Redux user with fresh profile data including driverTypes
         dispatch(updateUser({
           driverTypes: profile.driverTypes,
           isOnline: profile.isOnline,
@@ -61,37 +84,33 @@ export default function HomeScreen() {
           status: profile.status,
         }))
 
-        // Set online status from profile
         setIsOnline(profile.isOnline || false)
       } catch (error) {
         console.error('[HomeScreen] ❌ Error fetching profile:', error)
-        // Default to offline if failed to fetch
         setIsOnline(false)
       }
     }
 
     fetchDriverProfile()
-  }, [])
+  }, [dispatch])
 
   // Handle online/offline toggle with API call
-  const handleToggleOnline = async (value: boolean) => {
+  const handleToggleOnline = useCallback(async (value: boolean) => {
     try {
       console.log('[HomeScreen] Toggling online status:', value)
       setIsOnline(value)
 
-      // Call API to update online status in database
-      await driverService.setOnlineStatus(value)
-
-      // Also update available status
-      await driverService.setAvailableStatus(value)
+      await Promise.all([
+        driverService.setOnlineStatus(value),
+        driverService.setAvailableStatus(value)
+      ])
 
       console.log('[HomeScreen] ✅ Online status updated in database')
     } catch (error) {
       console.error('[HomeScreen] Error updating online status:', error)
-      // Revert the local state if API call fails
       setIsOnline(!value)
     }
-  }
+  }, [])
 
   // Start/stop location tracking based on online status
   useEffect(() => {
@@ -111,55 +130,42 @@ export default function HomeScreen() {
           isShared: request?.rideId?.isShared,
         })
 
-        // Chỉ hiển thị modal nếu request có status là "pending"
-        if (request && request.status === 'pending') {
+        if (request?.status === 'pending') {
           console.log('[HomeScreen] ✅ Request is pending, showing modal')
           setCurrentRequest(request)
           setShowAssignmentModal(true)
           setRequestCountdown(15)
         } else {
-          // Clear state nếu request timeout hoặc không hợp lệ
           console.log('[HomeScreen] ⚠️ Request not pending (status:', request?.status, '), clearing modal state')
           setShowAssignmentModal(false)
           setCurrentRequest(null)
         }
-      }, user.id) // Truyền driverId vào polling
+      }, user.id)
     } else if (!isOnline) {
       console.log('[HomeScreen] 🔴 Driver is offline, stopping location tracking and polling')
       locationTrackingService.stopTracking()
       assignmentRequestPollingService.stopPolling()
     }
-
-    return () => {
-      console.log('[HomeScreen] Component unmounting, but keeping location tracking active')
-    }
   }, [isOnline, user?.id])
 
   // Countdown timer cho assignment request modal
   useEffect(() => {
-    let timer: NodeJS.Timeout
+    if (!showAssignmentModal || !currentRequest) return
 
-    if (showAssignmentModal && currentRequest && requestCountdown > 0) {
-      timer = setTimeout(() => {
-        setRequestCountdown(requestCountdown - 1)
-      }, 1000)
-    } else if (showAssignmentModal && currentRequest && requestCountdown === 0) {
-      // Tự động từ chối khi hết thời gian (chỉ khi modal đang hiển thị và có request)
+    if (requestCountdown === 0) {
       console.log('[HomeScreen] ⏰ Auto-rejecting due to timeout')
       handleRejectRequest()
+      return
     }
 
-    return () => {
-      if (timer) clearTimeout(timer)
-    }
+    const timer = setTimeout(() => {
+      setRequestCountdown(requestCountdown - 1)
+    }, 1000)
+
+    return () => clearTimeout(timer)
   }, [showAssignmentModal, currentRequest, requestCountdown])
 
-  // Lấy danh sách cuốc từ API
-  useEffect(() => {
-    fetchAvailableRides()
-  }, [])
-
-  const fetchAvailableRides = async () => {
+  const fetchAvailableRides = useCallback(async () => {
     setLoading(true)
     try {
       // Fetch both Rides and CombinedTrips in parallel
@@ -172,38 +178,18 @@ export default function HomeScreen() {
       console.log('📱 Combined trips từ API:', JSON.stringify(allCombinedTrips, null, 2))
       console.log('👤 User ID hiện tại:', user?.id)
 
-      // Filter rides: show both my rides AND available rides (no driver assigned)
       const relevantRides = allRides.filter((ride: any) => {
         const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
         const isMyRide = String(rideDriverId) === String(user?.id)
         const isAvailable = !rideDriverId && ride.status === 'pending'
-        const shouldShow = isMyRide || isAvailable
-        console.log(`🚗 Ride ${ride._id}:`, {
-          driverId: rideDriverId,
-          userId: user?.id,
-          status: ride.status,
-          isMyRide,
-          isAvailable,
-          shouldShow,
-        })
-        return shouldShow
+        return isMyRide || isAvailable
       })
 
-      // Filter combined trips: show both my trips AND available trips (no driver assigned)
       const relevantCombinedTrips = allCombinedTrips.filter((trip: any) => {
         const tripDriverId = typeof trip.driverId === 'string' ? trip.driverId : trip.driverId?._id
         const isMyTrip = String(tripDriverId) === String(user?.id)
         const isAvailable = !tripDriverId && trip.status === 'pending'
-        const shouldShow = isMyTrip || isAvailable
-        console.log(`🛴 Combined trip ${trip._id}:`, {
-          driverId: tripDriverId,
-          userId: user?.id,
-          status: trip.status,
-          isMyTrip,
-          isAvailable,
-          shouldShow,
-        })
-        return shouldShow
+        return isMyTrip || isAvailable
       })
 
       // Merge both arrays
@@ -212,102 +198,58 @@ export default function HomeScreen() {
         ...relevantCombinedTrips.map((trip: any) => ({ ...trip, sourceType: 'combined_trip' })),
       ]
 
-      console.log('✅ Relevant rides:', relevantRides.length)
-      console.log('✅ Relevant combined trips:', relevantCombinedTrips.length)
-      console.log('✅ Total merged rides:', allMyRides.length)
-
       setRides(allMyRides)
     } catch (error) {
-      console.error('❌ Lỗi khi lấy danh sách cuốc:', error)
       Alert.alert('Lỗi', 'Không thể lấy danh sách cuốc. Vui lòng thử lại.')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [user?.id])
 
-  const handleRefresh = async () => {
+  // Lấy danh sách cuốc từ API
+  useEffect(() => {
+    fetchAvailableRides()
+  }, [fetchAvailableRides])
+
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true)
     await fetchAvailableRides()
-  }
+  }, [fetchAvailableRides])
 
   // Handle accept assignment request
-  const handleAcceptRequest = async () => {
-    console.log('[HomeScreen] 🎯 handleAcceptRequest CALLED')
-    console.log('[HomeScreen] 🔍 currentRequest:', currentRequest)
-
+  const handleAcceptRequest = useCallback(async () => {
     try {
-      if (!currentRequest) {
-        console.log('[HomeScreen] ⚠️ currentRequest is null/undefined, aborting')
-        return
-      }
-
-      console.log('[HomeScreen] 🟢 Accepting request:', currentRequest._id)
-      console.log('[HomeScreen] 📋 Full request data:', JSON.stringify(currentRequest, null, 2))
+      if (!currentRequest) return
 
       const isDelivery = currentRequest.type === 'delivery'
       const isRideshare = currentRequest.type === 'rideshare' // Combined trip
       const requestId = currentRequest._id
 
       if (isDelivery) {
-        // Accept delivery request
         const response = await driverService.acceptDeliveryAssignment(requestId)
-        console.log('[HomeScreen] ✅ Delivery assignment accepted:', response)
 
-        // Lấy deliveryId từ response hoặc từ currentRequest
         const deliveryId = response?.deliveryId || currentRequest.deliveryId?._id || currentRequest.deliveryId
-
-        // Navigate vào ActiveDelivery cho vận chuyển (note: screen name is "ActiveDelivery" not "ActiveDeliveryScreen")
         navigation.navigate('ActiveDelivery', {
           deliveryId,
           sourceType: 'delivery'
         })
       } else if (isRideshare) {
-        // Accept combined trip request (ghép xe)
         const combinedTripId = currentRequest.combinedTripId?._id || currentRequest.combinedTripId
-        console.log('[HomeScreen] 🔄 Accepting combined trip request:', { requestId, combinedTripId })
-
         const response = await driverService.acceptCombinedTripRequest(combinedTripId, requestId)
-        console.log('[HomeScreen] ✅ Combined trip request accepted:', response)
 
-        // Navigate vào ActiveRideScreen cho ghép xe
         navigation.navigate('ActiveRideScreen', {
           combinedTripId,
           sourceType: 'combined_trip'
         })
       } else {
-        // Accept ride request (lái xe hộ - hire)
-        console.log('[HomeScreen] 🔵 About to accept ride assignment, requestId:', requestId)
-
         try {
           const response = await driverService.acceptRideAssignment(requestId)
-          console.log('[HomeScreen] ✅ Ride assignment accepted - FULL RESPONSE:', JSON.stringify(response, null, 2))
-
-          // Response là ride object với _id
           const rideId = response?._id || response?.id || currentRequest.rideId?._id || currentRequest.rideId
 
-          console.log('[HomeScreen] 🚗 Extracted rideId:', rideId)
-          console.log('[HomeScreen] 🔍 Response keys:', Object.keys(response || {}))
-
-          if (!rideId) {
-            console.error('[HomeScreen] ❌ Cannot find rideId from response or currentRequest')
-            console.error('[HomeScreen] 📋 currentRequest:', JSON.stringify(currentRequest, null, 2))
-            throw new Error('Không tìm thấy ID chuyến đi')
-          }
-
-          console.log('[HomeScreen] 🚗 Navigating to TripActivities with rideId:', rideId)
-
-          // Navigate vào TripActivities cho lái xe hộ (hire)
-          navigation.navigate('TripActivities', {
-            rideId
-          })
+          if (!rideId) throw new Error('Không tìm thấy ID chuyến đi')
+          navigation.navigate('TripActivities', { rideId })
         } catch (acceptError: any) {
-          console.error('[HomeScreen] ❌ Error in acceptRideAssignment:', acceptError)
-          console.error('[HomeScreen] 📋 Error details:', {
-            message: acceptError?.message,
-            response: acceptError?.response?.data,
-            status: acceptError?.response?.status,
-          })
           throw acceptError
         }
       }
@@ -316,34 +258,27 @@ export default function HomeScreen() {
       setShowAssignmentModal(false)
       setCurrentRequest(null)
 
-      // Refresh rides list
       fetchAvailableRides()
     } catch (error) {
-      console.error('[HomeScreen] ❌ Error accepting request:', error)
       Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
       setShowAssignmentModal(false)
     }
-  }
+  }, [currentRequest, navigation, fetchAvailableRides])
 
   // Handle reject assignment request
-  const handleRejectRequest = async () => {
+  const handleRejectRequest = useCallback(async () => {
     try {
       if (!currentRequest || !currentRequest._id) {
-        console.log('[HomeScreen] ⚠️ No request to reject, closing modal')
         setShowAssignmentModal(false)
         setCurrentRequest(null)
         return
       }
 
-      // Kiểm tra request status trước khi reject
       if (currentRequest.status !== 'pending') {
-        console.log('[HomeScreen] ⚠️ Request not pending (status:', currentRequest.status, '), cannot reject')
         setShowAssignmentModal(false)
         setCurrentRequest(null)
         return
       }
-
-      console.log('[HomeScreen] 🔴 Rejecting request:', currentRequest._id)
 
       const isDelivery = currentRequest.type === 'delivery'
       const isRideshare = currentRequest.type === 'rideshare'
@@ -359,39 +294,21 @@ export default function HomeScreen() {
         await driverService.rejectRideAssignment(requestId)
       }
 
-      console.log('[HomeScreen] ✅ Request rejected')
-
-      // Close modal
       setShowAssignmentModal(false)
       setCurrentRequest(null)
     } catch (error: any) {
-      console.error('[HomeScreen] ❌ Error rejecting request:', error?.message || error)
-      // Vẫn đóng modal dù có lỗi
       setShowAssignmentModal(false)
       setCurrentRequest(null)
     }
-  }
+  }, [currentRequest])
 
-  const formatRideData = (ride: any): RideItem => {
+  const formatRideData = useCallback((ride: any): RideItem => {
     // Determine if it's a combined trip or regular ride
     const isCombinedTrip = ride.sourceType === 'combined_trip'
     const isShareRide = isCombinedTrip || ride.rideType === 'share'
 
     const pickupAddr = ride.pickupAddress || 'Điểm đón'
-
-    console.log('📍 [formatRideData] Ride data:', {
-      _id: ride._id,
-      sourceType: ride.sourceType,
-      pickupAddress: ride.pickupAddress,
-      dropoffAddress: ride.dropoffAddress,
-      totalFare: ride.totalFare,
-      duration: ride.duration,
-    })
-
-    let dropoffAddr = ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến'
-    if (typeof dropoffAddr === 'object' && dropoffAddr?.type === 'Point') {
-      dropoffAddr = ride.dropoffLocationAddress || 'Địa điểm đến'
-    }
+    const dropoffAddr = ride.dropoffAddress || 'Điểm trả'
 
     const shortPickupAddr = pickupAddr.length > 30 ? pickupAddr.substring(0, 30) + '...' : pickupAddr
     const shortDropoffAddr = dropoffAddr.length > 30 ? dropoffAddr.substring(0, 30) + '...' : dropoffAddr
@@ -415,9 +332,9 @@ export default function HomeScreen() {
       sourceType: ride.sourceType,
       _id: ride._id,
     }
-  }
+  }, [])
 
-  const handleAcceptRide = async (ride: any) => {
+  const handleAcceptRide = useCallback(async (ride: any) => {
     try {
       if (!user?.id) {
         Alert.alert('Lỗi', 'Không tìm thấy thông tin tài xế')
@@ -425,38 +342,23 @@ export default function HomeScreen() {
       }
 
       const rideId = ride._id || ride.id
-      const sourceType = ride.sourceType // 'ride' or 'combined_trip'
-
-      console.log('🚗 Viewing ride:', {
-        rideId,
-        sourceType,
-        rideType: ride.rideType,
-        badge: ride.badge
-      })
-
+      const sourceType = ride.sourceType
       const isCombinedTrip = sourceType === 'combined_trip'
       const isHire = ride.rideType === 'hire' || ride.badge === 'LAI XE HỘ'
 
-      // 1. Lái xe hộ (hire) - không phải combined trip
       if (isHire && !isCombinedTrip) {
-        console.log('📍 Navigating to ActiveRideScreen for HIRE ride')
         navigation.navigate('ActiveRideScreen', { rideId, sourceType: 'ride' })
         return
       }
 
-      // 2. Ghép xe (combined trips) - accept nếu chưa phải của mình
       if (isCombinedTrip) {
         const rideDriverId = typeof ride.driverId === 'string' ? ride.driverId : ride.driverId?._id
         const isMyTrip = rideDriverId === user.id
 
         if (!isMyTrip) {
           await driverService.acceptCombinedTrip(rideId, user.id)
-          console.log('✅ Combined trip accepted')
-        } else {
-          console.log('✅ This is your own combined trip, skipping accept')
         }
 
-        console.log('📍 Navigating to ActiveRideScreen for COMBINED TRIP')
         navigation.navigate('ActiveRideScreen', {
           combinedTripId: rideId,
           sourceType: 'combined_trip'
@@ -464,31 +366,28 @@ export default function HomeScreen() {
         return
       }
 
-      // 3. Ride thông thường khác (fallback)
       await driverService.acceptRide(rideId, user.id)
       Alert.alert('Thành công', `Bạn đã nhận cuốc`)
-
-      console.log('📍 Navigating to ActiveRideScreen for regular ride')
       navigation.navigate('ActiveRideScreen', { rideId, sourceType: 'ride' })
-
     } catch (error: any) {
-      console.error('Lỗi khi nhận cuốc:', error)
       let msg = 'Không thể nhận cuốc. Vui lòng thử lại.'
       if (error && error.message) {
         msg = Array.isArray(error.message) ? error.message.join(', ') : String(error.message)
       }
       Alert.alert('Lỗi', msg)
     }
-  }
+  }, [user?.id, navigation])
 
-  const filteredRides = rides
-    .map(formatRideData)
-    .filter((ride) => {
-      if (activeFilter === 'all') return true
-      if (activeFilter === 'pool') return ride.type === 'POOL'
-      if (activeFilter === 'assist') return ride.type === 'ASSIST'
-      return false
-    })
+  const filteredRides = useMemo(() => {
+    return rides
+      .map(formatRideData)
+      .filter((ride) => {
+        if (activeFilter === 'all') return true
+        if (activeFilter === 'pool') return ride.type === 'POOL'
+        if (activeFilter === 'assist') return ride.type === 'ASSIST'
+        return false
+      })
+  }, [rides, activeFilter, formatRideData])
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -508,7 +407,7 @@ export default function HomeScreen() {
               )}
             </View>
             <View>
-              <Text style={styles.greeting}>Xin chào 👋</Text>
+              <Text style={styles.greeting}>Xin chào, Tài xế</Text>
               <Text style={styles.driverName}>
                 {user?.firstName && user?.lastName
                   ? `${user.firstName} ${user.lastName}`
@@ -522,13 +421,6 @@ export default function HomeScreen() {
               onPress={() => navigation.navigate('Notifications' as never)}
             >
               <Ionicons name="notifications-outline" size={24} color="#333" />
-              {/* {unreadNotifications > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>
-                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                  </Text>
-                </View>
-              )} */}
             </TouchableOpacity>
           </View>
         </View>
@@ -613,14 +505,27 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating Map Button */}
-      <TouchableOpacity
-        style={styles.mapButton}
-        onPress={() => navigation.navigate('MapScreen')}
-        activeOpacity={0.8}
+      {/* Floating Map Button - Draggable */}
+      <Animated.View
+        style={[
+          styles.mapButton,
+          {
+            transform: [
+              { translateX: mapButtonPan.x },
+              { translateY: mapButtonPan.y },
+            ],
+          },
+        ]}
+        {...panResponder.panHandlers}
       >
-        <MaterialIcons name="location-on" size={28} color="#fff" />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.mapButtonInner}
+          onPress={() => navigation.navigate('MapScreen')}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="location-on" size={28} color="#fff" />
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* Assignment Request Modal */}
       <AssignmentRequestModal
@@ -924,6 +829,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 32,
     right: 24,
+    width: 64,
+    height: 64,
+    zIndex: 999,
+  },
+  mapButtonInner: {
     width: 64,
     height: 64,
     borderRadius: 32,
