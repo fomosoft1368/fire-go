@@ -24,4 +24,7 @@ export { default as RideTracking } from './RideTracking'
 export { default as RatingDriverScreen } from './RatingDriverScreen'
 export { default as ChatScreen } from './ChatScreen'
 export { default as CancelTripScreen } from './CancelTripScreen'
+export { default as PrivacyPolicyScreen } from './privacy-policy'
+export { default as TermsOfServiceScreen } from './terms-of-service'
+export { default as SupportScreen } from './support'
 

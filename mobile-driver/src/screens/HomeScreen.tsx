@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  PanResponder,
+  Animated,
 } from 'react-native'
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux'
@@ -35,6 +37,29 @@ export default function HomeScreen() {
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
   const [currentRequest, setCurrentRequest] = useState<any>(null)
   const [requestCountdown, setRequestCountdown] = useState(15)
+
+  // Draggable map button state
+  const mapButtonPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: Animated.event(
+        [
+          null,
+          { dx: mapButtonPan.x, dy: mapButtonPan.y },
+        ],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: (evt, gestureState) => {
+        // Optional: Add snapback animation or boundary checking here
+        Animated.spring(mapButtonPan, {
+          toValue: { x: gestureState.dx, y: gestureState.dy },
+          useNativeDriver: false,
+        }).start()
+      },
+    })
+  ).current
 
   const { user } = useSelector((state: RootState) => state.auth)
   const dispatch = useDispatch()
@@ -480,14 +505,27 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating Map Button */}
-      <TouchableOpacity
-        style={styles.mapButton}
-        onPress={() => navigation.navigate('MapScreen')}
-        activeOpacity={0.8}
+      {/* Floating Map Button - Draggable */}
+      <Animated.View
+        style={[
+          styles.mapButton,
+          {
+            transform: [
+              { translateX: mapButtonPan.x },
+              { translateY: mapButtonPan.y },
+            ],
+          },
+        ]}
+        {...panResponder.panHandlers}
       >
-        <MaterialIcons name="location-on" size={28} color="#fff" />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.mapButtonInner}
+          onPress={() => navigation.navigate('MapScreen')}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="location-on" size={28} color="#fff" />
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* Assignment Request Modal */}
       <AssignmentRequestModal
@@ -791,6 +829,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 32,
     right: 24,
+    width: 64,
+    height: 64,
+    zIndex: 999,
+  },
+  mapButtonInner: {
     width: 64,
     height: 64,
     borderRadius: 32,

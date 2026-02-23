@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../constants'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import type { Driver } from './driverService'
 
 export interface CreateDeliveryDto {
   customerId: string
@@ -34,7 +35,7 @@ export interface RateDeliveryDto {
 export interface Delivery {
   _id: string
   customerId: string
-  driverId?: string
+  driverId?: string | Driver
   pickupAddress: string
   pickupCoordinates: [number, number]
   dropoffAddress: string

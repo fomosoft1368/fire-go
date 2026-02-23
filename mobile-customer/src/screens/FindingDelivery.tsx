@@ -24,7 +24,7 @@ type FindingDeliveryNavigationProp = NativeStackNavigationProp<RootStackParamLis
 export default function FindingDelivery() {
   const navigation = useNavigation<FindingDeliveryNavigationProp>()
   const route = useRoute<FindingDeliveryRouteProp>()
-  const { deliveryId, pickup, dropoff, vehicle, estimatedPrice, distance } = route.params || {}
+  const { deliveryId, estimatedPrice, distance } = route.params || {}
   const [isCancelling, setIsCancelling] = useState(false)
 
   // Animation values
@@ -106,7 +106,7 @@ export default function FindingDelivery() {
         console.log('[FindingDelivery] Delivery status:', delivery.status)
 
         // Check if no driver available
-        if (delivery.status === 'no_driver_available') {
+        if (delivery.status === 'offline') {
           clearInterval(pollInterval)
           
           Alert.alert(
@@ -126,16 +126,23 @@ export default function FindingDelivery() {
         if (delivery.status === 'driver_assigned' && delivery.driverId) {
           clearInterval(pollInterval)
           
-          // Navigate to DeliveryTracking
+          const driver = typeof delivery.driverId === 'object' ? delivery.driverId : null
+          
+          if (!driver) {
+            console.error('[FindingDelivery] Driver not populated')
+            return
+          }
+          
+          // Navigate to DeliveryTracking with real driver data
           navigation.replace('DeliveryTracking', {
             deliveryId: delivery._id,
             driver: {
-              id: delivery.driverId,
-              name: 'Nguyễn Văn An', // TODO: Get from populated driverId
-              phone: '0901234567',
-              rating: 4.8,
-              totalTrips: 132,
-              vehiclePlate: '29C - 123.45',
+              id: driver._id,
+              name: `${driver.firstName} ${driver.lastName}`,
+              phone: driver.phone,
+              rating: driver.averageRating || 0,
+              totalTrips: driver.totalTrips || 0,
+              vehiclePlate: driver.vehiclePlate || '',
             }
           })
         }
@@ -176,10 +183,6 @@ export default function FindingDelivery() {
       Alert.alert('Lỗi', error.message || 'Không thể hủy đơn hàng')
       setIsCancelling(false)
     }
-  }
-
-  const getVehicleLabel = () => {
-    return vehicle === 'bike' ? 'Xe máy' : 'Xe tải nhỏ'
   }
 
   return (

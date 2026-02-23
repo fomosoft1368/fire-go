@@ -126,16 +126,19 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       value: user?.firstName && user?.lastName 
         ? `${user.firstName} ${user.lastName}` 
         : user?.name || 'N/A',
+      onPress: () => navigation.navigate('EditProfile'),
     },
     {
       icon: 'phone',
       label: 'Số điện thoại',
       value: user?.phone || 'N/A',
+      onPress: () => Alert.alert('Số điện thoại', user?.phone || 'Chưa cập nhật'),
     },
     {
       icon: 'email',
       label: 'Email',
       value: user?.email || 'N/A',
+      onPress: () => Alert.alert('Email', user?.email || 'Chưa cập nhật'),
     },
     {
       icon: 'lock-outline',
@@ -159,6 +162,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       icon: 'language',
       label: 'Ngôn ngữ',
       value: 'Tiếng Việt',
+      onPress: () => Alert.alert('Ngôn ngữ', 'Tính năng đang được phát triển'),
     },
     {
       icon: themeMode === 'dark' ? 'brightness-7' : 'brightness-4',
@@ -169,6 +173,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       icon: 'location-on',
       label: 'Quyền truy cập vị trí',
       badge: 'Bật',
+      onPress: () => Alert.alert('Vị trí', 'Quyền truy cập vị trí đã được bật'),
     },
   ]
 
@@ -176,19 +181,27 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     {
       icon: 'help-outline',
       label: 'Trợ giúp & Hỗ trợ',
+      onPress: () => navigation.navigate('Support'),
     },
     {
       icon: 'description',
       label: 'Điều khoản dịch vụ',
+      onPress: () => navigation.navigate('TermsOfService'),
     },
     {
       icon: 'privacy-tip',
       label: 'Chính sách bảo mật',
+      onPress: () => navigation.navigate('PrivacyPolicy'),
     },
     {
       icon: 'info-outline',
       label: 'Về ứng dụng',
       value: 'v1.0.0',
+      onPress: () => Alert.alert(
+        'Về FireGo',
+        'Phiên bản: 1.0.0\n\nFireGo - Nền tảng di chuyển thông minh\n\n© 2024 FireGo. All rights reserved.',
+        [{ text: 'Đóng' }]
+      ),
     },
   ]
 

@@ -10,6 +10,8 @@ import {
   StatusBar,
   Modal,
   Pressable,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -18,6 +20,7 @@ import { useNavigation } from '@react-navigation/native'
 import { logout } from '../redux/slices/authSlice'
 import { SPACING } from '../constants'
 import type { RootState } from '../redux/store'
+import { driverService } from '../services/driverService'
 
 const REGIONS = [
   { id: 'hanoi', name: 'Hà Nội', icon: 'location-city' },
@@ -36,6 +39,9 @@ export default function ProfileScreen() {
   const { user } = useSelector((state: RootState) => state.auth)
   const [selectedRegion, setSelectedRegion] = useState('hanoi')
   const [showRegionModal, setShowRegionModal] = useState(false)
+  const [showPhoneModal, setShowPhoneModal] = useState(false)
+  const [newPhone, setNewPhone] = useState('')
+  const [updatingPhone, setUpdatingPhone] = useState(false)
 
   const handleLogout = () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất?', [
@@ -53,6 +59,41 @@ export default function ProfileScreen() {
     setShowRegionModal(false)
     // TODO: Save region preference to backend
     Alert.alert('Thành công', `Đã chọn khu vực ${REGIONS.find(r => r.id === regionId)?.name}`)
+  }
+
+  const handleUpdatePhone = async () => {
+    // Validate phone number
+    const phoneRegex = /^(0|\+84)(\s|\.)?((3[2-9])|(5[689])|(7[06-9])|(8[1-689])|(9[0-46-9]))(\d)(\s|\.)?(\d{3})(\s|\.)?(\d{3})$/
+    
+    if (!newPhone.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập số điện thoại')
+      return
+    }
+
+    if (!phoneRegex.test(newPhone.trim())) {
+      Alert.alert('Lỗi', 'Số điện thoại không hợp lệ')
+      return
+    }
+
+    try {
+      setUpdatingPhone(true)
+      await driverService.updateProfile(user?._id || '', { phone: newPhone.trim() })
+      Alert.alert('Thành công', 'Cập nhật số điện thoại thành công', [
+        {
+          text: 'OK',
+          onPress: () => {
+            setShowPhoneModal(false)
+            setNewPhone('')
+            // TODO: Refresh user data from backend
+          },
+        },
+      ])
+    } catch (error: any) {
+      console.error('Update phone error:', error)
+      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể cập nhật số điện thoại')
+    } finally {
+      setUpdatingPhone(false)
+    }
   }
 
   const currentRegion = REGIONS.find(r => r.id === selectedRegion)
@@ -119,6 +160,10 @@ export default function ProfileScreen() {
       icon: 'phone',
       label: 'Số điện thoại',
       value: user?.phone || 'Chưa cập nhật',
+      onPress: () => {
+        setNewPhone(user?.phone || '')
+        setShowPhoneModal(true)
+      },
     },
     {
       icon: 'email',
@@ -134,6 +179,7 @@ export default function ProfileScreen() {
     {
       icon: 'lock-outline',
       label: 'Đổi mật khẩu',
+      onPress: () => navigation.navigate('ChangePassword' as never),
     },
   ]
 
@@ -330,6 +376,81 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Phone Number Update Modal */}
+      <Modal
+        visible={showPhoneModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPhoneModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => !updatingPhone && setShowPhoneModal(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Cập nhật số điện thoại</Text>
+              <TouchableOpacity 
+                onPress={() => setShowPhoneModal(false)}
+                disabled={updatingPhone}
+              >
+                <MaterialIcons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.phoneModalBody}>
+              <View style={styles.phoneInputContainer}>
+                <View style={styles.phoneIconBox}>
+                  <MaterialIcons name="phone" size={20} color="#FF6B00" />
+                </View>
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="Nhập số điện thoại mới"
+                  placeholderTextColor="#94a3b8"
+                  value={newPhone}
+                  onChangeText={setNewPhone}
+                  keyboardType="phone-pad"
+                  maxLength={15}
+                  editable={!updatingPhone}
+                  autoFocus
+                />
+              </View>
+
+              <View style={styles.phoneHintBox}>
+                <MaterialIcons name="info-outline" size={16} color="#64748b" />
+                <Text style={styles.phoneHint}>
+                  Số điện thoại phải là số điện thoại Việt Nam hợp lệ
+                </Text>
+              </View>
+
+              <View style={styles.phoneModalActions}>
+                <TouchableOpacity
+                  style={[styles.phoneModalButton, styles.phoneModalButtonCancel]}
+                  onPress={() => setShowPhoneModal(false)}
+                  disabled={updatingPhone}
+                >
+                  <Text style={styles.phoneModalButtonTextCancel}>Hủy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.phoneModalButton, styles.phoneModalButtonSave]}
+                  onPress={handleUpdatePhone}
+                  disabled={updatingPhone}
+                >
+                  {updatingPhone ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="check" size={18} color="#fff" />
+                      <Text style={styles.phoneModalButtonTextSave}>Lưu</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -669,5 +790,87 @@ const styles = StyleSheet.create({
   regionNameSelected: {
     color: '#FF6B00',
     fontWeight: '800',
+  },
+
+  // Phone Modal Styles
+  phoneModalBody: {
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.lg,
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+  },
+  phoneIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff5eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  phoneInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
+    paddingVertical: SPACING.sm,
+  },
+  phoneHintBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+  },
+  phoneHint: {
+    flex: 1,
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 18,
+  },
+  phoneModalActions: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.xl,
+  },
+  phoneModalButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.lg,
+    borderRadius: 16,
+    gap: SPACING.sm,
+  },
+  phoneModalButtonCancel: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  phoneModalButtonSave: {
+    backgroundColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  phoneModalButtonTextCancel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  phoneModalButtonTextSave: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
   },
 })
