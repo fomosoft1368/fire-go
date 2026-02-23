@@ -4,6 +4,7 @@ import { TopUpWalletDto, PaymentDto } from './dto';
 import { DepositDto, WithdrawDto, TransactionQueryDto } from './dto/transaction.dto';
 import { GenerateQRCodeDto } from './dto/qr-code.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UserType } from './schemas/transaction.schema';
 
 @Controller('api/wallets')
 export class WalletsController {
@@ -18,7 +19,11 @@ export class WalletsController {
   @Post('topup')
   @UseGuards(JwtAuthGuard)
   async topUp(@Request() req: any, @Body() topUpWalletDto: TopUpWalletDto) {
-    return this.walletsService.topUp(req.user.id, topUpWalletDto);
+    // Determine user type from request (driver or customer)
+    // This depends on your auth system - you may store role/type in req.user
+    const userType = req.user.type === 'driver' ? UserType.DRIVER : UserType.CUSTOMER;
+    
+    return this.walletsService.topUp(req.user.id, topUpWalletDto, userType);
   }
 
   @Post('deposit')

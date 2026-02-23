@@ -846,6 +846,110 @@ const Settings: React.FC = () => {
                     <p className="text-sm text-slate-600 dark:text-slate-400">Cài đặt hệ thống và dữ liệu</p>
                   </div>
 
+                  {/* Pricing Configuration - Topup Discount */}
+                  <div className="space-y-4 pb-6 border-b border-slate-200 dark:border-slate-700">
+                    <h3 className="font-semibold text-slate-900 dark:text-white">Cấu hình Nạp tiền</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Quản lý chiết khấu khi khách hàng và tài xế nạp tiền</p>
+                    
+                    <div className="space-y-4">
+                      {/* Customer Topup Discount */}
+                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">person</span>
+                            Chiết khấu nạp tiền khách hàng
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            placeholder="0"
+                            defaultValue={config.topupDiscountCustomer || 0}
+                            onChange={(e) => {
+                              const val = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                              setConfig(prev => ({ ...prev, topupDiscountCustomer: val }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          />
+                          <span className="text-slate-600 dark:text-slate-400 font-medium">%</span>
+                          <button
+                            onClick={async () => {
+                              setSaving(true);
+                              try {
+                                await apiService.updateTopupDiscount(
+                                  config.topupDiscountCustomer || 0,
+                                  undefined
+                                );
+                                setMessage({ type: 'success', text: 'Lưu chiết khấu khách hàng thành công' });
+                              } catch (err) {
+                                setMessage({ type: 'error', text: 'Lỗi lưu chiết khấu: ' + (err instanceof Error ? err.message : 'Unknown') });
+                              } finally {
+                                setSaving(false);
+                              }
+                            }}
+                            className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-medium transition-colors"
+                          >
+                            Lưu
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          Ví dụ: 5% có nghĩa khách nạp 100k sẽ chỉ nhận 95k
+                        </p>
+                      </div>
+
+                      {/* Driver Topup Discount */}
+                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">local_taxi</span>
+                            Chiết khấu nạp tiền tài xế
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            placeholder="0"
+                            defaultValue={config.topupDiscountDriver || 0}
+                            onChange={(e) => {
+                              const val = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                              setConfig(prev => ({ ...prev, topupDiscountDriver: val }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          />
+                          <span className="text-slate-600 dark:text-slate-400 font-medium">%</span>
+                          <button
+                            onClick={async () => {
+                              setSaving(true);
+                              try {
+                                await apiService.updateTopupDiscount(
+                                  undefined,
+                                  config.topupDiscountDriver || 0
+                                );
+                                setMessage({ type: 'success', text: 'Lưu chiết khấu tài xế thành công' });
+                              } catch (err) {
+                                setMessage({ type: 'error', text: 'Lỗi lưu chiết khấu: ' + (err instanceof Error ? err.message : 'Unknown') });
+                              } finally {
+                                setSaving(false);
+                              }
+                            }}
+                            className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-medium transition-colors"
+                          >
+                            Lưu
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          Ví dụ: 3% có nghĩa tài xế nạp 100k sẽ chỉ nhận 97k
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Data Management */}
                   <div className="space-y-4 pb-6 border-b border-slate-200 dark:border-slate-700">
                     <h3 className="font-semibold text-slate-900 dark:text-white">Quản lý dữ liệu</h3>

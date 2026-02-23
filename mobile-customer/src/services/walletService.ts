@@ -174,6 +174,28 @@ export const walletService = {
     }
   },
 
+  async getTopupDiscount(): Promise<number> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/pricing/topup-discount/customer`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        console.error(`HTTP ${response.status}`)
+        return 0
+      }
+
+      const data = await response.json()
+      return data.discount || 0
+    } catch (error) {
+      console.error('[Wallet] Get topup discount error:', error)
+      return 0
+    }
+  },
+
   formatCurrency(value: number): string {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',

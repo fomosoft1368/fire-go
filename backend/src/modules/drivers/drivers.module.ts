@@ -9,16 +9,16 @@ import { WalletController } from './controllers/wallet.controller';
 import { WalletAdminController } from './controllers/wallet-admin.controller';
 import { SepayWebhookController } from './controllers/sepay-webhook.controller';
 import {
-  WalletTransaction,
-  WalletTransactionSchema,
-} from './schemas/wallet-transaction.schema';
+  Transaction,
+  TransactionSchema,
+} from '../wallets/schemas/transaction.schema';
 import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Driver.name, schema: DriverSchema },
-      { name: WalletTransaction.name, schema: WalletTransactionSchema },
+      { name: Transaction.name, schema: TransactionSchema },
     ]),
     PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
   ],

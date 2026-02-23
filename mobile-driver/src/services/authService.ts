@@ -115,4 +115,30 @@ const getCurrentUser = async () => {
   }
 }
 
-export { login, register, registerDriver, logout, getCurrentUser }
+const changePassword = async (currentPassword: string, newPassword: string) => {
+  try {
+    const token = await AsyncStorage.getItem('token')
+    if (!token) {
+      throw new Error('No authentication token found')
+    }
+
+    const response = await axios.post(
+      `${API_URL}/auth/change-password`,
+      {
+        currentPassword,
+        newPassword,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
+    return response.data
+  } catch (error: any) {
+    console.log('Change password error:', error.response?.data || error.message)
+    throw error
+  }
+}
+
+export { login, register, registerDriver, logout, getCurrentUser, changePassword }

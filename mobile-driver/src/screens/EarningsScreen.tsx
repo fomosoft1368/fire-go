@@ -27,50 +27,7 @@ interface DailyData {
   amount: number
 }
 
-const mockEarnings: EarningsData = {
-  balance: 5240000,
-  pending: 150000,
-  thisWeek: 8500000,
-  thisMonth: 35000000,
-  total: 125000000,
-}
-
-const mockDailyData: DailyData[] = [
-  { day: 'T2', amount: 1000000 },
-  { day: 'T3', amount: 1100000 },
-  { day: 'T4', amount: 950000 },
-  { day: 'T5', amount: 1300000 },
-  { day: 'T6', amount: 2400000 },
-  { day: 'T7', amount: 1200000 },
-  { day: 'CN', amount: 800000 },
-]
-
-const mockTransactions: Transaction[] = [
-  {
-    id: '1',
-    type: 'completed',
-    title: 'Hoàn thành chuyến #X829',
-    time: '10:30 AM • Hôm nay',
-    amount: 150000,
-    icon: 'local-taxi',
-  },
-  {
-    id: '2',
-    type: 'withdrawal',
-    title: 'Rút về VCB',
-    time: '16:45 PM • Hôm qua',
-    amount: -2000000,
-    icon: 'account-balance',
-  },
-  {
-    id: '3',
-    type: 'bonus',
-    title: 'Thưởng tuần',
-    time: '08:00 AM • Thứ hai',
-    amount: 200000,
-    icon: 'card-giftcard',
-  },
-]
+// Removed mock data - using real API data
 
 export default function EarningsScreen({ navigation }: any) {
   const [timeFilter, setTimeFilter] = useState<'day' | 'week' | 'month'>('week')
@@ -86,6 +43,8 @@ export default function EarningsScreen({ navigation }: any) {
     bonusAmount: 0,
   })
   const [transactions, setTransactions] = useState<any[]>([])
+  const [dailyData, setDailyData] = useState<DailyData[]>([])
+  const [weekTrend, setWeekTrend] = useState(0)
 
   useEffect(() => {
     fetchWalletData()
@@ -104,6 +63,14 @@ export default function EarningsScreen({ navigation }: any) {
       setPending(balanceData.pending)
       setStats(statsData)
       setTransactions(transactionsData)
+
+      // ✅ Generate daily data for last 7 days from transactions
+      const dailyEarnings = generateDailyData(transactionsData)
+      setDailyData(dailyEarnings)
+
+      // ✅ Calculate week-over-week trend
+      const trend = calculateWeekTrend(statsData)
+      setWeekTrend(trend)
     } catch (error: any) {
       Alert.alert('Lỗi', error.message || 'Không thể tải dữ liệu ví')
     } finally {
@@ -111,7 +78,60 @@ export default function EarningsScreen({ navigation }: any) {
     }
   }
 
-  const maxAmount = Math.max(...mockDailyData.map((d) => d.amount))
+  // ✅ Generate daily earnings data for chart from transactions
+  const generateDailyData = (transactions: any[]): DailyData[] => {
+    const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+    const today = new Date()
+    const dailyMap = new Map<string, number>()
+
+    // Initialize last 7 days with 0
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      const key = date.toISOString().split('T')[0]
+      dailyMap.set(key, 0)
+    }
+
+    // Sum up earnings from commission transactions
+    transactions
+      .filter(t => t.type === 'commission' && t.status === 'completed')
+      .forEach(t => {
+        const date = new Date(t.createdAt).toISOString().split('T')[0]
+        if (dailyMap.has(date)) {
+          dailyMap.set(date, dailyMap.get(date)! + Math.abs(t.amount))
+        }
+      })
+
+    // Convert to array format for chart
+    const result: DailyData[] = []
+    let index = 0
+    dailyMap.forEach((amount, date) => {
+      const dateObj = new Date(date)
+      const dayIndex = dateObj.getDay()
+      result.push({
+        day: days[dayIndex],
+        amount: amount,
+      })
+      index++
+    })
+
+    return result
+  }
+
+  // ✅ Calculate week-over-week growth percentage
+  const calculateWeekTrend = (stats: any): number => {
+    const thisWeek = stats.thisWeek || 0
+    const lastWeek = stats.lastWeek || 0
+    
+    if (lastWeek === 0) return 0
+    
+    const growth = ((thisWeek - lastWeek) / lastWeek) * 100
+    return Math.round(growth)
+  }
+
+  const maxAmount = dailyData.length > 0 
+    ? Math.max(...dailyData.map((d) => d.amount)) 
+    : 1000000
 
   if (loading) {
     return (
@@ -162,18 +182,25 @@ export default function EarningsScreen({ navigation }: any) {
             <View style={styles.balanceMainRow}>
               <View style={styles.balanceLeft}>
                 <Text style={styles.balanceAmount}>
-                  {(mockEarnings.balance / 1000000).toFixed(1)}
+                  {balance.toLocaleString('vi-VN')}đ
                 </Text>
-                <Text style={styles.balanceCurrency}>triệu đ</Text>
               </View>
-              <View style={styles.trendBadge}>
-                <MaterialIcons name="trending-up" size={16} color="#fff" />
-                <Text style={styles.trendText}>+12%</Text>
-              </View>
+              {weekTrend !== 0 && (
+                <View style={styles.trendBadge}>
+                  <MaterialIcons 
+                    name={weekTrend >= 0 ? "trending-up" : "trending-down"} 
+                    size={16} 
+                    color="#fff" 
+                  />
+                  <Text style={styles.trendText}>
+                    {weekTrend > 0 ? '+' : ''}{weekTrend}%
+                  </Text>
+                </View>
+              )}
             </View>
             
             <Text style={styles.pendingAmount}>
-              Chế độ: {mockEarnings.pending.toLocaleString('vi-VN')}đ
+              Chờ xử lý: {pending.toLocaleString('vi-VN')}đ
             </Text>
 
             <View style={styles.balanceActions}>
@@ -231,39 +258,49 @@ export default function EarningsScreen({ navigation }: any) {
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>Biểu đồ thu nhập tuần</Text>
             <View style={styles.chartTotal}>
-              <Text style={styles.chartTotalLabel}>Tổng</Text>
+              <Text style={styles.chartTotalLabel}>Tổng tuần</Text>
               <Text style={styles.chartTotalValue}>
-                {(mockDailyData.reduce((sum, d) => sum + d.amount, 0) / 1000000).toFixed(1)}tr
+                {dailyData.length > 0 
+                  ? (dailyData.reduce((sum, d) => sum + d.amount, 0) / 1000000).toFixed(1)
+                  : '0.0'}tr
               </Text>
             </View>
           </View>
 
           <View style={styles.chart}>
-            {mockDailyData.map((item, index) => {
-              const height = (item.amount / maxAmount) * 160
-              const isHighest = item.amount === maxAmount
-              return (
-                <View key={index} style={styles.barContainer}>
-                  <View style={styles.barWrapper}>
-                    {isHighest && (
-                      <Text style={styles.barValue}>
-                        {(item.amount / 1000000).toFixed(1)}tr
-                      </Text>
-                    )}
-                    <LinearGradient
-                      colors={isHighest ? ['#FF8A3D', '#FF6B00'] : ['#e2e8f0', '#cbd5e1']}
-                      style={[
-                        styles.bar,
-                        { height: Math.max(height, 20) },
-                      ]}
-                    />
+            {dailyData.length > 0 ? (
+              dailyData.map((item, index) => {
+                const height = maxAmount > 0 ? (item.amount / maxAmount) * 160 : 20
+                const isHighest = item.amount === maxAmount && maxAmount > 0
+                return (
+                  <View key={index} style={styles.barContainer}>
+                    <View style={styles.barWrapper}>
+                      {isHighest && item.amount > 0 && (
+                        <Text style={styles.barValue}>
+                          {(item.amount / 1000000).toFixed(1)}tr
+                        </Text>
+                      )}
+                      <LinearGradient
+                        colors={isHighest ? ['#FF8A3D', '#FF6B00'] : ['#e2e8f0', '#cbd5e1']}
+                        style={[
+                          styles.bar,
+                          { height: Math.max(height, 20) },
+                        ]}
+                      />
+                    </View>
+                    <Text style={[styles.barLabel, isHighest && styles.barLabelActive]}>
+                      {item.day}
+                    </Text>
                   </View>
-                  <Text style={[styles.barLabel, isHighest && styles.barLabelActive]}>
-                    {item.day}
-                  </Text>
-                </View>
-              )
-            })}
+                )
+              })
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: '#64748b', fontSize: 14 }}>
+                  Chưa có dữ liệu
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -275,28 +312,28 @@ export default function EarningsScreen({ navigation }: any) {
               icon="local-taxi"
               iconColor="#FF6B00"
               iconBg="#fff5eb"
-              value="24"
+              value={stats.tripCount.toString()}
               label="Chuyến xe"
             />
             <StatCard
               icon="star"
               iconColor="#fbbf24"
               iconBg="#fef3c7"
-              value="4.9"
+              value={stats.avgRating.toFixed(1)}
               label="Đánh giá"
             />
             <StatCard
               icon="schedule"
               iconColor="#10b981"
               iconBg="#d1fae5"
-              value="8.5h"
-              label="Trực tuyến"
+              value={`${(stats.thisWeek / 1000000).toFixed(1)}tr`}
+              label="Thu tuần"
             />
             <StatCard
               icon="card-giftcard"
               iconColor="#8b5cf6"
               iconBg="#ede9fe"
-              value="50k"
+              value={`${(stats.bonusAmount / 1000).toFixed(0)}k`}
               label="Thưởng"
             />
           </View>
@@ -585,16 +622,10 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   balanceAmount: {
-    fontSize: 48,
+    fontSize: 36,
     fontWeight: '900',
     color: '#fff',
-    letterSpacing: -2,
-  },
-  balanceCurrency: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.85)',
-    marginLeft: 6,
+    letterSpacing: -1,
   },
   trendBadge: {
     flexDirection: 'row',

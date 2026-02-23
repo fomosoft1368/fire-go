@@ -23,6 +23,7 @@ import EarningsScreen from './src/screens/EarningsScreen'
 import SupportScreen from './src/screens/SupportScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
 import EditProfileScreen from './src/screens/EditProfileScreen'
+import ChangePasswordScreen from './src/screens/ChangePasswordScreen'
 import ActiveRideScreen from './src/screens/ActiveRideScreen'
 import RideRequestsScreen from './src/screens/RideRequestsScreen'
 import TopupScreen from './src/screens/TopupScreen'
@@ -192,6 +193,11 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="EditProfile"
         component={EditProfileScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="ChangePassword"
+        component={ChangePasswordScreen}
         options={{ animationEnabled: true }}
       />
       <Stack.Screen

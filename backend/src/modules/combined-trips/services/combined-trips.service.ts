@@ -128,8 +128,9 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('   Origin:', origin);
       console.log('   Destination:', destination);
 
-      // ✅ OPTIMIZED: Request MULTIPLE routes and pick the SHORTEST one
-      // Thêm parameters để ưu tiên đường cao tốc/đường lớn và lấy route ngắn nhất
+      // ✅ SIMPLIFIED: Request MULTIPLE alternative routes and pick the ABSOLUTE SHORTEST
+      // No waypoints - let Google Maps find the best route naturally
+      // Just like Google Maps on mobile phone
       const params = new URLSearchParams({
         origin,
         destination,
@@ -137,10 +138,10 @@ export class CombinedTripsService implements OnModuleInit {
         mode: 'driving',
         region: 'vn',
         language: 'vi',
-        alternatives: 'true', // ✅ Lấy nhiều routes để so sánh
-        avoid: 'ferries', // ✅ Tránh đường phà
+        alternatives: 'true', // ✅ Get up to 3 alternative routes
         units: 'metric',
-        // ✅ Không set traffic_model vì sẽ bị charge thêm, chỉ dùng bản free
+        // ✅ NO AVOID parameters - allow all routes (even tolls/highways)
+        // ✅ NO WAYPOINTS - let Google choose naturally
       });
 
       const url = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
@@ -162,36 +163,51 @@ export class CombinedTripsService implements OnModuleInit {
 
       // Check if route found
       if (data.status === 'OK' && data.routes && data.routes.length > 0) {
-        // ✅ CRITICAL: Chọn route NGẮN NHẤT (shortest distance)
-        // Google trả về nhiều routes, ta chọn route có khoảng cách ngắn nhất
-        console.log('🔍 Analyzing all routes to find shortest...');
+        // ✅ SIMPLE: Pick the ABSOLUTE SHORTEST route (like Google Maps mobile)
+        // No complex scoring - distance is king!
+        console.log(`🔍 Found ${data.routes.length} alternative routes, analyzing...`);
         
         let shortestRoute = data.routes[0];
-        let shortestDistance = data.routes[0].legs[0].distance.value;
+        let shortestDistance = data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
 
         for (const route of data.routes) {
-          const routeDistance = route.legs[0].distance.value;
-          console.log(`📏 Route option: ${(routeDistance / 1000).toFixed(2)}km - ${route.summary}`);
+          const totalDistance = route.legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
+          const totalDuration = route.legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0);
           
-          if (routeDistance < shortestDistance) {
+          console.log(`📏 Route ${data.routes.indexOf(route) + 1}:`);
+          console.log(`   Distance: ${(totalDistance / 1000).toFixed(2)}km`);
+          console.log(`   Duration: ${Math.ceil(totalDuration / 60)}min`);
+          console.log(`   Summary: ${route.summary}`);
+          
+          // ✅ Pick SHORTEST distance (simplest logic)
+          if (totalDistance < shortestDistance) {
             shortestRoute = route;
-            shortestDistance = routeDistance;
+            shortestDistance = totalDistance;
+            console.log(`   ⭐ NEW SHORTEST ROUTE!`);
           }
         }
 
         console.log(`✅ Selected SHORTEST route: ${(shortestDistance / 1000).toFixed(2)}km - ${shortestRoute.summary}`);
 
         const route = shortestRoute;
-        const leg = route.legs[0];
-
-        const distanceKm = leg.distance.value / 1000; // Convert meters to km
-        const durationMinutes = Math.ceil(leg.duration.value / 60); // Convert seconds to minutes
+        
+        // ✅ Calculate distance and duration from selected route
+        const totalDistance = route.legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
+        const totalDuration = route.legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0);
+        
+        const distanceKm = totalDistance / 1000; // Convert meters to km
+        const durationMinutes = Math.ceil(totalDuration / 60); // Convert seconds to minutes
+        
+        // Format text
+        const distanceText = `${distanceKm.toFixed(1)} km`;
+        const durationText = `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`.replace('0h ', '');
 
         console.log('✅ Route found:', {
           distanceKm: distanceKm.toFixed(2),
           durationMinutes,
-          distanceText: leg.distance.text,
-          durationText: leg.duration.text,
+          distanceText,
+          durationText,
+          legs: route.legs.length,
         });
 
         // Decode the polyline
@@ -202,8 +218,8 @@ export class CombinedTripsService implements OnModuleInit {
         const response = {
           distance: distanceKm, // in km
           duration: durationMinutes, // in minutes
-          distanceText: leg.distance.text,
-          durationText: leg.duration.text,
+          distanceText,
+          durationText,
           features: [
             {
               geometry: {
@@ -212,8 +228,9 @@ export class CombinedTripsService implements OnModuleInit {
               },
               properties: {
                 summary: {
-                  distance: leg.distance.value,
-                  duration: leg.duration.value,
+                  distance: totalDistance,
+                  duration: totalDuration,
+                  routeSummary: route.summary, // Include route name (e.g., "via QL1A")
                 }
               }
             }
@@ -631,7 +648,7 @@ export class CombinedTripsService implements OnModuleInit {
    */
   async getCombinedTripDetail(combinedTripId: string): Promise<any> {
     try {
-      console.log('[CombinedTripsService] Getting trip detail for ID:', combinedTripId);
+      
       const tripIdObj = new Types.ObjectId(combinedTripId);
 
       const trip = await this.combinedTripModel

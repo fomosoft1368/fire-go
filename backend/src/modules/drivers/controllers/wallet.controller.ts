@@ -10,7 +10,7 @@ import {
 import { WalletService } from '../services/wallet.service';
 import { SepayService } from '../services/sepay.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { PaymentMethod } from '../schemas/wallet-transaction.schema';
+import { PaymentMethod } from '../../wallets/schemas/transaction.schema';
 
 class TopupDto {
   amount: number;

@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import * as crypto from 'crypto';
 
 interface SepayQRPayload {
   accountNo: string;
   accountName: string;
-  acqId: string; // Bank ID (VCB=970436, TCB=970407, MB=970422, etc.)
+  acqId: string; // Bank ID (VCB=970436, TCB: 970407, MB=970422, etc.)
   amount: number;
   addInfo: string; // Transaction content
   format: 'text' | 'compact';
@@ -12,11 +13,15 @@ interface SepayQRPayload {
 
 @Injectable()
 export class SepayService {
+  // Sepay API credentials (load from .env)
+  private readonly SEPAY_API_KEY = process.env.SEPAY_API_KEY;
+  private readonly SEPAY_SECRET_KEY = process.env.SEPAY_SECRET_KEY;
+  
   // Thông tin tài khoản nhận tiền (config từ .env trong production)
-  private readonly ACCOUNT_NO = '0986190053'; // Số tài khoản ngân hàng
-  private readonly ACCOUNT_NAME = 'HO VAN TRINH'; // Tên chủ tài khoản
-  private readonly BANK_ID = '970422'; // VCB: 970436, TCB: 970407, MB: 970422
-  private readonly BANK_NAME = 'MB'; // Tên ngân hàng
+  private readonly ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NUMBER || '0986190053'; // Số tài khoản ngân hàng
+  private readonly ACCOUNT_NAME = process.env.SEPAY_ACCOUNT_NAME || 'HO VAN TRINH'; // Tên chủ tài khoản
+  private readonly BANK_ID = process.env.SEPAY_BANK_ID || '970422'; // VCB: 970436, TCB: 970407, MB: 970422
+  private readonly BANK_NAME = process.env.SEPAY_BANK_NAME || 'MB'; // Tên ngân hàng
 
   /**
    * Generate Sepay QR code URL for bank transfer
@@ -31,8 +36,14 @@ export class SepayService {
     content: string;
     bankId: string;
   } {
-    // Generate unique transaction content
-    const content = `NAPVI ${transactionId.substring(transactionId.length - 8).toUpperCase()}`;
+    // Generate unique transaction content (use last 8 chars for brevity)
+    const last8Chars = transactionId.substring(transactionId.length - 8).toUpperCase();
+    const content = `DH${last8Chars}`;
+    
+    console.log('[SepayService] 🔖 Generating QR code:');
+    console.log('[SepayService] Full Transaction ID:', transactionId);
+    console.log('[SepayService] Last 8 chars:', last8Chars);
+    console.log('[SepayService] Content:', content);
 
     // VietQR API URL (Free, public)
     const qrCodeUrl = this.buildVietQRUrl({
@@ -76,28 +87,46 @@ export class SepayService {
 
   /**
    * Verify Sepay webhook signature
-   * In production, use HMAC-SHA256 with secret key from Sepay
+   * Uses HMAC-SHA256 with secret key from Sepay
    */
   verifyWebhookSignature(payload: string, signature: string): boolean {
-    // TODO: Implement real signature verification when you have Sepay secret key
-    // const crypto = require('crypto');
-    // const hmac = crypto.createHmac('sha256', SEPAY_SECRET_KEY);
-    // hmac.update(payload);
-    // const computedSignature = hmac.digest('hex');
-    // return computedSignature === signature;
+    // If no secret key configured, accept all (development mode)
+    if (!this.SEPAY_SECRET_KEY) {
+      console.log('[SepayService] ⚠️ No SEPAY_SECRET_KEY configured - accepting all webhooks (DEV MODE)');
+      console.log('[SepayService] 💡 To enable signature verification, add SEPAY_SECRET_KEY to .env');
+      return true;
+    }
 
-    // For now, accept all (development only!)
-    console.log('[SepayService] ⚠️ Signature verification skipped (development mode)');
-    return true;
+    try {
+      // Compute HMAC-SHA256 signature
+      const hmac = crypto.createHmac('sha256', this.SEPAY_SECRET_KEY);
+      hmac.update(payload);
+      const computedSignature = hmac.digest('hex');
+      
+      const isValid = computedSignature === signature;
+      
+      if (isValid) {
+        console.log('[SepayService] ✅ Webhook signature VALID');
+      } else {
+        console.log('[SepayService] ❌ Webhook signature INVALID');
+        console.log('[SepayService] Expected:', computedSignature);
+        console.log('[SepayService] Received:', signature);
+      }
+      
+      return isValid;
+    } catch (error) {
+      console.error('[SepayService] ❌ Error verifying signature:', error);
+      return false;
+    }
   }
 
   /**
    * Validate transaction content format
-   * Format: NAPVI + 8 chars transaction ID
+   * Format: DH + 8-24 chars transaction ID (hex)
    */
   validateTransactionContent(content: string, transactionId: string): boolean {
     const expectedSuffix = transactionId.substring(transactionId.length - 8).toUpperCase();
-    const expectedContent = `NAPVI ${expectedSuffix}`;
+    const expectedContent = `DH${expectedSuffix}`;
     return content.toUpperCase().includes(expectedSuffix);
   }
 }

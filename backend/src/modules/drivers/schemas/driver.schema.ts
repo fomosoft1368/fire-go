@@ -1,7 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import * as bcrypt from 'bcrypt';
 
-export type DriverDocument = Driver & Document;
+export type DriverDocument = Driver & Document & {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+};
 
 export enum DocumentStatus {
   PENDING = 'pending',
@@ -231,6 +234,26 @@ export class Driver {
 }
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);
+
+// Hash password before saving
+DriverSchema.pre<DriverDocument>('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+// Add comparePassword method
+DriverSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password);
+};
 
 // Sparse index for geospatial queries - only on documents with currentLocation
 DriverSchema.index({ 'currentLocation': '2dsphere' }, { sparse: true });

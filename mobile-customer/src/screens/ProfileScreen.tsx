@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigation } from '@react-navigation/native'
 import { logout } from '../redux/slices/authSlice'
 import { authService } from '../services/authService'
 import type { RootState } from '../redux/store'
@@ -26,11 +27,8 @@ interface MenuItem {
   isToggle?: boolean
 }
 
-interface ProfileScreenProps {
-  navigation: any
-}
-
-export default function ProfileScreen({ navigation }: ProfileScreenProps) {
+export default function ProfileScreen() {
+  const navigation = useNavigation<any>()
   const dispatch = useDispatch()
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)

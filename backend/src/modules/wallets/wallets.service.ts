@@ -2,14 +2,16 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Wallet, WalletDocument } from './schemas/wallet.schema';
-import { Transaction, TransactionDocument, TransactionType, TransactionStatus } from './schemas/transaction.schema';
+import { Transaction, TransactionDocument, TransactionType, TransactionStatus, UserType } from './schemas/transaction.schema';
 import { TopUpWalletDto, PaymentDto } from './dto';
+import { PricingService } from '../pricing/pricing.service';
 
 @Injectable()
 export class WalletsService {
   constructor(
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
     @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
+    private readonly pricingService: PricingService,
   ) {}
 
   async createWallet(userId: string): Promise<WalletDocument> {
@@ -41,7 +43,11 @@ export class WalletsService {
     return wallet;
   }
 
-  async topUp(userId: string, topUpWalletDto: TopUpWalletDto): Promise<TransactionDocument> {
+  async topUp(
+    userId: string,
+    topUpWalletDto: TopUpWalletDto,
+    userType: UserType = UserType.CUSTOMER,
+  ): Promise<TransactionDocument> {
     if (topUpWalletDto.amount <= 0) {
       throw new BadRequestException('Top-up amount must be greater than 0');
     }
@@ -52,25 +58,52 @@ export class WalletsService {
       throw new BadRequestException('Wallet is locked');
     }
 
+    // Get topup discount from pricing config
+    const discountPercent = await this.pricingService.getTopupDiscount(
+      userType === UserType.CUSTOMER ? 'customer' : 'driver',
+    );
+
+    // Calculate discount amount
+    const discountAmount = Math.round(
+      (topUpWalletDto.amount * discountPercent) / 100,
+    );
+
+    // Actual amount to add to wallet (original - discount)
+    const actualAmount = topUpWalletDto.amount - discountAmount;
+
     const balanceBefore = wallet.balance;
-    const balanceAfter = balanceBefore + topUpWalletDto.amount;
+    const balanceAfter = balanceBefore + actualAmount;
 
     // Update wallet balance
     await this.walletModel.findByIdAndUpdate(wallet._id, {
       $inc: {
-        balance: topUpWalletDto.amount,
-        totalTopUps: topUpWalletDto.amount,
+        balance: actualAmount,
+        totalTopUps: actualAmount,
       },
     });
 
-    // Create transaction record
+    // Create transaction record with discount info
     const transaction = await this.transactionModel.create({
       userId: new Types.ObjectId(userId),
+      userType,
       type: TransactionType.TOP_UP,
       amount: topUpWalletDto.amount,
       status: TransactionStatus.SUCCESS,
       description: topUpWalletDto.description,
       paymentMethod: topUpWalletDto.paymentMethod,
+      balanceBefore,
+      balanceAfter,
+      discountPercent,
+      discountAmount,
+    });
+
+    console.log('[WalletsService] Topup with discount:', {
+      userId,
+      userType,
+      originalAmount: topUpWalletDto.amount,
+      discountPercent: `${discountPercent}%`,
+      discountAmount,
+      actualAmount,
       balanceBefore,
       balanceAfter,
     });

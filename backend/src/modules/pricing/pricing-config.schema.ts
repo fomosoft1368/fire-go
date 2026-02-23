@@ -153,6 +153,14 @@ export class PricingConfig {
   @Prop({ type: [HireDriverPricing], default: [] })
   hireDriverPricing: HireDriverPricing[];
   // ============ END LÁI XE HỘ ============
+
+  // ============ TOPUP DISCOUNT - Nạp tiền chiết khấu ============
+  @Prop({ required: false, default: 0 })
+  topupDiscountCustomer: number; // Phần trăm chiết khấu nạp tiền khách hàng (0-100)
+
+  @Prop({ required: false, default: 0 })
+  topupDiscountDriver: number; // Phần trăm chiết khấu nạp tiền tài xế (0-100)
+  // ============ END TOPUP DISCOUNT ============
 }
 
 export const PricingConfigSchema = SchemaFactory.createForClass(PricingConfig);

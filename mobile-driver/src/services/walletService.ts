@@ -165,6 +165,20 @@ class WalletService {
       throw new Error(error.response?.data?.message || 'Không thể lấy thống kê');
     }
   }
+
+  /**
+   * Get topup discount from pricing config
+   */
+  async getTopupDiscount(): Promise<number> {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/pricing/topup-discount/driver`);
+      return response.data.discount || 0;
+    } catch (error: any) {
+      console.error('Error fetching topup discount:', error);
+      return 0; // Return 0 if API fails
+    }
+  }
 }
 
 export const walletService = new WalletService();
+

@@ -78,17 +78,45 @@ export class SepayWebhookController {
       }
 
       // Step 3: Parse transfer content to get transaction ID
-      // Format: "NAPVI <transactionId>"
-      const content = payload.content.trim();
-      const match = content.match(/NAPVI\s+(\S+)/i);
-
-      if (!match) {
-        console.error('[SepayWebhook] ❌ Invalid transfer content format:', content);
-        throw new BadRequestException('Invalid transfer content format');
+      // Format: "DH<transactionId>" (DH followed by 8+ hex chars)
+      const content = payload.content.trim().toUpperCase();
+      console.log('[SepayWebhook] 📝 Raw content:', payload.content);
+      console.log('[SepayWebhook] 📝 Normalized content:', content);
+      
+      // Try to extract transaction ID with multiple patterns
+      let transactionIdFromContent: string | null = null;
+      
+      // Pattern 1: DH followed by ID (8-24 hex chars)
+      let match = content.match(/DH([A-F0-9]{8,24})/i);
+      if (match) {
+        transactionIdFromContent = match[1];
+        console.log('[SepayWebhook] ✅ Pattern 1 matched (DH + ID):', transactionIdFromContent);
+      }
+      
+      // Pattern 2: DH with optional space
+      if (!transactionIdFromContent) {
+        match = content.match(/DH\s*([A-F0-9]{8,24})/i);
+        if (match) {
+          transactionIdFromContent = match[1];
+          console.log('[SepayWebhook] ✅ Pattern 2 matched (DH + space + ID):', transactionIdFromContent);
+        }
+      }
+      
+      // Pattern 3: Just the last 8+ hex chars (fallback)
+      if (!transactionIdFromContent) {
+        match = content.match(/([A-F0-9]{8,24})/);
+        if (match) {
+          transactionIdFromContent = match[1];
+          console.log('[SepayWebhook] ⚠️ Pattern 3 matched (raw hex):', transactionIdFromContent);
+        }
       }
 
-      const transactionIdFromContent = match[1];
-      console.log('[SepayWebhook] 📝 Extracted transaction ID:', transactionIdFromContent);
+      if (!transactionIdFromContent) {
+        console.error('[SepayWebhook] ❌ Could not extract transaction ID from content:', payload.content);
+        throw new BadRequestException('Invalid transfer content format - no transaction ID found');
+      }
+
+      console.log('[SepayWebhook] 📝 Final extracted transaction ID:', transactionIdFromContent);
 
       // Step 4: Find pending transaction
       const transaction = await this.walletService.findPendingTransactionByContent(

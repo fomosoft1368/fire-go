@@ -6,6 +6,7 @@ import { Wallet, WalletSchema } from './schemas/wallet.schema';
 import { Transaction, TransactionSchema } from './schemas/transaction.schema';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
 import { PaymentMethod, PaymentMethodSchema } from '../payment/schemas/payment-method.schema';
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { PaymentMethod, PaymentMethodSchema } from '../payment/schemas/payment-m
       { name: Customer.name, schema: CustomerSchema },
       { name: PaymentMethod.name, schema: PaymentMethodSchema },
     ]),
+    PricingModule,
   ],
   controllers: [WalletsController],
   providers: [WalletsService],

@@ -332,6 +332,11 @@ export class PricingService {
         },
       ],
       // ============ END LÁI XE HỘ ============
+
+      // ============ TOPUP DISCOUNT - Default ============
+      topupDiscountCustomer: 0,
+      topupDiscountDriver: 0,
+      // ============ END TOPUP DISCOUNT ============
     });
     
     return defaultConfig.save();
@@ -426,4 +431,35 @@ export class PricingService {
     };
   }
   // ============ END LÁI XE HỘ ============
+
+  // ============ TOPUP DISCOUNT Methods ============
+  async updateTopupDiscount(
+    topupDiscountCustomer?: number,
+    topupDiscountDriver?: number,
+  ): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    
+    if (topupDiscountCustomer !== undefined) {
+      // Validate 0-100
+      config.topupDiscountCustomer = Math.max(0, Math.min(100, topupDiscountCustomer));
+    }
+    
+    if (topupDiscountDriver !== undefined) {
+      // Validate 0-100
+      config.topupDiscountDriver = Math.max(0, Math.min(100, topupDiscountDriver));
+    }
+    
+    return config.save();
+  }
+
+  async getTopupDiscount(userType: 'customer' | 'driver'): Promise<number> {
+    const config = await this.getConfig();
+    
+    if (userType === 'customer') {
+      return config.topupDiscountCustomer || 0;
+    } else {
+      return config.topupDiscountDriver || 0;
+    }
+  }
+  // ============ END TOPUP DISCOUNT ============
 }
