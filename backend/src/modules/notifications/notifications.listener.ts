@@ -107,4 +107,34 @@ export class NotificationsListener {
       }
     }
   }
+
+  @OnEvent('assignment.request.created')
+  async handleAssignmentRequestCreated(payload: any) {
+    console.log('📢 Event: assignment.request.created', {
+      requestId: payload.requestId,
+      driverId: payload.driverId,
+      type: payload.type,
+    });
+    
+    // Create notification for driver about new assignment request
+    if (payload.driverId) {
+      try {
+        const message = payload.type === 'combined_trip' 
+          ? `Ghép chuyến mới từ ${payload.pickupAddress} đến ${payload.dropoffAddress}`
+          : `Cuốc xe mới từ ${payload.pickupAddress} đến ${payload.dropoffAddress}`;
+        
+        await this.notificationsService.create({
+          userId: payload.driverId,
+          type: NotificationType.RIDE_REQUEST,
+          channels: [NotificationChannel.IN_APP],
+          title: payload.type === 'combined_trip' ? 'Ghép chuyến mới' : 'Cuốc xe mới',
+          message,
+          rideId: payload.requestId.toString(),
+        });
+        console.log('✅ Assignment request notification sent to driver:', payload.driverId);
+      } catch (error) {
+        console.error('Error creating assignment request notification:', error);
+      }
+    }
+  }
 }

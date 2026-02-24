@@ -14,6 +14,7 @@ import { COLORS } from './src/constants'
 import { loginSuccess } from './src/redux/slices/authSlice'
 import { assignmentRequestPollingService } from './src/services/assignmentRequestPollingService'
 import { driverService } from './src/services/driverService'
+import { locationTrackingService } from './src/services/locationTrackingService'
 import AssignmentRequestModal from './src/components/AssignmentRequestModal'
 import LoginScreen from './src/screens/LoginScreen'
 import RegisterScreen from './src/screens/RegisterScreen'
@@ -27,6 +28,7 @@ import ChangePasswordScreen from './src/screens/ChangePasswordScreen'
 import ActiveRideScreen from './src/screens/ActiveRideScreen'
 import RideRequestsScreen from './src/screens/RideRequestsScreen'
 import TopupScreen from './src/screens/TopupScreen'
+import WithdrawalScreen from './src/screens/WithdrawalScreen'
 import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 import MapScreen from './src/screens/MapScreen'
 import CreateRideScreen from './src/screens/CreateRideScreen'
@@ -160,8 +162,8 @@ const HomeStackNavigator = () => {
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
-        name="Withdraw"
-        component={require('./src/screens/WithdrawScreen').default}
+        name="Withdrawal"
+        component={WithdrawalScreen}
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
@@ -278,6 +280,19 @@ console.log('[App] Fetching user profile with token...')
     checkAuth()
   }, [dispatch])
 
+  // ⭐ START LOCATION TRACKING when user authenticates
+  useEffect(() => {
+    if (!isAuthenticated || !user) return
+
+    console.log('[App] 📍 Starting location tracking for driver:', user._id)
+    locationTrackingService.startTracking(user._id)
+
+    return () => {
+      console.log('[App] 🛑 Stopping location tracking on logout')
+      locationTrackingService.stopTracking()
+    }
+  }, [isAuthenticated, user])
+
   // Handle app state changes (background/foreground)
   useEffect(() => {
     if (!isAuthenticated) return
@@ -338,34 +353,69 @@ console.log('[App] Fetching user profile with token...')
     let isMounted = true
 
     const pollPendingRequests = async () => {
-      console.log('🔥 POLLING START - Code version: 2.0')
+      console.log('🔥 POLLING START - Code version: 3.0 (combined + regular rides)')
       console.log('👤 User from Redux:', user?.id || 'NULL')
       
       try {
-        // Get all my combined trips to poll for requests
-        const allCombinedTrips = await driverService.getMyCombinedTrips()
+        const API_URL = 'http://192.168.1.18:3000/api'
+        const token = await AsyncStorage.getItem('token')
+        if (!token) {
+          console.warn('[App] ⚠️ No auth token, skipping poll')
+          return
+        }
 
+        // ============================================================
+        // 1️⃣ POLL FOR REGULAR RIDE ASSIGNMENT REQUESTS (lái xe hộ)
+        // ============================================================
+        try {
+          console.log('[App] 🔄 Polling regular rides assignment requests...')
+          const rideResponse = await fetch(`${API_URL}/rides/assignment-requests/pending`, {
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          })
+
+          if (rideResponse.ok) {
+            const rideRequests = await rideResponse.json()
+            console.log('[App] 📦 Regular ride requests found:', rideRequests.length)
+
+            if (rideRequests && rideRequests.length > 0) {
+              const firstRequest = rideRequests[0]
+              console.log('[App] 📬 Found regular ride request:', firstRequest._id)
+
+              if (window && window.__firegoAssignmentCallback) {
+                console.log('[App] 🔥 Full rideId object:', firstRequest.rideId)
+                window.__firegoAssignmentCallback({
+                  ...firstRequest,
+                  type: 'ride', // ✅ Mark as regular ride
+                  rideId: firstRequest.rideId, // ✅ Pass full populated object (not just ID)
+                })
+              }
+            }
+          } else {
+            console.warn('[App] ⚠️ Failed to fetch ride requests:', rideResponse.status)
+          }
+        } catch (error) {
+          console.error('[App] ❌ Error polling regular rides:', error)
+        }
+
+        // ============================================================
+        // 2️⃣ POLL FOR COMBINED TRIP ASSIGNMENT REQUESTS (ghép xe)
+        // ============================================================
+        const allCombinedTrips = await driverService.getMyCombinedTrips()
         console.log('🚗 My trips count:', allCombinedTrips.length)
 
         for (const trip of allCombinedTrips) {
           if (!isMounted) return
 
-          const API_URL = 'http://192.168.1.16:3000/api'
           try {
-            // Get auth token
-            const token = await AsyncStorage.getItem('token')
-            if (!token) {
-              console.warn('[App] ⚠️ No auth token, skipping poll')
-              continue
-            }
-
-            // ✅ Add driverId to filter requests for THIS driver only
             const driverId = user?.id
             const endpoint = driverId 
               ? `${API_URL}/combined-trips/${trip._id}/requests?driverId=${driverId}`
               : `${API_URL}/combined-trips/${trip._id}/requests`
             
-            console.log('[App] 🔗 Polling endpoint:', endpoint)
+            console.log('[App] 🔗 Polling combined trip endpoint:', endpoint)
             
             const response = await fetch(endpoint, {
               headers: { 
@@ -382,52 +432,76 @@ console.log('[App] Fetching user profile with token...')
             }
 
             const requests = await response.json()
-            console.log('[App] 📦 Raw response:', requests)
+            console.log('[App] 📦 Combined trip raw response:', requests.length, 'requests')
 
-            // Log ALL requests to debug
-            console.log('[App] 🔍 All requests:', requests.map(r => ({ id: r._id, status: r.status })))
-
-            // Filter for PENDING requests only (not accepted/rejected/refuse)
             const pendingRequests = (requests || []).filter(req => req.status === 'pending')
-
-            console.log('[App] ✅ Pending only:', pendingRequests.length)
+            console.log('[App] ✅ Combined trip pending:', pendingRequests.length)
 
             if (pendingRequests && pendingRequests.length > 0) {
-              // Get the first (most recent) pending request
               const firstRequest = pendingRequests[0]
+              console.log('[App] 📬 Found combined trip request:', firstRequest._id)
 
-              // Show modal notification via listener pattern
-              // (We'll emit this to HomeScreen via global state or listener)
-              console.log('[App] 📬 Found pending request:', firstRequest._id, 'Status:', firstRequest.status)
-
-              // Store in AsyncStorage for any screen to access
-              await AsyncStorage.setItem(
-                'pendingRequestNotification',
-                JSON.stringify({
-                  request: firstRequest,
+              if (window && window.__firegoAssignmentCallback) {
+                window.__firegoAssignmentCallback({
+                  ...firstRequest,
+                  type: 'rideshare', // ✅ Mark as combined trip
                   combinedTripId: trip._id,
-                  timestamp: Date.now(),
                 })
-              )
-
-              // Play notification sound
-              try {
-                const { sound } = await Audio.Sound.createAsync(
-                  require('./src/assets/sounds/notification.mp3')
-                )
-                await sound.setPositionAsync(0)
-                await sound.setVolumeAsync(1.0)
-                await sound.playAsync()
-              } catch (e) {
-                console.log('[App] Notification sound error:', e)
               }
             }
           } catch (error) {
-            console.error('[App] Poll error for trip:', trip._id, error)
+            console.error('[App] ❌ Error polling combined trip:', error)
           }
         }
+
+        // ============================================================
+        // 3️⃣ POLL FOR DELIVERY ASSIGNMENT REQUESTS (giao hàng)
+        // ============================================================
+        try {
+          console.log('[App] 🔄 Polling delivery assignment requests...')
+          const deliveryResponse = await fetch(`${API_URL}/deliveries/assignment-requests/pending`, {
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          })
+
+          if (deliveryResponse.ok) {
+            const deliveryRequests = await deliveryResponse.json()
+            console.log('[App] 📦 Delivery requests found:', deliveryRequests.length)
+
+            if (deliveryRequests && deliveryRequests.length > 0) {
+              const firstRequest = deliveryRequests[0]
+              console.log('[App] 📬 ========== NEW DELIVERY REQUEST ==========')
+              console.log('[App] 📬 Request ID:', firstRequest._id)
+              console.log('[App] 📬 Delivery ID:', firstRequest.deliveryId?._id)
+              console.log('[App] 📬 Attempt #:', firstRequest.attemptNumber || 1)
+              console.log('[App] 📬 Score:', firstRequest.score)
+              console.log('[App] 🔥 Full delivery data:', {
+                distance: firstRequest.deliveryId?.distance,
+                duration: firstRequest.deliveryId?.duration,
+                estimatedPrice: firstRequest.deliveryId?.estimatedPrice,
+                pickupAddress: firstRequest.deliveryId?.pickupAddress,
+                dropoffAddress: firstRequest.deliveryId?.dropoffAddress,
+              })
+              console.log('[App] 📬 ========== END DELIVERY REQUEST ==========')
+
+              if (window && window.__firegoAssignmentCallback) {
+                window.__firegoAssignmentCallback({
+                  ...firstRequest,
+                  type: 'delivery', // ✅ Mark as delivery
+                  deliveryId: firstRequest.deliveryId, // ✅ Pass full populated object
+                })
+              }
+            }
+          } else {
+            console.warn('[App] ⚠️ Failed to fetch delivery requests:', deliveryResponse.status)
+          }
+        } catch (error) {
+          console.error('[App] ❌ Error polling delivery requests:', error)
+        }
       } catch (error) {
-        console.error('[App] ❌ Global polling error:', error)
+        console.error('[App] ❌ Error in global polling:', error)
       }
     }
 
@@ -439,7 +513,7 @@ console.log('[App] Fetching user profile with token...')
       isMounted = false
       clearInterval(interval)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, user?.id])
 
   if (isLoading) {
     return (
@@ -488,25 +562,311 @@ export default function App() {
   // Global state for assignment request modal
   const [assignmentRequest, setAssignmentRequest] = useState(null)
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
-  const [countdown, setCountdown] = useState(15)
+  const [countdown, setCountdown] = useState(45)
   const navigationRef = useRef(null)
+  const lastRequestIdRef = useRef(null)  // ✅ Track last request ID to avoid reset countdown
 
-  // Start assignment request polling when app loads
+  // ✅ Setup assignment request polling with store subscription
   useEffect(() => {
-    console.log('[App] 🚀 Starting assignment request polling service...')
+    let unsubscribe
     
-    assignmentRequestPollingService.startPolling((request) => {
-      console.log('[App] 🔔 Assignment request received:', JSON.stringify(request, null, 2))
-      setAssignmentRequest(request)
-      setShowAssignmentModal(true)
-      setCountdown(15)
+    const startPolling = () => {
+      const state = store.getState()
+      const user = state.auth.user
+      const driverId = user?._id || user?.id
+      
+      if (!driverId) {
+        console.log('[App] ⏭️ Skip polling - no driverId yet')
+        return
+      }
 
-      // Play notification sound
-      playNotificationSound()
+      console.log('[App] 🚀 Starting assignment request polling with driverId:', driverId)
+
+      // ✅ Register global callback for RootNavigator polling to emit requests
+      window.__firegoAssignmentCallback = (request) => {
+        console.log('[App] 📦 Request data:', request)
+        console.log('[App] 📦 Request rideId data:', request.rideId)
+        console.log('[App] 📦 Request deliveryId data:', request.deliveryId)
+        
+        // ✅ Check if this is a NEW request (different from last one)
+        const isNewRequest = lastRequestIdRef.current !== request._id
+        lastRequestIdRef.current = request._id
+
+        // 🔥 Check if rideId is a POPULATED OBJECT with distance/duration
+        const rideHasFullData = request.rideId && typeof request.rideId === 'object' && 
+          request.rideId.distance !== undefined && request.rideId.duration !== undefined
+
+        // 🔥 Check if deliveryId is a POPULATED OBJECT with distance/duration
+        const deliveryHasFullData = request.deliveryId && typeof request.deliveryId === 'object' && 
+          request.deliveryId.distance !== undefined && request.deliveryId.duration !== undefined
+
+        console.log('[App] 🔍 rideHasFullData:', rideHasFullData, 'rideId type:', typeof request.rideId)
+        console.log('[App] 🔍 deliveryHasFullData:', deliveryHasFullData, 'deliveryId type:', typeof request.deliveryId)
+
+        // UPDATE STATE TO SHOW MODAL
+        setAssignmentRequest(request)
+        setShowAssignmentModal(true)
+
+        // ✅ ONLY reset countdown for NEW requests, not for updates
+        if (isNewRequest) {
+          console.log('[App] ✅ New request, resetting countdown to 45')
+          setCountdown(45)
+
+          // If rideId already populated with distance/duration, use it immediately
+          if (request.type === 'ride' && rideHasFullData) {
+            console.log('[App] ✅ Using populated ride data immediately:', {
+              distance: request.rideId.distance,
+              duration: request.rideId.duration,
+              fare: request.rideId.totalFare,
+            })
+            setAssignmentRequest(prev => ({
+              ...prev,
+              distance: request.rideId.distance || 0,
+              duration: request.rideId.duration || 0,
+              fare: request.rideId.totalFare || 0,
+              pickupAddress: request.rideId.pickupAddress || 'Địa điểm đón',
+              dropoffAddress: request.rideId.dropoffAddress || 'Địa điểm đến',
+              pickupCoordinates: request.rideId.pickupCoordinates || prev.pickupCoordinates,
+              dropoffCoordinates: request.rideId.dropoffCoordinates || prev.dropoffCoordinates,
+            }))
+            return
+          }
+
+          // ============ HELPER: Parse distance/duration from various formats ============
+          const parseDistance = (val) => {
+            if (typeof val === 'number') return val
+            if (!val) return 0
+            // Handle "5.2 km" → 5.2
+            const numStr = String(val).replace(/[^\d.]/g, '')
+            const parsed = parseFloat(numStr)
+            return isNaN(parsed) ? 0 : Math.round(parsed * 10) / 10 // Round to 1 decimal
+          }
+
+          const parseDuration = (val) => {
+            if (typeof val === 'number') return val
+            if (!val) return 0
+            // Handle "15 phút" → 15
+            const numStr = String(val).replace(/[^\d]/g, '')
+            const parsed = parseInt(numStr)
+            return isNaN(parsed) ? 0 : parsed
+          }
+          // ============ END HELPER ============
+
+          // If deliveryId already populated with distance/duration/fee, use it immediately
+          if (request.type === 'delivery' && deliveryHasFullData) {
+            console.log('[App] ✅ Using populated delivery data immediately:', {
+              distance: request.deliveryId.distance,
+              duration: request.deliveryId.duration,
+              fare: request.deliveryId.estimatedPrice,
+              distanceParsed: parseDistance(request.deliveryId.distance),
+              durationParsed: parseDuration(request.deliveryId.duration),
+            })
+            setAssignmentRequest(prev => ({
+              ...prev,
+              distance: parseDistance(request.deliveryId.distance),
+              duration: parseDuration(request.deliveryId.duration),
+              fare: request.deliveryId.estimatedPrice || 0,
+              pickupAddress: request.deliveryId.pickupAddress || 'Lấy hàng',
+              dropoffAddress: request.deliveryId.dropoffAddress || 'Giao hàng',
+              pickupCoordinates: request.deliveryId.pickupCoordinates || prev.pickupCoordinates,
+              dropoffCoordinates: request.deliveryId.dropoffCoordinates || prev.dropoffCoordinates,
+            }))
+            return
+          }
+
+          // ✅ For combined trips, fetch full data to get distance, duration
+          if (request.combinedTripId && request.type === 'rideshare') {
+            console.log('[App] 📡 Fetching full combined trip data...')
+            fetchFullRequestData(request.combinedTripId, request._id, 'combined_trip')
+          } else if (request.type === 'ride') {
+            // ✅ For regular rides, only fetch if rideId is just an ID string
+            if (request.rideId && typeof request.rideId === 'string') {
+              console.log('[App] 📡 Fetching full ride data (rideId is string)...')
+              fetchFullRequestData(request.rideId, request._id, 'ride')
+            } else if (request.rideId && typeof request.rideId === 'object' && !rideHasFullData) {
+              // rideId is a partial object, try to fetch using its _id
+              const rideId = request.rideId._id || request.rideId
+              if (rideId && typeof rideId === 'string') {
+                console.log('[App] 📡 Fetching full ride data (partial object)...')
+                fetchFullRequestData(rideId, request._id, 'ride')
+              }
+            }
+          } else if (request.type === 'delivery') {
+            // ✅ For delivery, only fetch if deliveryId is just an ID string
+            if (request.deliveryId && typeof request.deliveryId === 'string') {
+              console.log('[App] 📡 Fetching full delivery data (deliveryId is string)...')
+              fetchFullRequestData(request.deliveryId, request._id, 'delivery')
+            } else if (request.deliveryId && typeof request.deliveryId === 'object' && !deliveryHasFullData) {
+              // deliveryId is a partial object, try to fetch using its _id
+              const deliveryId = request.deliveryId._id || request.deliveryId
+              console.log('[App] 📡 Delivery populated but missing full data, fetching...')
+              console.log('[App] 📡 deliveryId._id:', deliveryId)
+              console.log('[App] 📡 Current deliveryId object:', request.deliveryId)
+              if (deliveryId && typeof deliveryId === 'string') {
+                console.log('[App] 📡 Fetching full delivery data (partial object)...')
+                fetchFullRequestData(deliveryId, request._id, 'delivery')
+              }
+            }
+          }
+
+          // Play notification sound only for new requests
+          playNotificationSound()
+        } else {
+          console.log('[App] ℹ️ Same request update, keeping countdown')
+        }
+      }
+    }
+
+    // Helper to fetch full request data with trip details
+    const fetchFullRequestData = async (dataId, requestId, dataType = 'combined_trip') => {
+      try {
+        const token = await AsyncStorage.getItem('token')
+        if (!token) {
+          console.error('[App] ❌ No token available for fetch')
+          return
+        }
+
+        let endpoint = ''
+        if (dataType === 'combined_trip') {
+          endpoint = `http://192.168.1.18:3000/api/combined-trips/${dataId}`
+          console.log('[App] 📡 Fetching full combined trip data for:', dataId)
+        } else if (dataType === 'ride') {
+          endpoint = `http://192.168.1.18:3000/api/rides/${dataId}`
+          console.log('[App] 📡 Fetching full ride data for:', dataId)
+        } else if (dataType === 'delivery') {
+          endpoint = `http://192.168.1.18:3000/api/deliveries/${dataId}`
+          console.log('[App] 📡 Fetching full delivery data for:', dataId)
+        }
+
+        console.log('[App] 🔗 Fetch endpoint:', endpoint)
+
+        const response = await fetch(endpoint, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000 // 10 second timeout
+        })
+
+        console.log('[App] 📥 Response status:', response.status)
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('[App] ❌ Failed to fetch data (HTTP ' + response.status + '):', errorText.substring(0, 200))
+          return
+        }
+
+        const data = await response.json()
+        console.log('[App] ✅ Data fetched successfully')
+        
+        // Extract relevant fields based on type
+        let pickupAddress = ''
+        let dropoffAddress = ''
+        let distance = 0
+        let duration = 0
+        let fare = 0
+
+        // ============ HELPER: Parse distance/duration from various formats ============
+        const parseDistance = (val) => {
+          if (typeof val === 'number') return val
+          if (!val) return 0
+          // Handle "5.2 km" → 5.2
+          const numStr = String(val).replace(/[^\d.]/g, '')
+          const parsed = parseFloat(numStr)
+          return isNaN(parsed) ? 0 : Math.round(parsed * 10) / 10 // Round to 1 decimal
+        }
+
+        const parseDuration = (val) => {
+          if (typeof val === 'number') return val
+          if (!val) return 0
+          // Handle "15 phút" → 15
+          const numStr = String(val).replace(/[^\d]/g, '')
+          const parsed = parseInt(numStr)
+          return isNaN(parsed) ? 0 : parsed
+        }
+        // ============ END HELPER ============
+
+        if (dataType === 'combined_trip') {
+          pickupAddress = data.pickupAddress || 'N/A'
+          dropoffAddress = data.dropoffAddress || 'N/A'
+          distance = parseDistance(data.distance)
+          duration = parseDuration(data.duration)
+          fare = data.totalFare || 0
+        } else if (dataType === 'ride') {
+          pickupAddress = data.pickupAddress || 'N/A'
+          dropoffAddress = data.dropoffAddress || 'N/A'
+          distance = parseDistance(data.distance)
+          duration = parseDuration(data.duration)  // ✅ Ride schema uses 'duration', not 'estimatedDuration'
+          fare = data.totalFare || 0
+        } else if (dataType === 'delivery') {
+          pickupAddress = data.pickupAddress || 'N/A'
+          dropoffAddress = data.dropoffAddress || 'N/A'
+          distance = parseDistance(data.distance)
+          duration = parseDuration(data.duration)
+          fare = data.estimatedPrice || 0
+        }
+
+        console.log('[App] ✅ Data extracted:', {
+          distance,
+          duration,
+          fare,
+          pickupAddress: pickupAddress.substring(0, 30) + '...',
+          dropoffAddress: dropoffAddress.substring(0, 30) + '...',
+        })
+
+        // 🔥 DEBUG: Log raw values
+        console.log('[App] 🔍 RAW distance:', distance, 'type:', typeof distance)
+        console.log('[App] 🔍 RAW duration:', duration, 'type:', typeof duration)
+        console.log('[App] 🔍 RAW fare:', fare, 'type:', typeof fare)
+
+        // ✅ Update request with full data
+        setAssignmentRequest(prev => {
+          if (!prev) {
+            console.warn('[App] ⚠️ Previous request state is null, cannot update')
+            return prev
+          }
+          
+          return {
+            ...prev,
+            distance,
+            duration,
+            fare,
+            pickupAddress,
+            dropoffAddress,
+            combinedTripId: dataType === 'combined_trip' ? dataId : prev.combinedTripId,
+            rideId: dataType === 'ride' ? dataId : prev.rideId,
+            deliveryId: dataType === 'delivery' ? dataId : prev.deliveryId,
+            // Also add coordinates for modal display
+            pickupCoordinates: data.pickupLocation?.coordinates || data.pickupCoordinates || prev.pickupCoordinates,
+            dropoffCoordinates: data.deliveryLocation?.coordinates || data.deliveryCoordinates || data.dropoffLocation?.coordinates || data.dropoffCoordinates || prev.dropoffCoordinates,
+          }
+        })
+
+        console.log('[App] ✅ State updated with full data')
+      } catch (error) {
+        console.error('[App] ❌ Error fetching data:', error.message)
+        console.error('[App] ❌ Error stack:', error.stack?.substring(0, 200))
+      }
+    }
+
+    // Subscribe to store changes to restart polling when user logs in
+    unsubscribe = store.subscribe(() => {
+      const newUser = store.getState().auth.user
+      if (newUser && !assignmentRequest) {
+        // User just logged in, start polling
+        startPolling()
+      }
     })
 
+    // Start immediately if user is already logged in
+    const initialUser = store.getState().auth.user
+    if (initialUser) {
+      startPolling()
+    }
+
     return () => {
-      console.log('[App] 🛑 Stopping assignment request polling service...')
+      if (unsubscribe) unsubscribe()
+      console.log('[App] 🛑 Stopping assignment request polling')
       assignmentRequestPollingService.stopPolling()
     }
   }, [])
@@ -520,7 +880,7 @@ export default function App() {
         if (prev <= 1) {
           // Auto reject when timeout
           handleRejectAssignment()
-          return 15
+          return 45
         }
         return prev - 1
       })
@@ -545,67 +905,176 @@ export default function App() {
   const handleAcceptAssignment = async () => {
     if (!assignmentRequest) return
 
+    // ✅ Check if request is already expired
+    if (assignmentRequest.status === 'timeout' || assignmentRequest.status !== 'pending') {
+      console.warn('[App] ⚠️ Request already expired or rejected, skipping accept')
+      console.warn('[App] Request status:', assignmentRequest.status)
+      Alert.alert('Yêu cầu hết hạn', 'Yêu cầu này đã hết hạn, vui lòng chờ yêu cầu tiếp theo')
+      setShowAssignmentModal(false)
+      setAssignmentRequest(null)
+      setCountdown(45)
+      return
+    }
+
     try {
+      // 💰 Check wallet balance BEFORE accepting
+      console.log('[App] 💰 Checking driver wallet balance...')
+      const driverProfile = await driverService.getProfile()
+      const walletBalance = driverProfile?.walletBalance || 0
+
+      console.log('[App] 💰 Driver wallet balance:', {
+        balance: walletBalance,
+        threshold: 200000,
+        needsTopup: walletBalance < 200000,
+      })
+
+      if (walletBalance < 200000) {
+        console.warn('[App] ⚠️ Wallet balance too low:', walletBalance)
+        Alert.alert(
+          'Số dư ví không đủ',
+          `Số dư ví của bạn là ${walletBalance.toLocaleString('vi-VN')}đ. Vui lòng nạp tiền để tiếp tục nhận cuốc.`,
+          [
+            {
+              text: 'Nạp tiền',
+              onPress: () => {
+                navigationRef.current?.navigate('Wallet')
+              },
+            },
+            {
+              text: 'Để sau',
+              onPress: () => {
+                setShowAssignmentModal(false)
+                setAssignmentRequest(null)
+                setCountdown(45)
+              },
+            },
+          ]
+        )
+        return
+      }
+
       const requestType = assignmentRequest.type || 'ride'
-      console.log('[App] ✅ Accepting assignment request:', assignmentRequest._id, 'type:', requestType)
+      // ✅ SAVE fallback IDs BEFORE clearing state
+      const tripId = assignmentRequest.combinedTripId?._id || assignmentRequest.combinedTripId
+      const fallbackRideId = assignmentRequest.rideId?._id || assignmentRequest.rideId
+      const fallbackDeliveryId = assignmentRequest.deliveryId?._id || assignmentRequest.deliveryId
+      
+      console.log('[App] ✅ Accepting assignment request:', {
+        requestId: assignmentRequest._id,
+        type: requestType,
+        tripId: tripId
+      })
       
       const result = await assignmentRequestPollingService.acceptRequest(
         assignmentRequest._id,
-        requestType
+        requestType,
+        tripId // ✅ Pass combinedTripId for rideshare requests
       )
 
       console.log('[App] ✅ Request accepted successfully:', result)
       
-      // Đóng modal
+      // ✅ Determine navigation ID BEFORE clearing state
+      let navigationId = result?._id
+      
+      if (requestType === 'delivery') {
+        navigationId = navigationId || fallbackDeliveryId
+      } else if (requestType === 'rideshare') {
+        navigationId = navigationId || tripId
+      } else {
+        navigationId = navigationId || fallbackRideId
+      }
+      
+      // NOW close modal and reset state
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
-      setCountdown(15)
+      setCountdown(45)
 
       // Navigate based on type
-      if (navigationRef.current && result?._id) {
-        if (requestType === 'delivery') {
-          console.log('[App] 🚀 Navigating to ActiveDelivery with deliveryId:', result._id)
-          navigationRef.current.navigate('ActiveDelivery', { 
-            deliveryId: result._id 
-          })
-          Alert.alert('Thành công', 'Bạn đã nhận đơn giao hàng!')
-        } else {
-          console.log('[App] 🚀 Navigating to TripActivities with rideId:', result._id)
-          navigationRef.current.navigate('TripActivities', { 
-            rideId: result._id 
-          })
-          Alert.alert('Thành công', 'Bạn đã nhận cuốc xe!')
-        }
+      if (!navigationRef.current) {
+        console.error('[App] ❌ navigationRef not available')
+        return
+      }
+      
+      if (requestType === 'delivery') {
+        console.log('[App] 🚀 Navigating to ActiveDelivery with id:', navigationId)
+        navigationRef.current.navigate('ActiveDelivery', { deliveryId: navigationId })
+        Alert.alert('Thành công', 'Bạn đã nhận đơn giao hàng!')
+      } else if (requestType === 'rideshare') {
+        console.log('[App] 🚀 Navigating to ActiveRideScreen with combinedTripId:', navigationId)
+        navigationRef.current.navigate('ActiveRideScreen', { 
+          combinedTripId: navigationId, // ✅ Chỉ truyền combinedTripId cho rideshare
+          sourceType: 'combined_trip',
+        })
+        Alert.alert('Thành công', 'Bạn đã nhận chuyến ghép!')
       } else {
-        console.error('[App] ❌ Cannot navigate: navigationRef or result._id not available')
+        console.log('[App] 🚀 Navigating to TripActivities with rideId:', navigationId)
+        navigationRef.current.navigate('TripActivities', { rideId: navigationId })
+        Alert.alert('Thành công', 'Bạn đã nhận cuốc xe!')
       }
     } catch (error) {
-      console.error('[App] Error accepting assignment:', error)
-      Alert.alert('Lỗi', error.message || 'Không thể nhận yêu cầu')
+      console.error('[App] ❌ Error accepting assignment:', error)
+      console.error('[App] ❌ Error message:', error?.message)
+      // ✅ Close modal anyway on error
+      setShowAssignmentModal(false)
+      setAssignmentRequest(null)
+      setCountdown(45)
+      Alert.alert('Lỗi', error?.message || 'Không thể nhận yêu cầu')
     }
   }
 
   const handleRejectAssignment = async () => {
-    if (!assignmentRequest) return
+    if (!assignmentRequest) {
+      console.warn('[App] ⚠️ No assignment request to reject')
+      return
+    }
+
+    // ✅ Check if request is already expired
+    if (assignmentRequest.status === 'timeout' || assignmentRequest.status !== 'pending') {
+      console.warn('[App] ⚠️ Request already expired or rejected, skipping reject')
+      console.warn('[App] Request status:', assignmentRequest.status)
+      Alert.alert('Yêu cầu hết hạn', 'Yêu cầu này đã hết hạn')
+      setShowAssignmentModal(false)
+      setAssignmentRequest(null)
+      setCountdown(45)
+      return
+    }
 
     try {
       const requestType = assignmentRequest.type || 'ride'
-      console.log('[App] ❌ Rejecting assignment request:', assignmentRequest._id, 'type:', requestType)
+      const tripId = assignmentRequest.combinedTripId?._id || assignmentRequest.combinedTripId
+      
+      console.log('[App] ❌ Rejecting assignment request:', {
+        requestId: assignmentRequest._id,
+        type: requestType,
+        tripId: tripId,
+        status: assignmentRequest.status,
+        timestamp: new Date().toISOString(),
+      })
       
       await assignmentRequestPollingService.rejectRequest(
         assignmentRequest._id,
         requestType,
-        'Tài xế từ chối'
+        tripId,
+        'Driver rejected'
       )
+      
+      console.log('[App] ✅ Request rejected successfully')
 
+      // Close modal and reset state
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
-      setCountdown(15)
+      setCountdown(45)
+      Alert.alert('Thành công', 'Bạn đã từ chối yêu cầu này')
     } catch (error) {
-      console.error('[App] Error rejecting assignment:', error)
-      // Still close modal even if reject fails
+      console.error('[App] ❌ Error rejecting assignment:', error)
+      console.error('[App] ❌ Error message:', error?.message)
+      console.error('[App] ❌ Error stack:', error?.stack?.substring(0, 300))
+      
+      // ✅ Close modal anyway on error
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
+      setCountdown(45)
+      Alert.alert('Lỗi', error?.message || 'Không thể từ chối yêu cầu')
     }
   }
 

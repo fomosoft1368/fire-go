@@ -19,7 +19,7 @@ interface DriverScore {
 @Injectable()
 export class DeliveryAutoAssignService {
   private readonly logger = new Logger(DeliveryAutoAssignService.name);
-  private readonly REQUEST_TIMEOUT_SECONDS = 15; // Timeout 15 giây
+  private readonly REQUEST_TIMEOUT_SECONDS = 45; // Timeout 15 giây
   private timeoutHandlers = new Map<string, NodeJS.Timeout>(); // Track timeout handlers
 
   constructor(
@@ -53,6 +53,7 @@ export class DeliveryAutoAssignService {
 
       this.logger.log(`[autoAssignDriver] ✅ Delivery found: ${delivery._id}`);
       this.logger.log(`[autoAssignDriver] Current status: ${delivery.status}`);
+      this.logger.log(`[autoAssignDriver] Distance: ${delivery.distance}, Duration: ${delivery.duration}, Price: ${delivery.estimatedPrice}`);
 
       // Check if delivery is in valid status for assignment
       if (delivery.status !== DeliveryStatus.PENDING && delivery.status !== DeliveryStatus.FINDING_DRIVER) {
@@ -65,7 +66,7 @@ export class DeliveryAutoAssignService {
 
       // Update status to finding driver
       if (delivery.status === DeliveryStatus.PENDING) {
-        this.logger.log(`[autoAssignDriver] Updating status to FINDING_DRIVER...`);
+        console.log(`[autoAssignDriver] Updating status to FINDING_DRIVER...`);
         await this.deliveryModel.findByIdAndUpdate(deliveryId, {
           status: DeliveryStatus.FINDING_DRIVER,
         });
@@ -75,20 +76,28 @@ export class DeliveryAutoAssignService {
       const pickupLng = delivery.pickupCoordinates[0];
       const pickupLat = delivery.pickupCoordinates[1];
 
-      this.logger.log(`[autoAssignDriver] Pickup coordinates: [${pickupLng}, ${pickupLat}]`);
-      this.logger.log(`[autoAssignDriver] Calling getAvailableDriversWithScores...`);
+      console.log(`\n========== STARTING AUTO-ASSIGN ==========`)
+      console.log(`[autoAssignDriver] Delivery ID: ${deliveryId}`);
+      console.log(`[autoAssignDriver] Pickup coordinates: [${pickupLng}, ${pickupLat}]`);
+      console.log(`[autoAssignDriver] Calling getAvailableDriversWithScores...`);
 
       // Find nearby available drivers and score them
       const driverScores = await this.getAvailableDriversWithScores(pickupLng, pickupLat);
 
-      this.logger.log(`[autoAssignDriver] Driver scores returned: ${driverScores.length} drivers`);
+      console.log(`[autoAssignDriver] 🎯 Driver scores returned: ${driverScores.length} drivers nearby`);
+      if (driverScores.length > 0) {
+        driverScores.forEach((ds, idx) => {
+          console.log(`  [${idx + 1}] Driver ${ds.driver.firstName} ${ds.driver.lastName} (${ds.driver._id}): score=${ds.score.toFixed(2)}, distance=${ds.breakdown.distance.toFixed(1)}, rating=${ds.breakdown.rating}`);
+        });
+      }
 
       if (driverScores.length === 0) {
-        this.logger.warn(`[autoAssignDriver] ❌ No available drivers found near delivery ${deliveryId}`);
-        this.logger.warn(`[autoAssignDriver] Updating delivery status to NO_DRIVER_AVAILABLE...`);
+        console.error(`[autoAssignDriver] ❌ No available drivers found near delivery ${deliveryId}`);
+        console.error(`[autoAssignDriver] Updating delivery status to NO_DRIVER_AVAILABLE...`);
         await this.deliveryModel.findByIdAndUpdate(deliveryId, {
           status: DeliveryStatus.NO_DRIVER_AVAILABLE,
         });
+        console.log(`========== END AUTO-ASSIGN (NO DRIVERS) ==========\n`)
         return {
           success: false,
           message: 'No available drivers found in the area',
@@ -97,12 +106,10 @@ export class DeliveryAutoAssignService {
 
       // Get the best driver (highest score)
       const selectedDriver = driverScores[0];
-
-      this.logger.log(`[autoAssignDriver] ✅ Selected driver: ${selectedDriver.driver._id} (score: ${selectedDriver.score})`);
-      this.logger.log(`[autoAssignDriver] Driver name: ${selectedDriver.driver.firstName} ${selectedDriver.driver.lastName}`);
+      console.log(`[autoAssignDriver] 🎯 Selected best driver: ${selectedDriver.driver.firstName} ${selectedDriver.driver.lastName} (${selectedDriver.driver._id}) with score ${selectedDriver.score.toFixed(2)}`);
 
       // Create assignment request
-      this.logger.log(`[autoAssignDriver] Creating assignment request...`);
+      console.log(`[autoAssignDriver] Creating assignment request...`);
       const assignmentRequest = await this.createAssignmentRequest(
         deliveryId,
         selectedDriver.driver._id.toString(),
@@ -110,9 +117,7 @@ export class DeliveryAutoAssignService {
         1, // attemptNumber = 1 (first attempt)
       );
 
-      this.logger.log(
-        `[autoAssignDriver] ✅ Created assignment request ${assignmentRequest._id} for driver ${selectedDriver.driver._id}`
-      );
+      console.log(`[autoAssignDriver] ✅ Created assignment request ${assignmentRequest._id} for driver ${selectedDriver.driver._id}`);
 
       // Emit event để notify driver (via polling)
       this.eventEmitter.emit('delivery.assignment.request.created', {
@@ -122,9 +127,12 @@ export class DeliveryAutoAssignService {
         delivery: delivery,
         expiresAt: assignmentRequest.expiresAt,
       });
+      console.log(`[autoAssignDriver] ✅ Event emitted for polling`);
 
       // Lên lịch timeout check
       this.scheduleTimeoutCheck(assignmentRequest._id.toString(), driverScores);
+      console.log(`[autoAssignDriver] ✅ Timeout check scheduled for ${this.REQUEST_TIMEOUT_SECONDS} seconds`);
+      console.log(`========== END AUTO-ASSIGN (SUCCESS) ==========\n`)
 
       return {
         success: true,
@@ -132,7 +140,8 @@ export class DeliveryAutoAssignService {
         requestId: assignmentRequest._id.toString(),
       };
     } catch (error) {
-      this.logger.error(`[autoAssignDriver] Error: ${error.message}`, error.stack);
+      console.error(`[autoAssignDriver] ❌ Error: ${error.message}`, error.stack);
+      console.log(`========== END AUTO-ASSIGN (ERROR) ==========\n`)
       throw error;
     }
   }
@@ -165,31 +174,58 @@ export class DeliveryAutoAssignService {
    */
   private scheduleTimeoutCheck(requestId: string, driverScores: DriverScore[]) {
     const timeoutHandler = setTimeout(async () => {
-      const request = await this.assignmentRequestModel.findById(requestId);
-      
-      if (!request || request.status !== 'pending') {
+      try {
+        console.log(`\n========== TIMEOUT CHECK TRIGGERED ==========`)
+        console.log(`[scheduleTimeoutCheck] ⏰ Timeout fired for request ${requestId}`)
+        
+        const request = await this.assignmentRequestModel.findById(requestId);
+        
+        if (!request) {
+          console.log(`[scheduleTimeoutCheck] ❌ Request not found: ${requestId}`)
+          this.timeoutHandlers.delete(requestId);
+          return
+        }
+
+        console.log(`[scheduleTimeoutCheck] Request status: ${request.status}`)
+        
+        if (request.status !== 'pending') {
+          console.log(`[scheduleTimeoutCheck] ⏸️ Request already handled (status: ${request.status}), skipping retry`)
+          this.timeoutHandlers.delete(requestId);
+          return;
+        }
+
+        console.log(`[scheduleTimeoutCheck] 📢 Delivery assignment request TIMEOUT`)
+        console.log(`[scheduleTimeoutCheck] Driver: ${request.driverId}`)
+        console.log(`[scheduleTimeoutCheck] Total drivers in list: ${driverScores.length}`)
+
+        // Update status sang timeout
+        await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
+          status: 'timeout',
+          respondedAt: new Date(),
+        });
+        console.log(`[scheduleTimeoutCheck] ✅ Status updated to 'timeout'`)
+
+        // IMPORTANT: Set driver back to available since they didn't accept
+        // Driver should remain available for other requests
+        console.log(`[scheduleTimeoutCheck] 🔄 Setting driver ${request.driverId} back to available`)
+        await this.driverModel.findByIdAndUpdate(request.driverId, {
+          isAvailable: true,
+        });
+        console.log(`[scheduleTimeoutCheck] ✅ Driver set to available`)
+
+        // Retry với driver tiếp theo
+        console.log(`[scheduleTimeoutCheck] 🔄 Calling retryWithNextDriver...`)
+        await this.retryWithNextDriver(request, driverScores);
+        console.log(`[scheduleTimeoutCheck] ✅ Retry completed`)
+        
         this.timeoutHandlers.delete(requestId);
-        return; // Đã được xử lý rồi
+        console.log(`========== TIMEOUT CHECK COMPLETE ==========\n`)
+      } catch (error) {
+        console.error(`[scheduleTimeoutCheck] ❌ ERROR in timeout handler:`, error)
+        console.error(`[scheduleTimeoutCheck] Error message:`, error instanceof Error ? error.message : String(error))
+        console.error(`[scheduleTimeoutCheck] Error stack:`, error instanceof Error ? error.stack : '')
+        this.timeoutHandlers.delete(requestId);
       }
-
-      this.logger.warn(`Delivery assignment request ${requestId} timeout, retrying with next driver`);
-
-      // Update status sang timeout
-      await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
-        status: 'timeout',
-        respondedAt: new Date(),
-      });
-
-      // IMPORTANT: Set driver back to available since they didn't accept
-      // Driver should remain available for other requests
-      this.logger.log(`Setting driver ${request.driverId} back to available after timeout`);
-      await this.driverModel.findByIdAndUpdate(request.driverId, {
-        isAvailable: true,
-      });
-
-      // Retry với driver tiếp theo
-      await this.retryWithNextDriver(request, driverScores);
-      this.timeoutHandlers.delete(requestId);
     }, this.REQUEST_TIMEOUT_SECONDS * 1000);
 
     this.timeoutHandlers.set(requestId, timeoutHandler);
@@ -200,24 +236,50 @@ export class DeliveryAutoAssignService {
    */
   private async retryWithNextDriver(
     previousRequest: DeliveryAssignmentRequestDocument,
-    driverScores: DriverScore[],
+    driverScores: DriverScore[], // Deprecated - will fetch fresh list
   ): Promise<void> {
     const attemptNumber = previousRequest.attemptNumber + 1;
     
+    console.log(`\n========== RETRY WITH NEXT DRIVER (Attempt #${attemptNumber}) ==========`)
+    console.log(`[retryWithNextDriver] 🔄 Previous driver rejected/timed out, finding next driver...`);
+    console.log(`[retryWithNextDriver] Delivery: ${previousRequest.deliveryId}`);
+    console.log(`[retryWithNextDriver] Previous driver: ${previousRequest.driverId}`);
+
+    // ⭐ IMPORTANT: Fetch FRESH driver scores instead of using stale closure
+    // The driverScores passed in may be from 45 seconds ago and won't include new drivers
+    const delivery = await this.deliveryModel.findById(previousRequest.deliveryId);
+    if (!delivery) {
+      console.error(`[retryWithNextDriver] ❌ Delivery not found: ${previousRequest.deliveryId}`);
+      throw new NotFoundException('Delivery not found');
+    }
+
+    const pickupLng = delivery.pickupCoordinates[0];
+    const pickupLat = delivery.pickupCoordinates[1];
+    
+    console.log(`[retryWithNextDriver] 🔄 Fetching FRESH driver scores from [${pickupLng}, ${pickupLat}]...`);
+    const freshDriverScores = await this.getAvailableDriversWithScores(pickupLng, pickupLat);
+    console.log(`[retryWithNextDriver] 📊 Fresh driver pool size: ${freshDriverScores.length}`);
+
     // Lấy danh sách drivers đã được request rồi
     const previousRequests = await this.assignmentRequestModel.find({
       deliveryId: previousRequest.deliveryId,
-    }).select('driverId');
+    }).select('driverId status');
 
     const triedDriverIds = previousRequests.map(r => r.driverId.toString());
+    console.log(`[retryWithNextDriver] Already tried: ${triedDriverIds.length} driver(s)`);
+    previousRequests.forEach((r, idx) => console.log(`  [${idx + 1}] ${r.driverId} (status: ${r.status})`));
 
-    // Tìm driver tiếp theo chưa được request
-    const nextDriver = driverScores.find(
+    // Tìm driver tiếp theo chưa được request - từ FRESH list
+    console.log(`[retryWithNextDriver] Searching in fresh driver pool...`);
+    const nextDriver = freshDriverScores.find(
       ds => !triedDriverIds.includes(ds.driver._id.toString())
     );
 
     if (!nextDriver) {
-      this.logger.error(`No more drivers available for delivery ${previousRequest.deliveryId}`);
+      console.error(`[retryWithNextDriver] ❌ No more drivers available for delivery ${previousRequest.deliveryId}`);
+      console.error(`[retryWithNextDriver] Fresh pool size: ${freshDriverScores.length}, Already tried: ${triedDriverIds.length}`);
+      console.error(`[retryWithNextDriver] Fresh pool IDs:`, freshDriverScores.map(d => d.driver._id.toString()));
+      console.error(`[retryWithNextDriver] Tried IDs:`, triedDriverIds);
       
       // Update delivery status
       await this.deliveryModel.findByIdAndUpdate(previousRequest.deliveryId, {
@@ -229,31 +291,44 @@ export class DeliveryAutoAssignService {
         deliveryId: previousRequest.deliveryId,
       });
       
+      console.log(`[retryWithNextDriver] ========== END RETRY (NO DRIVERS AVAILABLE) ==========\n`)
       return;
     }
 
+    console.log(`[retryWithNextDriver] ✅ Found next driver: ${nextDriver.driver.firstName} ${nextDriver.driver.lastName} (${nextDriver.driver._id})`);
+    console.log(`[retryWithNextDriver] Next driver score: ${nextDriver.score.toFixed(2)}`);
+
     // Tạo request mới cho driver tiếp theo
-    const newRequest = await this.createAssignmentRequest(
-      previousRequest.deliveryId.toString(),
-      nextDriver.driver._id.toString(),
-      nextDriver.score,
-      attemptNumber,
-    );
+    try {
+      const newRequest = await this.createAssignmentRequest(
+        previousRequest.deliveryId.toString(),
+        nextDriver.driver._id.toString(),
+        nextDriver.score,
+        attemptNumber,
+      );
 
-    this.logger.log(
-      `Retry attempt ${attemptNumber}: Created assignment request ${newRequest._id} for driver ${nextDriver.driver._id}`
-    );
+      console.log(`[retryWithNextDriver] ✅ Created assignment request ${newRequest._id} for driver ${nextDriver.driver._id}`);
+      console.log(`[retryWithNextDriver] 📋 Request will expire at: ${newRequest.expiresAt}`);
 
-    // Emit event
-    this.eventEmitter.emit('delivery.assignment.request.created', {
-      requestId: newRequest._id,
-      driverId: nextDriver.driver._id,
-      deliveryId: previousRequest.deliveryId,
-      expiresAt: newRequest.expiresAt,
-    });
+      // Emit event
+      this.eventEmitter.emit('delivery.assignment.request.created', {
+        requestId: newRequest._id,
+        driverId: nextDriver.driver._id,
+        deliveryId: previousRequest.deliveryId,
+        expiresAt: newRequest.expiresAt,
+      });
+      console.log(`[retryWithNextDriver] ✅ Event emitted for polling`);
 
-    // Lên lịch timeout check
-    this.scheduleTimeoutCheck(newRequest._id.toString(), driverScores);
+      // Lên lịch timeout check - pass freshDriverScores instead of stale one
+      this.scheduleTimeoutCheck(newRequest._id.toString(), freshDriverScores);
+      console.log(`[retryWithNextDriver] ✅ Timeout check scheduled for ${this.REQUEST_TIMEOUT_SECONDS} seconds`);
+      console.log(`[retryWithNextDriver] ========== END RETRY (SUCCESS) ==========\n`);
+    } catch (error) {
+      console.error(`[retryWithNextDriver] ❌ Error creating assignment request:`, error);
+      console.error(`[retryWithNextDriver] Error message:`, error instanceof Error ? error.message : String(error));
+      console.error(`[retryWithNextDriver] ========== END RETRY (ERROR) ==========\n`)
+      throw error;
+    }
   }
 
   /**
@@ -266,21 +341,9 @@ export class DeliveryAutoAssignService {
       throw new NotFoundException('Assignment request not found');
     }
 
-    if (request.status !== 'pending') {
-      throw new BadRequestException(`Request is already ${request.status}`);
-    }
-
+    // ✅ Only check driver ID match (driver assigned to this request can accept anytime)
     if (request.driverId.toString() !== driverId) {
       throw new BadRequestException('This request is not for you');
-    }
-
-    // Check if request expired
-    if (new Date() > request.expiresAt) {
-      await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
-        status: 'timeout',
-        respondedAt: new Date(),
-      });
-      throw new BadRequestException('Request has expired');
     }
 
     // Cancel timeout handler
@@ -290,11 +353,19 @@ export class DeliveryAutoAssignService {
       this.timeoutHandlers.delete(requestId);
     }
 
-    // Update request status
-    await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
-      status: 'accepted',
-      respondedAt: new Date(),
-    });
+    // Atomic update request status
+    const updatedRequest = await this.assignmentRequestModel.findOneAndUpdate(
+      { _id: requestId },
+      {
+        status: 'accepted',
+        respondedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!updatedRequest) {
+      throw new BadRequestException('Could not accept request');
+    }
 
     // Assign driver to delivery
     const delivery = await this.deliveryModel.findByIdAndUpdate(
@@ -355,14 +426,10 @@ export class DeliveryAutoAssignService {
     this.logger.log(`[rejectAssignmentRequest] Request found: status=${request.status}, driverId=${request.driverId}`);
     this.logger.log(`[rejectAssignmentRequest] Comparing: request.driverId=${request.driverId.toString()} vs calling driverId=${driverId}`);
 
+    // ✅ Only check driver ID match (driver assigned to this request can reject anytime)
     if (request.driverId.toString() !== driverId) {
       this.logger.error(`[rejectAssignmentRequest] ❌ Driver ID mismatch!`);
       throw new BadRequestException('This request is not for you');
-    }
-
-    if (request.status !== 'pending') {
-      this.logger.error(`[rejectAssignmentRequest] ❌ Request status is '${request.status}', not 'pending'`);
-      throw new BadRequestException(`Request is already ${request.status}`);
     }
 
     // Cancel timeout handler
@@ -372,12 +439,21 @@ export class DeliveryAutoAssignService {
       this.timeoutHandlers.delete(requestId);
     }
 
-    // Update request status
-    await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
-      status: 'rejected',
-      respondedAt: new Date(),
-      rejectionReason: reason,
-    });
+    // Update request status - atomic update
+    const updatedRequest = await this.assignmentRequestModel.findOneAndUpdate(
+      { _id: requestId },
+      {
+        status: 'rejected',
+        respondedAt: new Date(),
+        rejectionReason: reason,
+      },
+      { new: true }
+    );
+
+    if (!updatedRequest) {
+      this.logger.error(`[rejectAssignmentRequest] ❌ Failed to update request`);
+      throw new BadRequestException('Could not reject request');
+    }
 
     // IMPORTANT: Set driver back to available when they reject
     // Driver should remain available for other requests
@@ -418,6 +494,7 @@ export class DeliveryAutoAssignService {
     })
     .populate({
       path: 'deliveryId',
+      select: '_id customerId pickupAddress dropoffAddress pickupCoordinates dropoffCoordinates distance duration estimatedPrice status',
       populate: [
         { path: 'customerId', select: 'firstName lastName phone avatar' },
       ],
@@ -432,24 +509,72 @@ export class DeliveryAutoAssignService {
    * Get available drivers with scores
    */
   private async getAvailableDriversWithScores(lng: number, lat: number): Promise<DriverScore[]> {
-    const maxDistance = 5000; // 5km
+    const maxDistance = 5000; // Back to 5km (location tracking to be fixed)
 
-    // Debug: log query params
-    this.logger.log(`[getAvailableDriversWithScores] Searching for drivers near [${lng}, ${lat}] within ${maxDistance}m`);
+    console.log(`\n========== SEARCHING FOR DRIVERS ==========`)
+    console.log(`[getAvailableDriversWithScores] Searching for drivers near [${lng}, ${lat}] within ${maxDistance}m`);
+
+    // ⭐ FIRST: Get ALL online drivers to see what's filtered
+    const allOnlineDrivers = await this.driverModel.find({
+      isOnline: true,
+    })
+    .select('_id firstName lastName isOnline isAvailable isVerified currentLocation driverTypes deliveryEnabled')
+    .exec();
+
+    console.log(`[getAvailableDriversWithScores] 📊 Total ONLINE drivers: ${allOnlineDrivers.length}`);
+    allOnlineDrivers.forEach((d: any) => {
+      const driverTypesStr = Array.isArray(d.driverTypes) ? d.driverTypes.join(',') : d.driverTypes;
+      console.log(`  [${d._id}] ${d.firstName} ${d.lastName}`);
+      console.log(`       online=${d.isOnline}, available=${d.isAvailable}, verified=${d.isVerified}`);
+      console.log(`       driverTypes=[${driverTypesStr}], deliveryEnabled=${d.deliveryEnabled}`);
+      console.log(`       hasLocation=${!!d.currentLocation}`);
+    });
 
     // Step 1: Check all drivers with delivery type (no location filter)
     const allDeliveryDrivers = await this.driverModel.find({
       driverTypes: { $in: ['delivery'] },
+      isOnline: true,
     })
     .select('_id firstName lastName isOnline isAvailable isVerified currentLocation driverTypes')
     .exec();
 
-    this.logger.log(`[getAvailableDriversWithScores] Total drivers with delivery type: ${allDeliveryDrivers.length}`);
+    console.log(`[getAvailableDriversWithScores] 📦 Drivers with driverTypes containing 'delivery': ${allDeliveryDrivers.length}`);
     allDeliveryDrivers.forEach((d: any) => {
-      this.logger.log(`  - ${d.firstName} ${d.lastName} (${d._id}): online=${d.isOnline}, available=${d.isAvailable}, verified=${d.isVerified}, hasLocation=${!!d.currentLocation}`);
+      const driverTypesStr = Array.isArray(d.driverTypes) ? d.driverTypes.join(',') : d.driverTypes;
+      console.log(`  ✅ ${d.firstName} ${d.lastName} (${d._id}): online=${d.isOnline}, available=${d.isAvailable}, verified=${d.isVerified}, driverTypes=[${driverTypesStr}]`);
     });
 
-    // Step 2: Now apply full filters
+    // ⭐ IMPORTANT: Debug geospatial filter
+    // Calculate distance manually for all delivery drivers to see why Ho Van Trinh is filtered
+    console.log(`\n[getAvailableDriversWithScores] 🔍 Analyzing which drivers pass geospatial filter...`);
+    const deliveryDriversNearby = allDeliveryDrivers.filter((d: any) => {
+      if (!d.isOnline || !d.isAvailable || !d.isVerified) {
+        console.log(`  ❌ ${d.firstName} ${d.lastName} - FILTERED: not (online && available && verified)`);
+        return false;
+      }
+
+      if (!d.currentLocation || !d.currentLocation.coordinates) {
+        console.log(`  ❌ ${d.firstName} ${d.lastName} - FILTERED: No valid currentLocation`);
+        return false;
+      }
+
+      const driverLng = d.currentLocation.coordinates[0];
+      const driverLat = d.currentLocation.coordinates[1];
+      const distance = this.calculateDistance(lat, lng, driverLat, driverLng);
+
+      if (distance > maxDistance) {
+        console.log(`  ❌ ${d.firstName} ${d.lastName} - FILTERED: Too far (${distance.toFixed(0)}m > ${maxDistance}m)`);
+        console.log(`       Driver location: [${driverLng}, ${driverLat}], Target: [${lng}, ${lat}]`);
+        return false;
+      }
+
+      console.log(`  ✅ ${d.firstName} ${d.lastName} - PASSES: Distance ${distance.toFixed(0)}m`);
+      return true;
+    });
+
+    console.log(`[getAvailableDriversWithScores] Total NEARBY delivery drivers: ${deliveryDriversNearby.length}\n`);
+
+    // Step 2: Now apply full filters with geospatial
     const drivers = await this.driverModel.find({
       isAvailable: true,
       isOnline: true,
@@ -469,10 +594,13 @@ export class DeliveryAutoAssignService {
     .limit(10)
     .exec();
 
-    this.logger.log(`[getAvailableDriversWithScores] Found ${drivers.length} delivery drivers matching ALL criteria`);
+    console.log(`[getAvailableDriversWithScores] 🎯 Final result - delivery drivers matching ALL criteria: ${drivers.length}`);
     drivers.forEach((d: any) => {
-      this.logger.log(`  ✅ ${d.firstName} ${d.lastName} (${d._id}) - driverTypes: ${d.driverTypes}`);
+      const driverTypesStr = Array.isArray(d.driverTypes) ? d.driverTypes.join(',') : d.driverTypes;
+      console.log(`  ✅ ${d.firstName} ${d.lastName} (${d._id}) - driverTypes: [${driverTypesStr}]`);
     });
+
+    console.log(`========== END DRIVER SEARCH ==========\n`)
 
     // Score drivers
     const driverScores: DriverScore[] = drivers.map((driver: any) => {

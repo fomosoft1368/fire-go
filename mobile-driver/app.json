@@ -19,16 +19,17 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location",
-          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location"
+          "locationAlwaysAndWhenInUsePermission": "Allow app to access your location for delivery tracking",
+          "locationWhenInUsePermission": "Allow app to access your location while using the app"
         }
       ]
     ],
     "ios": {
       "supportsTabletMode": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Allow the app to access your location while using the app to track rides and show nearby drivers",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow the app to access your location at all times to track your ride and location history"
+        "NSLocationWhenInUseUsageDescription": "Allow the app to access your location while using the app to track deliveries and show nearby orders",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow the app to access your location at all times to track your delivery and location history",
+        "NSLocationAlwaysUsageDescription": "Allow the app to access your location for delivery tracking"
       }
     },
     "android": {

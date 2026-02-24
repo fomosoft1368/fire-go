@@ -16,6 +16,7 @@ export class RidesService {
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<any>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
+    @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
     private eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => AutoAssignService))
     private autoAssignService: AutoAssignService,
@@ -544,6 +545,30 @@ export class RidesService {
         isAvailable: true,
       });
       console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE status with isAvailable=true after ride completion`);
+
+      // ⭐ DEDUCT 20% commission from driver wallet (driverShare is 80%, platform takes 20%)
+      try {
+        const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+        const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80%
+        const platformCommission = Math.round((ride.totalFare * (100 - driverShare)) / 100);
+
+        console.log(`[RidesService] 💰 Wallet deduction:`, {
+          driverId: driverId.toString(),
+          totalFare: ride.totalFare,
+          driverShare: `${driverShare}%`,
+          platformCommission: platformCommission,
+        });
+
+        // Deduct from driver wallet
+        await this.driverModel.findByIdAndUpdate(driverId, {
+          $inc: { walletBalance: -platformCommission },
+        });
+
+        console.log(`[RidesService] ✅ Deducted ${platformCommission}đ from driver wallet (${100 - driverShare}% commission)`);
+      } catch (walletError) {
+        console.warn(`[RidesService] ⚠️ Warning: Failed to deduct wallet commission:`, walletError.message);
+        // Don't fail the ride completion if wallet deduction fails
+      }
     }
 
     // Emit ride.completed event
@@ -557,6 +582,9 @@ export class RidesService {
       driverId: ride.driverId?.toString(),
       totalFare: ride.totalFare,
     });
+
+    return updatedRide;
+  }
 
     return updatedRide;
   }

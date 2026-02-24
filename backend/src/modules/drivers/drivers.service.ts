@@ -9,6 +9,10 @@ import { CreateDriverDto, UpdateDriverDto, UpdateLocationDto } from './dto';
 export class DriversService {
   constructor(
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
+    @InjectModel('Ride') private rideModel: Model<any>,
+    @InjectModel('CombinedTrip') private combinedTripModel: Model<any>,
+    @InjectModel('Delivery') private deliveryModel: Model<any>,
+    @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
     private eventEmitter: EventEmitter2,
   ) {}
 
@@ -308,25 +312,194 @@ export class DriversService {
   }
 
   async getTodayEarnings(driverId: string): Promise<any> {
-    const driver = await this.findById(driverId);
-    
-    // Tính doanh thu hôm nay từ rides
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Cần intergrate với Rides module để lấy doanh thu hôm nay
-    // Tạm thời trả về mock data
-    return {
-      driverId: driver._id,
-      date: new Date(),
-      totalEarnings: 0,
-      totalTrips: 0,
-      breakdown: {
-        cash: 0,
-        online: 0,
-        tips: 0,
-      },
-    };
+    try {
+      const driver = await this.findById(driverId);
+      if (!driver) {
+        throw new NotFoundException('Driver not found');
+      }
+
+      // Get pricing config to get driverShare percentage
+      const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+      const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80% if not found
+
+      console.log(`[getTodayEarnings] Driver: ${driver.firstName} ${driver.lastName}`);
+      console.log(`[getTodayEarnings] driverShare: ${driverShare}%`);
+
+      // Get today's date range (00:00 - 23:59)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Get yesterday's date range for trend comparison
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const dayBeforeYesterday = new Date(yesterday);
+      dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+
+      console.log(`[getTodayEarnings] Today range: ${today.toISOString()} to ${tomorrow.toISOString()}`);
+      console.log(`[getTodayEarnings] Yesterday range: ${yesterday.toISOString()} to ${today.toISOString()}`);
+
+      // ===== TODAY'S EARNINGS =====
+      
+      // 1. Completed RIDES (lái xe hộ)
+      const completedRides = await this.rideModel.find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'completed',
+        createdAt: { $gte: today, $lt: tomorrow },
+      }).select('totalFare');
+
+      const ridesTodayTotal = completedRides.reduce((sum, ride) => sum + (ride.totalFare || 0), 0);
+      const ridesTodayEarnings = Math.round((ridesTodayTotal * driverShare) / 100);
+
+      console.log(`[getTodayEarnings] Today - Rides: ${completedRides.length} trips, Total: ${ridesTodayTotal}, Driver share: ${ridesTodayEarnings}`);
+
+      // 2. Completed COMBINED TRIPS (ghép xe)
+      // For combined trips, sum up the fare from each completed ride request
+      const completedCombinedTrips = await this.combinedTripModel.find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'completed',
+        createdAt: { $gte: today, $lt: tomorrow },
+      }).populate('rideRequests');
+
+      let combinedTodayTotal = 0;
+      let completedRequestsCount = 0;
+
+      for (const trip of completedCombinedTrips) {
+        // Calculate total fare from passenger requests
+        if (trip.rideRequests && Array.isArray(trip.rideRequests)) {
+          for (const request of trip.rideRequests) {
+            if (request.status === 'completed' && request.fare) {
+              combinedTodayTotal += request.fare;
+              completedRequestsCount++;
+            }
+          }
+        } else if (trip.totalFare) {
+          // Fallback to trip total if no requests breakdown
+          combinedTodayTotal += trip.totalFare;
+          completedRequestsCount++;
+        }
+      }
+
+      const combinedTodayEarnings = Math.round((combinedTodayTotal * driverShare) / 100);
+
+      console.log(`[getTodayEarnings] Today - Combined: ${completedCombinedTrips.length} trips, ${completedRequestsCount} requests, Total: ${combinedTodayTotal}, Driver share: ${combinedTodayEarnings}`);
+
+      // 3. Completed DELIVERIES
+      const completedDeliveries = await this.deliveryModel.find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'delivered',
+        createdAt: { $gte: today, $lt: tomorrow },
+      }).select('estimatedPrice');
+
+      const deliveriesTodayTotal = completedDeliveries.reduce((sum, delivery) => {
+        const price = typeof delivery.estimatedPrice === 'string' 
+          ? parseInt(delivery.estimatedPrice, 10) 
+          : (delivery.estimatedPrice || 0);
+        return sum + price;
+      }, 0);
+
+      const deliveriesTodayEarnings = Math.round((deliveriesTodayTotal * driverShare) / 100);
+
+      console.log(`[getTodayEarnings] Today - Deliveries: ${completedDeliveries.length} deliveries, Total: ${deliveriesTodayTotal}, Driver share: ${deliveriesTodayEarnings}`);
+
+      // TOTAL TODAY
+      const todayTotal = ridesTodayEarnings + combinedTodayEarnings + deliveriesTodayEarnings;
+      const todayTripsCount = completedRides.length + completedCombinedTrips.length + completedDeliveries.length;
+
+      // ===== YESTERDAY'S EARNINGS (for trend calculation) =====
+
+      const completedRidesYesterday = await this.rideModel.find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'completed',
+        createdAt: { $gte: yesterday, $lt: today },
+      }).select('totalFare');
+
+      const ridesYesterdayTotal = completedRidesYesterday.reduce((sum, ride) => sum + (ride.totalFare || 0), 0);
+      const ridesYesterdayEarnings = Math.round((ridesYesterdayTotal * driverShare) / 100);
+
+      const completedCombinedTripsYesterday = await this.combinedTripModel.find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'completed',
+        createdAt: { $gte: yesterday, $lt: today },
+      }).populate('rideRequests');
+
+      let combinedYesterdayTotal = 0;
+
+      for (const trip of completedCombinedTripsYesterday) {
+        if (trip.rideRequests && Array.isArray(trip.rideRequests)) {
+          for (const request of trip.rideRequests) {
+            if (request.status === 'completed' && request.fare) {
+              combinedYesterdayTotal += request.fare;
+            }
+          }
+        } else if (trip.totalFare) {
+          combinedYesterdayTotal += trip.totalFare;
+        }
+      }
+
+      const combinedYesterdayEarnings = Math.round((combinedYesterdayTotal * driverShare) / 100);
+
+      const completedDeliveriesYesterday = await this.deliveryModel.find({
+        driverId: new Types.ObjectId(driverId),
+        status: 'delivered',
+        createdAt: { $gte: yesterday, $lt: today },
+      }).select('estimatedPrice');
+
+      const deliveriesYesterdayTotal = completedDeliveriesYesterday.reduce((sum, delivery) => {
+        const price = typeof delivery.estimatedPrice === 'string' 
+          ? parseInt(delivery.estimatedPrice, 10) 
+          : (delivery.estimatedPrice || 0);
+        return sum + price;
+      }, 0);
+
+      const deliveriesYesterdayEarnings = Math.round((deliveriesYesterdayTotal * driverShare) / 100);
+
+      // TOTAL YESTERDAY
+      const yesterdayTotal = ridesYesterdayEarnings + combinedYesterdayEarnings + deliveriesYesterdayEarnings;
+
+      // CALCULATE TREND
+      let increase = 0;
+      if (yesterdayTotal === 0 && todayTotal > 0) {
+        increase = 100; // Was 0, now has earnings
+      } else if (yesterdayTotal > 0) {
+        increase = Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100);
+      }
+
+      console.log(`[getTodayEarnings] Trend: ${yesterdayTotal} yesterday → ${todayTotal} today (${increase}%)`);
+
+      return {
+        driverId: driver._id,
+        date: new Date(),
+        amount: todayTotal,
+        totalTrips: todayTripsCount,
+        increase,
+        breakdown: {
+          rides: {
+            trips: completedRides.length,
+            totalFare: ridesTodayTotal,
+            driverEarnings: ridesTodayEarnings,
+          },
+          combinedTrips: {
+            trips: completedCombinedTrips.length,
+            requests: completedRequestsCount,
+            totalFare: combinedTodayTotal,
+            driverEarnings: combinedTodayEarnings,
+          },
+          deliveries: {
+            deliveries: completedDeliveries.length,
+            totalFare: deliveriesTodayTotal,
+            driverEarnings: deliveriesTodayEarnings,
+          },
+        },
+        driverShare,
+      };
+    } catch (error) {
+      console.error('[getTodayEarnings] Error:', error);
+      throw error;
+    }
   }
 
   async toggleAcceptingRides(

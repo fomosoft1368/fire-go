@@ -23,7 +23,7 @@ interface Trip {
   customerName?: string
   createdAt?: string
   updatedAt?: string
-  sourceType?: 'ride' | 'combined_trip' // Track which type of trip
+  sourceType?: 'ride' | 'combined_trip' | 'delivery' // Track which type of trip
 }
 
 export default function TripsScreen() {
@@ -112,22 +112,35 @@ export default function TripsScreen() {
       })))
       
       // Format dữ liệu từ API thành Trip interface
-      const formattedTrips = (Array.isArray(filteredTripsData) ? filteredTripsData : []).map((ride: any) => ({
-        _id: ride._id,
-        id: ride._id || ride.id,
-        status: ride.status || 'completed',
-        pickupLocation: ride.pickupAddress || 'Điểm đón',
-        dropoffLocation: ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến',
-        pickupAddress: ride.pickupAddress,
-        dropoffAddress: ride.dropoffAddress || ride.dropoffLocationAddress,
-        distance: ride.distance ? `${ride.distance.toFixed(1)} km` : '0 km',
-        amount: ride.totalFare || ride.fare || 0,
-        totalFare: ride.totalFare || ride.fare,
-        date: formatDate(ride.createdAt || ride.date),
-        rating: ride.rating,
-        customerName: ride.customerName,
-        sourceType: ride.sourceType,
-      }))
+      const formattedTrips = (Array.isArray(filteredTripsData) ? filteredTripsData : []).map((ride: any) => {
+        // Safely handle distance - could be number, string, or undefined
+        let formattedDistance = '0 km'
+        if (ride.distance !== undefined && ride.distance !== null) {
+          try {
+            const numDistance = typeof ride.distance === 'number' ? ride.distance : parseFloat(ride.distance)
+            formattedDistance = !isNaN(numDistance) ? `${numDistance.toFixed(1)} km` : '0 km'
+          } catch {
+            formattedDistance = '0 km'
+          }
+        }
+
+        return {
+          _id: ride._id,
+          id: ride._id || ride.id,
+          status: ride.status || 'completed',
+          pickupLocation: ride.pickupAddress || 'Điểm đón',
+          dropoffLocation: ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến',
+          pickupAddress: ride.pickupAddress,
+          dropoffAddress: ride.dropoffAddress || ride.dropoffLocationAddress,
+          distance: formattedDistance,
+          amount: ride.totalFare || ride.fare || 0,
+          totalFare: ride.totalFare || ride.fare,
+          date: formatDate(ride.createdAt || ride.date),
+          rating: ride.rating,
+          customerName: ride.customerName,
+          sourceType: ride.sourceType || 'ride', // Default to 'ride' if undefined
+        }
+      })
 
       console.log('✅ Formatted trips:', formattedTrips)
       setTrips(formattedTrips)
@@ -175,6 +188,9 @@ export default function TripsScreen() {
     }
 
     const config = statusConfig[trip.status] || { label: trip.status || 'Không xác định', color: '#64748b', icon: 'help' }
+    
+    // Get sourceType with default fallback
+    const tripSourceType = trip.sourceType || 'ride'
 
     const handleViewDetails = () => {
       console.log('📍 View trip details:', { 
@@ -182,15 +198,18 @@ export default function TripsScreen() {
         sourceType: trip.sourceType 
       })
       
+      // Get sourceType with default fallback
+      const tripSourceType = trip.sourceType || 'ride'
+      
       // Navigate based on trip type
-      if (trip.sourceType === 'combined_trip') {
+      if (tripSourceType === 'combined_trip') {
         // Xe ghép -> ActiveRideScreen
         // @ts-ignore
         navigation.navigate('ActiveRideScreen', { 
           combinedTripId: trip.id || trip._id,
           sourceType: 'combined_trip'
         })
-      } else if (trip.sourceType === 'delivery') {
+      } else if (tripSourceType === 'delivery') {
         // Giao hàng -> DeliveryDetailScreen
         // @ts-ignore
         navigation.navigate('DeliveryDetailScreen', { 
@@ -217,15 +236,15 @@ export default function TripsScreen() {
         {/* Trip Type Badge - Top Right */}
         <View style={[
           styles.tripTypeBadge,
-          { backgroundColor: trip.sourceType === 'combined_trip' ? '#10b981' : trip.sourceType === 'delivery' ? '#f59e0b' : '#6366f1' }
+          { backgroundColor: tripSourceType === 'combined_trip' ? '#10b981' : tripSourceType === 'delivery' ? '#f59e0b' : '#6366f1' }
         ]}>
           <MaterialIcons 
-            name={trip.sourceType === 'combined_trip' ? 'group' : trip.sourceType === 'delivery' ? 'local-shipping' : 'drive-eta'}
+            name={tripSourceType === 'combined_trip' ? 'group' : tripSourceType === 'delivery' ? 'local-shipping' : 'drive-eta'}
             size={14}
             color="#fff"
           />
           <Text style={styles.tripTypeBadgeText}>
-            {trip.sourceType === 'combined_trip' ? 'Ghép xe' : trip.sourceType === 'delivery' ? 'Giao hàng' : 'Lái xe hộ'}
+            {tripSourceType === 'combined_trip' ? 'Ghép xe' : tripSourceType === 'delivery' ? 'Giao hàng' : 'Lái xe hộ'}
           </Text>
         </View>
 

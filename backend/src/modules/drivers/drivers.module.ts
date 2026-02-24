@@ -13,12 +13,20 @@ import {
   TransactionSchema,
 } from '../wallets/schemas/transaction.schema';
 import { PricingModule } from '../pricing/pricing.module';
+import { Ride, RideSchema } from '../rides/schemas/ride.schema';
+import { CombinedTrip, CombinedTripSchema } from '../combined-trips/schemas/combined-trip.schema';
+import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
+import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Driver.name, schema: DriverSchema },
       { name: Transaction.name, schema: TransactionSchema },
+      { name: Ride.name, schema: RideSchema },
+      { name: CombinedTrip.name, schema: CombinedTripSchema },
+      { name: Delivery.name, schema: DeliverySchema },
+      { name: PricingConfig.name, schema: PricingConfigSchema },
     ]),
     PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
   ],

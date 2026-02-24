@@ -136,6 +136,8 @@ export default function ConfirmDelivery() {
                 weight: weight as '<20' | '20-50' | '>50',
                 vehicle: vehicle as 'bike' | 'truck',
                 estimatedPrice,
+                distance: distance || '0 km',
+                duration: duration || '0',
               }
 
               console.log('[ConfirmDelivery] Creating delivery:', deliveryData)

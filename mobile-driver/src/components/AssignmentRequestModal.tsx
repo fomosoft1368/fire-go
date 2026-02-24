@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import {
   Modal,
   View,
@@ -16,8 +16,8 @@ const { height } = Dimensions.get('window')
 interface AssignmentRequestModalProps {
   visible: boolean
   request: any | null
-  onAccept: () => Promise<void>
-  onReject: () => Promise<void>
+  onAccept: (requestData?: any) => Promise<void>
+  onReject: (requestData?: any) => Promise<void>
   countdown: number
   driverTypes?: string[]
 }
@@ -33,81 +33,235 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
   const [isAccepting, setIsAccepting] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
 
+  // 🔴 HOOKS MUST BE AT TOP - Before any conditional logic
   const requestData = useMemo(() => {
-    if (!request) return null
-
-    const isDelivery = request.type === 'delivery'
-    const data = request.rideId || request.deliveryId || request
-    const rideType = data.rideType || request.rideType
-    const isShared = data.isShared || request.rideId?.isShared
-    
-    // Xác định loại dịch vụ
-    let serviceType: 'delivery' | 'rideshare' | 'hire' = 'hire'
-    let serviceBadge = 'LÁI XE HỘ'
-    let serviceBadgeColor = '#6200ea'
-    
-    if (isDelivery) {
-      serviceType = 'delivery'
-      serviceBadge = 'GIAO HÀNG'
-      serviceBadgeColor = '#FF6B00'
-    } else if (rideType === 'share' || isShared) {
-      serviceType = 'rideshare'
-      serviceBadge = 'GHÉP XE'
-      serviceBadgeColor = '#ff9900'
-    } else if (rideType === 'hire') {
-      serviceType = 'hire'
-      serviceBadge = 'LÁI XE HỘ'
-      serviceBadgeColor = '#6200ea'
+    if (!request) {
+      console.log('❌ [useMemo] No request provided')
+      return null
     }
 
-    return {
-      serviceType,
-      serviceBadge,
-      serviceBadgeColor,
-      isDelivery,
-      pickupAddress: data.pickupAddress || 'Địa điểm đón',
-      dropoffAddress: data.dropoffAddress || data.deliveryAddress || 'Địa điểm đến',
-      fare: data.totalFare || data.deliveryFee || 0,
-      customerName: request.customerId?.name || data.customerId?.name || 'Khách hàng',
-      customerRating: request.customerId?.rating || data.customerId?.rating || 5.0,
-      seats: data.seats || request.seats || 1,
-      notes: data.notes || request.notes,
-      distance: data.distance || request.distance,
-      duration: data.duration || request.duration,
+    try {
+      console.log('📦 [useMemo] Full request object:', JSON.stringify(request, null, 2))
+
+      // 🔥 CRITICAL: Check BOTH type AND tripType
+      // Polling service sets type: 'rideshare'
+      // Backend sends tripType: 'combined_trip'
+      const isCombinedTrip = request.type === 'rideshare' || request.tripType === 'combined_trip' || !!request.combinedTripId
+      const isDelivery = request.type === 'delivery'
+      const isRegularRide = request.type === 'ride' && !isCombinedTrip
+      
+      console.log('🔍 [useMemo] Request type analysis:', {
+        requestType: request.type,
+        requestTripType: request.tripType,
+        isCombinedTrip,
+        isDelivery,
+        isRegularRide,
+      })
+      
+      // Extract coordinates - they can be nested or at request level
+      let pickupCoords = request.pickupCoordinates
+      let dropoffCoords = request.dropoffCoordinates
+      
+      // Xác định nguồn dữ liệu cho các field khác
+      let data = request
+      if (request.rideId && typeof request.rideId === 'object') {
+        data = request.rideId
+      } else if (request.deliveryId && typeof request.deliveryId === 'object') {
+        data = request.deliveryId
+      } else if (request.combinedTripId && typeof request.combinedTripId === 'object') {
+        data = request.combinedTripId
+      }
+
+      // Ensure we have basic data with proper fallbacks
+      const pickupAddress = request.pickupAddress || data.pickupAddress || 'Địa điểm đón'
+      const dropoffAddress = request.dropoffAddress || data.dropoffAddress || data.deliveryAddress || 'Địa điểm đến'
+      const fare = request.fare || data.totalFare || data.estimatedPrice || data.deliveryFee || data.fare || 0
+      const customerName = request.customerId?.name || data.customerId?.name || request.customerName || 'Khách hàng'
+      const customerRating = request.customerId?.rating || data.customerId?.rating || request.rating || 5.0
+
+      // Determine service type and badge - FLEXIBLE logic
+      let serviceType: 'delivery' | 'rideshare' | 'hire' = 'hire'
+      let serviceBadge = 'LÁI XE HỘ'
+      let serviceBadgeColor = '#6200ea'
+      
+      if (isDelivery) {
+        serviceType = 'delivery'
+        serviceBadge = 'GIAO HÀNG'
+        serviceBadgeColor = '#FF6B00'
+      } else if (isCombinedTrip) {
+        serviceType = 'rideshare'
+        serviceBadge = 'GHÉP XE'
+        serviceBadgeColor = '#ff9900'
+      } else {
+        serviceType = 'hire'
+        serviceBadge = 'LÁI XE HỘ'
+        serviceBadgeColor = '#6200ea'
+      }
+
+      // ============ HELPER: Parse distance/duration from various formats ============
+      const parseDistance = (val: any) => {
+        if (typeof val === 'number') return val
+        if (!val) return 0
+        // Handle "5.2 km" → 5.2, or "5.2" → 5.2
+        const numStr = String(val).replace(/[^\d.]/g, '')
+        const parsed = parseFloat(numStr)
+        return isNaN(parsed) ? 0 : Math.round(parsed * 10) / 10 // Round to 1 decimal
+      }
+
+      const parseDuration = (val: any) => {
+        if (typeof val === 'number') return val
+        if (!val) return 0
+        // Handle "15 phút" → 15, or "~15 phút" → 15, or "15" → 15
+        const numStr = String(val).replace(/[^\d]/g, '')
+        const parsed = parseInt(numStr)
+        return isNaN(parsed) ? 0 : parsed
+      }
+      // ============ END HELPER ============
+
+      const parsedDistance = parseDistance(data.distance || request.distance)
+      const parsedDuration = parseDuration(data.duration || request.duration)
+
+      const resultData = {
+        serviceType,
+        serviceBadge,
+        serviceBadgeColor,
+        isDelivery,
+        isCombinedTrip,
+        isRegularRide,
+        pickupAddress,
+        dropoffAddress,
+        pickupCoordinates: pickupCoords,
+        dropoffCoordinates: dropoffCoords,
+        fare,
+        customerName,
+        customerRating,
+        seats: data.seats || request.seats || 1,
+        notes: data.notes || request.notes,
+        distance: parsedDistance,
+        duration: parsedDuration,
+        requestId: request._id,
+        combinedTripId: request.combinedTripId,
+        rideId: request.rideId?._id || request.rideId,
+        deliveryId: request.deliveryId?._id || request.deliveryId,
+      }
+
+      console.log('✅ [useMemo] Final requestData ready:', {
+        serviceType: resultData.serviceType,
+        serviceBadge: resultData.serviceBadge,
+        pickupAddress: resultData.pickupAddress,
+        dropoffAddress: resultData.dropoffAddress,
+        fare: resultData.fare,
+        isCombinedTrip: resultData.isCombinedTrip,
+        distance: resultData.distance,
+        duration: resultData.duration,
+        displayDistance: `${Math.round(resultData.distance)} km`,
+        displayDuration: `~${Math.round(resultData.duration)} phút`,
+      })
+
+      return resultData
+    } catch (error) {
+      console.error('❌ [useMemo] Error processing request:', error)
+      // Return minimum viable data even if processing fails
+      return {
+        serviceType: 'hire',
+        serviceBadge: 'YÊU CẦU MỚI',
+        serviceBadgeColor: '#6200ea',
+        isDelivery: false,
+        isCombinedTrip: false,
+        isRegularRide: true,
+        pickupAddress: request.pickupAddress || 'Điểm đón',
+        dropoffAddress: request.dropoffAddress || 'Điểm đến',
+        pickupCoordinates: request.pickupCoordinates,
+        dropoffCoordinates: request.dropoffCoordinates,
+        fare: request.fare || 0,
+        customerName: 'Khách hàng',
+        customerRating: 5.0,
+        seats: 1,
+        notes: '',
+        distance: 0,
+        duration: 0,
+        requestId: request._id,
+        combinedTripId: request.combinedTripId,
+        rideId: request.rideId?._id || request.rideId,
+        deliveryId: request.deliveryId?._id || request.deliveryId,
+      }
     }
   }, [request])
+
+  // NOW do the logging after hooks are set up
+  console.log('═══════════════════════════════════════════════════')
+  console.log('[AssignmentRequestModal] 🎬 COMPONENT RENDERED')
+  console.log('═══════════════════════════════════════════════════')
+  console.log('[AssignmentRequestModal] Props received:', {
+    visible: visible ? '✅ YES' : '❌ NO',
+    hasRequest: request ? '✅ YES' : '❌ NO',
+    requestId: request?._id,
+    requestType: request?.type,
+    countdown: countdown,
+    hasRequestData: requestData ? '✅ YES' : '❌ NO',
+  })
 
   const handleAccept = useCallback(async () => {
     setIsAccepting(true)
     try {
-      await onAccept()
+      // ✅ CRITICAL: Pass full request data with coordinates to onAccept callback
+      console.log('📤 [AssignmentRequestModal] Calling onAccept with request data:', {
+        hasRequest: !!request,
+        hasPickupCoords: !!request?.pickupCoordinates,
+        hasDropoffCoords: !!request?.dropoffCoordinates,
+        requestStatus: request?.status,
+      })
+      await onAccept(request)
     } catch (error) {
-      console.error('Error accepting:', error)
+      console.error('❌ [AssignmentRequestModal] Error in handleAccept:', error)
+      console.error('❌ [AssignmentRequestModal] Error message:', error?.message)
+      console.error('❌ [AssignmentRequestModal] Request status:', request?.status)
     } finally {
+      // ✅ ALWAYS reset loading state, even if error
       setIsAccepting(false)
     }
-  }, [onAccept])
+  }, [onAccept, request])
 
   const handleReject = useCallback(async () => {
     setIsRejecting(true)
     try {
-      await onReject()
+      // 🔥 CRITICAL: Pass full request data with ID to onReject callback
+      console.log('📤 [AssignmentRequestModal] Calling onReject with request data:', {
+        requestId: request?._id,
+        combinedTripId: request?.combinedTripId,
+        requestStatus: request?.status,
+      })
+      await onReject(request)
     } catch (error) {
-      console.error('Error rejecting:', error)
+      console.error('❌ [AssignmentRequestModal] Error in handleReject:', error)
+      console.error('❌ [AssignmentRequestModal] Error message:', error?.message)
+      console.error('❌ [AssignmentRequestModal] Request status:', request?.status)
     } finally {
+      // ✅ ALWAYS reset loading state, even if error
       setIsRejecting(false)
     }
-  }, [onReject])
+  }, [onReject, request])
 
-  if (!request || !visible || !requestData) return null
-
-  // Filter delivery requests if driver doesn't have delivery type
-  if (requestData.isDelivery && !driverTypes.includes('delivery')) {
+  // ✅ SIMPLE rendering logic: just check core preconditions
+  if (!visible) {
+    console.log('🔕 [AssignmentRequestModal] Not visible, not rendering')
     return null
   }
 
-  const progressPercent = (countdown / 15) * 100
-  const timerColor = countdown <= 5 ? '#f44336' : countdown <= 10 ? '#FF6B00' : '#4CAF50'
+  if (!request) {
+    console.log('📭 [AssignmentRequestModal] No request, not rendering')
+    return null
+  }
+
+  if (!requestData) {
+    console.log('⚠️  [AssignmentRequestModal] No requestData processed, not rendering')
+    return null
+  }
+
+  console.log('✅ [AssignmentRequestModal] All conditions met, RENDERING MODAL')
+
+  const progressPercent = (countdown / 45) * 100
+  const timerColor = countdown <= 10 ? '#f44336' : countdown <= 20 ? '#FF6B00' : '#4CAF50'
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleReject}>
@@ -203,7 +357,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
                 <View style={styles.tripInfoItem}>
                   <MaterialIcons name="straighten" size={16} color="#6b7280" />
                   <Text style={styles.tripInfoText}>
-                    {(requestData.distance / 1000).toFixed(1)} km
+                    {Math.round(requestData.distance)} km
                   </Text>
                 </View>
               )}
@@ -211,7 +365,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
                 <View style={styles.tripInfoItem}>
                   <MaterialIcons name="schedule" size={16} color="#6b7280" />
                   <Text style={styles.tripInfoText}>
-                    ~{Math.ceil(requestData.duration / 60)} phút
+                    ~{Math.round(requestData.duration)} phút
                   </Text>
                 </View>
               )}

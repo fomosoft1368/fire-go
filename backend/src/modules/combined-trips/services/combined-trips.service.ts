@@ -1026,12 +1026,16 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('📊 Busy drivers (already have active trips):', busyDriverIds.length);
 
       // ✅ NEW: Get list of drivers who already REJECTED or TIMED OUT for THIS trip
+      // 🔥 CRITICAL: Only exclude drivers with requests that are STILL VALID (not expired)
+      // Don't exclude drivers from old/expired requests
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
       const rejectedRequests = await this.rideRequestModel.find({
         combinedTripId: new Types.ObjectId(combinedTripId),
         status: { $in: ['rejected', 'timeout'] }, // Include both rejected AND timeout
+        createdAt: { $gte: thirtyMinutesAgo }, // ✅ Only from last 30 minutes
       });
-      const rejectedDriverIds = rejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
-      console.log('📊 Rejected/timeout drivers for this trip:', rejectedDriverIds.length, rejectedDriverIds);
+      const rejectedDriverIds = rejectedRequests.map(req => req.driverId?.toString()).filter(Boolean)
+      console.log('📊 Rejected/timeout drivers for this trip (last 30 min):', rejectedDriverIds.length, rejectedDriverIds)
 
       // Combine exclusion lists: busy drivers + rejected drivers
       const excludedDriverIds = [...busyDriverIds, ...rejectedDriverIds];
@@ -1124,7 +1128,7 @@ export class CombinedTripsService implements OnModuleInit {
         seats: combinedTrip.availableSeats,
         distance: combinedTrip.distance,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 15000), // 15 seconds timeout
+        expiresAt: new Date(Date.now() + 45000), // ✅ FIX: 45 seconds (consistent with manual requests)
       });
 
       await rideRequest.save();
@@ -1191,13 +1195,16 @@ export class CombinedTripsService implements OnModuleInit {
       });
       const busyDriverIds = activeTrips.map(trip => trip.driverId?.toString()).filter(Boolean);
       
-      // ✅ CRITICAL FIX: Get ALL drivers who already rejected/timeout for THIS trip from database
+      // ✅ CRITICAL FIX: Get ALL drivers who recently rejected/timeout for THIS trip
+      // Only exclude drivers with requests from last 30 minutes (not old expired ones)
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
       const allRejectedRequests = await this.rideRequestModel.find({
         combinedTripId: new Types.ObjectId(combinedTripId),
         status: 'rejected',
+        createdAt: { $gte: thirtyMinutesAgo }, // ✅ Only from last 30 minutes
       });
       const allRejectedDriverIds = allRejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
-      console.log('📊 All previously rejected drivers for this trip:', allRejectedDriverIds.length, allRejectedDriverIds);
+      console.log('📊 All recently rejected drivers (last 30 min):', allRejectedDriverIds.length, allRejectedDriverIds);
       
       // Combine all exclusion lists: busy drivers + ALL rejected drivers (not just current one)
       const excludedDriverIds = [...busyDriverIds, ...allRejectedDriverIds];
@@ -1265,7 +1272,7 @@ export class CombinedTripsService implements OnModuleInit {
         seats: trip.availableSeats,
         distance: trip.distance,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 15000), // 15 seconds timeout
+        expiresAt: new Date(Date.now() + 45000), // ✅ FIX: 45 seconds (consistent with all combined trip requests)
       });
 
       await newRideRequest.save();

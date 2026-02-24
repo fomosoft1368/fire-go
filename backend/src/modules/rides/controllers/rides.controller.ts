@@ -9,6 +9,7 @@ import { Ride, RideDocument, RideType } from '../schemas/ride.schema';
 import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignment-request.schema';
 import { Pricing } from '../schemas/pricing.schema';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 
 @Controller('api/rides')
 export class RidesController {
@@ -18,6 +19,7 @@ export class RidesController {
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<Pricing>,
     @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
+    @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
   ) {}
   @Get('analytics/revenue')
   async getRevenueStats(
@@ -246,7 +248,7 @@ export class RidesController {
       })
       .populate({
         path: 'rideId',
-        select: 'customerId pickupAddress dropoffAddress totalFare rideType status'
+        select: '_id customerId pickupAddress dropoffAddress totalFare rideType status distance duration pickupCoordinates dropoffCoordinates'
       })
       .sort({ createdAt: -1 });
 
@@ -264,7 +266,21 @@ export class RidesController {
     @Request() req: any,
   ) {
     const driverId = req.user.id;
-    return this.autoAssignService.acceptAssignmentRequest(requestId, driverId);
+    const ride = await this.autoAssignService.acceptAssignmentRequest(requestId, driverId);
+    
+    // Fetch driver's wallet info to include in response
+    const driver = await this.driverModel.findById(driverId);
+    const walletBalance = driver?.walletBalance || 0;
+    const walletWarning = walletBalance < 200000;
+
+    return {
+      ...ride.toObject?.() || ride,
+      walletBalance,
+      walletWarning,
+      walletWarningMessage: walletWarning
+        ? 'Số dư ví dưới 200,000đ. Vui lòng nạp tiền để tiếp tục nhận cuốc.'
+        : null,
+    };
   }
 
   /**
@@ -324,7 +340,37 @@ export class RidesController {
   @Patch(':id/complete')
   @UseGuards(JwtAuthGuard)
   async completeRide(@Param('id') id: string) {
-    return this.ridesService.completeRide(id);
+    const ride = await this.ridesService.completeRide(id);
+
+    // Fetch driver's updated wallet balance after deduction
+    let walletBalance = 0;
+    let walletWarning = false;
+
+    if (ride.driverId) {
+      const driverId = typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
+      const driver = await this.driverModel.findById(driverId);
+
+      if (driver) {
+        walletBalance = driver.walletBalance;
+        // Show warning if balance < 200,000đ
+        walletWarning = driver.walletBalance < 200000;
+
+        console.log(`[RidesController] 💰 Driver wallet after completion:`, {
+          driverId: driverId.toString(),
+          newBalance: walletBalance,
+          warningNeeded: walletWarning,
+        });
+      }
+    }
+
+    return {
+      ...ride.toObject(),
+      walletBalance,
+      walletWarning,
+      walletWarningMessage: walletWarning
+        ? 'Số dư ví dưới 200,000đ. Vui lòng nạp tiền để tiếp tục nhận cuốc.'
+        : null,
+    };
   }
 
   @Patch(':id/cancel')

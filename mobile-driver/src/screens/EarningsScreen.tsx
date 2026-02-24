@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { COLORS, SPACING } from '../constants'
+import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { walletService } from '../services/walletService'
+import { driverService } from '../services/driverService'
 
 interface EarningsData {
   balance: number
@@ -45,14 +46,31 @@ export default function EarningsScreen({ navigation }: any) {
   const [transactions, setTransactions] = useState<any[]>([])
   const [dailyData, setDailyData] = useState<DailyData[]>([])
   const [weekTrend, setWeekTrend] = useState(0)
+  const [walletBalance, setWalletBalance] = useState(0)
+  const [showLowBalanceWarning, setShowLowBalanceWarning] = useState(false)
 
   useEffect(() => {
     fetchWalletData()
   }, [])
 
+  // Update wallet balance and check for warning
+  const updateWalletBalance = async () => {
+    try {
+      const profile = await driverService.getProfile()
+      const balance = profile?.walletBalance || 0
+      setWalletBalance(balance)
+      setShowLowBalanceWarning(balance < 200000)
+      console.log('[EarningsScreen] 💰 Wallet balance:', balance, 'Warning:', balance < 200000)
+    } catch (error) {
+      console.error('[EarningsScreen] Error fetching wallet:', error)
+    }
+  }
+
   const fetchWalletData = async () => {
     try {
       setLoading(true)
+      // First update wallet balance
+      await updateWalletBalance()
       const [balanceData, statsData, transactionsData] = await Promise.all([
         walletService.getBalance(),
         walletService.getStats(),
@@ -160,6 +178,25 @@ export default function EarningsScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
+        {/* Low Balance Warning Banner */}
+        {showLowBalanceWarning && (
+          <View style={styles.warningBanner}>
+            <MaterialIcons name="warning" size={24} color="#fff" style={{marginRight: SPACING.md}} />
+            <View style={styles.warningContent}>
+              <Text style={styles.warningTitle}>⚠️ Cảnh báo số dư ví</Text>
+              <Text style={styles.warningText}>
+                Số dư của bạn là {walletBalance.toLocaleString('vi-VN')}đ. Bạn cần nạp tiền để tiếp tục nhận cuốc.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => navigation?.navigate('Topup')}
+              style={styles.warningAction}
+            >
+              <Text style={styles.warningActionText}>Nạp</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Balance Card */}
         <View style={styles.balanceCardWrapper}>
           <LinearGradient
@@ -214,9 +251,12 @@ export default function EarningsScreen({ navigation }: any) {
                 <Text style={styles.actionButtonText}>Nạp tiền</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.actionButton}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation?.navigate('Withdrawal')}
+              >
                 <View style={styles.actionIconBox}>
-                  <MaterialIcons name="wallet" size={20} color="#FF6B00" />
+                  <MaterialIcons name="logout" size={20} color="#FF6B00" />
                 </View>
                 <Text style={styles.actionButtonText}>Rút tiền</Text>
               </TouchableOpacity>
@@ -502,6 +542,43 @@ const RealTransactionItem: React.FC<{ transaction: any }> = ({ transaction }) =>
 }
 
 const styles = StyleSheet.create({
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D32F2F',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.md,
+  },
+  warningContent: {
+    flex: 1,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#ffebee',
+    marginTop: SPACING.xs,
+    lineHeight: 18,
+  },
+  warningAction: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  warningActionText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#f8fafc',

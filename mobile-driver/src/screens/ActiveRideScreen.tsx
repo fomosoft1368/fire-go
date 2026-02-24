@@ -39,6 +39,10 @@ interface Customer {
   rating: number
   avatar?: string
   address?: string
+  pickupCoordinates?: [number, number]
+  dropoffCoordinates?: [number, number]
+  pickupAddress?: string
+  dropoffAddress?: string
 }
 
 export default function ActiveRideScreen({ navigation, route }: RideDetailScreenProps) {
@@ -550,6 +554,10 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
           phone: '0905 123 456',
           rating: 4.8,
           address: 'Tây Hồ, Hà Nội',
+          pickupCoordinates: [105.79, 21.03], // 🔥 ADD pickup coordinates
+          dropoffCoordinates: [105.85, 21.05], // 🔥 ADD dropoff coordinates
+          pickupAddress: 'Điểm đón - Tây Hồ',
+          dropoffAddress: 'Điểm đến - Hoàn Kiếm',
         })
         setShowCustomerModal(true)
         setModalCountdown(60)
@@ -917,23 +925,135 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
     )
   }
 
-  const handleAcceptCustomer = async () => {
-    if (!requestingCustomer) return
+  // Check if all passengers are completed
+  const allPassengersCompleted = () => {
+    if (!ride?.customerId || ride.customerId.length === 0) return false
+    return ride.customerId.every((passenger: any) => passenger.status === 'completed')
+  }
+
+  // Calculate total revenue from all passengers
+  const getTotalRevenue = () => {
+    if (!ride?.customerId || ride.customerId.length === 0) return 0
+    return ride.customerId.reduce((total: number, passenger: any) => {
+      return total + (passenger.totalFare || passenger.fare || 0)
+    }, 0)
+  }
+
+  // Handle complete ride (end trip)
+  const handleCompleteRide = async () => {
+    if (!ride || !ride._id) {
+      Alert.alert('Lỗi', 'Không thể tìm thấy thông tin chuyến đi')
+      return
+    }
+
+    Alert.alert(
+      'Kết thúc chuyến đi',
+      `Bạn chắc chắn muốn kết thúc chuyến đi này? Tổng tiền: ${getTotalRevenue().toLocaleString('vi-VN')}đ`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Kết thúc',
+          onPress: async () => {
+            setUpdating(true)
+            try {
+              // Determine correct endpoint based on source type
+              let endpoint = ''
+              if (sourceType === 'combined_trip' || combinedTripId) {
+                endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId || ride._id}/complete`
+              } else {
+                endpoint = `${API_BASE_URL}/rides/${rideId || ride._id}/complete`
+              }
+
+              console.log('📡 Calling complete ride with:', { endpoint })
+              
+              const response = await fetch(endpoint, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+              })
+              
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}))
+                console.error('❌ Complete ride error:', response.status, errorData)
+                throw new Error(`Failed: ${response.status}${errorData?.message ? ' - ' + errorData.message : ''}`)
+              }
+              
+              console.log('✅ Ride completed successfully')
+              Alert.alert('Thành công', 'Chuyến đi đã kết thúc', [
+                { text: 'OK', onPress: () => screenNavigation.navigate('HomeScreen') }
+              ])
+            } catch (error: any) {
+              console.error('❌ Error:', error)
+              Alert.alert('Lỗi', error.message)
+            } finally {
+              setUpdating(false)
+            }
+          },
+        },
+      ]
+    )
+  }
+
+  const handleAcceptCustomer = async (requestData?: any) => {
+    // 🔥 CRITICAL: Get coordinates from request data, NOT from mock requestingCustomer
+    const customer = requestData || requestingCustomer
+    
+    if (!customer) {
+      console.error('❌ [handleAcceptCustomer] No customer/request data provided')
+      return
+    }
+
     try {
       setUpdating(true)
       
-      // Send customer's coordinates if available
-      // Note: In real app, this should come from customer's booking request
-      const pickupCoords = (requestingCustomer as any)?.pickupCoordinates || [105.79, 21.03];
-      const dropoffCoords = (requestingCustomer as any)?.dropoffCoordinates || [105.85, 21.05];
-      const pickupAddr = (requestingCustomer as any)?.pickupAddress || 'Điểm đón khách';
-      const dropoffAddr = (requestingCustomer as any)?.dropoffAddress || 'Điểm đến khách';
+      // 🔥 CRITICAL: Use ACTUAL coordinates from request, not fallback
+      const pickupCoords = customer.pickupCoordinates
+      const dropoffCoords = customer.dropoffCoordinates
+      const pickupAddr = customer.pickupAddress || 'Điểm đón khách'
+      const dropoffAddr = customer.dropoffAddress || 'Điểm đến khách'
       
-      const response = await fetch(`${API_BASE_URL}/rides/${rideId}/add-passenger`, {
+      console.log('📍 [handleAcceptCustomer] Accepting customer with coordinates:', {
+        customerName: customer.name || customer.customerId?.name,
+        hasPickupCoords: !!pickupCoords,
+        hasDropoffCoords: !!dropoffCoords,
+        pickupCoords,
+        dropoffCoords,
+        pickupAddr,
+        dropoffAddr,
+        rideId,
+        combinedTripId,
+        sourceType,
+        requestDataKeys: Object.keys(customer || {}).slice(0, 15),
+      })
+      
+      // 🔥 CRITICAL: Validate we have coordinates before sending
+      if (!pickupCoords || !dropoffCoords) {
+        console.warn('⚠️ [handleAcceptCustomer] Missing coordinates:', {
+          hasPickup: !!pickupCoords,
+          hasDropoff: !!dropoffCoords,
+        })
+        Alert.alert('Lỗi', 'Dữ liệu địa chỉ không đầy đủ. Vui lòng thử lại.')
+        return
+      }
+      
+      // 🔥 CRITICAL: Use correct endpoint based on ride type
+      let endpoint = ''
+      let customerId = customer._id || customer.customerId?._id || customer.customerId
+      
+      if (sourceType === 'combined_trip' || combinedTripId) {
+        // For combined trips, use the request endpoint with request ID
+        const requestId = requestData?._id || customer._id
+        endpoint = `${API_BASE_URL}/combined-trips/${combinedTripId}/requests/${requestId}/accept`
+        console.log('🚗 Using combined-trips endpoint:', endpoint)
+      } else {
+        endpoint = `${API_BASE_URL}/rides/${rideId}/add-passenger`
+        console.log('🚗 Using regular rides endpoint:', endpoint)
+      }
+      
+      const response = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          customerId: requestingCustomer._id,
+          customerId: customerId,
           pickupCoordinates: pickupCoords,
           dropoffCoordinates: dropoffCoords,
           pickupAddress: pickupAddr,
@@ -941,9 +1061,24 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         }),
       })
       
-      if (!response.ok) throw new Error(`Failed: ${response.status}`)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ Accept customer error:', response.status, errorData)
+        throw new Error(`Failed: ${response.status}${errorData?.message ? ' - ' + errorData.message : ''}`)
+      }
       
       const updated = await response.json()
+      console.log('✅ [handleAcceptCustomer] Server response:', {
+        hasCustomers: !!updated?.customerId,
+        customerCount: updated?.customerId?.length,
+        firstCustomer: updated?.customerId?.[0] ? {
+          name: updated.customerId[0].name,
+          status: updated.customerId[0].status,
+          hasPickupCoords: !!updated.customerId[0].pickupCoordinates,
+          pickupCoords: updated.customerId[0].pickupCoordinates,
+        } : null,
+      })
+      
       setRide(updated)
       setShowCustomerModal(false)
       setRequestingCustomer(null)
@@ -954,6 +1089,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       
       Alert.alert('Thành công', 'Đã thêm khách hàng')
     } catch (error: any) {
+      console.error('❌ [handleAcceptCustomer] Error:', error)
       Alert.alert('Lỗi', error.message)
     } finally {
       setUpdating(false)
@@ -1618,6 +1754,48 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   <Text style={styles.actionBtnText}>Đã hoàn thành</Text>
                 </View>
               )}
+
+              {/* Total Revenue Display - Only show when has passengers */}
+              {ride?.customerId && ride.customerId.length > 0 && (
+                <View style={styles.totalRevenueCard}>
+                  <View style={styles.totalRevenueHeader}>
+                    <Text style={styles.totalRevenueLabel}>Tổng doanh thu</Text>
+                    <Text style={styles.totalRevenueAmount}>
+                      {getTotalRevenue().toLocaleString('vi-VN')}đ
+                    </Text>
+                  </View>
+                  <View style={styles.totalRevenueStatus}>
+                    <View style={styles.statusIndicator}>
+                      <MaterialIcons 
+                        name={allPassengersCompleted() ? "check-circle" : "schedule"} 
+                        size={16} 
+                        color={allPassengersCompleted() ? "#4CAF50" : "#FFA500"}
+                      />
+                      <Text style={[styles.statusText, { color: allPassengersCompleted() ? "#4CAF50" : "#FFA500" }]}>
+                        {allPassengersCompleted() ? `Tất cả khách hoàn thành (${ride.customerId.length})` : `${ride.customerId.filter((p: any) => p.status === 'completed').length}/${ride.customerId.length} hoàn thành`}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* End Trip Button - Only enabled when all passengers completed */}
+              {ride?.customerId && ride.customerId.length > 0 && (
+                <TouchableOpacity 
+                  style={[styles.actionBtn, styles.endTripBtn, !allPassengersCompleted() && styles.endTripBtnDisabled]} 
+                  onPress={handleCompleteRide}
+                  disabled={!allPassengersCompleted() || updating}
+                >
+                  <MaterialIcons 
+                    name="finish-call" 
+                    size={20} 
+                    color={allPassengersCompleted() ? "#fff" : "#999"}
+                  />
+                  <Text style={[styles.actionBtnText, !allPassengersCompleted() && { color: '#999' }]}>
+                    Kết thúc chuyến đi
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
               </>
             )}
@@ -2092,6 +2270,48 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#fff',
+  },
+  // Total Revenue Card
+  totalRevenueCard: {
+    backgroundColor: COLORS.darkCard,
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+  },
+  totalRevenueHeader: {
+    marginBottom: 10,
+  },
+  totalRevenueLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  totalRevenueAmount: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: COLORS.primary,
+  },
+  totalRevenueStatus: {
+    borderTopWidth: 1,
+    borderTopColor: `${COLORS.primary}20`,
+    paddingTop: 10,
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  // End Trip Button
+  endTripBtn: {
+    backgroundColor: '#10b981',
+    borderWidth: 0,
+  },
+  endTripBtnDisabled: {
+    backgroundColor: '#4a4a4a',
+    opacity: 0.5,
   },
   // Modal
   modalOverlay: {
