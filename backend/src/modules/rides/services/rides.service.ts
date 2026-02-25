@@ -586,8 +586,14 @@ export class RidesService {
     return updatedRide;
   }
 
-    return updatedRide;
+  /**
+   * Update ride data fields
+   */
+  async updateRideData(rideId: string, updateData: any): Promise<RideDocument> {
+    return this.rideModel.findByIdAndUpdate(rideId, updateData, { new: true });
   }
+
+    
 
   async cancelRide(
     rideId: string,

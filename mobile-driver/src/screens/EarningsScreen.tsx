@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
@@ -50,8 +51,25 @@ export default function EarningsScreen({ navigation }: any) {
   const [showLowBalanceWarning, setShowLowBalanceWarning] = useState(false)
 
   useEffect(() => {
+    // Initial load
     fetchWalletData()
+
+    // Poll balance every 2 seconds for real-time balance updates
+    const pollingInterval = setInterval(() => {
+      updateWalletBalance()
+    }, 2000)
+
+    // Cleanup polling on unmount
+    return () => clearInterval(pollingInterval)
   }, [])
+
+  // Refresh balance when screen comes into focus (e.g., after topup)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[EarningsScreen] 👁️ Screen focused - refreshing balance')
+      fetchWalletData()
+    }, []),
+  )
 
   // Update wallet balance and check for warning
   const updateWalletBalance = async () => {

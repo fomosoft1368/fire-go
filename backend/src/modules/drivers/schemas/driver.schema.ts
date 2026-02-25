@@ -26,6 +26,13 @@ export enum DriverType {
   DELIVERY = 'delivery',   // Vận chuyển
 }
 
+export enum VehicleType {
+  SEDAN = 'sedan',           // Xe 4 chỗ
+  SUV = 'suv',               // Xe SUV 7 chỗ
+  PICKUP = 'pickup',         // Bán tải
+  MOTORCYCLE = 'motorcycle', // Xe máy
+}
+
 @Schema({ timestamps: true })
 export class Driver {
   // Authentication fields (drivers have their own credentials, independent from User collection)
@@ -64,6 +71,13 @@ export class Driver {
     default: [DriverType.RIDESHARE],
   })
   driverTypes: DriverType[]; // Tài xế có thể làm nhiều loại
+
+  @Prop({
+    type: String,
+    enum: VehicleType,
+    default: VehicleType.SEDAN,
+  })
+  vehicleType: VehicleType; // Loại xe: sedan, suv, pickup, motorcycle
 
   // Vehicle information
   @Prop()
@@ -226,6 +240,13 @@ export class Driver {
   suspendedUntil?: Date;
 
   // Documents approval
+  @Prop({
+    type: String,
+    enum: DocumentStatus,
+    default: DocumentStatus.PENDING,
+  })
+  approvalStatus: DocumentStatus; // Tình trạng duyệt tài xế
+
   @Prop()
   approvedAt?: Date;
 

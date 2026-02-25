@@ -60,7 +60,14 @@ export class DriversController {
   @UseGuards(JwtAuthGuard)
   async getMyProfile(@Request() req: any) {
     // req.user.id is the driver's _id from JWT token
-    return this.driversService.findById(req.user.id);
+    const driver = await this.driversService.findById(req.user.id);
+    console.log('[GET /api/drivers/me] Returning driver profile:', {
+      id: driver._id,
+      walletBalance: driver.walletBalance,
+      licenseStatus: driver.licenseStatus,
+      fullDriver: driver,
+    });
+    return driver;
   }
 
   /**
@@ -138,6 +145,11 @@ export class DriversController {
     @Request() req: any,
     @Body('isAcceptingRides') isAcceptingRides: boolean,
   ) {
+    console.log('[toggleAcceptingRides]', {
+      driverId: req.user?.id,
+      isAcceptingRides,
+      user: req.user,
+    });
     return this.driversService.toggleAcceptingRides(req.user.id, isAcceptingRides);
   }
 

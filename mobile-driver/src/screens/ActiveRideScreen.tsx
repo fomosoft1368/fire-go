@@ -946,9 +946,11 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       return
     }
 
+    const totalRevenue = getTotalRevenue()
+
     Alert.alert(
       'Kết thúc chuyến đi',
-      `Bạn chắc chắn muốn kết thúc chuyến đi này? Tổng tiền: ${getTotalRevenue().toLocaleString('vi-VN')}đ`,
+      `Bạn chắc chắn muốn kết thúc chuyến đi này? Tổng tiền: ${totalRevenue.toLocaleString('vi-VN')}đ`,
       [
         { text: 'Hủy', style: 'cancel' },
         {
@@ -964,11 +966,12 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 endpoint = `${API_BASE_URL}/rides/${rideId || ride._id}/complete`
               }
 
-              console.log('📡 Calling complete ride with:', { endpoint })
+              console.log('📡 Calling complete ride with:', { endpoint, totalFare: totalRevenue })
               
               const response = await fetch(endpoint, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ totalFare: totalRevenue }),
               })
               
               if (!response.ok) {
@@ -979,7 +982,13 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               
               console.log('✅ Ride completed successfully')
               Alert.alert('Thành công', 'Chuyến đi đã kết thúc', [
-                { text: 'OK', onPress: () => screenNavigation.navigate('HomeScreen') }
+                { 
+                  text: 'OK', 
+                  onPress: () => {
+                    // Navigate to Earnings tab to see updated earnings
+                    screenNavigation.navigate('Earnings' as never)
+                  }
+                }
               ])
             } catch (error: any) {
               console.error('❌ Error:', error)
@@ -1779,22 +1788,30 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 </View>
               )}
 
-              {/* End Trip Button - Only enabled when all passengers completed */}
-              {ride?.customerId && ride.customerId.length > 0 && (
+              {/* End Trip Button - Only enabled when all passengers completed and ride not already completed */}
+              {ride?.customerId && ride.customerId.length > 0 && ride.status !== 'completed' && (
                 <TouchableOpacity 
-                  style={[styles.actionBtn, styles.endTripBtn, !allPassengersCompleted() && styles.endTripBtnDisabled]} 
+                  style={[styles.actionBtn, styles.endTripBtn, (!allPassengersCompleted() || ride.status === 'completed') && styles.endTripBtnDisabled]} 
                   onPress={handleCompleteRide}
-                  disabled={!allPassengersCompleted() || updating}
+                  disabled={!allPassengersCompleted() || ride.status === 'completed' || updating}
                 >
                   <MaterialIcons 
-                    name="finish-call" 
+                    name="stop-circle" 
                     size={20} 
-                    color={allPassengersCompleted() ? "#fff" : "#999"}
+                    color={allPassengersCompleted() && ride.status !== 'completed' ? "#fff" : "#999"}
                   />
-                  <Text style={[styles.actionBtnText, !allPassengersCompleted() && { color: '#999' }]}>
+                  <Text style={[styles.actionBtnText, (!allPassengersCompleted() || ride.status === 'completed') && { color: '#999' }]}>
                     Kết thúc chuyến đi
                   </Text>
                 </TouchableOpacity>
+              )}
+
+              {/* Show completed state when ride is already finished */}
+              {ride?.customerId && ride.customerId.length > 0 && ride.status === 'completed' && (
+                <View style={[styles.actionBtn, styles.completedBtn]}>
+                  <MaterialIcons name="done-all" size={20} color="#fff" />
+                  <Text style={styles.actionBtnText}> Chuyến đã kết thúc</Text>
+                </View>
               )}
             </View>
               </>

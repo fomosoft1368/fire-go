@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   Modal,
   View,
@@ -32,6 +32,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
 }) => {
   const [isAccepting, setIsAccepting] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
+  const [lastFareValue, setLastFareValue] = useState<number | null>(null) // ⭐ Track fare changes to force re-render
 
   // 🔴 HOOKS MUST BE AT TOP - Before any conditional logic
   const requestData = useMemo(() => {
@@ -56,26 +57,58 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
         isCombinedTrip,
         isDelivery,
         isRegularRide,
+                requestFareField: request.fare, // ⭐ DEBUG: Show request.fare value
+        combinedTripTotalFare: request.combinedTripId?.totalFare, // ⭐ DEBUG: Show combinedTripId.totalFare
       })
       
       // Extract coordinates - they can be nested or at request level
       let pickupCoords = request.pickupCoordinates
       let dropoffCoords = request.dropoffCoordinates
       
-      // Xác định nguồn dữ liệu cho các field khác
+      // ⭐ CRITICAL: DO NOT assign data = combinedTripId for combined trips!
+      // This prevents accidental fallback to totalFare which is WRONG
+      // For regular rides & delivery, we need to look at rideId/deliveryId
       let data = request
-      if (request.rideId && typeof request.rideId === 'object') {
-        data = request.rideId
-      } else if (request.deliveryId && typeof request.deliveryId === 'object') {
-        data = request.deliveryId
-      } else if (request.combinedTripId && typeof request.combinedTripId === 'object') {
-        data = request.combinedTripId
+      if (!isCombinedTrip) {
+        // ONLY for regular rides and delivery
+        if (request.rideId && typeof request.rideId === 'object') {
+          data = request.rideId
+        } else if (request.deliveryId && typeof request.deliveryId === 'object') {
+          data = request.deliveryId
+        }
+      }
+
+      // ⭐ CRITICAL FIX: Lấy giá đúng cho ghép xe (rideshare)
+      // ⚠️ IMPORTANT: request.fare là giá khách hàng nhập (giá thực) - LUÔN DÙNG CÁI NÀY
+      //              combinedTripId.totalFare là giá tài xế tạo ban đầu (KHÔNG DÙNG)
+      // 🔥 FIX: Khi tài xế tạo combined trip, request.fare sẽ = 0 đầu tiên
+      //         Chỉ dùng totalFare nếu request.fare === 0 ĐỂ HỎI LẠI khi "5s đầu"
+      //         Nhưng theo business logic: Không được hiển thị giá từ tài xế, chỉ hiển thị khi khách gửi
+      let fare = 0
+      if (isCombinedTrip) {
+        // Ghép xe: ⭐ CRITICAL - CHỈ DÙNG request.fare (từ khách hàng gửi)
+        // request.fare = giá khách trả (ĐÚNG)
+        // combinedTripId.totalFare = giá tài xế tạo (KHÔNG sử dụng - không được tính giá ban đầu)
+        
+        // ⭐ NEW RULE: ONLY use request.fare, NO fallback whatsoever!
+        // Nếu request.fare = 0, nghĩa là khách chưa nhập giá → show 0 (không hiển thị)
+        fare = request.fare ?? 0
+        
+        console.log('💰 [Rideshare] ⭐ Using request.fare ONLY (NO fallback to totalFare):', {
+          fare,
+          requestFareField: request.fare,
+          tripTotalFare: request.combinedTripId?.totalFare,
+          NOTE: fare === 0 ? '⚠️ Khách chưa gửi giá' : '✅ Khách đã gửi giá',
+        })
+      } else {
+        // Regular ride hoặc delivery: lấy từ nested object
+        fare = request.fare ?? data.fare ?? data.estimatedPrice ?? data.deliveryFee ?? 0
+        console.log(`💰 [${isDelivery ? 'Delivery' : 'RegularRide'}] Fare:`, fare)
       }
 
       // Ensure we have basic data with proper fallbacks
       const pickupAddress = request.pickupAddress || data.pickupAddress || 'Địa điểm đón'
       const dropoffAddress = request.dropoffAddress || data.dropoffAddress || data.deliveryAddress || 'Địa điểm đến'
-      const fare = request.fare || data.totalFare || data.estimatedPrice || data.deliveryFee || data.fare || 0
       const customerName = request.customerId?.name || data.customerId?.name || request.customerName || 'Khách hàng'
       const customerRating = request.customerId?.rating || data.customerId?.rating || request.rating || 5.0
 
@@ -156,6 +189,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
         duration: resultData.duration,
         displayDistance: `${Math.round(resultData.distance)} km`,
         displayDuration: `~${Math.round(resultData.duration)} phút`,
+        displayFare: `+${(resultData.fare / 1000).toFixed(0)}k`,
       })
 
       return resultData
@@ -186,7 +220,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
         deliveryId: request.deliveryId?._id || request.deliveryId,
       }
     }
-  }, [request])
+  }, [request, request?.fare, request?.combinedTripId, request?.type, request?.tripType]) // ⭐ CRITICAL: Add explicit dependencies to force re-compute
 
   // NOW do the logging after hooks are set up
   console.log('═══════════════════════════════════════════════════')
@@ -200,6 +234,19 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
     countdown: countdown,
     hasRequestData: requestData ? '✅ YES' : '❌ NO',
   })
+
+  // ⭐ CRITICAL: Monitor fare changes to ensure re-render when fare updates
+  useEffect(() => {
+    const currentFare = request?.fare ?? 0
+    if (currentFare !== lastFareValue) {
+      console.log('🔄 [AssignmentRequestModal] ⭐ FARE CHANGED:', {
+        oldFare: lastFareValue,
+        newFare: currentFare,
+        requestId: request?._id,
+      })
+      setLastFareValue(currentFare)
+    }
+  }, [request?.fare, request?._id, lastFareValue])
 
   const handleAccept = useCallback(async () => {
     setIsAccepting(true)
@@ -312,9 +359,19 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
                   )}
                 </View>
               </View>
-              <View style={styles.priceBox}>
-                <Text style={styles.price}>+{(requestData.fare / 1000).toFixed(0)}k</Text>
-              </View>
+              {/* ⭐ CHỈ SHOW GIÁ khi:
+                  - Regular rides/delivery: luôn show
+                  - Combined trips: chỉ show khi fare > 0 (khách đã nhập giá)
+              */}
+              {(requestData.serviceType !== 'rideshare' || requestData.fare > 0) && (
+                <View style={styles.priceBox}>
+                  <Text style={styles.price}>
+                    {requestData.fare > 0 
+                      ? `+${(requestData.fare / 1000).toFixed(0)}k` 
+                      : '...'}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 

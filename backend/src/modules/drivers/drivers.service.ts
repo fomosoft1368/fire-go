@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Driver, DriverDocument, DriverStatus } from './schemas/driver.schema';
+import { Driver, DriverDocument, DriverStatus, DocumentStatus } from './schemas/driver.schema';
 import { CreateDriverDto, UpdateDriverDto, UpdateLocationDto } from './dto';
 
 @Injectable()
@@ -20,6 +20,7 @@ export class DriversService {
     const driverData: any = {
       ...createDriverDto,
       status: DriverStatus.OFFLINE,
+      approvalStatus: DocumentStatus.PENDING, // ✅ Set to pending when driver registers
     };
 
     // Only add userId if provided and valid
@@ -39,6 +40,7 @@ export class DriversService {
       firstName: createDriverDto.firstName,
       lastName: createDriverDto.lastName,
       phone: createDriverDto.phone,
+      approvalStatus: DocumentStatus.PENDING,
     });
 
     return driver;
@@ -313,8 +315,11 @@ export class DriversService {
 
   async getTodayEarnings(driverId: string): Promise<any> {
     try {
+      console.log('[getTodayEarnings] Starting for driver:', driverId);
+      
       const driver = await this.findById(driverId);
       if (!driver) {
+        console.error('[getTodayEarnings] Driver not found:', driverId);
         throw new NotFoundException('Driver not found');
       }
 
@@ -345,63 +350,82 @@ export class DriversService {
       // ===== TODAY'S EARNINGS =====
       
       // 1. Completed RIDES (lái xe hộ)
-      const completedRides = await this.rideModel.find({
-        driverId: new Types.ObjectId(driverId),
-        status: 'completed',
-        createdAt: { $gte: today, $lt: tomorrow },
-      }).select('totalFare');
+      let completedRides = [];
+      let ridesTodayTotal = 0;
+      let ridesTodayEarnings = 0;
 
-      const ridesTodayTotal = completedRides.reduce((sum, ride) => sum + (ride.totalFare || 0), 0);
-      const ridesTodayEarnings = Math.round((ridesTodayTotal * driverShare) / 100);
+      try {
+        completedRides = await this.rideModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'completed',
+          createdAt: { $gte: today, $lt: tomorrow },
+        }).select('totalFare');
+
+        ridesTodayTotal = completedRides.reduce((sum, ride) => sum + (ride.totalFare || 0), 0);
+        ridesTodayEarnings = Math.round((ridesTodayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching rides:', err);
+      }
 
       console.log(`[getTodayEarnings] Today - Rides: ${completedRides.length} trips, Total: ${ridesTodayTotal}, Driver share: ${ridesTodayEarnings}`);
 
       // 2. Completed COMBINED TRIPS (ghép xe)
-      // For combined trips, sum up the fare from each completed ride request
-      const completedCombinedTrips = await this.combinedTripModel.find({
-        driverId: new Types.ObjectId(driverId),
-        status: 'completed',
-        createdAt: { $gte: today, $lt: tomorrow },
-      }).populate('rideRequests');
-
+      let completedCombinedTrips = [];
       let combinedTodayTotal = 0;
       let completedRequestsCount = 0;
+      let combinedTodayEarnings = 0;
 
-      for (const trip of completedCombinedTrips) {
-        // Calculate total fare from passenger requests
-        if (trip.rideRequests && Array.isArray(trip.rideRequests)) {
-          for (const request of trip.rideRequests) {
-            if (request.status === 'completed' && request.fare) {
-              combinedTodayTotal += request.fare;
-              completedRequestsCount++;
+      try {
+        completedCombinedTrips = await this.combinedTripModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'completed',
+          createdAt: { $gte: today, $lt: tomorrow },
+        }).populate('rideRequests');
+
+        for (const trip of completedCombinedTrips) {
+          if (trip.rideRequests && Array.isArray(trip.rideRequests)) {
+            for (const request of trip.rideRequests) {
+              if (request.status === 'completed' && request.fare) {
+                combinedTodayTotal += request.fare;
+                completedRequestsCount++;
+              }
             }
+          } else if (trip.totalFare) {
+            combinedTodayTotal += trip.totalFare;
+            completedRequestsCount++;
           }
-        } else if (trip.totalFare) {
-          // Fallback to trip total if no requests breakdown
-          combinedTodayTotal += trip.totalFare;
-          completedRequestsCount++;
         }
-      }
 
-      const combinedTodayEarnings = Math.round((combinedTodayTotal * driverShare) / 100);
+        combinedTodayEarnings = Math.round((combinedTodayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching combined trips:', err);
+      }
 
       console.log(`[getTodayEarnings] Today - Combined: ${completedCombinedTrips.length} trips, ${completedRequestsCount} requests, Total: ${combinedTodayTotal}, Driver share: ${combinedTodayEarnings}`);
 
       // 3. Completed DELIVERIES
-      const completedDeliveries = await this.deliveryModel.find({
-        driverId: new Types.ObjectId(driverId),
-        status: 'delivered',
-        createdAt: { $gte: today, $lt: tomorrow },
-      }).select('estimatedPrice');
+      let completedDeliveries = [];
+      let deliveriesTodayTotal = 0;
+      let deliveriesTodayEarnings = 0;
 
-      const deliveriesTodayTotal = completedDeliveries.reduce((sum, delivery) => {
-        const price = typeof delivery.estimatedPrice === 'string' 
-          ? parseInt(delivery.estimatedPrice, 10) 
-          : (delivery.estimatedPrice || 0);
-        return sum + price;
-      }, 0);
+      try {
+        completedDeliveries = await this.deliveryModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'delivered',
+          createdAt: { $gte: today, $lt: tomorrow },
+        }).select('estimatedPrice');
 
-      const deliveriesTodayEarnings = Math.round((deliveriesTodayTotal * driverShare) / 100);
+        deliveriesTodayTotal = completedDeliveries.reduce((sum, delivery) => {
+          const price = typeof delivery.estimatedPrice === 'string' 
+            ? parseInt(delivery.estimatedPrice, 10) 
+            : (delivery.estimatedPrice || 0);
+          return sum + price;
+        }, 0);
+
+        deliveriesTodayEarnings = Math.round((deliveriesTodayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching deliveries:', err);
+      }
 
       console.log(`[getTodayEarnings] Today - Deliveries: ${completedDeliveries.length} deliveries, Total: ${deliveriesTodayTotal}, Driver share: ${deliveriesTodayEarnings}`);
 
@@ -411,51 +435,68 @@ export class DriversService {
 
       // ===== YESTERDAY'S EARNINGS (for trend calculation) =====
 
-      const completedRidesYesterday = await this.rideModel.find({
-        driverId: new Types.ObjectId(driverId),
-        status: 'completed',
-        createdAt: { $gte: yesterday, $lt: today },
-      }).select('totalFare');
+      let completedRidesYesterday = [];
+      let ridesYesterdayEarnings = 0;
 
-      const ridesYesterdayTotal = completedRidesYesterday.reduce((sum, ride) => sum + (ride.totalFare || 0), 0);
-      const ridesYesterdayEarnings = Math.round((ridesYesterdayTotal * driverShare) / 100);
+      try {
+        completedRidesYesterday = await this.rideModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'completed',
+          createdAt: { $gte: yesterday, $lt: today },
+        }).select('totalFare');
 
-      const completedCombinedTripsYesterday = await this.combinedTripModel.find({
-        driverId: new Types.ObjectId(driverId),
-        status: 'completed',
-        createdAt: { $gte: yesterday, $lt: today },
-      }).populate('rideRequests');
-
-      let combinedYesterdayTotal = 0;
-
-      for (const trip of completedCombinedTripsYesterday) {
-        if (trip.rideRequests && Array.isArray(trip.rideRequests)) {
-          for (const request of trip.rideRequests) {
-            if (request.status === 'completed' && request.fare) {
-              combinedYesterdayTotal += request.fare;
-            }
-          }
-        } else if (trip.totalFare) {
-          combinedYesterdayTotal += trip.totalFare;
-        }
+        const ridesYesterdayTotal = completedRidesYesterday.reduce((sum, ride) => sum + (ride.totalFare || 0), 0);
+        ridesYesterdayEarnings = Math.round((ridesYesterdayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching yesterday rides:', err);
       }
 
-      const combinedYesterdayEarnings = Math.round((combinedYesterdayTotal * driverShare) / 100);
+      let combinedYesterdayEarnings = 0;
 
-      const completedDeliveriesYesterday = await this.deliveryModel.find({
-        driverId: new Types.ObjectId(driverId),
-        status: 'delivered',
-        createdAt: { $gte: yesterday, $lt: today },
-      }).select('estimatedPrice');
+      try {
+        const completedCombinedTripsYesterday = await this.combinedTripModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'completed',
+          createdAt: { $gte: yesterday, $lt: today },
+        }).populate('rideRequests');
 
-      const deliveriesYesterdayTotal = completedDeliveriesYesterday.reduce((sum, delivery) => {
-        const price = typeof delivery.estimatedPrice === 'string' 
-          ? parseInt(delivery.estimatedPrice, 10) 
-          : (delivery.estimatedPrice || 0);
-        return sum + price;
-      }, 0);
+        let combinedYesterdayTotal = 0;
+        for (const trip of completedCombinedTripsYesterday) {
+          if (trip.rideRequests && Array.isArray(trip.rideRequests)) {
+            for (const request of trip.rideRequests) {
+              if (request.status === 'completed' && request.fare) {
+                combinedYesterdayTotal += request.fare;
+              }
+            }
+          } else if (trip.totalFare) {
+            combinedYesterdayTotal += trip.totalFare;
+          }
+        }
+        combinedYesterdayEarnings = Math.round((combinedYesterdayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching yesterday combined trips:', err);
+      }
 
-      const deliveriesYesterdayEarnings = Math.round((deliveriesYesterdayTotal * driverShare) / 100);
+      let deliveriesYesterdayEarnings = 0;
+
+      try {
+        const completedDeliveriesYesterday = await this.deliveryModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'delivered',
+          createdAt: { $gte: yesterday, $lt: today },
+        }).select('estimatedPrice');
+
+        const deliveriesYesterdayTotal = completedDeliveriesYesterday.reduce((sum, delivery) => {
+          const price = typeof delivery.estimatedPrice === 'string' 
+            ? parseInt(delivery.estimatedPrice, 10) 
+            : (delivery.estimatedPrice || 0);
+          return sum + price;
+        }, 0);
+
+        deliveriesYesterdayEarnings = Math.round((deliveriesYesterdayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching yesterday deliveries:', err);
+      }
 
       // TOTAL YESTERDAY
       const yesterdayTotal = ridesYesterdayEarnings + combinedYesterdayEarnings + deliveriesYesterdayEarnings;
@@ -497,8 +538,21 @@ export class DriversService {
         driverShare,
       };
     } catch (error) {
-      console.error('[getTodayEarnings] Error:', error);
-      throw error;
+      console.error('[getTodayEarnings] Fatal error:', error);
+      // Return default response instead of throwing
+      return {
+        driverId: null,
+        date: new Date(),
+        amount: 0,
+        totalTrips: 0,
+        increase: 0,
+        breakdown: {
+          rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+          combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+          deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+        },
+        driverShare: 80,
+      };
     }
   }
 
@@ -506,12 +560,34 @@ export class DriversService {
     driverId: string,
     isAcceptingRides: boolean,
   ): Promise<DriverDocument> {
+    console.log('[toggleAcceptingRides] Starting with:', { driverId, isAcceptingRides });
+    
     const driver = await this.findById(driverId);
+    console.log('[toggleAcceptingRides] Driver found:', {
+      id: driver._id,
+      walletBalance: driver.walletBalance,
+      approvalStatus: driver.approvalStatus,
+      isSuspended: driver.isSuspended,
+    });
 
     if (driver.isSuspended) {
+      console.log('[toggleAcceptingRides] Driver is suspended');
       throw new BadRequestException('Driver is suspended and cannot accept rides');
     }
 
+    // Check wallet balance (must be >= 100k to accept rides)
+    if (isAcceptingRides && driver.walletBalance < 100000) {
+      console.log('[toggleAcceptingRides] Wallet too low:', driver.walletBalance);
+      throw new BadRequestException('Số dư ví phải từ 100.000 đ trở lên để nhận cuốc');
+    }
+
+    // Check license status (must be APPROVED)
+    if (isAcceptingRides && driver.licenseStatus !== DocumentStatus.APPROVED) {
+      console.log('[toggleAcceptingRides] License not approved:', driver.licenseStatus);
+      throw new BadRequestException('Giấy phép lái xe của bạn chưa được phê duyệt. Vui lòng chờ admin duyệt hồ sơ');
+    }
+
+    console.log('[toggleAcceptingRides] Validation passed, updating...');
     return this.driverModel.findByIdAndUpdate(
       driverId,
       { isAcceptingRides },

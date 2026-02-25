@@ -9,6 +9,7 @@ import { AssignmentRequest, AssignmentRequestSchema } from './schemas/assignment
 import { AutoAssignService } from './services/auto-assign.service'
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema'
 import { CombinedTripsModule } from '../combined-trips/combined-trips.module'
+import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema'
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { CombinedTripsModule } from '../combined-trips/combined-trips.module'
       { name: Pricing.name, schema: PricingSchema },
       { name: AssignmentRequest.name, schema: AssignmentRequestSchema },
       { name: Driver.name, schema: DriverSchema },
+      { name: 'PricingConfig', schema: PricingConfigSchema },
     ]),
     MulterModule.register({
       dest: './uploads',

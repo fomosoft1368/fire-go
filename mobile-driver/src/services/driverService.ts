@@ -97,6 +97,11 @@ export class DriverService {
   async getProfile(): Promise<any> {
     try {
       const response = await this.api.get('/me');
+      console.log('[DriverService.getProfile] Response data:', {
+        walletBalance: response.data?.walletBalance,
+        licenseStatus: response.data?.licenseStatus,
+        fullData: response.data,
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching driver profile:', error);

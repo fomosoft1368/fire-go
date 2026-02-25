@@ -6,8 +6,11 @@ import {
   IsEmail,
   MinLength,
   Matches,
+  IsArray,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { DriverType, VehicleType } from '../schemas/driver.schema';
 
 export class CreateDriverDto {
   @IsOptional()
@@ -109,5 +112,14 @@ export class CreateDriverDto {
   @IsOptional()
   @IsString()
   insuranceCertificate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(DriverType, { each: true })
+  driverTypes?: DriverType[]; // Loại dịch vụ: rideshare, hire, delivery
+
+  @IsOptional()
+  @IsEnum(VehicleType)
+  vehicleType?: VehicleType; // Loại xe: sedan, suv, pickup, motorcycle
 }
 

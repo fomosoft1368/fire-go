@@ -18,16 +18,21 @@ export class SepayService {
   private readonly SEPAY_SECRET_KEY = process.env.SEPAY_SECRET_KEY;
   
   // Thông tin tài khoản nhận tiền (config từ .env trong production)
-  private readonly ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NUMBER || '0986190053'; // Số tài khoản ngân hàng
+  private readonly ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NUMBER || 'VQRQAHGIQ8468'; // Tài khoản VA
   private readonly ACCOUNT_NAME = process.env.SEPAY_ACCOUNT_NAME || 'HO VAN TRINH'; // Tên chủ tài khoản
   private readonly BANK_ID = process.env.SEPAY_BANK_ID || '970422'; // VCB: 970436, TCB: 970407, MB: 970422
   private readonly BANK_NAME = process.env.SEPAY_BANK_NAME || 'MB'; // Tên ngân hàng
 
   /**
    * Generate Sepay QR code URL for bank transfer
+   * Supports both driver (DRV_) and customer (CUST_) payments
    * Reference: https://www.sepay.vn/ or https://img.vietqr.io/
    */
-  generateQRCode(amount: number, transactionId: string): {
+  generateQRCode(
+    amount: number,
+    transactionId: string,
+    userType: 'driver' | 'customer' = 'driver',
+  ): {
     qrCodeUrl: string;
     accountNo: string;
     accountName: string;
@@ -36,11 +41,14 @@ export class SepayService {
     content: string;
     bankId: string;
   } {
-    // Generate unique transaction content (use last 8 chars for brevity)
+    // Generate unique transaction content with user type prefix
+    // Format: DRV8A9B0C1D or CUST9B0C2D2E (no underscore - banks don't allow it)
     const last8Chars = transactionId.substring(transactionId.length - 8).toUpperCase();
-    const content = `DH${last8Chars}`;
+    const prefix = userType === 'driver' ? 'DRV' : 'CUST';
+    const content = `${prefix}${last8Chars}`; // No underscore!
     
     console.log('[SepayService] 🔖 Generating QR code:');
+    console.log('[SepayService] User Type:', userType);
     console.log('[SepayService] Full Transaction ID:', transactionId);
     console.log('[SepayService] Last 8 chars:', last8Chars);
     console.log('[SepayService] Content:', content);
@@ -68,21 +76,21 @@ export class SepayService {
   }
 
   /**
-   * Build VietQR URL
-   * Format: https://img.vietqr.io/image/{BANK_ID}-{ACCOUNT_NO}-{TEMPLATE}.png?amount={amount}&addInfo={content}&accountName={name}
+   * Build Sepay QR URL
+   * Format: https://qr.sepay.vn/img?acc={ACCOUNT_NO}&bank={BANK_NAME}&amount={amount}&des={content}
    */
   private buildVietQRUrl(payload: SepayQRPayload): string {
-    const baseUrl = 'https://img.vietqr.io/image';
-    const template = payload.template || 'compact2';
+    const baseUrl = 'https://qr.sepay.vn/img';
     
-    // URL encode params
+    // URL encode params for Sepay format
     const params = new URLSearchParams({
+      acc: payload.accountNo,
+      bank: this.BANK_NAME, // MBBank, VCBBank, etc.
       amount: payload.amount.toString(),
-      addInfo: payload.addInfo,
-      accountName: payload.accountName,
+      des: payload.addInfo,
     });
 
-    return `${baseUrl}/${payload.acqId}-${payload.accountNo}-${template}.png?${params.toString()}`;
+    return `${baseUrl}?${params.toString()}`;
   }
 
   /**

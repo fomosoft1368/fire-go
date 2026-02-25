@@ -350,6 +350,51 @@ export class WalletService {
   }
 
   /**
+   * Create topup transaction for Sepay payment
+   * Called by mobile to initiate topup process
+   * Returns transaction that can be used to generate QR code
+   */
+  async createTopupTransaction(
+    driverId: string | Types.ObjectId,
+    amount: number,
+  ) {
+    if (amount < 10000) {
+      throw new BadRequestException('Số tiền nạp tối thiểu là 10.000đ');
+    }
+
+    const driver = await this.driverModel.findById(driverId);
+    if (!driver) {
+      throw new NotFoundException('Tài xế không tồn tại');
+    }
+
+    const balanceBefore = driver.walletBalance || 0;
+    const balanceAfter = balanceBefore + amount;
+
+    // Create transaction record
+    const transaction = new this.transactionModel({
+      userType: UserType.DRIVER,
+      driverId: new Types.ObjectId(driverId),
+      type: TransactionType.TOPUP,
+      amount,
+      balanceBefore,
+      balanceAfter,
+      status: TransactionStatus.PENDING,
+      paymentMethod: PaymentMethod.BANK_TRANSFER,
+      description: `Nạp tiền qua chuyển khoản ngân hàng`,
+    });
+
+    await transaction.save();
+
+    console.log('[WalletService] ✅ Topup transaction created:', {
+      transactionId: transaction._id,
+      driverId,
+      amount,
+    });
+
+    return transaction;
+  }
+
+  /**
    * Find pending transaction by transfer content
    * Used by Sepay webhook to match bank transfer with transaction
    */
@@ -414,6 +459,7 @@ export class WalletService {
   /**
    * Complete topup transaction after bank transfer confirmed
    * Called by Sepay webhook
+   * Applies topup discount configured in PricingConfig
    */
   async completeTopupTransaction(transactionId: string, sepayTransactionId: string) {
     const transaction = await this.transactionModel.findById(transactionId);
@@ -427,20 +473,35 @@ export class WalletService {
       return transaction;
     }
 
-    // Update transaction status
+    // Get topup discount from Pricing Config
+    const pricingConfig = await this.pricingService.getConfig();
+    const discountPercent = pricingConfig.topupDiscountDriver || 0; // Default 0% if not set
+    const discountAmount = Math.round(transaction.amount * (discountPercent / 100));
+
+    console.log('[WalletService] 💳 Applying topup discount:', {
+      amount: transaction.amount,
+      discountPercent,
+      discountAmount,
+    });
+
+    // Update transaction status and discount
     transaction.status = TransactionStatus.COMPLETED;
     transaction.completedAt = new Date();
+    transaction.discountPercent = discountPercent;
+    transaction.discountAmount = discountAmount;
     transaction.description = `${transaction.description} - Sepay: ${sepayTransactionId}`;
     await transaction.save();
 
-    // Update driver wallet balance
+    // Update driver wallet balance (apply discount)
     const driver = await this.driverModel.findById(transaction.driverId);
     if (!driver) {
       throw new NotFoundException('Driver not found');
     }
 
     const balanceBefore = driver.walletBalance;
-    const balanceAfter = balanceBefore + transaction.amount;
+    // Driver gets: topup amount - discount
+    const actualNetAmount = transaction.amount - discountAmount;
+    const balanceAfter = balanceBefore + actualNetAmount;
 
     driver.walletBalance = balanceAfter;
 
@@ -456,10 +517,12 @@ export class WalletService {
     transaction.balanceAfter = balanceAfter;
     await transaction.save();
 
-    console.log('[WalletService] ✅ Topup completed:', {
+    console.log('[WalletService] ✅ Topup completed with discount:', {
       transactionId,
       driverId: driver._id,
-      amount: transaction.amount,
+      originalAmount: transaction.amount,
+      discountAmount,
+      netAmount: actualNetAmount,
       newBalance: balanceAfter,
     });
 

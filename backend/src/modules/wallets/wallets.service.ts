@@ -111,6 +111,172 @@ export class WalletsService {
     return transaction;
   }
 
+  /**
+   * Create topup transaction for Sepay payment (customer version)
+   * Returns PENDING transaction for QR code generation
+   */
+  async createTopupTransaction(
+    userId: string,
+    amount: number,
+  ): Promise<TransactionDocument> {
+    if (amount < 10000) {
+      throw new BadRequestException('Top-up amount must be at least 10,000 VND');
+    }
+
+    const wallet = await this.getWallet(userId);
+
+    if (wallet.isLocked) {
+      throw new BadRequestException('Wallet is locked');
+    }
+
+    const balanceBefore = wallet.balance;
+    const balanceAfter = balanceBefore + amount;
+
+    // Create PENDING transaction - will be completed when webhook is received
+    const transaction = await this.transactionModel.create({
+      userId: new Types.ObjectId(userId),
+      userType: UserType.CUSTOMER,
+      type: TransactionType.TOP_UP,
+      amount,
+      status: TransactionStatus.PENDING, // Waiting for payment confirmation
+      paymentMethod: 'bank_transfer',
+      description: 'Nạp tiền qua chuyển khoản ngân hàng',
+      balanceBefore,
+      balanceAfter,
+    });
+
+    console.log('[WalletsService] ✅ Customer topup transaction created:', {
+      transactionId: transaction._id,
+      userId,
+      amount,
+    });
+
+    return transaction;
+  }
+
+  /**
+   * Find pending topup transaction by content (for webhook matching)
+   */
+  async findPendingTopupByContent(
+    transactionId: string,
+  ): Promise<TransactionDocument | null> {
+    console.log('[WalletsService] 🔍 Searching for customer transaction with ID:', transactionId);
+
+    let transaction = null;
+
+    // Strategy 1: Try full transaction ID (24 char MongoDB ObjectId)
+    if (transactionId.length === 24) {
+      try {
+        transaction = await this.transactionModel.findOne({
+          _id: new Types.ObjectId(transactionId),
+          userType: UserType.CUSTOMER,
+          type: TransactionType.TOP_UP,
+          status: TransactionStatus.PENDING,
+        });
+
+        if (transaction) {
+          console.log('[WalletsService] ✅ Found by full ID:', transaction._id);
+          return transaction;
+        }
+      } catch (error: any) {
+        console.log('[WalletsService] ⚠️ Full ID search failed:', error.message);
+      }
+    }
+
+    // Strategy 2: Try last 8 characters matching
+    const last8Chars = transactionId.substring(Math.max(0, transactionId.length - 8)).toUpperCase();
+    console.log('[WalletsService] 🔍 Trying last 8 chars match:', last8Chars);
+
+    const allPending = await this.transactionModel
+      .find({
+        userType: UserType.CUSTOMER,
+        type: TransactionType.TOP_UP,
+        status: TransactionStatus.PENDING,
+      })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    for (const tx of allPending) {
+      const txIdStr = tx._id.toString();
+      const txLast8 = txIdStr.substring(txIdStr.length - 8).toUpperCase();
+
+      if (txLast8 === last8Chars) {
+        console.log('[WalletsService] ✅ Found by last 8 chars:', tx._id);
+        return tx;
+      }
+    }
+
+    console.log('[WalletsService] ❌ No matching customer transaction found');
+    return null;
+  }
+
+  /**
+   * Complete topup transaction after payment confirmed (customer version)
+   * Applies topup discount configured in PricingConfig
+   */
+  async completeTopupTransaction(
+    transactionId: string,
+    sepayTransactionId: string,
+  ): Promise<TransactionDocument> {
+    const transaction = await this.transactionModel.findById(transactionId);
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    if (transaction.status !== TransactionStatus.PENDING) {
+      console.log('[WalletsService] ⚠️ Transaction already processed:', transaction.status);
+      return transaction;
+    }
+
+    // Get topup discount from Pricing Config
+    const pricingConfig = await this.pricingService.getConfig();
+    const discountPercent = pricingConfig.topupDiscountCustomer || 0; // Default 0% if not set
+    const discountAmount = Math.round(transaction.amount * (discountPercent / 100));
+
+    console.log('[WalletsService] 💳 Applying topup discount:', {
+      amount: transaction.amount,
+      discountPercent,
+      discountAmount,
+    });
+
+    // Update transaction status and discount
+    transaction.status = TransactionStatus.SUCCESS;
+    transaction.completedAt = new Date();
+    transaction.discountPercent = discountPercent;
+    transaction.discountAmount = discountAmount;
+    transaction.description = `${transaction.description} - Confirmed`;
+    await transaction.save();
+
+    // Update wallet balance (apply discount)
+    const wallet = await this.getWallet(transaction.userId.toString());
+
+    const balanceBefore = wallet.balance;
+    // Customer gets: topup amount - discount
+    const actualNetAmount = transaction.amount - discountAmount;
+    const balanceAfter = balanceBefore + actualNetAmount;
+
+    await this.walletModel.findByIdAndUpdate(wallet._id, {
+      $inc: { balance: actualNetAmount, totalTopUps: transaction.amount },
+    });
+
+    // Update transaction balance fields
+    transaction.balanceBefore = balanceBefore;
+    transaction.balanceAfter = balanceAfter;
+    await transaction.save();
+
+    console.log('[WalletsService] ✅ Customer topup completed with discount:', {
+      transactionId,
+      userId: transaction.userId,
+      originalAmount: transaction.amount,
+      discountAmount,
+      netAmount: actualNetAmount,
+      newBalance: balanceAfter,
+    });
+
+    return transaction;
+  }
+
   async deductBalance(
     userId: string,
     amount: number,

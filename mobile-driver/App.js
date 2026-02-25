@@ -7,10 +7,11 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import axios from 'axios'
 import { store, RootState } from './src/redux/store'
 import { restoreAuth } from './src/redux/slices/authSlice'
 import { MaterialIcons } from '@expo/vector-icons'
-import { COLORS } from './src/constants'
+import { COLORS, API_BASE_URL } from './src/constants'
 import { loginSuccess } from './src/redux/slices/authSlice'
 import { assignmentRequestPollingService } from './src/services/assignmentRequestPollingService'
 import { driverService } from './src/services/driverService'
@@ -791,7 +792,10 @@ export default function App() {
           dropoffAddress = data.dropoffAddress || 'N/A'
           distance = parseDistance(data.distance)
           duration = parseDuration(data.duration)
-          fare = data.totalFare || 0
+          // ⭐ CRITICAL FIX: KHÔNG lấy fare từ combined trip (totalFare là giá tài xế tạo)
+          // fare sẽ được lấy từ request.fare (giá khách hàng gửi) trong modal
+          fare = 0 // DO NOT use data.totalFare - it's driver's initial price, not customer's price
+          console.log('[App] ⚠️ Combined trip: NOT using totalFare from trip, will use request.fare from RideRequest')
         } else if (dataType === 'ride') {
           pickupAddress = data.pickupAddress || 'N/A'
           dropoffAddress = data.dropoffAddress || 'N/A'
@@ -826,11 +830,12 @@ export default function App() {
             return prev
           }
           
-          return {
+          // ⭐ CRITICAL: For combined trips, preserve original request.fare (customer's price)
+          // DO NOT overwrite with totalFare from trip (driver's initial price)
+          const updatedData = {
             ...prev,
             distance,
             duration,
-            fare,
             pickupAddress,
             dropoffAddress,
             combinedTripId: dataType === 'combined_trip' ? dataId : prev.combinedTripId,
@@ -840,6 +845,16 @@ export default function App() {
             pickupCoordinates: data.pickupLocation?.coordinates || data.pickupCoordinates || prev.pickupCoordinates,
             dropoffCoordinates: data.deliveryLocation?.coordinates || data.deliveryCoordinates || data.dropoffLocation?.coordinates || data.dropoffCoordinates || prev.dropoffCoordinates,
           }
+          
+          // ONLY update fare for regular rides/delivery, NOT for combined trips
+          if (dataType !== 'combined_trip') {
+            updatedData.fare = fare
+            console.log('[App] ✅ Updated fare for', dataType, ':', fare)
+          } else {
+            console.log('[App] ⚠️ Preserved original request.fare for combined trip:', prev.fare)
+          }
+          
+          return updatedData
         })
 
         console.log('[App] ✅ State updated with full data')
@@ -922,17 +937,34 @@ export default function App() {
       const driverProfile = await driverService.getProfile()
       const walletBalance = driverProfile?.walletBalance || 0
 
-      console.log('[App] 💰 Driver wallet balance:', {
-        balance: walletBalance,
-        threshold: 200000,
-        needsTopup: walletBalance < 200000,
+      // 💰 Fetch pricing config to get driverShare percentage
+      const pricingConfigResponse = await axios.get(`${API_BASE_URL}/pricing/config`)
+      const pricingConfig = pricingConfigResponse.data
+      const driverShare = pricingConfig?.driverShare || 85 // Default 85% for driver (15% for app)
+
+      // 💰 Calculate app fee = totalFare * (100 - driverShare) / 100
+      const totalFare = assignmentRequest.fare || assignmentRequest.totalFare || 0
+      const appFee = Math.round((totalFare * (100 - driverShare)) / 100)
+
+      console.log('[App] 💰 Balance check details:', {
+        walletBalance,
+        totalFare,
+        driverShare: `${driverShare}%`,
+        appFee,
+        driverEarnings: totalFare - appFee,
+        hasEnoughBalance: walletBalance >= appFee,
       })
 
-      if (walletBalance < 200000) {
-        console.warn('[App] ⚠️ Wallet balance too low:', walletBalance)
+      // ⭐ CRITICAL: Check if balance >= app fee (not total fare)
+      if (walletBalance < appFee) {
+        console.warn('[App] ⚠️ Wallet balance too low for app fee:', {
+          balance: walletBalance,
+          appFee,
+          shortage: appFee - walletBalance,
+        })
         Alert.alert(
           'Số dư ví không đủ',
-          `Số dư ví của bạn là ${walletBalance.toLocaleString('vi-VN')}đ. Vui lòng nạp tiền để tiếp tục nhận cuốc.`,
+          `Số dư ví của bạn là ${walletBalance.toLocaleString('vi-VN')}đ, không đủ để nhận cuốc này (cần ${appFee.toLocaleString('vi-VN')}đ). Vui lòng nạp tiền để tiếp tục.`,
           [
             {
               text: 'Nạp tiền',

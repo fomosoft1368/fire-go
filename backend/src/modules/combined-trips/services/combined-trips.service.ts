@@ -988,8 +988,18 @@ export class CombinedTripsService implements OnModuleInit {
         throw new NotFoundException(`Combined trip not found: ${combinedTripId}`);
       }
       
+      // ⭐ CRITICAL FIX: If trip is driver-created, skip finding drivers (driver already assigned)
+      if (combinedTrip.createdBy === 'driver') {
+        console.log('⚠️ [findAndNotifyDrivers] Trip created by DRIVER - skipping driver search (driver already assigned)');
+        console.log('🚗 Assigned driver:', combinedTrip.driverId);
+        return; // Early return - no need to find drivers
+      }
+      
+      // Only for customer-created trips, we need to find drivers
       const customerId = combinedTrip.customerId && combinedTrip.customerId[0] ? combinedTrip.customerId[0] : null;
       if (!customerId) {
+        console.log('⚠️ [findAndNotifyDrivers] No customer ID found for trip:', combinedTripId);
+        console.log('⚠️ Trip details:', { createdBy: combinedTrip.createdBy, status: combinedTrip.status });
         throw new BadRequestException(`No customer ID found for trip: ${combinedTripId}`);
       }
 

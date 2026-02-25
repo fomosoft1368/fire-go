@@ -45,10 +45,14 @@ interface FormData {
   vehicleColor: string
   vehiclePlate: string
   vehicleLicense: string
+  vehicleType: string // NEW: sedan, suv, pickup, motorcycle
 
   // Driver License Info
   licenseNumber: string
   licenseExpiry: string
+
+  // Service Selection
+  driverTypes: string[] // NEW: rideshare, hire, delivery
 
   // Banking Info
   bankName: string
@@ -77,8 +81,10 @@ export default function RegisterScreen({ navigation }: any) {
     vehicleColor: '',
     vehiclePlate: '',
     vehicleLicense: '',
+    vehicleType: 'sedan', // NEW
     licenseNumber: '',
     licenseExpiry: '',
+    driverTypes: ['rideshare'], // NEW
     bankName: '',
     bankAccount: '',
     bankAccountHolder: '',
@@ -124,6 +130,10 @@ export default function RegisterScreen({ navigation }: any) {
   const validateStep2 = () => {
     const newErrors: FormErrors = {}
 
+    if (!formData.vehicleType.trim()) {
+      newErrors.vehicleType = 'Loại xe không được để trống'
+    }
+
     if (!formData.vehicleModel.trim()) {
       newErrors.vehicleModel = 'Model xe không được để trống'
     }
@@ -148,6 +158,10 @@ export default function RegisterScreen({ navigation }: any) {
       newErrors.licenseExpiry = 'Ngày hết hạn không được để trống'
     }
 
+    if (formData.driverTypes.length === 0) {
+      newErrors.driverTypes = 'Chọn ít nhất một loại dịch vụ'
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -164,6 +178,23 @@ export default function RegisterScreen({ navigation }: any) {
         [field]: '',
       }))
     }
+  }
+
+  const toggleDriverType = (type: string) => {
+    setFormData((prev) => {
+      const types = prev.driverTypes;
+      if (types.includes(type)) {
+        return {
+          ...prev,
+          driverTypes: types.filter((t) => t !== type),
+        }
+      } else {
+        return {
+          ...prev,
+          driverTypes: [...types, type],
+        }
+      }
+    })
   }
 
   const handleNextStep = () => {
@@ -185,17 +216,83 @@ export default function RegisterScreen({ navigation }: any) {
 
     setIsLoading(true)
     try {
-      // TODO: Gọi API đăng ký
-      // const response = await registerDriver(formData)
-      // dispatch(loginSuccess({ token: response.token, user: response.user }))
+      // Format the data for API
+      const registrationData = {
+        firstName: formData.fullName.split(' ')[0],
+        lastName: formData.fullName.split(' ').slice(1).join(' '),
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        vehicleModel: formData.vehicleModel,
+        vehicleColor: formData.vehicleColor,
+        vehiclePlate: formData.vehiclePlate,
+        vehicleLicense: formData.vehicleLicense,
+        vehicleType: formData.vehicleType,
+        licenseNumber: formData.licenseNumber,
+        licenseExpiry: formData.licenseExpiry,
+        driverTypes: formData.driverTypes,
+        bankName: formData.bankName,
+        bankAccount: formData.bankAccount,
+        bankAccountHolder: formData.bankAccountHolder,
+      }
 
-      Alert.alert('Thành công', 'Đăng ký tài xế thành công!')
-      // navigation.navigate('Home')
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Đăng ký thất bại'
-      Alert.alert('Lỗi', errorMessage)
-    } finally {
+      // Call registration API
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'
+      console.log('🚀 Calling API:', `${API_BASE_URL}/drivers`)
+      console.log('📤 Registration Data:', registrationData)
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30000) // 30s timeout
+
+      const response = await fetch(`${API_BASE_URL}/drivers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(registrationData),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeout)
+
+      console.log('📥 Response Status:', response.status)
+
+      const data = await response.json()
+      console.log('📥 Response Data:', data)
+
+      if (!response.ok) {
+        throw new Error(data.message || `Lỗi ${response.status}: ${response.statusText}`)
+      }
+
       setIsLoading(false)
+      
+      Alert.alert(
+        'Đăng ký thành công!',
+        'Tài khoản của bạn đang chờ duyệt. Vui lòng chờ admin duyệt hồ sơ của bạn.\n\nBạn sẽ nhận được thông báo khi hồ sơ được duyệt.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation?.goBack?.()
+            },
+          },
+        ],
+      )
+    } catch (err: any) {
+      setIsLoading(false)
+      
+      let errorMessage = 'Lỗi không xác định'
+      
+      if (err.name === 'AbortError') {
+        errorMessage = 'Kết nối quá chậm (timeout 30 giây). Vui lòng kiểm tra kết nối mạng và thử lại.'
+      } else if (err instanceof TypeError) {
+        errorMessage = `Lỗi kết nối: ${err.message}. Vui lòng kiểm tra URL API và kết nối mạng.`
+      } else {
+        errorMessage = err.message
+      }
+      
+      console.log('❌ Error:', errorMessage)
+      Alert.alert('Lỗi đăng ký', errorMessage)
     }
   }
 
@@ -245,7 +342,7 @@ export default function RegisterScreen({ navigation }: any) {
           ]}
           placeholder={placeholder}
           placeholderTextColor={COLORS.textSecondary}
-          value={formData[field]}
+          value={formData[field] as string}
           onChangeText={(value) => handleInputChange(field, value)}
           editable={!isLoading}
           keyboardType={options?.keyboardType || 'default'}
@@ -346,6 +443,35 @@ export default function RegisterScreen({ navigation }: any) {
                 Vui lòng nhập thông tin chi tiết về xe của bạn
               </Text>
 
+              <Text style={styles.sectionTitle}>Loại xe</Text>
+              <View style={styles.vehicleTypeContainer}>
+                {[
+                  { value: 'sedan', label: 'Sedan (4 chỗ)' },
+                  { value: 'suv', label: 'SUV (7 chỗ)' },
+                  { value: 'pickup', label: 'Bán tải' },
+                  { value: 'motorcycle', label: 'Xe máy' },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.vehicleTypeBtn,
+                      formData.vehicleType === option.value && styles.vehicleTypeBtnActive,
+                    ]}
+                    onPress={() => handleInputChange('vehicleType', option.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.vehicleTypeBtnText,
+                        formData.vehicleType === option.value && styles.vehicleTypeBtnTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {renderError('vehicleType')}
+
               {renderInput('Model xe', 'vehicleModel', 'directions-car', 'Ví dụ: Toyota Camry')}
               {renderInput('Màu xe', 'vehicleColor', 'palette', 'Ví dụ: Trắng')}
               {renderInput('Biển số xe', 'vehiclePlate', 'confirmation-number', 'Ví dụ: 51A-123.45')}
@@ -356,6 +482,42 @@ export default function RegisterScreen({ navigation }: any) {
               {renderInput('Ngày hết hạn', 'licenseExpiry', 'event', 'Ví dụ: 2025-12-31', {
                 keyboardType: 'numeric',
               })}
+
+              <Text style={styles.sectionTitle}>Loại dịch vụ</Text>
+              <Text style={styles.stepDescription}>
+                Chọn loại dịch vụ bạn muốn cung cấp
+              </Text>
+              <View style={styles.serviceTypeContainer}>
+                {[
+                  { value: 'rideshare', label: ' Ghép xe' },
+                  { value: 'hire', label: ' Lái xe hộ' },
+                  { value: 'delivery', label: ' Vận chuyển' },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.serviceTypeBtn,
+                      formData.driverTypes.includes(option.value) && styles.serviceTypeBtnActive,
+                    ]}
+                    onPress={() => toggleDriverType(option.value)}
+                  >
+                    <MaterialIcons
+                      name={formData.driverTypes.includes(option.value) ? 'check-box' : 'check-box-outline-blank'}
+                      size={20}
+                      color={formData.driverTypes.includes(option.value) ? COLORS.primary : COLORS.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.serviceTypeBtnText,
+                        formData.driverTypes.includes(option.value) && styles.serviceTypeBtnTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {renderError('driverTypes')}
             </View>
           )}
 
@@ -606,5 +768,64 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 16,
     fontWeight: '700',
+  },
+  vehicleTypeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 90,
+  },
+  vehicleTypeBtn: {
+    flex: 1,
+    minWidth: '45%',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    backgroundColor: COLORS.darkCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vehicleTypeBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: `${COLORS.primary}20`,
+  },
+  vehicleTypeBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  vehicleTypeBtnTextActive: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  serviceTypeContainer: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  serviceTypeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    backgroundColor: COLORS.darkCard,
+  },
+  serviceTypeBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: `${COLORS.primary}20`,
+  },
+  serviceTypeBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  serviceTypeBtnTextActive: {
+    color: COLORS.primary,
   },
 })

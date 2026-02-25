@@ -7,6 +7,7 @@ import { Transaction, TransactionSchema } from './schemas/transaction.schema';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
 import { PaymentMethod, PaymentMethodSchema } from '../payment/schemas/payment-method.schema';
 import { PricingModule } from '../pricing/pricing.module';
+import { SepayService } from '../drivers/services/sepay.service';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { PricingModule } from '../pricing/pricing.module';
     PricingModule,
   ],
   controllers: [WalletsController],
-  providers: [WalletsService],
+  providers: [WalletsService, SepayService],
   exports: [WalletsService],
 })
 export class WalletsModule {}

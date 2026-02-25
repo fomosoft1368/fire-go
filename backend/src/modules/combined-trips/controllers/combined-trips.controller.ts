@@ -19,7 +19,7 @@ import { JwtAuthGuard } from '../../../modules/auth/guards/jwt-auth.guard';
 import { RideRequest, RequestStatus } from '../schemas/ride-request.schema';
 import { Driver } from '../../drivers/schemas/driver.schema';
 import { Types } from 'mongoose';
-import { PricingConfig } from '../../rides/schemas/pricing-config.schema';
+import { PricingConfig } from '../../pricing/pricing-config.schema';
 
 @Controller('api/combined-trips')
 export class CombinedTripsController {
@@ -207,6 +207,88 @@ export class CombinedTripsController {
   }
 
   /**
+   * PATCH /combined-trips/:id/complete
+   * Mark a combined trip as completed by driver
+   */
+  @Patch(':id/complete')
+  async completeTrip(
+    @Param('id') combinedTripId: string,
+    @Body('totalFare') totalFare?: number,
+  ) {
+    try {
+      // Update trip status to completed with total fare
+      const updateData: any = {
+        status: CombinedTripStatus.COMPLETED,
+        completedAt: new Date(),
+      };
+
+      // Save total fare if provided
+      if (totalFare !== undefined && totalFare > 0) {
+        updateData.totalFare = totalFare;
+        console.log(`[CombinedTripsController] 💰 Saving total fare:`, {
+          tripId: combinedTripId,
+          totalFare: totalFare,
+        });
+      }
+
+      const trip = await this.combinedTripsService.update(combinedTripId, updateData);
+
+      if (!trip) {
+        throw new BadRequestException('Trip not found');
+      }
+
+      // Update driver status back to available
+      // ⚠️ CRITICAL: DO NOT deduct commission here!
+      // Commission is already deducted per passenger in completeRequest()
+      if (trip.driverId) {
+        const driverId = typeof trip.driverId === 'object' ? trip.driverId._id : trip.driverId;
+        await this.driverModel.findByIdAndUpdate(
+          driverId,
+          { status: 'available' }
+        );
+
+        console.log(`[CombinedTripsController] ✅ Trip completed (commission already deducted per passenger):`, {
+          tripId: combinedTripId,
+          driverId: driverId.toString(),
+          totalFare: totalFare || trip.totalFare || 0,
+        });
+      }
+
+      // Fetch driver's updated wallet balance
+      let walletBalance = 0;
+      let walletWarning = false;
+
+      if (trip.driverId) {
+        const driverId = typeof trip.driverId === 'object' ? trip.driverId._id : trip.driverId;
+        const driver = await this.driverModel.findById(driverId);
+
+        if (driver) {
+          walletBalance = driver.walletBalance || 0;
+          walletWarning = driver.walletBalance < 200000;
+
+          console.log(`[CombinedTripsController] 💰 Driver wallet after completion:`, {
+            driverId: driverId.toString(),
+            newBalance: walletBalance,
+            warningNeeded: walletWarning,
+          });
+        }
+      }
+
+      return {
+        ...trip.toObject ? trip.toObject() : trip,
+        walletBalance,
+        walletWarning,
+        walletWarningMessage: walletWarning
+          ? 'Số dư ví dưới 200,000đ. Vui lòng nạp tiền để tiếp tục nhận cuốc.'
+          : null,
+      };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error completing trip:', error);
+      throw error;
+    }
+  }
+
+  /**
    * GET /combined-trips
    * Get all combined trips with optional filtering
    */
@@ -362,11 +444,50 @@ export class CombinedTripsController {
           status: 'pending', // Strictly 'pending'
           expiresAt: { $gte: now }, // Not expired yet
         })
-        .populate('combinedTripId')
+        .select('_id combinedTripId tripType createdBy customerId driverId status seats notes fare pickupAddress dropoffAddress pickupCoordinates dropoffCoordinates distance duration isPeakTime peakMultiplier createdAt updatedAt expiresAt +fare') // ⭐ CRITICAL: Include fare field EXPLICITLY with + prefix to force include
+        .populate({
+          path: 'combinedTripId',
+          select: '_id pickupLocation dropoffLocation distance duration status -totalFare -estimatedPrice -fare', // ⭐ EXPLICITLY EXCLUDE: totalFare, estimatedPrice, fare - DO NOT return pricing from trip
+          populate: {
+            path: 'driverId',
+            select: 'firstName lastName phone avatar rating currentLocation',
+          }
+        })
         .populate('customerId', 'firstName lastName phone avatar rating')
+        .lean() // ⭐ Return lean documents (raw JS objects)
         .sort({ createdAt: -1 })
+        .exec() // ⭐ Explicitly execute query
 
       console.log(`[CombinedTripsController] ✅ Found ${pendingRequests.length} active pending requests for driver: ${driverId}`)
+      
+      // ⭐ DEBUG: Log first request to verify fare field is included
+      if (pendingRequests.length > 0) {
+        const firstRequest = pendingRequests[0] as any
+        console.log('═══════════════════════════════════════════════════════════')
+        console.log('[CombinedTripsController] 🔍 DEBUG - First request object:')
+        console.log('═══════════════════════════════════════════════════════════')
+        console.log('REQUEST LEVEL:', {
+          requestId: firstRequest._id,
+          requestFareField: firstRequest.fare, // ⭐ THIS is what mobile app receives
+          type: typeof firstRequest.fare,
+          hasProperty: 'fare' in firstRequest,
+        })
+        console.log('COMBINED TRIP LEVEL:', {
+          combinedTripId: (firstRequest.combinedTripId as any)?._id,
+          tripTotalFare: (firstRequest.combinedTripId as any)?.totalFare,
+          tripEstimatedPrice: (firstRequest.combinedTripId as any)?.estimatedPrice,
+        })
+        console.log('═══════════════════════════════════════════════════════════')
+        console.log('📱 MOBILE APP WILL RECEIVE:', JSON.stringify({
+          _id: firstRequest._id,
+          fare: firstRequest.fare, // ⭐ This value
+          combinedTripId: {
+            _id: (firstRequest.combinedTripId as any)?._id,
+            totalFare: (firstRequest.combinedTripId as any)?.totalFare,
+          }
+        }, null, 2))
+        console.log('═══════════════════════════════════════════════════════════')
+      }
 
       // ✅ Always return array (empty if no requests)
       return pendingRequests || []
@@ -513,8 +634,16 @@ export class CombinedTripsController {
       
       // Query with optional driverId filter
       const requests = await this.rideRequestModel.find(query)
+        .populate({
+          path: 'combinedTripId',
+          select: '_id totalFare estimatedPrice fare pickupLocation dropoffLocation distance duration status', // ⭐ Include fare fields
+          populate: {
+            path: 'driverId',
+            select: 'firstName lastName phone avatar rating currentLocation',
+          }
+        })
         .populate('customerId', 'name phone rating')
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
 
      
       return requests;
@@ -1145,9 +1274,43 @@ export class CombinedTripsController {
         throw new BadRequestException('Request not found');
       }
 
-      // IMPORTANT: Check if ALL passenger requests are completed
-      // If yes, set driver back to available
+      // ⭐ DEDUCT commission IMMEDIATELY when each passenger completes
+      // This deducts commission per passenger as they are dropped off
       const trip = await this.combinedTripModel.findById(combinedTripId);
+      if (trip && trip.driverId) {
+        const driverId = typeof trip.driverId === 'object' ? trip.driverId._id : trip.driverId;
+        
+        try {
+          const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+          const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80% for driver
+          const passengerFare = request.fare || 0;
+          const platformCommission = Math.round((passengerFare * (100 - driverShare)) / 100);
+
+          console.log(`[CombinedTripsController] 💳 Individual request completion - deducting commission:`, {
+            requestId: requestId,
+            driverId: driverId.toString(),
+            passengerFare: passengerFare,
+            driverShare: `${driverShare}%`,
+            platformCommission: platformCommission,
+            driverEarnings: passengerFare - platformCommission,
+          });
+
+          // Deduct commission from driver wallet immediately
+          if (platformCommission > 0) {
+            await this.driverModel.findByIdAndUpdate(driverId, {
+              $inc: { walletBalance: -platformCommission },
+            });
+
+            console.log(`[CombinedTripsController] ✅ Deducted ${platformCommission}đ commission (${100 - driverShare}%) for passenger ${request.customerId}`);
+          }
+        } catch (commissionError) {
+          console.warn(`[CombinedTripsController] ⚠️ Warning: Failed to deduct individual commission:`, commissionError.message);
+          // Don't fail if commission deduction fails
+        }
+      }
+
+      // IMPORTANT: Check if ALL passenger requests are completed
+      // If yes, set driver back to available and update trip status
       if (trip && trip.driverId) {
         const allRequests = await this.rideRequestModel.find({
           combinedTripId: new Types.ObjectId(combinedTripId),
@@ -1161,6 +1324,7 @@ export class CombinedTripsController {
           const driverId = typeof trip.driverId === 'object' ? trip.driverId._id : trip.driverId;
           await this.driverModel.findByIdAndUpdate(driverId, {
             isAvailable: true,
+            status: 'available',
           });
           console.log(`[CombinedTripsController] ✅ All passengers completed, set driver ${driverId} back to available`);
           
@@ -1169,30 +1333,6 @@ export class CombinedTripsController {
             status: CombinedTripStatus.COMPLETED,
             completedAt: new Date(),
           });
-
-          // ⭐ DEDUCT commission from driver wallet for combined trip (20% default)
-          try {
-            const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
-            const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80%
-            const platformCommission = Math.round((trip.totalFare * (100 - driverShare)) / 100);
-
-            console.log(`[CombinedTripsController] 💰 Wallet deduction for combined trip:`, {
-              driverId: driverId.toString(),
-              totalFare: trip.totalFare,
-              driverShare: `${driverShare}%`,
-              platformCommission: platformCommission,
-            });
-
-            // Deduct from driver wallet
-            await this.driverModel.findByIdAndUpdate(driverId, {
-              $inc: { walletBalance: -platformCommission },
-            });
-
-            console.log(`[CombinedTripsController] ✅ Deducted ${platformCommission}đ from driver wallet (${100 - driverShare}% commission)`);
-          } catch (walletError) {
-            console.warn(`[CombinedTripsController] ⚠️ Warning: Failed to deduct wallet commission: ${walletError.message}`);
-            // Don't fail the trip completion if wallet deduction fails
-          }
         }
       }
 

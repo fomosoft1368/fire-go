@@ -6,7 +6,7 @@ import { Driver } from '../../drivers/schemas/driver.schema';
 import { CreateDeliveryDto } from '../dto/create-delivery.dto';
 import { UpdateDeliveryDto } from '../dto/update-delivery.dto';
 import { RateDeliveryDto } from '../dto/rate-delivery.dto';
-import { PricingConfig } from '../../rides/schemas/pricing-config.schema';
+import { PricingConfig } from '../../pricing/pricing-config.schema';
 
 @Injectable()
 export class DeliveryService {
@@ -15,7 +15,7 @@ export class DeliveryService {
   constructor(
     @InjectModel(Delivery.name) private deliveryModel: Model<Delivery>,
     @InjectModel(Driver.name) private driverModel: Model<Driver>,
-    @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
+    @InjectModel('PricingConfig') private pricingConfigModel: Model<PricingConfig>,
   ) {}
 
   async create(createDeliveryDto: CreateDeliveryDto): Promise<Delivery> {

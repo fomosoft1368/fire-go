@@ -95,6 +95,8 @@ export default function HomeScreen() {
           isOnline: profile.isOnline,
           status: profile.status,
           driverTypes: profile.driverTypes,
+          walletBalance: profile.walletBalance,
+          licenseStatus: profile.licenseStatus,
         })
 
         dispatch(updateUser({
@@ -102,6 +104,8 @@ export default function HomeScreen() {
           isOnline: profile.isOnline,
           isAvailable: profile.isAvailable,
           status: profile.status,
+          walletBalance: profile.walletBalance,
+          licenseStatus: profile.licenseStatus,
         }))
 
         setIsOnline(profile.isOnline || false)
@@ -138,6 +142,38 @@ export default function HomeScreen() {
   // Handle online/offline toggle with API call
   const handleToggleOnline = useCallback(async (value: boolean) => {
     try {
+      // Only validate when turning ON
+      if (value) {
+        console.log('[HomeScreen] Validating before turning online...', {
+          walletBalance: user?.walletBalance,
+          licenseStatus: user?.licenseStatus,
+          fullUser: user,
+        })
+
+        // Check wallet balance
+        const balance = user?.walletBalance || 0
+        if (balance < 100000) {
+          console.log('[HomeScreen] Wallet too low:', balance)
+          Alert.alert(
+            'Số dư không đủ',
+            `Số dư ví phải từ 100.000 đ trở lên để nhận cuốc. Hiện tại: ${(balance || 0).toLocaleString('vi-VN')}đ`,
+            [{ text: 'OK' }]
+          )
+          return
+        }
+
+        // Check license status
+        if (user?.licenseStatus !== 'approved') {
+          console.log('[HomeScreen] License not approved:', user?.licenseStatus)
+          Alert.alert(
+            'Giấy phép lái xe chưa được phê duyệt',
+            'Giấy phép lái xe của bạn chưa được phê duyệt. Vui lòng chờ admin duyệt hồ sơ của bạn',
+            [{ text: 'OK' }]
+          )
+          return
+        }
+      }
+
       console.log('[HomeScreen] Toggling online status:', value)
       setIsOnline(value)
 
@@ -151,7 +187,7 @@ export default function HomeScreen() {
       console.error('[HomeScreen] Error updating online status:', error)
       setIsOnline(!value)
     }
-  }, [])
+  }, [user])
 
   // ✅ REMOVED: Assignment polling is now GLOBAL in App.js
   // Only keep location tracking here

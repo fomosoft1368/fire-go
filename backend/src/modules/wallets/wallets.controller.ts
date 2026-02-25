@@ -5,10 +5,14 @@ import { DepositDto, WithdrawDto, TransactionQueryDto } from './dto/transaction.
 import { GenerateQRCodeDto } from './dto/qr-code.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserType } from './schemas/transaction.schema';
+import { SepayService } from '../drivers/services/sepay.service';
 
 @Controller('api/wallets')
 export class WalletsController {
-  constructor(private readonly walletsService: WalletsService) {}
+  constructor(
+    private readonly walletsService: WalletsService,
+    private readonly sepayService: SepayService,
+  ) {}
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -83,6 +87,60 @@ export class WalletsController {
   @Get(':id')
   async getWalletById(@Param('id') id: string) {
     return this.walletsService.getWalletById(id);
+  }
+
+  /**
+   * POST /api/wallets/sepay-topup
+   * Create a topup transaction and generate Sepay QR code for customers
+   */
+  @Post('sepay-topup')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async createSepayTopup(
+    @Request() req: any,
+    @Body() dto: { amount: number },
+  ) {
+    console.log('[WalletsController] Creating customer Sepay topup:', {
+      userId: req.user?.id,
+      amount: dto.amount,
+    });
+
+    try {
+      // Validate amount
+      if (!dto.amount || dto.amount < 10000) {
+        throw new Error('Số tiền nạp tối thiểu là 10.000đ');
+      }
+
+      // Create transaction (PENDING status)
+      const transaction = await this.walletsService.createTopupTransaction(
+        req.user.id,
+        dto.amount,
+      );
+
+      // Generate QR code
+      const qrInfo = this.sepayService.generateQRCode(
+        dto.amount,
+        transaction._id.toString(),
+        'customer',
+      );
+
+      console.log('[WalletsController] ✅ Customer topup created with QR code:', qrInfo.content);
+
+      return {
+        success: true,
+        transactionId: transaction._id,
+        amount: dto.amount,
+        qrCodeUrl: qrInfo.qrCodeUrl,
+        content: qrInfo.content,
+        accountNo: qrInfo.accountNo,
+        accountName: qrInfo.accountName,
+        bankName: qrInfo.bankName,
+        bankId: qrInfo.bankId,
+      };
+    } catch (error: any) {
+      console.error('[WalletsController] ❌ Error creating Sepay topup:', error);
+      throw error;
+    }
   }
 
   // Admin endpoints for managing deposits and withdrawals

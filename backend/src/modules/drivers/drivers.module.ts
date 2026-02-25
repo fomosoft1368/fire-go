@@ -13,6 +13,7 @@ import {
   TransactionSchema,
 } from '../wallets/schemas/transaction.schema';
 import { PricingModule } from '../pricing/pricing.module';
+import { WalletsModule } from '../wallets/wallets.module';
 import { Ride, RideSchema } from '../rides/schemas/ride.schema';
 import { CombinedTrip, CombinedTripSchema } from '../combined-trips/schemas/combined-trip.schema';
 import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
@@ -29,6 +30,7 @@ import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.sc
       { name: PricingConfig.name, schema: PricingConfigSchema },
     ]),
     PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
+    WalletsModule, // Import WalletsModule for customer wallet handling
   ],
   controllers: [
     SepayWebhookController, // Webhook must be first (specific path)

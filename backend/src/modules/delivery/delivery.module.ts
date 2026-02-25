@@ -6,6 +6,7 @@ import { DeliveryController } from './controllers/delivery.controller';
 import { Delivery, DeliverySchema } from './schemas/delivery.schema';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 import { DeliveryAssignmentRequest, DeliveryAssignmentRequestSchema } from './schemas/delivery-assignment-request.schema';
+import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { DeliveryAssignmentRequest, DeliveryAssignmentRequestSchema } from './sc
       { name: Delivery.name, schema: DeliverySchema },
       { name: Driver.name, schema: DriverSchema },
       { name: DeliveryAssignmentRequest.name, schema: DeliveryAssignmentRequestSchema },
+      { name: 'PricingConfig', schema: PricingConfigSchema },
     ]),
   ],
   controllers: [DeliveryController],

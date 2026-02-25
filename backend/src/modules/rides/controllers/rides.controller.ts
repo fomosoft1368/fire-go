@@ -339,7 +339,19 @@ export class RidesController {
 
   @Patch(':id/complete')
   @UseGuards(JwtAuthGuard)
-  async completeRide(@Param('id') id: string) {
+  async completeRide(
+    @Param('id') id: string,
+    @Body('totalFare') totalFare?: number,
+  ) {
+    // Save total fare if provided
+    if (totalFare !== undefined && totalFare > 0) {
+      console.log(`[RidesController] 💰 Saving total fare:`, {
+        rideId: id,
+        totalFare: totalFare,
+      });
+      await this.ridesService.updateRideData(id, { fare: totalFare });
+    }
+
     const ride = await this.ridesService.completeRide(id);
 
     // Fetch driver's updated wallet balance after deduction
