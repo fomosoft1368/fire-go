@@ -21,7 +21,7 @@ import { Driver } from '../../drivers/schemas/driver.schema';
 import { Types } from 'mongoose';
 import { PricingConfig } from '../../pricing/pricing-config.schema';
 
-@Controller('api/combined-trips')
+@Controller('combined-trips')
 export class CombinedTripsController {
   constructor(
     private readonly combinedTripsService: CombinedTripsService,

@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Query,
+  Param,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -26,7 +27,7 @@ class WithdrawDto {
   note?: string;
 }
 
-@Controller('api/wallet')
+@Controller('wallet')
 @UseGuards(JwtAuthGuard)
 export class WalletController {
   constructor(
@@ -91,6 +92,15 @@ export class WalletController {
     const skipNum = skip ? parseInt(skip) : 0;
     
     return await this.walletService.getTransactions(driverId, limitNum, skipNum);
+  }
+
+  /**
+   * GET /drivers/wallet/transactions/:transactionId/status
+   * Get transaction status by transactionId
+   */
+  @Get('transactions/:transactionId/status')
+  async getTransactionStatus(@Param('transactionId') transactionId: string) {
+    return await this.walletService.getTransactionStatus(transactionId);
   }
 
   /**

@@ -1138,7 +1138,7 @@ export class CombinedTripsService implements OnModuleInit {
         seats: combinedTrip.availableSeats,
         distance: combinedTrip.distance,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 45000), // ✅ FIX: 45 seconds (consistent with manual requests)
+        expiresAt: new Date(Date.now() + 50000), // ✅ FIX: 50 seconds (consistent with manual requests)
       });
 
       await rideRequest.save();

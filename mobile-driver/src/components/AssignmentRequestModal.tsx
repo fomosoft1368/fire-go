@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Dimensions,
+  Alert,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
@@ -249,13 +250,52 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
   }, [request?.fare, request?._id, lastFareValue])
 
   const handleAccept = useCallback(async () => {
+    // 🔥 CRITICAL: Check request status BEFORE accepting
+    const currentStatus = request?.status
+    console.log('🔍 [AssignmentRequestModal] Pre-accept status check:', {
+      requestId: request?._id,
+      currentStatus,
+      requestType: request?.type,
+    })
+
+    // ⛔ Block if request is already cancelled, completed, or assigned
+    if (currentStatus === 'cancelled' || currentStatus === 'canceled') {
+      console.error('⛔ [AssignmentRequestModal] Request already CANCELLED by customer!')
+      Alert.alert(
+        'Chuyến đã bị hủy',
+        'Khách hàng đã hủy chuyến này. Không thể nhận cuốc.',
+        [{ text: 'Đóng' }]
+      )
+      return
+    }
+
+    if (currentStatus === 'assigned' || currentStatus === 'in_progress' || currentStatus === 'accepted') {
+      console.error('⛔ [AssignmentRequestModal] Request already ASSIGNED to another driver!')
+      Alert.alert(
+        'Chuyến đã có tài xế',
+        'Chuyến này đã được tài xế khác nhận. Vui lòng chọn chuyến khác.',
+        [{ text: 'Đóng' }]
+      )
+      return
+    }
+
+    if (currentStatus === 'completed') {
+      console.error('⛔ [AssignmentRequestModal] Request already COMPLETED!')
+      Alert.alert(
+        'Chuyến đã hoàn thành',
+        'Chuyến này đã được hoàn thành. Không thể nhận cuốc.',
+        [{ text: 'Đóng' }]
+      )
+      return
+    }
+
     setIsAccepting(true)
     try {
       // ✅ CRITICAL: Pass full request data with coordinates to onAccept callback
       console.log('📤 [AssignmentRequestModal] Calling onAccept with request data:', {
         hasRequest: !!request,
         hasPickupCoords: !!request?.pickupCoordinates,
-        hasDropoffCoords: !!request?.dropoffCoordinates,
+        hasDropoffCoordinates: !!request?.dropoffCoordinates,
         requestStatus: request?.status,
       })
       await onAccept(request)

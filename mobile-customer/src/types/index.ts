@@ -179,6 +179,8 @@ export type RootStackParamList = {
   PrivacyPolicy: undefined
   TermsOfService: undefined
   Support: undefined
+  Topup: undefined
+  Withdraw: undefined
 }
 
 // API Response Types

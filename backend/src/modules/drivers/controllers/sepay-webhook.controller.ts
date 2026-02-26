@@ -30,7 +30,7 @@ interface SepayWebhookPayload {
   match_code?: string; // Internal matching code
 }
 
-@Controller('api/wallet/sepay')
+@Controller('wallet/sepay')
 export class SepayWebhookController {
   constructor(
     private readonly walletService: WalletService,

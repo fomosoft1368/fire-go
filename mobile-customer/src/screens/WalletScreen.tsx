@@ -278,7 +278,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionBtn, styles.depositBtn]}
-              onPress={() => setShowDepositModal(true)}
+              onPress={() => navigation.navigate('Topup')}
             >
               <MaterialIcons name="arrow-downward" size={20} color="#FF6B00" />
               <Text style={styles.actionBtnText}>Nạp tiền</Text>
@@ -286,7 +286,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
 
             <TouchableOpacity
               style={[styles.actionBtn, styles.withdrawBtn]}
-              onPress={() => setShowWithdrawModal(true)}
+              onPress={() => navigation.navigate('Withdraw')}
             >
               <MaterialIcons name="arrow-upward" size={20} color="#fff" />
               <Text style={[styles.actionBtnText, { color: '#fff' }]}>Rút tiền</Text>

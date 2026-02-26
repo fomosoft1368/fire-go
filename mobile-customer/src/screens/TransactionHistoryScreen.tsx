@@ -535,10 +535,12 @@ export default function TransactionHistoryScreen({ navigation }: TransactionHist
   )
 }
 
+// ...existing code...
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#fff', // Changed from COLORS.card
   },
   header: {
     flexDirection: 'row',
@@ -546,9 +548,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: '#fff', // Changed from COLORS.bgSecondary
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#f0f0f0', // Light border
   },
   headerBtn: {
     padding: 4,
@@ -556,14 +558,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
   },
   filtersBox: {
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: '#fff', // White background
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#f0f0f0',
   },
   filterItem: {
     marginBottom: SPACING.md,
@@ -573,73 +575,81 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#f8f9fa', // Light gray
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e0e0e0', // Light border
   },
   filterLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#666', // Gray text
     minWidth: 60,
   },
   filterValue: {
     flex: 1,
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
     marginHorizontal: SPACING.sm,
   },
   dropdownMenu: {
     marginTop: 4,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#fff', // White dropdown
     borderRadius: BORDER_RADIUS.md,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
     overflow: 'hidden',
     maxHeight: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   dropdownItem: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: `${COLORS.primary}80`,
+    borderBottomColor: '#f0f0f0',
   },
   dropdownItemActive: {
-    backgroundColor: `${COLORS.primary}CC`,
+    backgroundColor: '#FFF5F0', // Light orange
   },
   dropdownItemText: {
     fontSize: 14,
-    color: '#fff',
+    color: '#1a1a1a', // Dark text
     fontWeight: '500',
   },
   dropdownItemTextActive: {
     fontWeight: '700',
-    color: '#fff',
+    color: COLORS.primary, // Orange text
   },
   resultInfo: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: '#f8f9fa', // Light gray
   },
   resultText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#666', // Gray text
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#fff',
   },
   emptyText: {
     marginTop: SPACING.md,
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#999', // Light gray
   },
   list: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   listContent: {
     paddingHorizontal: SPACING.md,
@@ -648,13 +658,13 @@ const styles = StyleSheet.create({
   transactionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e0e0e0',
   },
   icon: {
     width: 44,
@@ -670,12 +680,12 @@ const styles = StyleSheet.create({
   type: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
     marginBottom: 2,
   },
   date: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: '#666', // Gray text
   },
   right: {
     alignItems: 'flex-end',
@@ -699,17 +709,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: '#fff', // White
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: '#f0f0f0',
     gap: SPACING.md,
   },
   pageBtn: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#f8f9fa', // Light gray
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e0e0e0',
   },
   pageBtnDisabled: {
     opacity: 0.5,
@@ -717,13 +727,13 @@ const styles = StyleSheet.create({
   pageText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
     minWidth: 80,
     textAlign: 'center',
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#fff', // White modal
   },
   modalHeader: {
     flexDirection: 'row',
@@ -732,26 +742,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#f0f0f0',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
   },
   modalContent: {
     flex: 1,
     padding: SPACING.md,
-    backgroundColor: COLORS.bg,
+    backgroundColor: '#fff', // White
   },
   infoCard: {
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     alignItems: 'center',
     marginBottom: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e0e0e0',
   },
   iconLarge: {
     width: 72,
@@ -764,7 +774,7 @@ const styles = StyleSheet.create({
   amountLarge: {
     fontSize: 28,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
     marginBottom: SPACING.md,
   },
   statusBadgeLarge: {
@@ -777,10 +787,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   detailsGrid: {
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e0e0e0',
     overflow: 'hidden',
     marginBottom: SPACING.lg,
   },
@@ -791,18 +801,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#f0f0f0', // Light divider
   },
   detailRowLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#666', // Gray text
     flex: 1,
   },
   detailRowValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
     flex: 1,
     textAlign: 'right',
   },
@@ -812,16 +822,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.textSecondary,
+    color: COLORS.primary, // Orange title
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: SPACING.md,
   },
   bankInfo: {
-    backgroundColor: COLORS.bgSecondary,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e0e0e0',
     overflow: 'hidden',
   },
   bankRow: {
@@ -831,24 +841,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#f0f0f0',
   },
   bankLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#666', // Gray text
     flex: 1,
   },
   bankValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
     flex: 1,
     textAlign: 'right',
   },
   cancelBtn: {
     flexDirection: 'row',
-    backgroundColor: '#F44336',
+    backgroundColor: '#F44336', // Keep red for danger
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
     borderRadius: BORDER_RADIUS.lg,

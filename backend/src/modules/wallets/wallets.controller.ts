@@ -7,7 +7,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserType } from './schemas/transaction.schema';
 import { SepayService } from '../drivers/services/sepay.service';
 
-@Controller('api/wallets')
+@Controller('wallets')
 export class WalletsController {
   constructor(
     private readonly walletsService: WalletsService,
@@ -47,13 +47,28 @@ export class WalletsController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   async withdraw(@Request() req: any, @Body() withdrawDto: WithdrawDto) {
-    console.log(`[WalletsController] Withdraw request from ${req.user.id}`)
-    return this.walletsService.withdraw(
-      req.user.id,
-      withdrawDto.amount,
-      withdrawDto.bankAccount,
-      withdrawDto.description,
-    );
+    console.log(`[WalletsController] Withdraw request from ${req.user.id}`, withdrawDto)
+    
+    // Support both saved payment method and manual entry
+    if (withdrawDto.bankAccount && !withdrawDto.bankAccount.startsWith('TEMP_')) {
+      // Using saved payment method
+      return this.walletsService.withdraw(
+        req.user.id,
+        withdrawDto.amount,
+        withdrawDto.bankAccount,
+        withdrawDto.description,
+      );
+    } else {
+      // Manual entry or TEMP_ ID
+      return this.walletsService.withdrawManual(
+        req.user.id,
+        withdrawDto.amount,
+        withdrawDto.bankAccountNumber,
+        withdrawDto.bankName,
+        withdrawDto.accountHolderName,
+        withdrawDto.description,
+      );
+    }
   }
 
   @Post('payment')
@@ -139,6 +154,34 @@ export class WalletsController {
       };
     } catch (error: any) {
       console.error('[WalletsController] ❌ Error creating Sepay topup:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /api/wallets/transactions/:transactionId/status
+   * Check transaction status for auto-check payment completion
+   */
+  @Get('transactions/:transactionId/status')
+  @UseGuards(JwtAuthGuard)
+  async getTransactionStatus(@Param('transactionId') transactionId: string) {
+    return this.walletsService.getTransactionStatus(transactionId);
+  }
+
+  /**
+   * GET /api/wallets/topup-discount
+   * Get current topup discount percentage for customers
+   */
+  @Get('topup-discount')
+  @UseGuards(JwtAuthGuard)
+  async getTopupDiscount(@Request() req: any) {
+    try {
+      console.log('[WalletsController] Getting topup discount for customer:', req.user?.id);
+      const result = await this.walletsService.getTopupDiscount('customer');
+      console.log('[WalletsController] Topup discount result:', result);
+      return result;
+    } catch (error) {
+      console.error('[WalletsController] ❌ Error getting topup discount:', error);
       throw error;
     }
   }

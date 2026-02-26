@@ -4,7 +4,7 @@ import { CreateDriverDto, UpdateDriverDto, UpdateLocationDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DriverStatus } from './schemas/driver.schema';
 
-@Controller('api/drivers')
+@Controller('drivers')
 export class DriversController {
   constructor(private readonly driversService: DriversService) {}
 

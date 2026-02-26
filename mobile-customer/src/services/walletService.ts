@@ -123,6 +123,8 @@ export const walletService = {
       const token = await AsyncStorage.getItem('authToken')
       if (!token) throw new Error('No auth token found')
 
+      console.log('[Wallet] Withdraw request:', { amount, bankAccountId, description })
+
       const response = await fetch(`${API_BASE_URL}/wallets/withdraw`, {
         method: 'POST',
         headers: {
@@ -136,13 +138,75 @@ export const walletService = {
         }),
       })
 
+      console.log('[Wallet] Withdraw response status:', response.status)
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || `HTTP ${response.status}`)
+        const errorText = await response.text()
+        console.error('[Wallet] ❌ HTTP Error:', response.status)
+        console.error('[Wallet] ❌ Error body:', errorText)
+        
+        try {
+          const error = JSON.parse(errorText)
+          throw new Error(error.message || `HTTP ${response.status}`)
+        } catch (parseError) {
+          throw new Error(`HTTP ${response.status}: ${errorText}`)
+        }
       }
 
       const transaction = await response.json()
-      console.log('[Wallet] Withdraw success:', transaction)
+      console.log('[Wallet] ✅ Withdraw success:', transaction)
+      return transaction
+    } catch (error) {
+      console.error('[Wallet] Withdraw error:', error)
+      throw error
+    }
+  },
+
+  async withdrawManual(
+    amount: number,
+    bankAccountNumber: string,
+    bankName: string,
+    accountHolderName: string,
+    description?: string
+  ): Promise<Transaction> {
+    try {
+      const token = await AsyncStorage.getItem('authToken')
+      if (!token) throw new Error('No auth token found')
+
+      console.log('[Wallet] Manual withdraw request:', { amount, bankAccountNumber, bankName, accountHolderName })
+
+      const response = await fetch(`${API_BASE_URL}/wallets/withdraw`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount,
+          bankAccountNumber,
+          bankName,
+          accountHolderName,
+          description: description || 'Rút tiền từ ví',
+        }),
+      })
+
+      console.log('[Wallet] Withdraw response status:', response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[Wallet] ❌ HTTP Error:', response.status)
+        console.error('[Wallet] ❌ Error body:', errorText)
+        
+        try {
+          const error = JSON.parse(errorText)
+          throw new Error(error.message || `HTTP ${response.status}`)
+        } catch (parseError) {
+          throw new Error(`HTTP ${response.status}: ${errorText}`)
+        }
+      }
+
+      const transaction = await response.json()
+      console.log('[Wallet] ✅ Manual withdraw success:', transaction)
       return transaction
     } catch (error) {
       console.error('[Wallet] Withdraw error:', error)
@@ -176,23 +240,99 @@ export const walletService = {
 
   async getTopupDiscount(): Promise<number> {
     try {
-      const response = await fetch(`${API_BASE_URL}/pricing/topup-discount/customer`, {
+      console.log('[Wallet] 🔍 Getting topup discount...')
+      const token = await AsyncStorage.getItem('authToken')
+      if (!token) {
+        console.error('[Wallet] ❌ No auth token found')
+        return 0
+      }
+      console.log('[Wallet] ✅ Token found')
+
+      console.log('[Wallet] Calling:', `${API_BASE_URL}/wallets/topup-discount`)
+      const response = await fetch(`${API_BASE_URL}/wallets/topup-discount`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
       })
 
+      console.log('[Wallet] Response status:', response.status)
+
       if (!response.ok) {
-        console.error(`HTTP ${response.status}`)
+        const errorText = await response.text()
+        console.error('[Wallet] ❌ HTTP Error:', response.status)
+        console.error('[Wallet] ❌ Error body:', errorText)
         return 0
       }
 
       const data = await response.json()
+      console.log('[Wallet] ✅ Response data:', data)
       return data.discount || 0
-    } catch (error) {
-      console.error('[Wallet] Get topup discount error:', error)
+    } catch (error: any) {
+      console.error('[Wallet] ❌ Get topup discount error:', error?.message)
+      console.error('[Wallet] ❌ Full error:', error)
       return 0
+    }
+  },
+
+  async createSepayPayment(amount: number): Promise<{
+    success: boolean;
+    transactionId: string;
+    qrCodeUrl: string;
+    accountNo: string;
+    accountName: string;
+    bankName: string;
+    amount: number;
+    content: string;
+  }> {
+    try {
+      const token = await AsyncStorage.getItem('authToken')
+      if (!token) throw new Error('No auth token found')
+
+      const response = await fetch(`${API_BASE_URL}/wallets/sepay-topup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amount }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Tạo mã QR thất bại')
+      }
+
+      return await response.json()
+    } catch (error: any) {
+      console.error('[Wallet] Create Sepay payment error:', error)
+      throw error
+    }
+  },
+
+  async checkTransactionStatus(transactionId: string): Promise<string> {
+    try {
+      const token = await AsyncStorage.getItem('authToken')
+      if (!token) throw new Error('No auth token found')
+
+      const response = await fetch(`${API_BASE_URL}/wallets/transactions/${transactionId}/status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.status
+    } catch (error) {
+      console.error('[Wallet] Check transaction status error:', error)
+      throw error
     }
   },
 

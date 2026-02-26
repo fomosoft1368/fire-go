@@ -4,7 +4,7 @@ export interface Transaction {
   _id: string
   customerId: string | Customer
   transactionCode: string
-  type: 'deposit' | 'withdraw' | 'topup' | 'payment' | 'refund' | 'transfer' | 'earning'
+  type: 'deposit' | 'withdraw' | 'withdrawal' | 'topup' | 'payment' | 'refund' | 'transfer' | 'earning'
   status: 'pending' | 'processing' | 'transferring' | 'success' | 'failed' | 'cancelled'
   amount: number
   fee?: number

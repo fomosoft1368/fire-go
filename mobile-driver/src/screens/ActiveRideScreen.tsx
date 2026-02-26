@@ -1908,20 +1908,23 @@ const getStatusColor = (status: string) => {
   }
 }
 
+// ...existing code...
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: '#fff', // White background
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,
+    backgroundColor: '#fff',
   },
   loadingText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: '#666', // Gray text
     fontWeight: '500',
   },
   errorContainer: {
@@ -1929,6 +1932,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,
+    backgroundColor: '#fff',
   },
   errorText: {
     fontSize: 16,
@@ -1939,16 +1943,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    borderRadius: 12, // More rounded
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   retryButtonText: {
-    color: COLORS.text,
+    color: '#fff', // White text
     fontWeight: '600',
   },
   mapContainer: {
     height: '40%',
     position: 'relative',
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: '#f5f5f5', // Light gray map background
   },
   map: {
     flex: 1,
@@ -1967,9 +1976,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: '#fff', // White background
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   spacer: {
     flex: 1,
@@ -1983,26 +1997,31 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   zoomBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.primary,
+    width: 48, // Bigger
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary, // Orange
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 6,
   },
   callButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: `${COLORS.success}20`,
+    backgroundColor: '#4CAF50', // Green
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sosButton: {
     width: 40,
@@ -2011,6 +2030,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF5252',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#FF5252',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sosText: {
     color: '#fff',
@@ -2021,75 +2045,103 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 60,
     left: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16, // More padding
+    paddingVertical: 10,
+    borderRadius: 20, // More rounded
+    backgroundColor: '#fff', // White badge
+    borderWidth: 2,
+    borderColor: COLORS.primary, // Orange border
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: 13, // Bigger
+    fontWeight: '700',
+    color: COLORS.primary, // Orange text
   },
   priceBadge: {
     position: 'absolute',
     bottom: 12,
     right: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: COLORS.darkCard,
+    paddingHorizontal: 20, // More padding
+    paddingVertical: 12,
+    borderRadius: 16, // More rounded
+    backgroundColor: '#fff', // White background
+    borderWidth: 2,
+    borderColor: COLORS.primary, // Orange border
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   priceText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.primary,
+    fontSize: 18, // Bigger
+    fontWeight: '900',
+    color: COLORS.primary, // Orange text
   },
   detailsContainer: {
     flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 16, // More padding
+    paddingVertical: 16,
+    backgroundColor: '#fff', // White background
   },
   // Empty passenger state
   emptyPassengerState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
-    paddingVertical: 40,
+    gap: 20, // More spacing
+    paddingVertical: 60, // More padding
   },
   emptyPassengerTitle: {
-    fontSize: 18,
+    fontSize: 20, // Bigger
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
     marginTop: 8,
   },
   emptyPassengerSubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontSize: 15, // Bigger
+    color: '#666', // Gray text
     textAlign: 'center',
     maxWidth: 280,
+    lineHeight: 22,
   },
   refreshPassengerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: 10,
+    paddingHorizontal: 24, // More padding
+    paddingVertical: 14,
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    marginTop: 8,
+    borderRadius: 12, // More rounded
+    marginTop: 16,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   refreshPassengerBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15, // Bigger
+    fontWeight: '700',
     color: '#fff',
   },
   infoCard: {
-    backgroundColor: COLORS.darkCard,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    backgroundColor: '#fff', // White card
+    borderRadius: 12, // More rounded
+    padding: 16, // More padding
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: COLORS.primary, // Orange border
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   infoRow: {
     flexDirection: 'row',
@@ -2100,53 +2152,75 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
-    marginBottom: 2,
+    fontSize: 13, // Bigger
+    color: '#666', // Gray text
+    fontWeight: '700',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   infoText: {
-    fontSize: 13,
-    color: COLORS.text,
-    fontWeight: '500',
+    fontSize: 14, // Bigger
+    color: '#1a1a1a', // Dark text
+    fontWeight: '600',
+    lineHeight: 20,
   },
   passengerCard: {
-    backgroundColor: COLORS.darkCard,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    backgroundColor: '#fff', // White card
+    borderRadius: 12,
+    padding: 16, // More padding
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: COLORS.primary, // Orange border
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   cardTitle: {
-    fontSize: 13,
+    fontSize: 15, // Bigger
     fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 12,
+    color: '#1a1a1a', // Dark text
+    marginBottom: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   // Horizontal Carousel Card
   passengerCardItem: {
     width: 320,
-    minHeight: 100,
-    backgroundColor: `${COLORS.primary}15`,
-    borderRadius: 12,
-    padding: 14,
+    minHeight: 110, // Taller
+    backgroundColor: '#FFF5F0', // Light orange
+    borderRadius: 16, // More rounded
+    padding: 16, // More padding
     marginRight: 12,
-    borderWidth: 1,
-    borderColor: `${COLORS.primary}40`,
+    borderWidth: 2,
+    borderColor: '#FFE5DB', // Light orange border
     flexDirection: 'row',
     gap: 12,
-    opacity: 0.6,
+    opacity: 0.7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   passengerCardItemActive: {
     opacity: 1,
-    borderColor: COLORS.primary,
-    borderWidth: 2,
-    backgroundColor: `${COLORS.primary}25`,
+    borderColor: COLORS.primary, // Orange border
+    borderWidth: 3, // Thicker border
+    backgroundColor: '#FFF5F0', // Light orange
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   passengerCardAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: `${COLORS.primary}25`,
+    width: 64, // Bigger
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fff', // White background
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
@@ -2158,92 +2232,106 @@ const styles = StyleSheet.create({
   },
   singlePassengerInfo: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16, // More spacing
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: `${COLORS.primary}15`,
-    borderRadius: 8,
+    padding: 16, // More padding
+    backgroundColor: '#FFF5F0', // Light orange
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFE5DB',
   },
   passengerCardName: {
-    fontSize: 14,
+    fontSize: 16, // Bigger
     fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 4,
+    color: '#1a1a1a', // Dark text
+    marginBottom: 6,
   },
   passengerCardPhone: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13, // Bigger
+    color: '#666', // Gray text
     marginTop: 2,
   },
   passengerCardActions: {
     flexDirection: 'column',
-    gap: 8,
+    gap: 10, // More spacing
     justifyContent: 'center',
   },
   passengerActionBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 48, // Bigger
+    height: 48,
+    borderRadius: 12, // More rounded
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   // Old vertical list styles (keep for compatibility)
   passengerItem: {
     flexDirection: 'row',
     gap: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBg,
+    borderBottomColor: '#f0f0f0', // Light border
     alignItems: 'center',
   },
   passengerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: `${COLORS.primary}20`,
+    width: 48, // Bigger
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF5F0', // Light orange
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
   },
   passengerInfo: {
     flex: 1,
   },
   passengerName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontSize: 14, // Bigger
+    fontWeight: '700',
+    color: '#1a1a1a', // Dark text
   },
   passengerPhone: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
+    fontSize: 13, // Bigger
+    color: '#666', // Gray text
+    marginTop: 4,
   },
   noPassenger: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13, // Bigger
+    color: '#999', // Light gray
     fontStyle: 'italic',
     textAlign: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
   },
   waitingText: {
-    fontSize: 12,
+    fontSize: 13, // Bigger
     color: COLORS.primary,
     textAlign: 'center',
-    marginTop: 8,
-    fontWeight: '600',
+    marginTop: 12,
+    fontWeight: '700',
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10, // More spacing
   },
   smallBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 8,
+    gap: 8,
+    paddingVertical: 12, // Taller
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   editBtn: {
     backgroundColor: '#2196F3',
@@ -2252,23 +2340,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#f44336',
   },
   smallBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13, // Bigger
+    fontWeight: '700',
     color: '#fff',
   },
   // Action buttons
   actionsContainer: {
-    gap: 12,
-    marginBottom: 20,
+    gap: 14, // More spacing
+    marginBottom: 24,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    gap: 10,
+    paddingVertical: 16, // Taller
+    paddingHorizontal: 20,
+    borderRadius: 14, // More rounded
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   arrivingBtn: {
     backgroundColor: '#FFA500',
@@ -2281,45 +2374,55 @@ const styles = StyleSheet.create({
   },
   completedBtn: {
     backgroundColor: '#8BC34A',
-    opacity: 0.6,
+    opacity: 0.7,
   },
   actionBtnText: {
-    fontSize: 15,
+    fontSize: 16, // Bigger
     fontWeight: '700',
     color: '#fff',
+    letterSpacing: 0.3,
   },
   // Total Revenue Card
   totalRevenueCard: {
-    backgroundColor: COLORS.darkCard,
-    borderRadius: 12,
-    padding: 14,
-    marginVertical: 12,
-    borderLeftWidth: 4,
+    backgroundColor: '#fff', // White card
+    borderRadius: 16, // More rounded
+    padding: 20, // More padding
+    marginVertical: 16,
+    borderLeftWidth: 6, // Thicker accent
     borderLeftColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: '#FFE5DB', // Light orange border
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
   totalRevenueHeader: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
   totalRevenueLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: 13, // Bigger
+    color: '#666', // Gray text
+    fontWeight: '700',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   totalRevenueAmount: {
-    fontSize: 24,
+    fontSize: 28, // Bigger
     fontWeight: '900',
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange text
   },
   totalRevenueStatus: {
     borderTopWidth: 1,
-    borderTopColor: `${COLORS.primary}20`,
-    paddingTop: 10,
+    borderTopColor: '#f0f0f0', // Light border
+    paddingTop: 12,
   },
   statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   // End Trip Button
   endTripBtn: {
@@ -2327,88 +2430,103 @@ const styles = StyleSheet.create({
     borderWidth: 0,
   },
   endTripBtnDisabled: {
-    backgroundColor: '#4a4a4a',
-    opacity: 0.5,
+    backgroundColor: '#e0e0e0', // Light gray
+    opacity: 0.6,
   },
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Lighter overlay
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.darkCard,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    padding: 16,
-    paddingBottom: 24,
+    backgroundColor: '#fff', // White modal
+    borderTopLeftRadius: 24, // More rounded
+    borderTopRightRadius: 24,
+    padding: 20, // More padding
+    paddingBottom: 32,
+    borderTopWidth: 4,
+    borderTopColor: COLORS.primary, // Orange top border
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 15,
+    fontSize: 17, // Bigger
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a', // Dark text
   },
   modalCountdown: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 15, // Bigger
+    fontWeight: '900',
     color: COLORS.primary,
+    backgroundColor: '#FFF5F0', // Light orange background
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   customerCard: {
-    backgroundColor: COLORS.darkBg,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
+    backgroundColor: '#f8f9fa', // Light gray
+    borderRadius: 12,
+    padding: 16, // More padding
+    marginBottom: 20,
     flexDirection: 'row',
-    gap: 12,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   customerAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: `${COLORS.primary}20`,
+    width: 56, // Bigger
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF5F0', // Light orange
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
   },
   customerDetails: {
     flex: 1,
     justifyContent: 'center',
   },
   customerName: {
-    fontSize: 14,
+    fontSize: 16, // Bigger
     fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  customerPhone: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    color: '#1a1a1a', // Dark text
     marginBottom: 4,
   },
- ratingRow: {
+  customerPhone: {
+    fontSize: 13, // Bigger
+    color: '#666', // Gray text
+    marginBottom: 6,
+  },
+  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   ratingText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.text,
+    fontSize: 13, // Bigger
+    fontWeight: '700',
+    color: '#1a1a1a', // Dark text
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12, // More spacing
   },
   modalBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 16, // Taller
+    borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   acceptBtn: {
     backgroundColor: '#4CAF50',
@@ -2417,8 +2535,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f44336',
   },
   modalBtnText: {
-    fontSize: 14,
+    fontSize: 16, // Bigger
     fontWeight: '700',
     color: '#fff',
+    letterSpacing: 0.3,
   },
 })

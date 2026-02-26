@@ -22,7 +22,7 @@ import { DeliveryStatus } from '../schemas/delivery.schema';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { Types } from 'mongoose';
 
-@Controller('api/deliveries')
+@Controller('deliveries')
 export class DeliveryController {
   constructor(
     private readonly deliveryService: DeliveryService,

@@ -629,7 +629,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
         style={[
           styles.rideCard,
           {
-            backgroundColor: colors.bgSecondary,
+            backgroundColor: colors.card,
             borderColor: colors.border,
           },
           isFirstCard && styles.bestMatchCard,
@@ -748,14 +748,14 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
       <StatusBar
         barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'}
-        backgroundColor={colors.bg}
+        backgroundColor={colors.card}
       />
 
       {/* Header with Route Info */}
-      <View style={[styles.header, { backgroundColor: colors.bgSecondary, borderBottomColor: colors.border }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         {/* Back Button */}
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -805,7 +805,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={[styles.filterScroll, { backgroundColor: colors.bgSecondary }]}
+        style={[styles.filterScroll, { backgroundColor: colors.card }]}
         contentContainerStyle={styles.filterContainer}
       >
         {[
@@ -820,7 +820,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
             style={[
               styles.filterChip,
               {
-                backgroundColor: activeFilter === filter.id ? '#FF6B00' : colors.bg,
+                backgroundColor: activeFilter === filter.id ? '#FF6B00' : colors.warning,
                 borderColor: activeFilter === filter.id ? '#FF6B00' : colors.border,
               },
             ]}
@@ -881,7 +881,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
           ListHeaderComponent={
             <View>
               {/* Create New Trip Card - Grab-like flow */}
-              <View style={[styles.createTripCard, { backgroundColor: colors.bgSecondary, borderColor: '#FF6B00' }]}>
+              <View style={[styles.createTripCard, { backgroundColor: colors.card, borderColor: '#FF6B00' }]}>
                 <View style={styles.createTripHeader}>
                   <View style={styles.createTripIcon}>
                     <MaterialIcons name="add-circle" size={28} color="#FF6B00" />
@@ -925,7 +925,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                       </View>
                     </View>
                     <TouchableOpacity
-                      style={[styles.cancelTripButton, { backgroundColor: colors.bg, borderColor: '#ff4444' }]}
+                      style={[styles.cancelTripButton, { backgroundColor: colors.card, borderColor: '#ff4444' }]}
                       onPress={handleCancelTrip}
                       activeOpacity={0.8}
                     >
@@ -939,7 +939,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     activeOpacity={0.8}
                   >
                     <Text style={styles.createTripButtonText}>Tạo chuyến & Chờ tài xế</Text>
-                    <MaterialIcons name="flash-on" size={20} color="#000" />
+                    <MaterialIcons name="flash-on" size={20} color="#f7d309" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1000,7 +1000,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
             style={[
               styles.modalContent,
               {
-                backgroundColor: colors.bgSecondary,
+                backgroundColor: colors.card,
                 transform: [
                   {
                     translateY: modalSlideAnim.interpolate({
@@ -1100,7 +1100,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     </View>
                   )}
                   <View style={[styles.tripInfoRow, { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border + '30' }]}>
-                    <MaterialIcons name="payments" size={20} color="#38e07b" />
+                    <MaterialIcons name="payments" size={20} color="#0c0c0c" />
                     <Text style={[styles.tripInfoLabel, { color: colors.textSecondary, fontWeight: '700' }]}>
                       Tổng thanh toán:
                     </Text>
@@ -1132,8 +1132,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     style={[
                       styles.vehicleOption,
                       {
-                        backgroundColor: selectedVehicleType === 'basic' ? '#FF6B0020' : colors.bg,
-                        borderColor: selectedVehicleType === 'basic' ? '#FF6B00' : colors.border,
+                        backgroundColor: selectedVehicleType === 'basic' ? '#FF6B0020' : colors.card,
+                        borderColor: selectedVehicleType === 'basic' ? '#FF6B00' : colors.warning,
                       },
                     ]}
                     onPress={() => setSelectedVehicleType('basic')}
@@ -1144,6 +1144,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                         name="directions-car"
                         size={32}
                         color={selectedVehicleType === 'basic' ? '#FF6B00' : colors.textSecondary}
+                       
                       />
                     </View>
                     <View style={styles.vehicleDetails}>
@@ -1169,8 +1170,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     style={[
                       styles.vehicleOption,
                       {
-                        backgroundColor: selectedVehicleType === 'comfort' ? '#FF6B0020' : colors.bg,
-                        borderColor: selectedVehicleType === 'comfort' ? '#FF6B00' : colors.border,
+                        backgroundColor: selectedVehicleType === 'comfort' ? '#FF6B0020' : colors.card,
+                        borderColor: selectedVehicleType === 'comfort' ? '#FF6B00' : colors.warning,
                       },
                     ]}
                     onPress={() => setSelectedVehicleType('comfort')}
@@ -1206,8 +1207,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                     style={[
                       styles.vehicleOption,
                       {
-                        backgroundColor: selectedVehicleType === 'premium' ? '#FF6B0020' : colors.bg,
-                        borderColor: selectedVehicleType === 'premium' ? '#FF6B00' : colors.border,
+                        backgroundColor: selectedVehicleType === 'premium' ? '#FF6B0020' : colors.card,
+                        borderColor: selectedVehicleType === 'premium' ? '#FF6B00' : colors.warning,
                       },
                     ]}
                     onPress={() => setSelectedVehicleType('premium')}
@@ -1246,7 +1247,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                   activeOpacity={0.8}
                 >
                   <Text style={styles.confirmButtonText}>Xác nhận tạo chuyến</Text>
-                  <MaterialIcons name="arrow-forward" size={20} color="#000" />
+                  <MaterialIcons name="arrow-forward" size={20} color="#f7f3f3" />
                 </TouchableOpacity>
               </>
             )}
@@ -1257,6 +1258,8 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
   )
 }
 
+
+// ...existing code...
 
 const styles = StyleSheet.create({
   container: {
@@ -1304,7 +1307,7 @@ const styles = StyleSheet.create({
   routeConnector: {
     width: 2,
     height: 32,
-    backgroundColor: '#38e07b',
+    backgroundColor: '#FF6B00', // Changed from green to orange
     opacity: 0.5,
   },
   routeLabels: {
@@ -1323,7 +1326,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   distanceBadge: {
-    backgroundColor: '#38e07b20',
+    backgroundColor: '#FFF5F0', // Light orange
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
     borderRadius: BORDER_RADIUS.lg,
@@ -1332,7 +1335,7 @@ const styles = StyleSheet.create({
   distanceText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#38e07b', // màu chữ km
+    color: '#FF6B00', // Orange
   },
 
   /* Filter Chips */
@@ -1384,9 +1387,10 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   bestMatchCard: {
-    borderWidth: 1,
+    borderWidth: 2, // Thicker border
     position: 'relative',
     overflow: 'visible',
+    borderColor: '#FF6B00', // Orange border for best match
   },
   bestMatchBadge: {
     position: 'absolute',
@@ -1401,7 +1405,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff', // White text on orange
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1422,7 +1426,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1a2b22',
+    backgroundColor: '#f8f9fa', // Light gray
   },
   driverInfo: {
     flex: 1,
@@ -1438,7 +1442,7 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   ratingBadge: {
-    backgroundColor: '#ffffff10',
+    backgroundColor: '#FFF5F0', // Light orange
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1446,7 +1450,7 @@ const styles = StyleSheet.create({
   ratingBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FF6B00', // Orange text
   },
   metaText: {
     fontSize: 12,
@@ -1457,12 +1461,12 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    color: '#1a1a1a', // Dark text
   },
   oldPrice: {
     fontSize: 11,
     fontWeight: '400',
-    color: '#888',
+    color: '#999', // Light gray
     textDecorationLine: 'line-through',
   },
 
@@ -1552,7 +1556,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff', // White text on orange button
   },
   secondaryButton: {
     width: 44,
@@ -1603,7 +1607,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
   },
   retryButtonText: {
-    color: '#000',
+    color: '#fff', // White text
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1620,7 +1624,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xxl,
     paddingHorizontal: SPACING.lg,
     borderTopWidth: 1,
-    borderTopColor: '#ffffff10',
+    borderTopColor: '#f0f0f0', // Light border
     marginTop: SPACING.lg,
   },
   emptyIcon: {
@@ -1659,15 +1663,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
     borderRadius: BORDER_RADIUS.xl,
-    backgroundColor: '#ff6b3520',
+    backgroundColor: '#FFF5F0', // Light orange
     borderWidth: 1,
-    borderColor: '#ff6b3520',
+    borderColor: '#FFE5DB', // Light orange border
   },
   promoIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ff6b35',
+    backgroundColor: '#FF6B00', // Orange
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1677,23 +1681,23 @@ const styles = StyleSheet.create({
   promoTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#fff',
+    color: '#1a1a1a', // Dark text
     marginBottom: SPACING.xs,
   },
   promoSubtitle: {
     fontSize: 12,
-    color: '#ffb3a1',
+    color: '#666', // Gray text
   },
   promoButton: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    backgroundColor: '#fff',
+    backgroundColor: '#FF6B00', // Orange
     borderRadius: BORDER_RADIUS.lg,
   },
   promoButtonText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#ff6b35',
+    color: '#fff', // White text
   },
 
   /* Create New Trip Card */
@@ -1713,7 +1717,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#38e07b20',
+    backgroundColor: '#FFF5F0', // Light orange
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1739,7 +1743,7 @@ const styles = StyleSheet.create({
   createTripButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff', // White text
   },
   searchingContainer: {
     gap: SPACING.md,
@@ -1778,7 +1782,7 @@ const styles = StyleSheet.create({
   dividerText: {
     fontSize: 11,
     fontWeight: '700',
-    backgroundColor: '#131315',
+    backgroundColor: '#fff', // Changed from dark
     paddingHorizontal: SPACING.md,
     letterSpacing: 0.5,
   },
@@ -1794,7 +1798,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(252, 251, 251, 0.5)', // Lighter overlay
   },
   modalContent: {
     position: 'absolute',
@@ -1811,13 +1815,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#ffffff10',
+    borderBottomColor: '#f0f0f0', // Light border
     alignItems: 'center',
   },
   modalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#ffffff30',
+    backgroundColor: '#e0e0e0', // Light gray
     borderRadius: 2,
     marginBottom: SPACING.md,
   },
@@ -1848,7 +1852,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#ffffff10',
+    backgroundColor: '#f8f9fa', // Light gray
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1888,7 +1892,7 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff', // White text
   },
 
   /* Creating Trip State */
@@ -1929,7 +1933,7 @@ const styles = StyleSheet.create({
   },
   tripInfoBox: {
     width: '100%',
-    backgroundColor: '#ffffff08',
+    backgroundColor: '#f8f9fa', // Light gray
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     gap: SPACING.md,

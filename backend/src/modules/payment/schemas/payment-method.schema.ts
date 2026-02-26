@@ -15,8 +15,11 @@ export enum PaymentMethodType {
 
 @Schema({ timestamps: true })
 export class PaymentMethod {
-  @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
-  customerId: Types.ObjectId
+  @Prop({ type: Types.ObjectId, ref: 'Customer', required: false })
+  customerId?: Types.ObjectId
+
+  @Prop({ type: Types.ObjectId, ref: 'Driver', required: false })
+  driverId?: Types.ObjectId
 
   @Prop({ type: String, enum: PaymentMethodType, required: true })
   type: PaymentMethodType
@@ -61,3 +64,4 @@ export class PaymentMethod {
 export const PaymentMethodSchema = SchemaFactory.createForClass(PaymentMethod)
 
 PaymentMethodSchema.index({ customerId: 1, isActive: 1 })
+PaymentMethodSchema.index({ driverId: 1, isActive: 1 })

@@ -24,7 +24,20 @@ export class WithdrawDto {
   amount: number
 
   @IsString()
-  bankAccount: string // Bank account ID to withdraw to
+  @IsOptional()
+  bankAccount?: string // Bank account ID to withdraw to (optional, for saved payment methods)
+
+  @IsString()
+  @IsOptional()
+  bankAccountNumber?: string // Manual bank account number
+
+  @IsString()
+  @IsOptional()
+  bankName?: string // Manual bank name
+
+  @IsString()
+  @IsOptional()
+  accountHolderName?: string // Manual account holder name
 
   @IsString()
   @IsOptional()

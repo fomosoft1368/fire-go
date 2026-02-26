@@ -4,7 +4,7 @@ import { PricingConfig } from './pricing-config.schema';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CalculatePriceDto, CalculatePriceResponse } from './dto/calculate-price.dto';
 
-@Controller('api/pricing')
+@Controller('pricing')
 export class PricingController {
   constructor(private readonly pricingService: PricingService) {}
 

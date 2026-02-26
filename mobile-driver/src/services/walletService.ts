@@ -178,6 +178,40 @@ class WalletService {
       return 0; // Return 0 if API fails
     }
   }
+
+  /**
+   * Check transaction status by ID
+   */
+  async checkTransactionStatus(transactionId: string): Promise<'pending' | 'completed' | 'failed'> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await axios.get(
+        `${API_BASE_URL}/wallet/transactions/${transactionId}/status`,
+        { headers }
+      );
+      return response.data.status || 'pending';
+    } catch (error: any) {
+      console.error('Error checking transaction status:', error);
+      return 'pending'; // Return pending if API fails
+    }
+  }
+
+  /**
+   * Cancel pending withdrawal (only for pending status)
+   */
+  async cancelWithdraw(transactionId: string): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await axios.post(
+        `${API_BASE_URL}/wallets/withdraw/${transactionId}/cancel`,
+        {},
+        { headers }
+      );
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Không thể hủy lệnh rút tiền');
+    }
+  }
 }
 
 export const walletService = new WalletService();

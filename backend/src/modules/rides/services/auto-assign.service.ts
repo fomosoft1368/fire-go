@@ -20,7 +20,7 @@ interface DriverScore {
 @Injectable()
 export class AutoAssignService {
   private readonly logger = new Logger(AutoAssignService.name);
-  private readonly REQUEST_TIMEOUT_SECONDS = 45; // Timeout 45 seconds (was 30) - gives frontend time to poll
+  private readonly REQUEST_TIMEOUT_SECONDS = 50; // Timeout 50 seconds (was 45) - gives frontend time to poll
   private timeoutHandlers = new Map<string, NodeJS.Timeout>(); // Track timeout handlers
 
   constructor(

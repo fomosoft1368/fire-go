@@ -78,10 +78,14 @@ export default function TopupScreen({ navigation }: any) {
         const status = await walletService.checkTransactionStatus(sepayData.transactionId)
         console.log('[TopupScreen] Transaction status:', status)
 
-        if (status === 'completed') {
+        // Accept both 'completed' and 'success' status
+        if (status === 'completed' || status === 'success') {
           console.log('[TopupScreen] ✅ Payment completed!')
           setPaymentStatus('completed')
           setIsCheckingPayment(false)
+          
+          // Clear interval first
+          clearInterval(intervalId)
           
           // Show success message
           Alert.alert(
@@ -97,9 +101,6 @@ export default function TopupScreen({ navigation }: any) {
               }
             ]
           )
-          
-          // Clear interval
-          clearInterval(intervalId)
         }
       } catch (error) {
         console.error('[TopupScreen] Error checking payment:', error)
@@ -116,10 +117,16 @@ export default function TopupScreen({ navigation }: any) {
 
   const loadTopupDiscount = async () => {
     try {
+      console.log('[TopupScreen] Loading topup discount...')
       const discount = await walletService.getTopupDiscount()
+      console.log('[TopupScreen] Topup discount loaded:', discount)
       setTopupDiscount(discount)
-    } catch (error) {
-      console.error('[TopupScreen] Error loading topup discount:', error)
+    } catch (error: any) {
+      console.error('[TopupScreen] ❌ Error loading topup discount:')
+      console.error('[TopupScreen] Error message:', error?.message)
+      console.error('[TopupScreen] Full error:', error)
+      // Set discount to 0 if failed
+      setTopupDiscount(0)
     }
   }
 
@@ -197,7 +204,7 @@ export default function TopupScreen({ navigation }: any) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation?.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.textDark} />
+            <MaterialIcons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Nạp tiền</Text>
           <View style={{ width: 24 }} />
@@ -215,7 +222,7 @@ export default function TopupScreen({ navigation }: any) {
             <TextInput
               style={styles.customAmountInput}
               placeholder="Nhập số tiền"
-              placeholderTextColor={COLORS.textDarkSecondary}
+              placeholderTextColor={COLORS.textSecondary}
               value={customAmount}
               onChangeText={handleCustomAmountChange}
               keyboardType="number-pad"
@@ -387,7 +394,7 @@ export default function TopupScreen({ navigation }: any) {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Xác nhận nạp tiền</Text>
                 <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                  <MaterialIcons name="close" size={24} color={COLORS.textDark} />
+                  <MaterialIcons name="close" size={24} color={COLORS.textPrimary} />
                 </TouchableOpacity>
               </View>
 
@@ -460,7 +467,7 @@ export default function TopupScreen({ navigation }: any) {
                 setShowSepayModal(false)
                 navigation?.goBack()
               }}>
-                <MaterialIcons name="close" size={24} color={COLORS.textDark} />
+                <MaterialIcons name="close" size={24} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -569,7 +576,7 @@ export default function TopupScreen({ navigation }: any) {
                   </View>
 
                   {/* Done Button */}
-                  {/* <TouchableOpacity
+                  <TouchableOpacity
                     style={styles.doneButton}
                     onPress={() => {
                       setShowSepayModal(false)
@@ -577,7 +584,7 @@ export default function TopupScreen({ navigation }: any) {
                     }}
                   >
                     <Text style={styles.doneButtonText}>Đã chuyển khoản</Text>
-                  </TouchableOpacity> */}
+                  </TouchableOpacity>
 
                   <View style={{ height: 40 }} />
                 </>
@@ -590,14 +597,16 @@ export default function TopupScreen({ navigation }: any) {
   )
 }
 
+// ...existing code...
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#fff', // Changed from dark
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#fff', // Changed from dark
     paddingHorizontal: SPACING.lg,
   },
   header: {
@@ -608,12 +617,12 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
     paddingTop: 40,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightBorder,
+    borderBottomColor: '#f0f0f0', // Light border
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
   },
   section: {
     marginBottom: SPACING.xl,
@@ -621,16 +630,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
     marginBottom: SPACING.lg,
   },
   customAmountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0', // Light border
     marginBottom: SPACING.lg,
     paddingLeft: SPACING.md,
   },
@@ -642,14 +651,14 @@ const styles = StyleSheet.create({
   currencyText: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.primary, // Keep orange
   },
   customAmountInput: {
     flex: 1,
     paddingVertical: SPACING.md,
     paddingRight: SPACING.md,
     fontSize: 16,
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
   },
   presetsContainer: {
     flexDirection: 'row',
@@ -660,54 +669,53 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: '30%',
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0', // Light border
     alignItems: 'center',
   },
   presetButtonActive: {
-    backgroundColor: COLORS.primary + '15',
-    borderColor: COLORS.primary,
+    backgroundColor: '#FFF5F0', // Light orange background
+    borderColor: COLORS.primary, // Orange border
   },
   presetText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
   },
   presetTextActive: {
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange text
   },
   selectedAmountCard: {
-    backgroundColor: COLORS.primary + '08',
+    backgroundColor: '#FFF5F0', // Light orange
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     borderLeftWidth: 4,
     borderLeftColor: COLORS.primary,
     marginTop: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#FFE5DB', // Light orange border
   },
   selectedAmountLabel: {
     fontSize: 12,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
     marginBottom: SPACING.sm,
   },
   selectedAmount: {
     fontSize: 28,
     fontWeight: '800',
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange
   },
-
   discountInfo: {
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     borderLeftWidth: 4,
     borderLeftColor: COLORS.primary,
     marginTop: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
   },
   discountRow: {
     flexDirection: 'row',
@@ -717,34 +725,34 @@ const styles = StyleSheet.create({
   },
   discountLabel: {
     fontSize: 13,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
     fontWeight: '500',
   },
   discountValue: {
     fontSize: 13,
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
     fontWeight: '600',
   },
   discountAmount: {
-    color: '#ef4444',
+    color: '#ef4444', // Red (keep for negative)
   },
   discountLabelBold: {
     fontSize: 14,
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
     fontWeight: '700',
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.lightBorder,
+    borderTopColor: '#e0e0e0',
   },
   discountValueBold: {
     fontSize: 16,
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange
     fontWeight: '800',
     marginTop: SPACING.sm,
     paddingTop: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.lightBorder,
+    borderTopColor: '#e0e0e0',
   },
   paymentMethodsContainer: {
     gap: SPACING.md,
@@ -753,15 +761,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
   },
   paymentMethodCardActive: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '08',
+    backgroundColor: '#FFF5F0', // Light orange
   },
   paymentMethodLeft: {
     flex: 1,
@@ -773,29 +781,29 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#fff', // White background
     justifyContent: 'center',
     alignItems: 'center',
   },
   paymentMethodIconActive: {
-    backgroundColor: COLORS.primary + '15',
+    backgroundColor: COLORS.primary + '15', // Light orange
   },
   paymentMethodName: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
     marginBottom: SPACING.xs,
   },
   paymentMethodDescription: {
     fontSize: 12,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
   },
   radioButton: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
   },
   radioButtonActive: {
     borderColor: COLORS.primary,
@@ -804,29 +812,29 @@ const styles = StyleSheet.create({
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#FFF5F0', // Light orange
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     gap: SPACING.md,
     marginBottom: SPACING.xl,
     borderWidth: 1,
     borderLeftWidth: 4,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#FFE5DB',
     borderLeftColor: COLORS.primary,
   },
   infoText: {
     flex: 1,
     fontSize: 12,
-    color: COLORS.textDark,
+    color: '#FF6B35', // Orange text
     lineHeight: 18,
   },
   feeSection: {
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.xl,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
     borderLeftWidth: 4,
     borderLeftColor: COLORS.primary,
   },
@@ -837,37 +845,37 @@ const styles = StyleSheet.create({
   },
   feeLabel: {
     fontSize: 13,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
   },
   feeValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
   },
   feeDivider: {
     height: 1,
-    backgroundColor: COLORS.lightBorder,
+    backgroundColor: '#e0e0e0',
     marginVertical: SPACING.md,
   },
   feeTotalLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
   },
   feeTotalValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange
   },
   footer: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#fff', // White
     borderTopWidth: 1,
-    borderTopColor: COLORS.lightBorder,
+    borderTopColor: '#f0f0f0',
   },
   payButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primary, // Orange
     borderRadius: BORDER_RADIUS.md,
     paddingVertical: SPACING.md,
     alignItems: 'center',
@@ -884,7 +892,7 @@ const styles = StyleSheet.create({
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Lighter overlay
     justifyContent: 'flex-end',
   },
   keyboardAvoidingView: {
@@ -892,14 +900,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#fff', // White
     borderTopLeftRadius: BORDER_RADIUS.xl,
     borderTopRightRadius: BORDER_RADIUS.xl,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
     paddingBottom: SPACING.xl,
     borderTopWidth: 1,
-    borderTopColor: COLORS.lightBorder,
+    borderTopColor: '#f0f0f0',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -910,7 +918,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
   },
   confirmationContent: {
     alignItems: 'center',
@@ -919,30 +927,30 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: COLORS.primary + '15',
+    backgroundColor: COLORS.primary + '15', // Light orange
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
   confirmLabel: {
     fontSize: 13,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
     marginBottom: SPACING.xs,
   },
   confirmAmount: {
     fontSize: 32,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange
     marginBottom: SPACING.lg,
   },
   confirmDetails: {
     width: '100%',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
   },
   detailRow: {
     flexDirection: 'row',
@@ -951,12 +959,12 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 13,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
   },
   detailValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
   },
   confirmButtons: {
     flexDirection: 'row',
@@ -968,20 +976,20 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
     alignItems: 'center',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
   },
   cancelButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
   },
   confirmButton: {
     flex: 1,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primary, // Orange
     alignItems: 'center',
   },
   confirmButtonText: {
@@ -992,7 +1000,7 @@ const styles = StyleSheet.create({
   
   // Sepay Modal Styles
   sepayModalContent: {
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#fff', // White
     borderTopLeftRadius: BORDER_RADIUS.xl,
     borderTopRightRadius: BORDER_RADIUS.xl,
     paddingHorizontal: SPACING.lg,
@@ -1000,16 +1008,16 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
     maxHeight: '95%',
     borderTopWidth: 1,
-    borderTopColor: COLORS.lightBorder,
+    borderTopColor: '#f0f0f0',
   },
   qrContainer: {
     alignItems: 'center',
     paddingVertical: SPACING.xl,
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
   },
   qrCode: {
     width: 280,
@@ -1020,21 +1028,21 @@ const styles = StyleSheet.create({
   },
   qrHint: {
     fontSize: 13,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
     marginTop: SPACING.md,
   },
   bankInfoSection: {
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
   },
   bankInfoTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
     marginBottom: SPACING.md,
   },
   infoRow: {
@@ -1042,37 +1050,37 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
     marginBottom: SPACING.xs,
   },
   infoValueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#fff', // White
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
     flex: 1,
   },
   amountHighlight: {
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange
     fontSize: 16,
   },
   contentHighlight: {
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   warningBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#FFF5F0', // Light orange
     borderLeftWidth: 3,
     borderLeftColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
@@ -1080,36 +1088,36 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
     gap: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#FFE5DB',
   },
   warningText: {
     flex: 1,
     fontSize: 12,
-    color: COLORS.textDark,
+    color: '#FF6B35', // Orange text
     lineHeight: 18,
   },
   instructionsBox: {
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#f8f9fa', // Light card
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#e0e0e0',
   },
   instructionsTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.textDark,
+    color: '#1a1a1a', // Dark text
     marginBottom: SPACING.sm,
   },
   instructionItem: {
     fontSize: 13,
-    color: COLORS.textDarkSecondary,
+    color: '#666', // Gray text
     marginBottom: SPACING.xs,
     lineHeight: 20,
   },
   doneButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primary, // Orange
     borderRadius: BORDER_RADIUS.lg,
     paddingVertical: SPACING.lg,
     alignItems: 'center',
@@ -1121,7 +1129,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   paymentStatusCard: {
-    backgroundColor: COLORS.primary + '15',
+    backgroundColor: '#FFF5F0', // Light orange
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
@@ -1129,12 +1137,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: '#FFE5DB',
   },
   paymentStatusText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: COLORS.primary, // Orange
     flex: 1,
   },
 })

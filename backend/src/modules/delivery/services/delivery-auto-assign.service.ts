@@ -19,7 +19,7 @@ interface DriverScore {
 @Injectable()
 export class DeliveryAutoAssignService {
   private readonly logger = new Logger(DeliveryAutoAssignService.name);
-  private readonly REQUEST_TIMEOUT_SECONDS = 45; // Timeout 15 giây
+  private readonly REQUEST_TIMEOUT_SECONDS = 50; // Timeout 15 giây
   private timeoutHandlers = new Map<string, NodeJS.Timeout>(); // Track timeout handlers
 
   constructor(

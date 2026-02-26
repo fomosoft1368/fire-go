@@ -5,12 +5,14 @@ import { Wallet, WalletDocument } from './schemas/wallet.schema';
 import { Transaction, TransactionDocument, TransactionType, TransactionStatus, UserType } from './schemas/transaction.schema';
 import { TopUpWalletDto, PaymentDto } from './dto';
 import { PricingService } from '../pricing/pricing.service';
+import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
 
 @Injectable()
 export class WalletsService {
   constructor(
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
     @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
+    @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     private readonly pricingService: PricingService,
   ) {}
 
@@ -129,8 +131,19 @@ export class WalletsService {
       throw new BadRequestException('Wallet is locked');
     }
 
+    // Get topup discount from pricing config
+    console.log('[WalletsService] Getting topup discount for customer...');
+    const discountPercent = await this.pricingService.getTopupDiscount('customer');
+    console.log(`[WalletsService] Discount: ${discountPercent}%`);
+
+    // Calculate discount amount
+    const discountAmount = Math.round((amount * discountPercent) / 100);
+    
+    // Actual amount to add to wallet (original - discount)
+    const actualAmount = amount - discountAmount;
+
     const balanceBefore = wallet.balance;
-    const balanceAfter = balanceBefore + amount;
+    const balanceAfter = balanceBefore + actualAmount; // Use actualAmount, not original amount
 
     // Create PENDING transaction - will be completed when webhook is received
     const transaction = await this.transactionModel.create({
@@ -143,12 +156,19 @@ export class WalletsService {
       description: 'Nạp tiền qua chuyển khoản ngân hàng',
       balanceBefore,
       balanceAfter,
+      discountPercent,
+      discountAmount,
     });
 
-    console.log('[WalletsService] ✅ Customer topup transaction created:', {
+    console.log('[WalletsService] ✅ Customer topup transaction created with discount:', {
       transactionId: transaction._id,
       userId,
-      amount,
+      originalAmount: amount,
+      discountPercent: `${discountPercent}%`,
+      discountAmount,
+      actualAmount,
+      balanceBefore,
+      balanceAfter,
     });
 
     return transaction;
@@ -311,6 +331,7 @@ export class WalletsService {
     // Create transaction record
     const transaction = await this.transactionModel.create({
       userId: new Types.ObjectId(userId),
+      userType: 'customer',
       type: TransactionType.PAYMENT,
       amount,
       status: TransactionStatus.SUCCESS,
@@ -328,6 +349,7 @@ export class WalletsService {
     amount: number,
     type: TransactionType = TransactionType.EARNING,
     description?: string,
+    userType: UserType = UserType.CUSTOMER,
   ): Promise<TransactionDocument> {
     if (amount <= 0) {
       throw new BadRequestException('Amount must be greater than 0');
@@ -349,6 +371,7 @@ export class WalletsService {
     // Create transaction record
     const transaction = await this.transactionModel.create({
       userId: new Types.ObjectId(userId),
+      userType,
       type,
       amount,
       status: TransactionStatus.SUCCESS,
@@ -383,6 +406,7 @@ export class WalletsService {
     // Create refund transaction
     const refundTransaction = await this.transactionModel.create({
       userId: transaction.userId,
+      userType: transaction.userType,
       type: TransactionType.REFUND,
       amount: transaction.amount,
       status: TransactionStatus.SUCCESS,
@@ -455,6 +479,7 @@ export class WalletsService {
     const transaction = await this.transactionModel
       .findById(transactionId)
       .populate('customerId', 'firstName lastName email phone')
+      .populate('driverId', 'firstName lastName email phone')
       .populate('bankAccount', 'accountNumber accountHolder bankName name')
       .lean()
     if (!transaction) {
@@ -494,6 +519,7 @@ export class WalletsService {
     // Create transaction record with PENDING status (admin needs to approve)
     const transaction = await this.transactionModel.create({
       customerId: new Types.ObjectId(customerId),
+      userType: 'customer',
       type: TransactionType.DEPOSIT,
       status: TransactionStatus.PENDING,
       amount,
@@ -540,16 +566,10 @@ export class WalletsService {
     const balanceAfter = balanceBefore - amount
     const transactionCode = `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
 
-    // Deduct balance immediately
-    await this.walletModel.findByIdAndUpdate(wallet._id, {
-      $inc: {
-        balance: -amount,
-      },
-    })
-
-    // Create transaction record with PENDING status (admin needs to process)
+    // Create transaction record FIRST (don't deduct balance yet)
     const transaction = await this.transactionModel.create({
       customerId: new Types.ObjectId(customerId),
+      userType: 'customer',
       type: TransactionType.WITHDRAW,
       status: TransactionStatus.PENDING,
       amount,
@@ -564,7 +584,83 @@ export class WalletsService {
       },
     })
 
+    // Deduct balance ONLY after transaction created successfully
+    await this.walletModel.findByIdAndUpdate(wallet._id, {
+      $inc: {
+        balance: -amount,
+      },
+    })
+
     console.log(`[Wallet] Withdraw request created: ${customerId} - ${amount}VND - Code: ${transactionCode} - Balance deducted immediately`)
+    return transaction
+  }
+
+  async withdrawManual(
+    customerId: string,
+    amount: number,
+    bankAccountNumber: string,
+    bankName: string,
+    accountHolderName: string,
+    description?: string,
+  ): Promise<TransactionDocument> {
+    if (amount <= 0) {
+      throw new BadRequestException('Số tiền rút phải lớn hơn 0')
+    }
+
+    if (amount < 50000) {
+      throw new BadRequestException('Số tiền tối thiểu 50,000 VND')
+    }
+
+    if (!bankAccountNumber || !bankName || !accountHolderName) {
+      throw new BadRequestException('Vui lòng nhập đầy đủ thông tin ngân hàng')
+    }
+
+    const wallet = await this.walletModel.findOne({ userId: new Types.ObjectId(customerId) })
+    
+    if (!wallet) {
+      throw new NotFoundException('Không tìm thấy ví')
+    }
+
+    if (wallet.isLocked) {
+      throw new BadRequestException('Ví của bạn đã bị khóa')
+    }
+
+    if (wallet.balance < amount) {
+      throw new BadRequestException(`Số dư không đủ. Hiện có: ${wallet.balance}VND`)
+    }
+
+    const balanceBefore = wallet.balance
+    const balanceAfter = balanceBefore - amount
+    const transactionCode = `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+
+    // Create transaction record FIRST (don't deduct balance yet)
+    const transaction = await this.transactionModel.create({
+      customerId: new Types.ObjectId(customerId),
+      userType: 'customer',
+      type: TransactionType.WITHDRAW,
+      status: TransactionStatus.PENDING,
+      amount,
+      fee: 0,
+      description: description || 'Rút tiền từ ví',
+      transactionCode,
+      balanceBefore,
+      balanceAfter,
+      metadata: {
+        requestedAt: new Date(),
+        bankAccountNumber,
+        bankName,
+        accountHolderName,
+      },
+    })
+
+    // Deduct balance ONLY after transaction created successfully
+    await this.walletModel.findByIdAndUpdate(wallet._id, {
+      $inc: {
+        balance: -amount,
+      },
+    })
+
+    console.log(`[Wallet] Manual withdraw request created: ${customerId} - ${amount}VND - Bank: ${bankName} ${bankAccountNumber}`)
     return transaction
   }
 
@@ -700,7 +796,7 @@ export class WalletsService {
       throw new NotFoundException('Không tìm thấy giao dịch')
     }
 
-    if (transaction.type !== TransactionType.WITHDRAW) {
+    if (transaction.type !== TransactionType.WITHDRAW && transaction.type !== TransactionType.WITHDRAWAL) {
       throw new BadRequestException('Giao dịch này không phải là rút tiền')
     }
 
@@ -732,7 +828,7 @@ export class WalletsService {
       throw new NotFoundException('Không tìm thấy giao dịch')
     }
 
-    if (transaction.type !== TransactionType.WITHDRAW) {
+    if (transaction.type !== TransactionType.WITHDRAW && transaction.type !== TransactionType.WITHDRAWAL) {
       throw new BadRequestException('Giao dịch này không phải là rút tiền')
     }
 
@@ -772,7 +868,7 @@ export class WalletsService {
       throw new NotFoundException('Không tìm thấy giao dịch')
     }
 
-    if (transaction.type !== TransactionType.WITHDRAW) {
+    if (transaction.type !== TransactionType.WITHDRAW && transaction.type !== TransactionType.WITHDRAWAL) {
       throw new BadRequestException('Giao dịch này không phải là rút tiền')
     }
 
@@ -780,14 +876,28 @@ export class WalletsService {
       throw new BadRequestException(`Giao dịch này đã được xử lý (${transaction.status})`)
     }
 
-    // Refund the amount back to wallet
-    const wallet = await this.walletModel.findOne({ userId: transaction.customerId })
-    if (wallet) {
-      await this.walletModel.findByIdAndUpdate(wallet._id, {
-        $inc: {
-          balance: transaction.amount,
-        },
-      })
+    // Refund the amount back to wallet/driver
+    if (transaction.userType === UserType.CUSTOMER) {
+      // Customer: refund to Wallet
+      const wallet = await this.walletModel.findOne({ userId: transaction.customerId })
+      if (wallet) {
+        await this.walletModel.findByIdAndUpdate(wallet._id, {
+          $inc: {
+            balance: Math.abs(transaction.amount),
+          },
+        })
+      }
+    } else if (transaction.userType === UserType.DRIVER) {
+      // Driver: refund to Driver.walletBalance
+      const driver = await this.driverModel.findById(transaction.driverId)
+      if (driver) {
+        await this.driverModel.findByIdAndUpdate(driver._id, {
+          $inc: {
+            walletBalance: Math.abs(transaction.amount),
+            pendingBalance: -Math.abs(transaction.amount),
+          },
+        })
+      }
     }
 
     const updated = await this.transactionModel.findByIdAndUpdate(
@@ -816,6 +926,7 @@ export class WalletsService {
     return this.transactionModel
       .find(filter)
       .populate('customerId', 'firstName lastName email phone')
+      .populate('driverId', 'firstName lastName email phone')
       .populate('bankAccount', 'accountNumber accountHolder bankName name')
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -837,6 +948,7 @@ export class WalletsService {
         },
       })
       .populate('customerId', 'firstName lastName email phone')
+      .populate('driverId', 'firstName lastName email phone')
       .populate('bankAccount', 'accountNumber accountHolder bankName name')
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -885,12 +997,15 @@ export class WalletsService {
       throw new NotFoundException('Không tìm thấy giao dịch')
     }
 
-    // Verify ownership
-    if (transaction.customerId.toString() !== customerId) {
+    // Verify ownership (check both customer and driver)
+    const isCustomer = transaction.customerId && transaction.customerId.toString() === customerId
+    const isDriver = transaction.driverId && transaction.driverId.toString() === customerId
+    
+    if (!isCustomer && !isDriver) {
       throw new BadRequestException('Bạn không có quyền hủy giao dịch này')
     }
 
-    if (transaction.type !== TransactionType.WITHDRAW) {
+    if (transaction.type !== TransactionType.WITHDRAW && transaction.type !== TransactionType.WITHDRAWAL) {
       throw new BadRequestException('Giao dịch này không phải là rút tiền')
     }
 
@@ -898,14 +1013,28 @@ export class WalletsService {
       throw new BadRequestException(`Chỉ có thể hủy những giao dịch đang chờ duyệt`)
     }
 
-    // Refund the amount back to wallet
-    const wallet = await this.walletModel.findOne({ userId: transaction.customerId })
-    if (wallet) {
-      await this.walletModel.findByIdAndUpdate(wallet._id, {
-        $inc: {
-          balance: transaction.amount,
-        },
-      })
+    // Refund the amount back to wallet/driver
+    if (transaction.userType === UserType.CUSTOMER) {
+      // Customer: refund to Wallet
+      const wallet = await this.walletModel.findOne({ userId: transaction.customerId })
+      if (wallet) {
+        await this.walletModel.findByIdAndUpdate(wallet._id, {
+          $inc: {
+            balance: Math.abs(transaction.amount),
+          },
+        })
+      }
+    } else if (transaction.userType === UserType.DRIVER) {
+      // Driver: refund to Driver.walletBalance (but this is customer-only endpoint, shouldn't reach here)
+      const driver = await this.driverModel.findById(transaction.driverId)
+      if (driver) {
+        await this.driverModel.findByIdAndUpdate(driver._id, {
+          $inc: {
+            walletBalance: Math.abs(transaction.amount),
+            pendingBalance: -Math.abs(transaction.amount),
+          },
+        })
+      }
     }
 
     const updated = await this.transactionModel.findByIdAndUpdate(
@@ -923,5 +1052,44 @@ export class WalletsService {
 
     console.log(`[Wallet] Withdraw cancelled: ${customerId} - ${transaction.amount}VND - Code: ${transaction.transactionCode}`)
     return updated
+  }
+
+  /**
+   * Get transaction status by ID (for auto-check payment completion)
+   */
+  async getTransactionStatus(transactionId: string) {
+    const transaction = await this.transactionModel
+      .findById(transactionId)
+      .select('status')
+      .lean();
+
+    if (!transaction) {
+      throw new NotFoundException('Giao dịch không tồn tại');
+    }
+
+    return {
+      status: transaction.status,
+    };
+  }
+
+  /**
+   * Get topup discount percentage for customer/driver
+   */
+  async getTopupDiscount(userType: 'customer' | 'driver' = 'customer') {
+    try {
+      console.log(`[WalletsService] Getting topup discount for: ${userType}`);
+      const discount = await this.pricingService.getTopupDiscount(userType);
+      console.log(`[WalletsService] Discount result: ${discount}%`);
+      return {
+        discount,
+      };
+    } catch (error) {
+      console.error('[WalletsService] ❌ Error getting topup discount:', error);
+      console.error('[WalletsService] ❌ Error stack:', error.stack);
+      // Return 0 discount on error instead of crashing
+      return {
+        discount: 0,
+      };
+    }
   }
 }

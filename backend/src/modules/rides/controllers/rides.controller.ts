@@ -11,7 +11,7 @@ import { Pricing } from '../schemas/pricing.schema';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 
-@Controller('api/rides')
+@Controller('rides')
 export class RidesController {
   constructor(
     private readonly ridesService: RidesService,

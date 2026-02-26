@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -9,16 +9,16 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants';
-import { walletService } from '../services/walletService';
-import { paymentMethodService, PaymentMethod } from '../services/paymentMethodService';
+} from 'react-native'
+import { MaterialIcons } from '@expo/vector-icons'
+import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { walletService } from '../services/walletService'
+import { paymentMethodService, PaymentMethod } from '../services/paymentMethodService'
 
 interface BankInfo {
-  accountNumber: string;
-  bankName: string;
-  accountHolderName: string;
+  accountNumber: string
+  bankName: string
+  accountHolderName: string
 }
 
 const POPULAR_BANKS = [
@@ -28,92 +28,92 @@ const POPULAR_BANKS = [
   { code: 'ACB', name: 'ACB' },
   { code: 'VPB', name: 'VPBank' },
   { code: 'BIDV', name: 'BIDV' },
-];
+]
 
 export default function WithdrawScreen({ navigation }: any) {
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState('')
   const [bankInfo, setBankInfo] = useState<BankInfo>({
     accountNumber: '',
     bankName: '',
     accountHolderName: '',
-  });
-  const [balance, setBalance] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [fetchingBalance, setFetchingBalance] = useState(true);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
-  const [useNewAccount, setUseNewAccount] = useState(false);
+  })
+  const [balance, setBalance] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [fetchingBalance, setFetchingBalance] = useState(true)
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
+  const [useNewAccount, setUseNewAccount] = useState(false)
 
   useEffect(() => {
-    fetchBalance();
-    fetchPaymentMethods();
-  }, []);
+    fetchBalance()
+    fetchPaymentMethods()
+  }, [])
 
   const fetchBalance = async () => {
     try {
-      const data = await walletService.getBalance();
-      setBalance(data.balance);
+      const walletBalance = await walletService.getBalance()
+      setBalance(walletBalance)
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message);
+      Alert.alert('Lỗi', error.message)
     } finally {
-      setFetchingBalance(false);
+      setFetchingBalance(false)
     }
-  };
+  }
 
   const fetchPaymentMethods = async () => {
     try {
-      const methods = await paymentMethodService.getPaymentMethods();
-      const bankAccounts = methods.filter((m) => m.type === 'bank_account' && m.isActive);
-      setPaymentMethods(bankAccounts);
+      const methods = await paymentMethodService.getPaymentMethods()
+      const bankAccounts = methods.filter((m) => m.type === 'bank_account' && m.isActive)
+      setPaymentMethods(bankAccounts)
       
       // Auto-select default method
-      const defaultMethod = bankAccounts.find((m) => m.isDefault);
+      const defaultMethod = bankAccounts.find((m) => m.isDefault)
       if (defaultMethod) {
-        setSelectedMethod(defaultMethod);
+        setSelectedMethod(defaultMethod)
       }
     } catch (error: any) {
-      console.error('[WithdrawScreen] Error fetching payment methods:', error?.message || error);
+      console.error('[WithdrawScreen] Error fetching payment methods:', error?.message || error)
       // Don't show error to user - they can still use manual entry
-      setPaymentMethods([]);
+      setPaymentMethods([])
     }
-  };
+  }
 
   const handleWithdraw = async () => {
-    const withdrawAmount = parseInt(amount);
+    const withdrawAmount = parseInt(amount)
 
     if (!withdrawAmount || withdrawAmount <= 0) {
-      Alert.alert('Lỗi', 'Vui lòng nhập số tiền rút');
-      return;
+      Alert.alert('Lỗi', 'Vui lòng nhập số tiền rút')
+      return
     }
 
     if (withdrawAmount < 50000) {
-      Alert.alert('Lỗi', 'Số tiền rút tối thiểu là 50.000đ');
-      return;
+      Alert.alert('Lỗi', 'Số tiền rút tối thiểu là 50.000đ')
+      return
     }
 
     if (withdrawAmount > balance) {
-      Alert.alert('Lỗi', 'Số dư không đủ để thực hiện giao dịch');
-      return;
+      Alert.alert('Lỗi', 'Số dư không đủ để thực hiện giao dịch')
+      return
     }
 
     // Determine if using manual entry or saved method
-    const isManualEntry = useNewAccount || paymentMethods.length === 0;
+    const isManualEntry = useNewAccount || paymentMethods.length === 0
 
     // Check if using saved method - only validate if payment methods exist
     if (paymentMethods.length > 0 && !useNewAccount && !selectedMethod) {
-      Alert.alert('Lỗi', 'Vui lòng chọn tài khoản ngân hàng');
-      return;
+      Alert.alert('Lỗi', 'Vui lòng chọn tài khoản ngân hàng')
+      return
     }
 
     // Check manual entry fields - only validate if using manual entry
     if (isManualEntry && (!bankInfo.accountNumber || !bankInfo.bankName || !bankInfo.accountHolderName)) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thông tin ngân hàng');
-      return;
+      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thông tin ngân hàng')
+      return
     }
 
     const bankDisplay = isManualEntry 
       ? `${bankInfo.bankName} - STK: ${bankInfo.accountNumber}`
-      : `${selectedMethod?.bankName} - STK: ${selectedMethod?.accountNumber}`;
+      : `${selectedMethod?.bankName} - STK: ${selectedMethod?.accountNumber}`
 
     Alert.alert(
       'Xác nhận rút tiền',
@@ -124,63 +124,42 @@ export default function WithdrawScreen({ navigation }: any) {
           text: 'Xác nhận',
           onPress: async () => {
             try {
-              setLoading(true);
+              setLoading(true)
               
-              // Always use the manual entry format expected by backend
-              const withdrawData = isManualEntry ? {
-                amount: withdrawAmount,
-                bankAccountNumber: bankInfo.accountNumber,
-                bankName: bankInfo.bankName,
-                accountHolderName: bankInfo.accountHolderName,
-              } : {
-                amount: withdrawAmount,
-                bankAccountNumber: selectedMethod!.accountNumber!,
-                bankName: selectedMethod!.bankName!,
-                accountHolderName: selectedMethod!.accountHolder!,
-              };
-
-              await walletService.withdraw(withdrawData);
-
-              // Save bank account to payment methods if using manual entry
-              let savedToPaymentMethods = false;
               if (isManualEntry) {
-                try {
-                  await paymentMethodService.createPaymentMethod({
-                    type: 'bank_account',
-                    name: bankInfo.bankName,
-                    bankName: bankInfo.bankName,
-                    accountNumber: bankInfo.accountNumber,
-                    accountHolder: bankInfo.accountHolderName,
-                    isDefault: paymentMethods.length === 0, // Set as default if first method
-                  });
-                  console.log('[WithdrawScreen] Bank account saved to payment methods');
-                  savedToPaymentMethods = true;
-                } catch (saveError: any) {
-                  console.error('[WithdrawScreen] Failed to save payment method:', saveError);
-                  // Don't block user, withdrawal already succeeded
-                }
+                // Use manual bank details
+                await walletService.withdrawManual(
+                  withdrawAmount,
+                  bankInfo.accountNumber,
+                  bankInfo.bankName,
+                  bankInfo.accountHolderName,
+                  `Rút tiền về ${bankInfo.bankName}`
+                )
+              } else {
+                // Use saved payment method
+                await walletService.withdraw(
+                  withdrawAmount,
+                  selectedMethod!._id,
+                  `Rút tiền về ${selectedMethod!.bankName}`
+                )
               }
 
-              const successMessage = savedToPaymentMethods 
-                ? 'Yêu cầu rút tiền đã được tạo.\nThông tin ngân hàng đã được lưu để sử dụng sau.\n\nTiền sẽ về tài khoản trong 1-2 ngày làm việc.'
-                : 'Yêu cầu rút tiền đã được tạo.\nTiền sẽ về tài khoản trong 1-2 ngày làm việc.';
-
-              Alert.alert('Thành công', successMessage, [
+              Alert.alert('Thành công', 'Yêu cầu rút tiền đã được tạo.\nTiền sẽ về tài khoản trong 1-2 ngày làm việc.', [
                 {
                   text: 'OK',
                   onPress: () => navigation.goBack(),
                 },
-              ]);
+              ])
             } catch (error: any) {
-              Alert.alert('Lỗi', error.message || 'Rút tiền thất bại');
+              Alert.alert('Lỗi', error.message || 'Rút tiền thất bại')
             } finally {
-              setLoading(false);
+              setLoading(false)
             }
           },
         },
       ]
-    );
-  };
+    )
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -188,7 +167,7 @@ export default function WithdrawScreen({ navigation }: any) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
+            <MaterialIcons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Rút tiền về ngân hàng</Text>
           <View style={{ width: 24 }} />
@@ -237,7 +216,7 @@ export default function WithdrawScreen({ navigation }: any) {
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Tài khoản ngân hàng</Text>
-              <TouchableOpacity onPress={() => Alert.alert('Thông báo', 'Tính năng quản lý tài khoản đang được phát triển')}>
+              <TouchableOpacity onPress={() => navigation.navigate('PaymentMethods')}>
                 <Text style={styles.manageLinkText}>Quản lý</Text>
               </TouchableOpacity>
             </View>
@@ -250,8 +229,8 @@ export default function WithdrawScreen({ navigation }: any) {
                   selectedMethod?._id === method._id && !useNewAccount && styles.paymentMethodCardSelected,
                 ]}
                 onPress={() => {
-                  setSelectedMethod(method);
-                  setUseNewAccount(false);
+                  setSelectedMethod(method)
+                  setUseNewAccount(false)
                 }}
                 disabled={useNewAccount}
               >
@@ -280,8 +259,8 @@ export default function WithdrawScreen({ navigation }: any) {
                 useNewAccount && styles.paymentMethodCardSelected,
               ]}
               onPress={() => {
-                setUseNewAccount(true);
-                setSelectedMethod(null);
+                setUseNewAccount(true)
+                setSelectedMethod(null)
               }}
             >
               <View style={styles.radioCircle}>
@@ -298,11 +277,11 @@ export default function WithdrawScreen({ navigation }: any) {
 
         {/* Bank Information (Manual Entry) */}
         {(useNewAccount || paymentMethods.length === 0) && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin ngân hàng</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thông tin ngân hàng</Text>
 
-          {/* Bank Name */}
-          <View style={styles.inputGroup}>
+            {/* Bank Name */}
+            <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Ngân hàng</Text>
             <TextInput
               style={styles.textInput}
@@ -361,7 +340,7 @@ export default function WithdrawScreen({ navigation }: any) {
               onChangeText={(text) => setBankInfo({ ...bankInfo, accountHolderName: text.toUpperCase() })}
             />
           </View>
-        </View>
+          </View>
         )}
 
         {/* Info Banner */}
@@ -381,27 +360,27 @@ export default function WithdrawScreen({ navigation }: any) {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color={COLORS.text} />
+            <ActivityIndicator color="#ffffff" />
           ) : (
             <>
-              <MaterialIcons name="send" size={20} color={COLORS.text} />
+              <MaterialIcons name="send" size={20} color="#ffffff" />
               <Text style={styles.confirmBtnText}>Xác nhận rút tiền</Text>
             </>
           )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: COLORS.background,
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: COLORS.background,
     paddingHorizontal: SPACING.lg,
   },
   header: {
@@ -411,19 +390,21 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
     marginBottom: SPACING.md,
     paddingTop: 45,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textPrimary,
   },
   balanceCard: {
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.xl,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.primary,
     alignItems: 'center',
   },
   balanceLabel: {
@@ -442,7 +423,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textPrimary,
     marginBottom: SPACING.md,
   },
   sectionHeaderRow: {
@@ -459,24 +440,24 @@ const styles = StyleSheet.create({
   paymentMethodCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: COLORS.border,
     gap: SPACING.md,
   },
   paymentMethodCardSelected: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: COLORS.primary + '10',
   },
   radioCircle: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: COLORS.lightBorder,
+    borderColor: COLORS.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -489,7 +470,7 @@ const styles = StyleSheet.create({
   paymentMethodName: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textPrimary,
     marginBottom: 2,
   },
   paymentMethodDetails: {
@@ -510,17 +491,17 @@ const styles = StyleSheet.create({
   amountInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: COLORS.primary,
     paddingHorizontal: SPACING.lg,
   },
   input: {
     flex: 1,
     fontSize: 24,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textPrimary,
     paddingVertical: SPACING.lg,
   },
   currency: {
@@ -557,18 +538,18 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
   },
   textInput: {
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: COLORS.border,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     fontSize: 14,
-    color: COLORS.text,
+    color: COLORS.textPrimary,
   },
   bankGrid: {
     flexDirection: 'row',
@@ -580,9 +561,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.sm,
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: COLORS.border,
   },
   bankChipActive: {
     backgroundColor: COLORS.primary + '20',
@@ -604,10 +585,12 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     marginBottom: SPACING.xl,
     gap: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   infoText: {
     fontSize: 12,
-    color: COLORS.text,
+    color: COLORS.textPrimary,
     lineHeight: 18,
   },
   confirmBtn: {
@@ -626,6 +609,6 @@ const styles = StyleSheet.create({
   confirmBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#ffffff',
   },
-});
+})

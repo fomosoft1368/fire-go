@@ -279,7 +279,7 @@ export default function EarningsScreen({ navigation }: any) {
                 <Text style={styles.actionButtonText}>Rút tiền</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.actionButton}>
+              <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('TransactionHistory')}>
                 <View style={styles.actionIconBox}>
                   <MaterialIcons name="history" size={20} color="#FF6B00" />
                 </View>
@@ -401,7 +401,7 @@ export default function EarningsScreen({ navigation }: any) {
         <View style={styles.transactionsSection}>
           <View style={styles.transactionHeader}>
             <Text style={styles.sectionTitle}>Giao dịch gần đây</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('TransactionHistory')}>
               <Text style={styles.seeAllLink}>Xem tất cả</Text>
             </TouchableOpacity>
           </View>

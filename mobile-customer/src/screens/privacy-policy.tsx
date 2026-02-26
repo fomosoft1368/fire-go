@@ -39,7 +39,7 @@ export default function PrivacyPolicyScreen() {
   )
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: '#10b981', borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>

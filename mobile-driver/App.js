@@ -29,7 +29,8 @@ import ChangePasswordScreen from './src/screens/ChangePasswordScreen'
 import ActiveRideScreen from './src/screens/ActiveRideScreen'
 import RideRequestsScreen from './src/screens/RideRequestsScreen'
 import TopupScreen from './src/screens/TopupScreen'
-import WithdrawalScreen from './src/screens/WithdrawalScreen'
+import WithdrawScreen from './src/screens/WithdrawScreen'
+import TransactionHistoryScreen from './src/screens/TransactionHistoryScreen'
 import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 import MapScreen from './src/screens/MapScreen'
 import CreateRideScreen from './src/screens/CreateRideScreen'
@@ -164,7 +165,12 @@ const HomeStackNavigator = () => {
       />
       <Stack.Screen
         name="Withdrawal"
-        component={WithdrawalScreen}
+        component={WithdrawScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="TransactionHistory"
+        component={TransactionHistoryScreen}
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
@@ -991,6 +997,53 @@ export default function App() {
       const fallbackRideId = assignmentRequest.rideId?._id || assignmentRequest.rideId
       const fallbackDeliveryId = assignmentRequest.deliveryId?._id || assignmentRequest.deliveryId
       
+      // 🔥 CRITICAL: Check trip status from backend BEFORE accepting
+      console.log('[App] 🔍 Checking trip status before accept...', {
+        type: requestType,
+        tripId,
+        rideId: fallbackRideId,
+        deliveryId: fallbackDeliveryId,
+      })
+
+      const statusCheck = await assignmentRequestPollingService.checkTripStatus(
+        requestType,
+        tripId,
+        fallbackRideId,
+        fallbackDeliveryId
+      )
+
+      console.log('[App] 🔍 Status check result:', statusCheck)
+
+      if (!statusCheck.valid) {
+        console.error('[App] ⛔ Cannot accept: Trip status invalid:', statusCheck)
+        
+        // 🔥 CRITICAL: Auto-reject the request to prevent it from showing again
+        console.log('[App] 🗑️ Auto-rejecting invalid request to prevent re-showing...')
+        try {
+          await assignmentRequestPollingService.rejectRequest(
+            assignmentRequest._id,
+            requestType,
+            tripId,
+            `Auto-rejected: ${statusCheck.message || 'Invalid status'}`
+          )
+          console.log('[App] ✅ Request auto-rejected successfully')
+        } catch (rejectError) {
+          console.error('[App] ⚠️ Failed to auto-reject, but continuing...', rejectError)
+        }
+        
+        Alert.alert(
+          'Không thể nhận cuốc',
+          statusCheck.message || 'Chuyến đi không khả dụng. Vui lòng thử lại.',
+          [{ text: 'Đóng' }]
+        )
+        setShowAssignmentModal(false)
+        setAssignmentRequest(null)
+        setCountdown(45)
+        return
+      }
+
+      console.log('[App] ✅ Status valid, proceeding to accept:', statusCheck.status)
+      
       console.log('[App] ✅ Accepting assignment request:', {
         requestId: assignmentRequest._id,
         type: requestType,
@@ -1046,6 +1099,24 @@ export default function App() {
     } catch (error) {
       console.error('[App] ❌ Error accepting assignment:', error)
       console.error('[App] ❌ Error message:', error?.message)
+      
+      // 🔥 CRITICAL: Auto-reject the request to prevent it from showing again
+      console.log('[App] 🗑️ Auto-rejecting failed request to prevent re-showing...')
+      try {
+        const requestType = assignmentRequest?.type || 'ride'
+        const tripId = assignmentRequest?.combinedTripId?._id || assignmentRequest?.combinedTripId
+        
+        await assignmentRequestPollingService.rejectRequest(
+          assignmentRequest._id,
+          requestType,
+          tripId,
+          `Auto-rejected: Accept failed - ${error?.message || 'Unknown error'}`
+        )
+        console.log('[App] ✅ Failed request auto-rejected successfully')
+      } catch (rejectError) {
+        console.error('[App] ⚠️ Failed to auto-reject after error, but continuing...', rejectError)
+      }
+      
       // ✅ Close modal anyway on error
       setShowAssignmentModal(false)
       setAssignmentRequest(null)

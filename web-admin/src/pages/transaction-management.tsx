@@ -28,11 +28,11 @@ export default function WalletManagement() {
       .filter(t => t.type === 'deposit' && t.status === 'pending')
       .reduce((sum, t) => sum + t.amount, 0),
     pendingWithdrawals: transactions
-      .filter(t => t.type === 'withdraw' && t.status === 'pending')
-      .reduce((sum, t) => sum + t.amount, 0),
+      .filter(t => (t.type === 'withdraw' || t.type === 'withdrawal') && t.status === 'pending')
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0),
     totalPending: transactions
       .filter(t => t.status === 'pending')
-      .reduce((sum, t) => sum + t.amount, 0),
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0),
   }
 
   useEffect(() => {
@@ -71,12 +71,25 @@ export default function WalletManagement() {
     
     // Apply search filter
     if (searchCode) {
-      filtered = filtered.filter(t =>
-        t.transactionCode.toLowerCase().includes(searchCode.toLowerCase()) ||
-        ((t as any).customerId?.firstName + ' ' + (t as any).customerId?.lastName)
-          .toLowerCase()
-          .includes(searchCode.toLowerCase())
-      )
+      filtered = filtered.filter(t => {
+        const matchesCode = t.transactionCode?.toLowerCase().includes(searchCode.toLowerCase())
+        
+        // Check customer name
+        const customer = (t as any).customerId
+        const customerName = customer && typeof customer === 'object'
+          ? `${customer.firstName} ${customer.lastName}`.toLowerCase()
+          : ''
+        
+        // Check driver name
+        const driver = (t as any).driverId
+        const driverName = driver && typeof driver === 'object'
+          ? `${driver.firstName} ${driver.lastName}`.toLowerCase()
+          : ''
+        
+        return matchesCode || 
+               customerName.includes(searchCode.toLowerCase()) ||
+               driverName.includes(searchCode.toLowerCase())
+      })
     }
     
     return filtered
@@ -98,7 +111,7 @@ export default function WalletManagement() {
           read: false,
           priority: 'normal',
         })
-      } else if (transaction.type === 'withdraw') {
+      } else if (transaction.type === 'withdraw' || transaction.type === 'withdrawal') {
         await walletService.approveWithdraw(transaction._id)
         addNotification({
           id: `success-${Date.now()}`,
@@ -178,7 +191,7 @@ export default function WalletManagement() {
           read: false,
           priority: 'normal',
         })
-      } else if (selectedTransaction.type === 'withdraw') {
+      } else if (selectedTransaction.type === 'withdraw' || selectedTransaction.type === 'withdrawal') {
         await walletService.rejectWithdraw(selectedTransaction._id, rejectReason)
         addNotification({
           id: `success-${Date.now()}`,
@@ -415,6 +428,7 @@ export default function WalletManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {(() => {
+                        // Check for customer first
                         const customer = (transaction as any).customerId
                         if (typeof customer === 'object' && customer !== null) {
                           return (
@@ -433,6 +447,28 @@ export default function WalletManagement() {
                             </div>
                           )
                         }
+                        
+                        // Check for driver
+                        const driver = (transaction as any).driverId
+                        if (typeof driver === 'object' && driver !== null) {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <img
+                                className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                                src={`https://i.pravatar.cc/150?u=${driver.email || driver._id}`}
+                                alt={driver.firstName}
+                              />
+                              <div>
+                                <div className="font-semibold text-slate-900 dark:text-white text-sm">
+                                  {driver.firstName} {driver.lastName}
+                                  <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Tài xế</span>
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{driver.email}</div>
+                              </div>
+                            </div>
+                          )
+                        }
+                        
                         return <span className="text-slate-500">-</span>
                       })()}
                     </td>
@@ -865,56 +901,110 @@ export default function WalletManagement() {
 
                
 
-              {/* Customer Info */}
-              <div className="bg-blue-50 rounded-lg p-4 space-y-3 border border-blue-200">
-                <div className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                  <span className="material-symbols-outlined">person</span>
-                  Thông tin khách hàng
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm font-semibold text-slate-700">Họ tên:</span>
-                  <span className="text-slate-900 font-medium">
-                    {(selectedTransaction as any).customerId?.firstName} {(selectedTransaction as any).customerId?.lastName}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm font-semibold text-slate-700">Email:</span>
-                  <span className="text-slate-900">{(selectedTransaction as any).customerId?.email}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm font-semibold text-slate-700">Điện thoại:</span>
-                  <span className="text-slate-900">{(selectedTransaction as any).customerId?.phone}</span>
-                </div>
-              </div>
+              {/* Customer/Driver Info */}
+              {(() => {
+                const customer = (selectedTransaction as any).customerId
+                const driver = (selectedTransaction as any).driverId
+                const user = customer || driver
+                const userType = customer ? 'khách hàng' : 'tài xế'
+                const userTypeBg = customer ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'
+                const userTypeText = customer ? 'text-blue-900' : 'text-purple-900'
+                
+                if (!user) return null
+                
+                return (
+                  <div className={`${userTypeBg} rounded-lg p-4 space-y-3 border`}>
+                    <div className={`font-semibold ${userTypeText} mb-3 flex items-center gap-2`}>
+                      <span className="material-symbols-outlined">
+                        {customer ? 'person' : 'local_taxi'}
+                      </span>
+                      Thông tin {userType}
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-semibold text-slate-700">Họ tên:</span>
+                      <span className="text-slate-900 font-medium">
+                        {user.firstName} {user.lastName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-semibold text-slate-700">Email:</span>
+                      <span className="text-slate-900">{user.email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm font-semibold text-slate-700">Điện thoại:</span>
+                      <span className="text-slate-900">{user.phone}</span>
+                    </div>
+                  </div>
+                )
+              })()}
 
               
 
               {/* Bank Info for Withdraw */}
-              {selectedTransaction.type === 'withdraw' && selectedTransaction.bankAccount && (
+              {(selectedTransaction.type === 'withdraw' || selectedTransaction.type === 'withdrawal') && (
                 <div className="bg-green-50 rounded-lg p-4 space-y-3 border border-green-200">
                   <div className="font-semibold text-green-900 mb-3 flex items-center gap-2">
                     <span className="material-symbols-outlined">account_balance</span>
                     Thông tin tài khoản rút tiền
                   </div>
                   <div className="bg-white rounded p-3 border border-green-200">
-                    {(selectedTransaction as any).bankAccount?.accountNumber && (
-                      <div className="flex justify-between mb-2">
-                        <span className="text-sm font-semibold text-slate-700">STK:</span>
-                        <span className="font-mono font-bold text-slate-900">{(selectedTransaction as any).bankAccount?.accountNumber}</span>
-                      </div>
-                    )}
-                    {(selectedTransaction as any).bankAccount?.accountHolder && (
-                      <div className="flex justify-between mb-2">
-                        <span className="text-sm font-semibold text-slate-700">Chủ TK:</span>
-                        <span className="text-slate-900 font-medium">{(selectedTransaction as any).bankAccount?.accountHolder}</span>
-                      </div>
-                    )}
-                    {(selectedTransaction as any).bankAccount?.bankName && (
-                      <div className="flex justify-between">
-                        <span className="text-sm font-semibold text-slate-700">Ngân hàng:</span>
-                        <span className="text-slate-900 font-medium">{(selectedTransaction as any).bankAccount?.bankName}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      // Check if bankAccount is populated (customer withdraw with saved payment method)
+                      const bankAccount = (selectedTransaction as any).bankAccount
+                      if (bankAccount && typeof bankAccount === 'object') {
+                        return (
+                          <>
+                            {bankAccount.accountNumber && (
+                              <div className="flex justify-between mb-2">
+                                <span className="text-sm font-semibold text-slate-700">STK:</span>
+                                <span className="font-mono font-bold text-slate-900">{bankAccount.accountNumber}</span>
+                              </div>
+                            )}
+                            {bankAccount.accountHolder && (
+                              <div className="flex justify-between mb-2">
+                                <span className="text-sm font-semibold text-slate-700">Chủ TK:</span>
+                                <span className="text-slate-900 font-medium">{bankAccount.accountHolder}</span>
+                              </div>
+                            )}
+                            {bankAccount.bankName && (
+                              <div className="flex justify-between">
+                                <span className="text-sm font-semibold text-slate-700">Ngân hàng:</span>
+                                <span className="text-slate-900 font-medium">{bankAccount.bankName}</span>
+                              </div>
+                            )}
+                          </>
+                        )
+                      }
+                      
+                      // Otherwise check for direct bank fields (manual entry or driver withdrawal)
+                      const tx = selectedTransaction as any
+                      if (tx.bankAccountNumber || tx.bankName || tx.accountHolderName) {
+                        return (
+                          <>
+                            {tx.bankAccountNumber && (
+                              <div className="flex justify-between mb-2">
+                                <span className="text-sm font-semibold text-slate-700">STK:</span>
+                                <span className="font-mono font-bold text-slate-900">{tx.bankAccountNumber}</span>
+                              </div>
+                            )}
+                            {tx.accountHolderName && (
+                              <div className="flex justify-between mb-2">
+                                <span className="text-sm font-semibold text-slate-700">Chủ TK:</span>
+                                <span className="text-slate-900 font-medium">{tx.accountHolderName}</span>
+                              </div>
+                            )}
+                            {tx.bankName && (
+                              <div className="flex justify-between">
+                                <span className="text-sm font-semibold text-slate-700">Ngân hàng:</span>
+                                <span className="text-slate-900 font-medium">{tx.bankName}</span>
+                              </div>
+                            )}
+                          </>
+                        )
+                      }
+                      
+                      return <p className="text-slate-500 text-sm">Không có thông tin ngân hàng</p>
+                    })()}
                   </div>
                 </div>
               )}

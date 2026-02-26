@@ -162,6 +162,9 @@ export class WalletService {
     const balanceBefore = driver.walletBalance;
     const balanceAfter = balanceBefore - amount;
 
+    // Generate transaction code
+    const transactionCode = `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
     // Create withdrawal transaction
     const transaction = new this.transactionModel({
       userType: UserType.DRIVER,
@@ -172,6 +175,7 @@ export class WalletService {
       balanceAfter,
       status: TransactionStatus.PENDING,
       paymentMethod: PaymentMethod.BANK_TRANSFER,
+      transactionCode,
       bankAccountNumber,
       bankName,
       accountHolderName,
@@ -282,6 +286,24 @@ export class WalletService {
       .lean();
 
     return transactions;
+  }
+
+  /**
+   * Get transaction status by transactionId
+   */
+  async getTransactionStatus(transactionId: string) {
+    const transaction = await this.transactionModel
+      .findById(transactionId)
+      .select('status')
+      .lean();
+
+    if (!transaction) {
+      throw new NotFoundException('Giao dịch không tồn tại');
+    }
+
+    return {
+      status: transaction.status,
+    };
   }
 
   /**

@@ -188,6 +188,82 @@ class AssignmentRequestPollingService {
   }
 
   /**
+   * Check trip status before accepting (prevent race conditions)
+   * Returns status of combinedTrip/delivery/ride
+   */
+  async checkTripStatus(
+    type: 'ride' | 'delivery' | 'rideshare',
+    tripId?: string,
+    rideId?: string,
+    deliveryId?: string
+  ): Promise<{ status: string; valid: boolean; message?: string }> {
+    const token = await AsyncStorage.getItem('token')
+    if (!token) {
+      throw new Error('No authentication token')
+    }
+
+    try {
+      let endpoint: string
+      let idToCheck: string | undefined
+
+      if (type === 'rideshare' && tripId) {
+        endpoint = `${API_URL}/combined-trips/${tripId}`
+        idToCheck = tripId
+      } else if (type === 'delivery' && deliveryId) {
+        endpoint = `${API_URL}/deliveries/${deliveryId}`
+        idToCheck = deliveryId
+      } else if (type === 'ride' && rideId) {
+        endpoint = `${API_URL}/rides/${rideId}`
+        idToCheck = rideId
+      } else {
+        return { status: 'unknown', valid: false, message: 'Missing ID for status check' }
+      }
+
+      console.log(`[AssignmentPolling] 🔍 Checking ${type} status:`, { idToCheck, endpoint })
+
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        console.error(`[AssignmentPolling] ❌ Status check failed (${response.status})`)
+        return { status: 'error', valid: false, message: `HTTP ${response.status}` }
+      }
+
+      const data = await response.json()
+      const status = data.status || 'unknown'
+
+      console.log(`[AssignmentPolling] ✅ ${type} status:`, status)
+
+      // 🔥 Validate status - only 'pending' or 'searching' are acceptable
+      const validStatuses = ['pending', 'searching', 'finding_driver']
+      const isValid = validStatuses.includes(status)
+
+      if (!isValid) {
+        let message = 'Chuyến đi không khả dụng'
+        if (status === 'cancelled' || status === 'canceled') {
+          message = 'Chuyến đã bị hủy bởi khách hàng'
+        } else if (status === 'assigned' || status === 'in_progress' || status === 'accepted') {
+          message = 'Chuyến đã được tài xế khác nhận'
+        } else if (status === 'completed') {
+          message = 'Chuyến đã hoàn thành'
+        }
+        console.warn(`[AssignmentPolling] ⚠️ Invalid status for acceptance:`, { status, message })
+        return { status, valid: false, message }
+      }
+
+      return { status, valid: true }
+    } catch (error) {
+      console.error(`[AssignmentPolling] ❌ Error checking ${type} status:`, error)
+      return { status: 'error', valid: false, message: error.message }
+    }
+  }
+
+  /**
    * Accept an assignment request
    */
   async acceptRequest(requestId: string, type: 'ride' | 'delivery' | 'rideshare' = 'ride', tripId?: string): Promise<any> {
