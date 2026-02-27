@@ -576,7 +576,7 @@ export default function TopupScreen({ navigation }: any) {
                   </View>
 
                   {/* Done Button */}
-                  <TouchableOpacity
+                  {/* <TouchableOpacity
                     style={styles.doneButton}
                     onPress={() => {
                       setShowSepayModal(false)
@@ -584,7 +584,7 @@ export default function TopupScreen({ navigation }: any) {
                     }}
                   >
                     <Text style={styles.doneButtonText}>Đã chuyển khoản</Text>
-                  </TouchableOpacity>
+                  </TouchableOpacity> */}
 
                   <View style={{ height: 40 }} />
                 </>
