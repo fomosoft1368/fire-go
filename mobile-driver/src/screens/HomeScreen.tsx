@@ -454,6 +454,21 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.deliveryButton}
+          onPress={() => navigation.navigate('HourlyRequests')}
+        >
+          <View style={styles.deliveryButtonContent}>
+            <View style={styles.deliveryIconBox}>
+              <MaterialIcons name="assignment" size={28} color="#FF6B00" />
+            </View>
+            <View style={styles.deliveryInfo}>
+              <Text style={styles.deliveryTitle}>Nhiệm vụ</Text>
+              <Text style={styles.deliverySubtitle}>Xem đơn nhiệm vụ gần bạn</Text>
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={20} color="#666" />
+          </View>
+        </TouchableOpacity>
         {/* Rides List */}
         <View style={styles.ridesSection}>
           <View style={styles.sectionTitleContainer}>

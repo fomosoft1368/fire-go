@@ -317,6 +317,42 @@ export default function Layout({ children }: LayoutProps) {
             <span className="font-semibold whitespace-nowrap">{t('sidebar.reportsAnalytics', 'Reports & Analytics')}</span>
           </button>
 
+          <button
+            onClick={() => navigate('/hourly-service-workers')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/hourly-service-workers')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/hourly-service-workers') ? 'filled' : ''}`}>home_repair_service</span>
+            <span className="font-semibold whitespace-nowrap">Nhân viên Vệ sinh</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/hourly-services')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/hourly-services')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/hourly-services') ? 'filled' : ''}`}>cleaning_services</span>
+            <span className="font-semibold whitespace-nowrap">Dịch vụ Vệ sinh</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/addon-services')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/addon-services')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/addon-services') ? 'filled' : ''}`}>add_circle</span>
+            <span className="font-semibold whitespace-nowrap">Dịch vụ Bổ sung</span>
+          </button>
+
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 mt-4">
             <button
               onClick={() => navigate('/settings')}

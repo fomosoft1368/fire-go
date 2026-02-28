@@ -27,4 +27,8 @@ export { default as CancelTripScreen } from './CancelTripScreen'
 export { default as PrivacyPolicyScreen } from './privacy-policy'
 export { default as TermsOfServiceScreen } from './terms-of-service'
 export { default as SupportScreen } from './support'
+export { default as HourlyService } from './HourlyService'
+export { default as FindingServiceScreen } from './FindingServiceScreen'
+export { default as ServiceDetailScreen } from './ServiceDetailScreen'
+export { default as ServiceRatingScreen } from './ServiceRatingScreen'
 

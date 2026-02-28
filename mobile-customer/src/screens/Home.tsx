@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Image,
-    SafeAreaView,
     TextInput,
 } from 'react-native';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -46,25 +44,25 @@ const Home = () => {
     // Get user's display name
     const getDisplayName = () => {
         if (!user) return 'Khách hàng';
-        
+
         // Display full name (firstName + lastName)
         if (user.firstName && user.lastName) {
             return `${user.firstName} ${user.lastName}`;
         }
-        
+
         if (user.firstName) {
             return user.firstName;
         }
-        
+
         if (user.lastName) {
             return user.lastName;
         }
-        
+
         // Fallback to email username
         if (user.email) {
             return user.email.split('@')[0];
         }
-        
+
         return 'Khách hàng';
     }
     return (
@@ -152,7 +150,7 @@ const Home = () => {
                         {/* Đặt xe */}
                         <TouchableOpacity
                             style={styles.serviceCard}
-                            onPress={() => navigation.navigate('BookRide')}
+                            onPress={() => navigation.navigate('Delivery')}
                             activeOpacity={0.7}
                         >
                             <View style={[styles.serviceIcon, { backgroundColor: '#FFF3E0' }]}>
@@ -165,7 +163,7 @@ const Home = () => {
                         {/* Lái xe hộ */}
                         <TouchableOpacity
                             style={styles.serviceCard}
-                            onPress={() => navigation.navigate('HireDriver')}
+                            onPress={() => navigation.navigate('Delivery')}
                             activeOpacity={0.7}
                         >
                             <View style={[styles.serviceIcon, { backgroundColor: '#FFE0CC' }]}>
@@ -193,6 +191,19 @@ const Home = () => {
                             <Text style={styles.serviceText}>Vận chuyển</Text>
                             <Text style={styles.serviceDesc}>Nhanh chóng</Text>
                         </TouchableOpacity>
+
+                        {/* Thêm dịch vụ mới nếu cần */}
+                        <TouchableOpacity 
+                            style={styles.serviceCard} 
+                            onPress={() => navigation.navigate('HourlyService')}
+                            activeOpacity={0.7} 
+                            >
+                            <View style={[styles.serviceIcon, { backgroundColor: '#FFEDD5' }]}>
+                                <Ionicons name="time" size={32} color="#EA580C" />
+                            </View>
+                            <Text style={styles.serviceText}>Dịch vụ theo yêu cầu</Text>
+                            <Text style={styles.serviceDesc}>Khám phá thêm</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -216,25 +227,23 @@ const Home = () => {
                         </View>
                     ) : (
                         recentLocations.map((location, index) => (
-                            <TouchableOpacity 
-                                key={index} 
-                                style={styles.locationCard} 
+                            <TouchableOpacity
+                                key={index}
+                                style={styles.locationCard}
                                 activeOpacity={0.7}
                                 onPress={() => {
-                                    // Navigate to BookRide with this location
-                                    navigation.navigate('BookRide', { 
-                                        selectedLocation: location 
-                                    })
+                                    // Navigate to Delivery with this location
+                                    navigation.navigate('Delivery')
                                 }}
                             >
                                 <View style={[
-                                    styles.locationIcon, 
+                                    styles.locationIcon,
                                     { backgroundColor: location.iconBg || '#FFEDD5' }
                                 ]}>
-                                    <Ionicons 
-                                        name={location.icon || 'location'} 
-                                        size={22} 
-                                        color={location.iconColor || '#EA580C'} 
+                                    <Ionicons
+                                        name={location.icon || 'location'}
+                                        size={22}
+                                        color={location.iconColor || '#EA580C'}
                                     />
                                 </View>
                                 <View style={styles.locationInfo}>
@@ -258,10 +267,11 @@ const Home = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8F9FA',
+        backgroundColor: '#F5F7FA',
     },
     scrollView: {
         flex: 1,
+        backgroundColor: '#F5F7FA',
     },
     header: {
         flexDirection: 'row',
@@ -269,10 +279,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 16,
-        backgroundColor: '#FFF',
+        backgroundColor: '#FFFFFF',
         paddingTop: 48,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
+        borderBottomWidth: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
     },
     headerLeft: {
         flexDirection: 'row',
@@ -281,7 +295,7 @@ const styles = StyleSheet.create({
     },
     avatarContainer: {
         position: 'relative',
-        marginRight: 14,
+        marginRight: 16,
     },
     avatar: {
         width: 52,
@@ -291,10 +305,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#FF6B35',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-        elevation: 6,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        elevation: 8,
         borderWidth: 3,
         borderColor: '#FFF',
     },
@@ -317,18 +331,20 @@ const styles = StyleSheet.create({
     userInfoContainer: {
         flex: 1,
         justifyContent: 'center',
+        marginLeft: 4,
     },
     greeting: {
         fontSize: 13,
-        color: '#6B7280',
-        fontWeight: '500',
+        color: '#9CA3AF',
+        fontWeight: '600',
         marginBottom: 2,
+        letterSpacing: -0.2,
     },
     userName: {
-        fontSize: 18,
-        fontWeight: '700',
+        fontSize: 20,
+        fontWeight: '800',
         color: '#111827',
-        letterSpacing: -0.3,
+        letterSpacing: -0.4,
     },
     notificationButton: {
         padding: 4,
@@ -338,9 +354,14 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#F9FAFB',
+        backgroundColor: '#F5F7FA',
         alignItems: 'center',
         justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        elevation: 2,
     },
     notificationDot: {
         position: 'absolute',
@@ -356,41 +377,41 @@ const styles = StyleSheet.create({
     searchContainer: {
         paddingHorizontal: 16,
         paddingVertical: 12,
-        backgroundColor: '#F8F9FA',
+        backgroundColor: '#F5F7FA',
     },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFF',
+        backgroundColor: '#FFFFFF',
         paddingHorizontal: 16,
         paddingVertical: 14,
         borderRadius: 16,
-        borderWidth: 1.5,
-        borderColor: '#E5E7EB',
+        borderWidth: 0,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 3,
     },
     searchIcon: {
         marginRight: 12,
     },
     searchInput: {
         flex: 1,
-        fontSize: 15,
+        fontSize: 16,
         color: '#111827',
-        fontWeight: '500',
+        fontWeight: '600',
         paddingVertical: 0,
+        letterSpacing: -0.2,
     },
     bannerContainer: {
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: '#F8F9FA',
+        paddingVertical: 16,
+        backgroundColor: '#F5F7FA',
     },
     banner: {
         flexDirection: 'row',
-        backgroundColor: '#FF6B35',
+        backgroundColor: '#FF7046',
         borderRadius: 20,
         overflow: 'hidden',
         padding: 20,
@@ -409,19 +430,19 @@ const styles = StyleSheet.create({
     bannerBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.25)',
+        backgroundColor: 'rgba(255,255,255,0.3)',
         alignSelf: 'flex-start',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
         borderRadius: 20,
-        marginBottom: 12,
-        gap: 4,
+        marginBottom: 16,
+        gap: 6,
     },
     bannerBadgeText: {
-        fontSize: 11,
-        fontWeight: '800',
+        fontSize: 12,
+        fontWeight: '900',
         color: '#FFF',
-        letterSpacing: 0.5,
+        letterSpacing: 0.8,
     },
     bannerIconContainer: {
         position: 'absolute',
@@ -431,29 +452,30 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     bannerTitle: {
-        fontSize: 22,
-        fontWeight: '800',
+        fontSize: 26,
+        fontWeight: '900',
         color: '#FFF',
-        marginBottom: 8,
-        letterSpacing: -0.5,
-        lineHeight: 28,
+        marginBottom: 12,
+        letterSpacing: -0.6,
+        lineHeight: 32,
     },
     bannerSubtitle: {
-        fontSize: 14,
+        fontSize: 15,
         color: '#FFE0D6',
-        marginBottom: 12,
-        fontWeight: '500',
+        marginBottom: 16,
+        fontWeight: '600',
     },
     ratingContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 6,
     },
     ratingText: {
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: 15,
+        fontWeight: '800',
         color: '#FFF',
-        marginLeft: 4,
+        marginLeft: 6,
+        letterSpacing: -0.2,
     },
     bannerImage: {
         width: 120,
@@ -461,82 +483,91 @@ const styles = StyleSheet.create({
     },
     section: {
         marginTop: 8,
-        backgroundColor: '#FFF',
-        padding: 20,
+        backgroundColor: '#FFFFFF',
+        padding: 24,
         borderRadius: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
+        elevation: 1,
     },
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 24,
     },
     sectionTitle: {
-        fontSize: 20,
-        fontWeight: '700',
+        fontSize: 22,
+        fontWeight: '800',
         color: '#111827',
-        letterSpacing: -0.3,
+        letterSpacing: -0.5,
     },
     sectionSubtitle: {
-        fontSize: 13,
-        color: '#9CA3AF',
-        marginTop: 2,
-        fontWeight: '500',
+        fontSize: 14,
+        color: '#6B7280',
+        marginTop: 4,
+        fontWeight: '600',
     },
     seeAllButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 6,
     },
     seeAllText: {
-        fontSize: 14,
+        fontSize: 15,
         color: '#FF6B35',
-        fontWeight: '600',
+        fontWeight: '700',
+        letterSpacing: -0.2,
     },
     servicesGrid: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         gap: 12,
+        flexWrap: 'wrap',
     },
     serviceCard: {
         flex: 1,
+        minWidth: '48%',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
-        padding: 16,
-        borderRadius: 20,
-        borderWidth: 1.5,
-        borderColor: '#E5E7EB',
+        backgroundColor: '#FFFFFF',
+        padding: 20,
+        borderRadius: 24,
+        borderWidth: 0,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+        elevation: 6,
     },
     serviceIcon: {
-        width: 72,
-        height: 72,
-        borderRadius: 20,
+        width: 80,
+        height: 80,
+        borderRadius: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 5,
     },
     serviceText: {
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: 16,
+        fontWeight: '800',
         color: '#111827',
         textAlign: 'center',
-        marginBottom: 4,
+        marginBottom: 8,
+        letterSpacing: -0.3,
     },
     serviceDesc: {
-        fontSize: 11,
+        fontSize: 13,
         color: '#6B7280',
         textAlign: 'center',
-        fontWeight: '500',
+        fontWeight: '600',
+        letterSpacing: -0.2,
     },
     badgeContainer: {
         position: 'absolute',
@@ -548,31 +579,35 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#EF4444',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
         borderRadius: 16,
-        gap: 3,
+        gap: 4,
         shadowColor: '#EF4444',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.4,
-        shadowRadius: 4,
-        elevation: 4,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.5,
+        shadowRadius: 8,
+        elevation: 6,
     },
     discountText: {
         color: '#FFF',
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 0.3,
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 0.5,
     },
     locationCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F9FAFB',
-        padding: 14,
+        backgroundColor: '#FFFFFF',
+        padding: 16,
         borderRadius: 16,
         marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderWidth: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 3,
     },
     locationIcon: {
         width: 48,
@@ -581,29 +616,39 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        elevation: 2,
     },
     locationArrow: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#F3F4F6',
+        backgroundColor: '#F5F7FA',
         alignItems: 'center',
         justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 1,
     },
     locationInfo: {
         flex: 1,
     },
     locationName: {
-        fontSize: 16,
-        fontWeight: '700',
+        fontSize: 17,
+        fontWeight: '800',
         color: '#111827',
-        marginBottom: 4,
-        letterSpacing: -0.2,
+        marginBottom: 6,
+        letterSpacing: -0.3,
     },
     locationAddress: {
         fontSize: 13,
         color: '#6B7280',
-        fontWeight: '500',
+        fontWeight: '600',
         lineHeight: 18,
     },
     emptyState: {
@@ -613,17 +658,19 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
     },
     emptyStateText: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 17,
+        fontWeight: '800',
         color: '#6B7280',
         marginTop: 16,
         textAlign: 'center',
+        letterSpacing: -0.3,
     },
     emptyStateSubtext: {
         fontSize: 14,
         color: '#9CA3AF',
         marginTop: 6,
         textAlign: 'center',
+        fontWeight: '600',
     },
 });
 

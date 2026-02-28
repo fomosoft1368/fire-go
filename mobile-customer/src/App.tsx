@@ -9,7 +9,7 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen } from './screens'
+import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen, HourlyService, FindingServiceScreen, ServiceDetailScreen, ServiceRatingScreen } from './screens'
 import { View, Text } from 'react-native'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
@@ -223,6 +223,10 @@ const RootNavigator = () => {
             <Stack.Screen name="CancelTripScreen" component={CancelTripScreen} />
             <Stack.Screen name="RatingDriver" component={RatingDriverScreen} />
             <Stack.Screen name="Delivery" component={Delivery} />
+            <Stack.Screen name="HourlyService" component={HourlyService} />
+            <Stack.Screen name="FindingService" component={FindingServiceScreen} />
+            <Stack.Screen name="ServiceDetail" component={ServiceDetailScreen} />
+            <Stack.Screen name="ServiceRating" component={ServiceRatingScreen} />
             <Stack.Screen name="RideDetailRequest" component={RideDetailRequestScreen} />
             <Stack.Screen name="FindingRideScreen" component={FindingRideScreen} />
             <Stack.Screen name="FullscreenMap" component={FullscreenMapScreen} />

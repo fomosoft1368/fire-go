@@ -1,0 +1,266 @@
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common'
+import { InjectModel } from '@nestjs/mongoose'
+import { Model } from 'mongoose'
+import { HourlyService, HourlyServiceDocument } from '../schemas/hourly-service.schema'
+import {
+  CreateHourlyServiceDto,
+  UpdateHourlyServiceDto,
+  RateHourlyServiceDto,
+  GetPricingDto,
+} from '../dto/create-hourly-service.dto'
+
+@Injectable()
+export class HourlyServiceService {
+  constructor(
+    @InjectModel(HourlyService.name)
+    private hourlyServiceModel: Model<HourlyServiceDocument>,
+  ) {}
+
+  /**
+   * Create a new hourly service
+   */
+  async create(createDto: CreateHourlyServiceDto): Promise<HourlyService> {
+    try {
+      // Validate required fields
+      if (!createDto.customerId || !createDto.address || !createDto.hours) {
+        throw new BadRequestException('Missing required fields: customerId, address, hours')
+      }
+
+      const newService = new this.hourlyServiceModel({
+        customerId: createDto.customerId,
+        hours: createDto.hours,
+        selectedDate: createDto.selectedDate,
+        selectedTime: createDto.selectedTime,
+        address: createDto.address,
+        notes: createDto.notes || '',
+        services: createDto.services || [],
+        estimatedPrice: createDto.estimatedPrice,
+        month: new Date().getMonth(),
+        year: new Date().getFullYear(),
+        status: 'pending',
+      })
+
+      const savedService = await newService.save()
+      console.log('[HourlyServiceService] Service created:', savedService._id)
+
+      return savedService
+    } catch (error) {
+      console.error('[HourlyServiceService] Error creating service:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get all services for a customer
+   */
+  async findByCustomerId(customerId: string): Promise<HourlyService[]> {
+    try {
+      const services = await this.hourlyServiceModel
+        .find({ customerId })
+        .sort({ createdAt: -1 })
+        .populate('customerId', 'name email phone')
+        .populate('workerId', 'name email phone')
+        .exec()
+
+      return services
+    } catch (error) {
+      console.error('[HourlyServiceService] Error finding services:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get service detail by ID
+   */
+  async findById(id: string): Promise<HourlyService> {
+    try {
+      const service = await this.hourlyServiceModel
+        .findById(id)
+        .populate('customerId', 'name email phone')
+        .populate('workerId', 'name email phone')
+        .exec()
+
+      if (!service) {
+        throw new NotFoundException('Service not found')
+      }
+
+      return service
+    } catch (error) {
+      console.error('[HourlyServiceService] Error finding service:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get all pending services
+   */
+  async findPending(limit: number = 20, skip: number = 0): Promise<HourlyService[]> {
+    try {
+      const services = await this.hourlyServiceModel
+        .find({ status: 'pending' })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(skip)
+        .populate('customerId', 'name email phone')
+        .exec()
+
+      return services
+    } catch (error) {
+      console.error('[HourlyServiceService] Error finding pending services:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update service
+   */
+  async update(id: string, updateDto: UpdateHourlyServiceDto): Promise<HourlyService> {
+    try {
+      const service = await this.hourlyServiceModel
+        .findByIdAndUpdate(id, updateDto, { new: true })
+        .populate('customerId', 'name email phone')
+        .populate('workerId', 'name email phone')
+        .exec()
+
+      if (!service) {
+        throw new NotFoundException('Service not found')
+      }
+
+      return service
+    } catch (error) {
+      console.error('[HourlyServiceService] Error updating service:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Cancel service
+   */
+  async cancel(id: string, cancelReason: string): Promise<HourlyService> {
+    try {
+      const service = await this.hourlyServiceModel
+        .findByIdAndUpdate(
+          id,
+          {
+            status: 'cancelled',
+            cancelReason,
+            cancelledTime: new Date(),
+          },
+          { new: true },
+        )
+        .exec()
+
+      if (!service) {
+        throw new NotFoundException('Service not found')
+      }
+
+      return service
+    } catch (error) {
+      console.error('[HourlyServiceService] Error cancelling service:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Rate service
+   */
+  async rate(id: string, rateDto: RateHourlyServiceDto): Promise<HourlyService> {
+    try {
+      const service = await this.hourlyServiceModel
+        .findByIdAndUpdate(
+          id,
+          {
+            rating: rateDto.rating,
+            comment: rateDto.comment,
+            feedback: rateDto.feedback,
+          },
+          { new: true },
+        )
+        .exec()
+
+      if (!service) {
+        throw new NotFoundException('Service not found')
+      }
+
+      return service
+    } catch (error) {
+      console.error('[HourlyServiceService] Error rating service:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get pricing
+   */
+  async getPricing(pricingDto: GetPricingDto): Promise<{ basePrice: number; addOnPrice: number; totalPrice: number }> {
+    try {
+      // Base price: 250,000đ per hour
+      const basePrice = pricingDto.hours * 250000
+
+      // Calculate add-on prices if provided
+      let addOnPrice = 0
+      if (pricingDto.addOns && pricingDto.addOns.length > 0) {
+        // Example pricing for add-ons
+        const addOnPrices: { [key: string]: number } = {
+          'sofa': 250000,
+          'curtains': 150000,
+          'kitchen': 100000,
+        }
+
+        addOnPrice = pricingDto.addOns.reduce((sum, addOn) => {
+          return sum + (addOnPrices[addOn] || 0)
+        }, 0)
+      }
+
+      const totalPrice = basePrice + addOnPrice
+
+      return {
+        basePrice,
+        addOnPrice,
+        totalPrice,
+      }
+    } catch (error) {
+      console.error('[HourlyServiceService] Error calculating pricing:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get statistics
+   */
+  async getStatistics(): Promise<{
+    totalServices: number
+    pendingServices: number
+    completedServices: number
+    cancelledServices: number
+    totalRevenue: number
+  }> {
+    try {
+      const [totalServices, pendingServices, completedServices, cancelledServices] = await Promise.all([
+        this.hourlyServiceModel.countDocuments(),
+        this.hourlyServiceModel.countDocuments({ status: 'pending' }),
+        this.hourlyServiceModel.countDocuments({ status: 'completed' }),
+        this.hourlyServiceModel.countDocuments({ status: 'cancelled' }),
+      ])
+
+      const completedServicesData = await this.hourlyServiceModel
+        .find({ status: 'completed' })
+        .exec()
+
+      const totalRevenue = completedServicesData.reduce((sum, service) => {
+        return sum + (service.actualPrice || service.estimatedPrice)
+      }, 0)
+
+      return {
+        totalServices,
+        pendingServices,
+        completedServices,
+        cancelledServices,
+        totalRevenue,
+      }
+    } catch (error) {
+      console.error('[HourlyServiceService] Error getting statistics:', error)
+      throw error
+    }
+  }
+}

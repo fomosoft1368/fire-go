@@ -16,6 +16,8 @@ import { PlacesModule } from './modules/places/places.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { PricingModule } from './modules/pricing/pricing.module';
+import { HourlyServicesModule } from './modules/hourly-services/hourly-services.module';
+import { AddonServicesModule } from './modules/addon-services/addon-services.module';
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { PricingModule } from './modules/pricing/pricing.module';
     PaymentModule,
     DeliveryModule,
     PricingModule,
+    HourlyServicesModule,
+    AddonServicesModule,
   ],
   controllers: [],
   providers: [],

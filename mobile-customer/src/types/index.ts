@@ -164,6 +164,15 @@ export type RootStackParamList = {
     deliveryId?: string
     combinedTripId?: string
   }
+  HourlyService: undefined
+  FindingService: {
+    serviceId: string
+    serviceType: 'hourly' | 'delivery' | 'ride'
+  }
+  ServiceDetail: {
+    serviceId: string
+    serviceType: 'hourly' | 'delivery' | 'ride'
+  }
   CancelTrip: {
     tripId: string
     tripType: 'ride' | 'delivery' | 'combined_trip'

@@ -21,6 +21,9 @@ import WalletManagement from './pages/transaction-management'
 import WalletTransactions from './pages/WalletTransactions'
 import NotificationsManagement from './pages/NotificationsManagement'
 import PricingConfig from './pages/pricing-config'
+import HourlyWorkers from './pages/hourly-workers'
+import HourlyServices from './pages/hourly-services'
+import AddonServices from './pages/addon-services'
 import './App.css'
 
 function App() {
@@ -89,6 +92,9 @@ function App() {
               <Route path="/transactions" element={<WalletManagement />} />
               <Route path="/wallet-transactions" element={<WalletTransactions />} />
               <Route path="/pricing-config" element={<PricingConfig />} />
+              <Route path="/hourly-service-workers" element={<HourlyWorkers />} />
+              <Route path="/hourly-services" element={<HourlyServices />} />
+              <Route path="/addon-services" element={<AddonServices />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Router>
