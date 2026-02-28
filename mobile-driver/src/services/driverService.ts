@@ -27,15 +27,28 @@ interface LocationData {
   accuracy?: number;
 }
 
-interface EarningsData {
-  driverId: string;
-  date: string;
-  totalEarnings: number;
+export interface EarningsData {
+  amount: number;
+  increase: number;
   totalTrips: number;
-  breakdown: {
-    cash: number;
-    online: number;
-    tips: number;
+  driverShare?: number;
+  breakdown?: {
+    rides: {
+      trips: number;
+      totalFare: number;
+      driverEarnings: number;
+    };
+    combinedTrips: {
+      trips: number;
+      requests: number;
+      totalFare: number;
+      driverEarnings: number;
+    };
+    deliveries: {
+      deliveries: number;
+      totalFare: number;
+      driverEarnings: number;
+    };
   };
 }
 
@@ -97,6 +110,11 @@ export class DriverService {
   async getProfile(): Promise<any> {
     try {
       const response = await this.api.get('/me');
+      console.log('[DriverService.getProfile] Response data:', {
+        walletBalance: response.data?.walletBalance,
+        licenseStatus: response.data?.licenseStatus,
+        fullData: response.data,
+      });
       return response.data;
     } catch (error) {
       console.error('Error fetching driver profile:', error);
@@ -797,6 +815,81 @@ export class DriverService {
       return response.data;
     } catch (error: any) {
       console.error('[DriverService] ❌ Error rejecting combined trip request:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get withdrawal history
+   */
+  async getWithdrawalHistory(page: number = 1, limit: number = 20): Promise<any> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.get(
+        `${this.baseURL}/wallets/history?page=${page}&limit=${limit}&type=WITHDRAW`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log('[DriverService] ✅ Withdrawal history fetched:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error fetching withdrawal history:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Request withdrawal
+   */
+  async requestWithdrawal(amount: number, bankAccount: string, description?: string): Promise<any> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('[DriverService] Requesting withdrawal:', { amount, bankAccount, description });
+      
+      const response = await axios.post(
+        `${this.baseURL}/wallets/withdraw`,
+        {
+          amount,
+          bankAccount,
+          description: description || 'Rút tiền từ ví',
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log('[DriverService] ✅ Withdrawal request created:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error requesting withdrawal:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get wallet balance
+   */
+  async getWalletBalance(): Promise<any> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.get(
+        `${this.baseURL}/wallets/balance`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log('[DriverService] ✅ Wallet balance:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error fetching wallet balance:', error.message);
       throw error;
     }
   }

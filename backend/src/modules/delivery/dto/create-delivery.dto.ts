@@ -57,6 +57,14 @@ export class CreateDeliveryDto {
   duration?: string;
 
   @IsOptional()
+  @IsNumber()
+  distanceKm?: number;
+
+  @IsOptional()
+  @IsNumber()
+  durationMinutes?: number;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 

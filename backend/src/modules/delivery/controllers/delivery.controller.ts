@@ -10,6 +10,8 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { DeliveryService } from '../services/delivery.service';
 import { DeliveryAutoAssignService } from '../services/delivery-auto-assign.service';
 import { CreateDeliveryDto } from '../dto/create-delivery.dto';
@@ -17,13 +19,15 @@ import { UpdateDeliveryDto } from '../dto/update-delivery.dto';
 import { RateDeliveryDto } from '../dto/rate-delivery.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { DeliveryStatus } from '../schemas/delivery.schema';
+import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { Types } from 'mongoose';
 
-@Controller('api/deliveries')
+@Controller('deliveries')
 export class DeliveryController {
   constructor(
     private readonly deliveryService: DeliveryService,
     private readonly deliveryAutoAssignService: DeliveryAutoAssignService,
+    @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
   ) {}
 
   @Post()
@@ -158,7 +162,21 @@ export class DeliveryController {
   @UseGuards(JwtAuthGuard)
   async acceptAssignmentRequest(@Param('requestId') requestId: string, @Request() req) {
     const driverId = req.user.id || req.user.sub;
-    return this.deliveryAutoAssignService.acceptAssignmentRequest(requestId, driverId);
+    const delivery = await this.deliveryAutoAssignService.acceptAssignmentRequest(requestId, driverId);
+    
+    // Fetch driver's wallet info to include in response
+    const driver = await this.driverModel.findById(driverId);
+    const walletBalance = driver?.walletBalance || 0;
+    const walletWarning = walletBalance < 200000;
+
+    return {
+      ...delivery.toObject?.() || delivery,
+      walletBalance,
+      walletWarning,
+      walletWarningMessage: walletWarning
+        ? 'Số dư ví dưới 200,000đ. Vui lòng nạp tiền để tiếp tục nhận cuốc.'
+        : null,
+    };
   }
 
   /**

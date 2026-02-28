@@ -1,10 +1,10 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param } from '@nestjs/common';
 import { PricingService } from './pricing.service';
 import { PricingConfig } from './pricing-config.schema';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CalculatePriceDto, CalculatePriceResponse } from './dto/calculate-price.dto';
 
-@Controller('api/pricing')
+@Controller('pricing')
 export class PricingController {
   constructor(private readonly pricingService: PricingService) {}
 
@@ -13,6 +13,23 @@ export class PricingController {
   async getConfig(): Promise<PricingConfig> {
     return this.pricingService.getConfig();
   }
+
+  // ============ TOPUP DISCOUNT APIs ============
+  @Post('config/topup-discount')
+  @UseGuards(JwtAuthGuard)
+  async updateTopupDiscount(@Body() body: { topupDiscountCustomer?: number; topupDiscountDriver?: number }): Promise<PricingConfig> {
+    return this.pricingService.updateTopupDiscount(
+      body.topupDiscountCustomer,
+      body.topupDiscountDriver,
+    );
+  }
+
+  @Get('topup-discount/:userType')
+  async getTopupDiscount(@Param('userType') userType: 'customer' | 'driver'): Promise<{ discount: number }> {
+    const discount = await this.pricingService.getTopupDiscount(userType);
+    return { discount };
+  }
+  // ============ END TOPUP DISCOUNT ============
 
   @Post('config')
   @UseGuards(JwtAuthGuard)

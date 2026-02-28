@@ -11,17 +11,17 @@ import {
   Image,
   PanResponder,
   Animated,
+  RefreshControl,
 } from 'react-native'
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { COLORS, SPACING } from '../constants'
 import { RideCard, BalanceCard } from '../components'
-import AssignmentRequestModal from '../components/AssignmentRequestModal'
-import { driverService } from '../services/driverService'
+import { driverService, type EarningsData } from '../services/driverService'
 import { locationTrackingService } from '../services/locationTrackingService'
-import { assignmentRequestPollingService } from '../services/assignmentRequestPollingService'
+import { pricingService } from '../services/pricingService'
 import type { RootState } from '../redux/store'
 import type { RideItem } from '../types'
 import { updateUser } from '../redux/slices/authSlice'
@@ -32,11 +32,19 @@ export default function HomeScreen() {
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-
-  // Assignment request modal state
-  const [showAssignmentModal, setShowAssignmentModal] = useState(false)
-  const [currentRequest, setCurrentRequest] = useState<any>(null)
-  const [requestCountdown, setRequestCountdown] = useState(15)
+  const [earnings, setEarnings] = useState<Omit<EarningsData, 'totalTrips' | 'driverShare'> & { 
+    breakdown: NonNullable<EarningsData['breakdown']> 
+  }>({ 
+    amount: 0, 
+    increase: 0,
+    breakdown: {
+      rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+      combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+      deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+    }
+  })
+  const [walletBalance, setWalletBalance] = useState(0)
+  const [walletWarning, setWalletWarning] = useState(false)
 
   // Draggable map button state
   const mapButtonPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
@@ -51,7 +59,7 @@ export default function HomeScreen() {
         ],
         { useNativeDriver: false }
       ),
-      onPanResponderRelease: (evt, gestureState) => {
+      onPanResponderRelease: (_evt, gestureState) => {
         // Optional: Add snapback animation or boundary checking here
         Animated.spring(mapButtonPan, {
           toValue: { x: gestureState.dx, y: gestureState.dy },
@@ -65,6 +73,47 @@ export default function HomeScreen() {
   const dispatch = useDispatch()
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
 
+  // Fetch today's earnings and wallet balance on mount
+  useEffect(() => {
+    const fetchEarningsAndWallet = async () => {
+      try {
+        console.log('[HomeScreen] 📊 Fetching today\'s earnings...')
+        const earningsData = await driverService.getTodayEarnings()
+        console.log('[HomeScreen] ✅ Earnings loaded:', earningsData)
+        console.log('[HomeScreen] 💰 Breakdown:', {
+          rides: earningsData.breakdown?.rides?.driverEarnings || 0,
+          combined: earningsData.breakdown?.combinedTrips?.driverEarnings || 0,
+          delivery: earningsData.breakdown?.deliveries?.driverEarnings || 0,
+        })
+        setEarnings({
+          amount: earningsData.amount || 0,
+          increase: earningsData.increase || 0,
+          breakdown: earningsData.breakdown || {
+            rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+            combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+            deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+          }
+        })
+
+
+      } catch (error) {
+        console.error('[HomeScreen] ❌ Error fetching earnings/wallet:', error)
+        setEarnings({ 
+          amount: 0, 
+          increase: 0,
+          breakdown: {
+            rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+            combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+            deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+          }
+        })
+        setWalletBalance(0)
+      }
+    }
+
+    fetchEarningsAndWallet()
+  }, [])
+
   // Fetch driver profile on mount to get current online status
   useEffect(() => {
     const fetchDriverProfile = async () => {
@@ -75,6 +124,8 @@ export default function HomeScreen() {
           isOnline: profile.isOnline,
           status: profile.status,
           driverTypes: profile.driverTypes,
+          walletBalance: profile.walletBalance,
+          licenseStatus: profile.licenseStatus,
         })
 
         dispatch(updateUser({
@@ -82,9 +133,27 @@ export default function HomeScreen() {
           isOnline: profile.isOnline,
           isAvailable: profile.isAvailable,
           status: profile.status,
+          walletBalance: profile.walletBalance,
+          licenseStatus: profile.licenseStatus,
+          totalRides: profile.totalRides,
+          completedRides: profile.completedRides,
+          averageRating: profile.averageRating,
+          onlineHours: profile.onlineHours,
         }))
 
         setIsOnline(profile.isOnline || false)
+        
+        // ✅ Check wallet warning on mount
+        const balance = profile.walletBalance || 0
+        setWalletBalance(balance)
+        const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
+        setWalletWarning(balance < minBalance)
+        
+        console.log('[HomeScreen] Wallet check on mount:', {
+          balance,
+          minBalance,
+          hasWarning: balance < minBalance,
+        })
       } catch (error) {
         console.error('[HomeScreen] ❌ Error fetching profile:', error)
         setIsOnline(false)
@@ -94,9 +163,88 @@ export default function HomeScreen() {
     fetchDriverProfile()
   }, [dispatch])
 
+  // Refresh wallet and earnings
+  const refreshWalletAndEarnings = useCallback(async () => {
+    try {
+      setRefreshing(true)
+      const earningsData = await driverService.getTodayEarnings()
+      setEarnings({
+        amount: earningsData.amount || 0,
+        increase: earningsData.increase || 0,
+        breakdown: earningsData.breakdown || {
+          rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+          combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+          deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+        }
+      })
+
+      const profile = await driverService.getProfile()
+      const balance = profile?.walletBalance || 0
+      setWalletBalance(balance)
+      
+      // Update Redux with latest profile data
+      dispatch(updateUser({
+        walletBalance: balance,
+        totalRides: profile.totalRides,
+        completedRides: profile.completedRides,
+        averageRating: profile.averageRating,
+        onlineHours: profile.onlineHours,
+      }))
+      
+      // ✅ Get dynamic minimum balance from config
+      const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
+      setWalletWarning(balance < minBalance)
+      
+      console.log('[HomeScreen] Wallet check:', {
+        balance,
+        minBalance,
+        hasWarning: balance < minBalance,
+      })
+    } catch (error) {
+      console.error('[HomeScreen] Error refreshing:', error)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [])
+
   // Handle online/offline toggle with API call
   const handleToggleOnline = useCallback(async (value: boolean) => {
     try {
+      // Only validate when turning ON
+      if (value) {
+        console.log('[HomeScreen] Validating before turning online...', {
+          walletBalance: user?.walletBalance,
+          licenseStatus: user?.licenseStatus,
+          fullUser: user,
+        })
+
+        // Get dynamic minimum balance requirement
+        const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
+
+        // Check wallet balance
+        const balance = user?.walletBalance || 0
+        if (balance < minBalance) {
+          console.log('[HomeScreen] Wallet too low:', balance, 'required:', minBalance)
+          Alert.alert(
+            'Số dư không đủ',
+            `Số dư ví phải từ ${minBalance.toLocaleString('vi-VN')} đ trở lên để nhận cuốc. Hiện tại: ${(balance || 0).toLocaleString('vi-VN')}đ`,
+            [{ text: 'OK' }]
+          )
+          return
+        }
+
+        // Check license status
+        if (user?.licenseStatus !== 'approved') {
+          console.log('[HomeScreen] License not approved:', user?.licenseStatus)
+          Alert.alert(
+            'Giấy phép lái xe chưa được phê duyệt',
+            'Giấy phép lái xe của bạn chưa được phê duyệt. Vui lòng chờ admin duyệt hồ sơ của bạn',
+            [{ text: 'OK' }]
+          )
+          return
+        }
+      }
+
       console.log('[HomeScreen] Toggling online status:', value)
       setIsOnline(value)
 
@@ -110,60 +258,19 @@ export default function HomeScreen() {
       console.error('[HomeScreen] Error updating online status:', error)
       setIsOnline(!value)
     }
-  }, [])
+  }, [user])
 
-  // Start/stop location tracking based on online status
+  // ✅ REMOVED: Assignment polling is now GLOBAL in App.js
+  // Only keep location tracking here
   useEffect(() => {
     if (isOnline && user?.id) {
       console.log('[HomeScreen] 🟢 Driver is online, starting location tracking')
       locationTrackingService.startTracking(user.id)
-
-      console.log('[HomeScreen] 🔄 Starting assignment polling')
-      console.log('[HomeScreen] 👤 User driverTypes:', user?.driverTypes)
-
-      assignmentRequestPollingService.startPolling((request) => {
-        console.log('[HomeScreen] 📨 New assignment request:', {
-          requestId: request?._id,
-          type: request?.type,
-          status: request?.status,
-          rideType: request?.rideId?.rideType,
-          isShared: request?.rideId?.isShared,
-        })
-
-        if (request?.status === 'pending') {
-          console.log('[HomeScreen] ✅ Request is pending, showing modal')
-          setCurrentRequest(request)
-          setShowAssignmentModal(true)
-          setRequestCountdown(15)
-        } else {
-          console.log('[HomeScreen] ⚠️ Request not pending (status:', request?.status, '), clearing modal state')
-          setShowAssignmentModal(false)
-          setCurrentRequest(null)
-        }
-      }, user.id)
     } else if (!isOnline) {
-      console.log('[HomeScreen] 🔴 Driver is offline, stopping location tracking and polling')
+      console.log('[HomeScreen] 🔴 Driver is offline, stopping location tracking')
       locationTrackingService.stopTracking()
-      assignmentRequestPollingService.stopPolling()
     }
   }, [isOnline, user?.id])
-
-  // Countdown timer cho assignment request modal
-  useEffect(() => {
-    if (!showAssignmentModal || !currentRequest) return
-
-    if (requestCountdown === 0) {
-      console.log('[HomeScreen] ⏰ Auto-rejecting due to timeout')
-      handleRejectRequest()
-      return
-    }
-
-    const timer = setTimeout(() => {
-      setRequestCountdown(requestCountdown - 1)
-    }, 1000)
-
-    return () => clearTimeout(timer)
-  }, [showAssignmentModal, currentRequest, requestCountdown])
 
   const fetchAvailableRides = useCallback(async () => {
     setLoading(true)
@@ -217,91 +324,6 @@ export default function HomeScreen() {
     await fetchAvailableRides()
   }, [fetchAvailableRides])
 
-  // Handle accept assignment request
-  const handleAcceptRequest = useCallback(async () => {
-    try {
-      if (!currentRequest) return
-
-      const isDelivery = currentRequest.type === 'delivery'
-      const isRideshare = currentRequest.type === 'rideshare' // Combined trip
-      const requestId = currentRequest._id
-
-      if (isDelivery) {
-        const response = await driverService.acceptDeliveryAssignment(requestId)
-
-        const deliveryId = response?.deliveryId || currentRequest.deliveryId?._id || currentRequest.deliveryId
-        navigation.navigate('ActiveDelivery', {
-          deliveryId,
-          sourceType: 'delivery'
-        })
-      } else if (isRideshare) {
-        const combinedTripId = currentRequest.combinedTripId?._id || currentRequest.combinedTripId
-        const response = await driverService.acceptCombinedTripRequest(combinedTripId, requestId)
-
-        navigation.navigate('ActiveRideScreen', {
-          combinedTripId,
-          sourceType: 'combined_trip'
-        })
-      } else {
-        try {
-          const response = await driverService.acceptRideAssignment(requestId)
-          const rideId = response?._id || response?.id || currentRequest.rideId?._id || currentRequest.rideId
-
-          if (!rideId) throw new Error('Không tìm thấy ID chuyến đi')
-          navigation.navigate('TripActivities', { rideId })
-        } catch (acceptError: any) {
-          throw acceptError
-        }
-      }
-
-      // Close modal
-      setShowAssignmentModal(false)
-      setCurrentRequest(null)
-
-      fetchAvailableRides()
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể nhận cuốc. Vui lòng thử lại.')
-      setShowAssignmentModal(false)
-    }
-  }, [currentRequest, navigation, fetchAvailableRides])
-
-  // Handle reject assignment request
-  const handleRejectRequest = useCallback(async () => {
-    try {
-      if (!currentRequest || !currentRequest._id) {
-        setShowAssignmentModal(false)
-        setCurrentRequest(null)
-        return
-      }
-
-      if (currentRequest.status !== 'pending') {
-        setShowAssignmentModal(false)
-        setCurrentRequest(null)
-        return
-      }
-
-      const isDelivery = currentRequest.type === 'delivery'
-      const isRideshare = currentRequest.type === 'rideshare'
-      const requestId = currentRequest._id
-
-      if (isDelivery) {
-        await driverService.rejectDeliveryAssignment(requestId)
-      } else if (isRideshare) {
-        // Reject combined trip request
-        const combinedTripId = currentRequest.combinedTripId?._id || currentRequest.combinedTripId
-        await driverService.rejectCombinedTripRequest(combinedTripId, requestId)
-      } else {
-        await driverService.rejectRideAssignment(requestId)
-      }
-
-      setShowAssignmentModal(false)
-      setCurrentRequest(null)
-    } catch (error: any) {
-      setShowAssignmentModal(false)
-      setCurrentRequest(null)
-    }
-  }, [currentRequest])
-
   const formatRideData = useCallback((ride: any): RideItem => {
     // Determine if it's a combined trip or regular ride
     const isCombinedTrip = ride.sourceType === 'combined_trip'
@@ -329,8 +351,6 @@ export default function HomeScreen() {
       rating: 4.8,
       badge: isShareRide ? 'GHÉP XE' : 'LAI XE HỘ',
       badgeColor: isShareRide ? '#ff9900' : '#6200ea',
-      sourceType: ride.sourceType,
-      _id: ride._id,
     }
   }, [])
 
@@ -391,7 +411,13 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refreshWalletAndEarnings} />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -427,12 +453,16 @@ export default function HomeScreen() {
 
         {/* Balance Card */}
         <BalanceCard
-          amount={1250000}
-          dailyAmount={1200000}
-          increase={2}
+          amount={earnings.amount}
+          dailyAmount={earnings.amount}
+          increase={earnings.increase}
+          breakdown={earnings.breakdown}
           isOnline={isOnline}
           onToggleOnline={handleToggleOnline}
           onViewDetails={() => navigation.navigate('Earnings' as never)}
+          totalRides={user?.totalRides || 0}
+          averageRating={user?.averageRating || 0}
+          onlineHours={user?.onlineHours || 0}
         />
         {/* Filter Buttons */}
         <FilterButtons activeFilter={activeFilter} onFilterChange={setActiveFilter} />
@@ -541,16 +571,6 @@ export default function HomeScreen() {
           <MaterialIcons name="location-on" size={28} color="#fff" />
         </TouchableOpacity>
       </Animated.View>
-
-      {/* Assignment Request Modal */}
-      <AssignmentRequestModal
-        visible={showAssignmentModal}
-        request={currentRequest}
-        onAccept={handleAcceptRequest}
-        onReject={handleRejectRequest}
-        countdown={requestCountdown}
-        driverTypes={user?.driverTypes || ['rideshare']}
-      />
     </SafeAreaView>
   )
 }

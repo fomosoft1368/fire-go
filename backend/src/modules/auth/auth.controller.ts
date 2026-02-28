@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, AuthResponseDto } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
-@Controller('api/auth')
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -41,7 +41,11 @@ export class AuthController {
     @Request() req: any,
     @Body() { currentPassword, newPassword }: { currentPassword: string; newPassword: string },
   ): Promise<{ message: string }> {
-    await this.authService.changePassword(req.user.id, currentPassword, newPassword);
+    console.log('[AuthController] changePassword called');
+    console.log('[AuthController] req.user:', req.user);
+    console.log('[AuthController] req.user.role:', req.user?.role);
+    
+    await this.authService.changePassword(req.user.id, currentPassword, newPassword, req.user.role);
     return { message: 'Password changed successfully' };
   }
 

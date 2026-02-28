@@ -2,13 +2,18 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Driver, DriverDocument, DriverStatus } from './schemas/driver.schema';
+import { Driver, DriverDocument, DriverStatus, DocumentStatus } from './schemas/driver.schema';
 import { CreateDriverDto, UpdateDriverDto, UpdateLocationDto } from './dto';
 
 @Injectable()
 export class DriversService {
   constructor(
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
+    @InjectModel('Ride') private rideModel: Model<any>,
+    @InjectModel('CombinedTrip') private combinedTripModel: Model<any>,
+    @InjectModel('RideRequest') private rideRequestModel: Model<any>,
+    @InjectModel('Delivery') private deliveryModel: Model<any>,
+    @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
     private eventEmitter: EventEmitter2,
   ) {}
 
@@ -16,6 +21,7 @@ export class DriversService {
     const driverData: any = {
       ...createDriverDto,
       status: DriverStatus.OFFLINE,
+      approvalStatus: DocumentStatus.PENDING, // ✅ Set to pending when driver registers
     };
 
     // Only add userId if provided and valid
@@ -35,6 +41,7 @@ export class DriversService {
       firstName: createDriverDto.firstName,
       lastName: createDriverDto.lastName,
       phone: createDriverDto.phone,
+      approvalStatus: DocumentStatus.PENDING,
     });
 
     return driver;
@@ -308,37 +315,283 @@ export class DriversService {
   }
 
   async getTodayEarnings(driverId: string): Promise<any> {
-    const driver = await this.findById(driverId);
-    
-    // Tính doanh thu hôm nay từ rides
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Cần intergrate với Rides module để lấy doanh thu hôm nay
-    // Tạm thời trả về mock data
-    return {
-      driverId: driver._id,
-      date: new Date(),
-      totalEarnings: 0,
-      totalTrips: 0,
-      breakdown: {
-        cash: 0,
-        online: 0,
-        tips: 0,
-      },
-    };
+    try {
+      console.log('[getTodayEarnings] Starting for driver:', driverId);
+      
+      const driver = await this.findById(driverId);
+      if (!driver) {
+        console.error('[getTodayEarnings] Driver not found:', driverId);
+        throw new NotFoundException('Driver not found');
+      }
+
+      // Get pricing config to get driverShare percentage
+      const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+      const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80% if not found
+
+      console.log(`[getTodayEarnings] Driver: ${driver.firstName} ${driver.lastName}`);
+      console.log(`[getTodayEarnings] driverShare: ${driverShare}%`);
+
+      // Get today's date range (00:00 - 23:59)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      // Get yesterday's date range for trend comparison
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const dayBeforeYesterday = new Date(yesterday);
+      dayBeforeYesterday.setDate(dayBeforeYesterday.getDate() - 1);
+
+      console.log(`[getTodayEarnings] Today range: ${today.toISOString()} to ${tomorrow.toISOString()}`);
+      console.log(`[getTodayEarnings] Yesterday range: ${yesterday.toISOString()} to ${today.toISOString()}`);
+
+      // ===== TODAY'S EARNINGS =====
+      
+      // 1. Completed RIDES (lái xe hộ)
+      let completedRides = [];
+      let ridesTodayTotal = 0;
+      let ridesTodayEarnings = 0;
+
+      try {
+        completedRides = await this.rideModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'completed',
+          createdAt: { $gte: today, $lt: tomorrow },
+        }).select('totalFare');
+
+        ridesTodayTotal = completedRides.reduce((sum, ride) => sum + (ride.totalFare || 0), 0);
+        ridesTodayEarnings = Math.round((ridesTodayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching rides:', err);
+      }
+
+      console.log(`[getTodayEarnings] Today - Rides: ${completedRides.length} trips, Total: ${ridesTodayTotal}, Driver share: ${ridesTodayEarnings}`);
+
+      // 2. Completed COMBINED TRIPS (ghép xe)
+      let completedCombinedTrips = [];
+      let combinedTodayTotal = 0;
+      let completedRequestsCount = 0;
+      let combinedTodayEarnings = 0;
+
+      try {
+        // Get completed combined trips
+        completedCombinedTrips = await this.combinedTripModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'completed',
+          createdAt: { $gte: today, $lt: tomorrow },
+        });
+
+        // Get all RideRequests for these trips
+        const tripIds = completedCombinedTrips.map(trip => trip._id);
+        const completedRequests = await this.rideRequestModel.find({
+          combinedTripId: { $in: tripIds },
+          status: 'completed',
+        });
+
+        // Calculate total fare from all completed requests
+        for (const request of completedRequests) {
+          if (request.fare) {
+            combinedTodayTotal += request.fare;
+            completedRequestsCount++;
+          }
+        }
+
+        combinedTodayEarnings = Math.round((combinedTodayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching combined trips:', err);
+      }
+
+      console.log(`[getTodayEarnings] Today - Combined: ${completedCombinedTrips.length} trips, ${completedRequestsCount} requests, Total: ${combinedTodayTotal}, Driver share: ${combinedTodayEarnings}`);
+
+      // 3. Completed DELIVERIES
+      let completedDeliveries = [];
+      let deliveriesTodayTotal = 0;
+      let deliveriesTodayEarnings = 0;
+
+      try {
+        completedDeliveries = await this.deliveryModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'delivered',
+          createdAt: { $gte: today, $lt: tomorrow },
+        }).select('estimatedPrice');
+
+        deliveriesTodayTotal = completedDeliveries.reduce((sum, delivery) => {
+          const price = typeof delivery.estimatedPrice === 'string' 
+            ? parseInt(delivery.estimatedPrice, 10) 
+            : (delivery.estimatedPrice || 0);
+          return sum + price;
+        }, 0);
+
+        deliveriesTodayEarnings = Math.round((deliveriesTodayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching deliveries:', err);
+      }
+
+      console.log(`[getTodayEarnings] Today - Deliveries: ${completedDeliveries.length} deliveries, Total: ${deliveriesTodayTotal}, Driver share: ${deliveriesTodayEarnings}`);
+
+      // TOTAL TODAY
+      const todayTotal = ridesTodayEarnings + combinedTodayEarnings + deliveriesTodayEarnings;
+      const todayTripsCount = completedRides.length + completedCombinedTrips.length + completedDeliveries.length;
+
+      // ===== YESTERDAY'S EARNINGS (for trend calculation) =====
+
+      let completedRidesYesterday = [];
+      let ridesYesterdayEarnings = 0;
+
+      try {
+        completedRidesYesterday = await this.rideModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'completed',
+          createdAt: { $gte: yesterday, $lt: today },
+        }).select('totalFare');
+
+        const ridesYesterdayTotal = completedRidesYesterday.reduce((sum, ride) => sum + (ride.totalFare || 0), 0);
+        ridesYesterdayEarnings = Math.round((ridesYesterdayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching yesterday rides:', err);
+      }
+
+      let combinedYesterdayEarnings = 0;
+
+      try {
+        const completedCombinedTripsYesterday = await this.combinedTripModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'completed',
+          createdAt: { $gte: yesterday, $lt: today },
+        });
+
+        // Get all RideRequests for yesterday's trips
+        const tripIdsYesterday = completedCombinedTripsYesterday.map(trip => trip._id);
+        const completedRequestsYesterday = await this.rideRequestModel.find({
+          combinedTripId: { $in: tripIdsYesterday },
+          status: 'completed',
+        });
+
+        let combinedYesterdayTotal = 0;
+        for (const request of completedRequestsYesterday) {
+          if (request.fare) {
+            combinedYesterdayTotal += request.fare;
+          }
+        }
+        combinedYesterdayEarnings = Math.round((combinedYesterdayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching yesterday combined trips:', err);
+      }
+
+      let deliveriesYesterdayEarnings = 0;
+
+      try {
+        const completedDeliveriesYesterday = await this.deliveryModel.find({
+          driverId: new Types.ObjectId(driverId),
+          status: 'delivered',
+          createdAt: { $gte: yesterday, $lt: today },
+        }).select('estimatedPrice');
+
+        const deliveriesYesterdayTotal = completedDeliveriesYesterday.reduce((sum, delivery) => {
+          const price = typeof delivery.estimatedPrice === 'string' 
+            ? parseInt(delivery.estimatedPrice, 10) 
+            : (delivery.estimatedPrice || 0);
+          return sum + price;
+        }, 0);
+
+        deliveriesYesterdayEarnings = Math.round((deliveriesYesterdayTotal * driverShare) / 100);
+      } catch (err) {
+        console.error('[getTodayEarnings] Error fetching yesterday deliveries:', err);
+      }
+
+      // TOTAL YESTERDAY
+      const yesterdayTotal = ridesYesterdayEarnings + combinedYesterdayEarnings + deliveriesYesterdayEarnings;
+
+      // CALCULATE TREND
+      let increase = 0;
+      if (yesterdayTotal === 0 && todayTotal > 0) {
+        increase = 100; // Was 0, now has earnings
+      } else if (yesterdayTotal > 0) {
+        increase = Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100);
+      }
+
+      console.log(`[getTodayEarnings] Trend: ${yesterdayTotal} yesterday → ${todayTotal} today (${increase}%)`);
+
+      return {
+        driverId: driver._id,
+        date: new Date(),
+        amount: todayTotal,
+        totalTrips: todayTripsCount,
+        increase,
+        breakdown: {
+          rides: {
+            trips: completedRides.length,
+            totalFare: ridesTodayTotal,
+            driverEarnings: ridesTodayEarnings,
+          },
+          combinedTrips: {
+            trips: completedCombinedTrips.length,
+            requests: completedRequestsCount,
+            totalFare: combinedTodayTotal,
+            driverEarnings: combinedTodayEarnings,
+          },
+          deliveries: {
+            deliveries: completedDeliveries.length,
+            totalFare: deliveriesTodayTotal,
+            driverEarnings: deliveriesTodayEarnings,
+          },
+        },
+        driverShare,
+      };
+    } catch (error) {
+      console.error('[getTodayEarnings] Fatal error:', error);
+      // Return default response instead of throwing
+      return {
+        driverId: null,
+        date: new Date(),
+        amount: 0,
+        totalTrips: 0,
+        increase: 0,
+        breakdown: {
+          rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+          combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+          deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+        },
+        driverShare: 80,
+      };
+    }
   }
 
   async toggleAcceptingRides(
     driverId: string,
     isAcceptingRides: boolean,
   ): Promise<DriverDocument> {
+    console.log('[toggleAcceptingRides] Starting with:', { driverId, isAcceptingRides });
+    
     const driver = await this.findById(driverId);
+    console.log('[toggleAcceptingRides] Driver found:', {
+      id: driver._id,
+      walletBalance: driver.walletBalance,
+      approvalStatus: driver.approvalStatus,
+      isSuspended: driver.isSuspended,
+    });
 
     if (driver.isSuspended) {
+      console.log('[toggleAcceptingRides] Driver is suspended');
       throw new BadRequestException('Driver is suspended and cannot accept rides');
     }
 
+    // Check wallet balance (must be >= 100k to accept rides)
+    if (isAcceptingRides && driver.walletBalance < 100000) {
+      console.log('[toggleAcceptingRides] Wallet too low:', driver.walletBalance);
+      throw new BadRequestException('Số dư ví phải từ 100.000 đ trở lên để nhận cuốc');
+    }
+
+    // Check license status (must be APPROVED)
+    if (isAcceptingRides && driver.licenseStatus !== DocumentStatus.APPROVED) {
+      console.log('[toggleAcceptingRides] License not approved:', driver.licenseStatus);
+      throw new BadRequestException('Giấy phép lái xe của bạn chưa được phê duyệt. Vui lòng chờ admin duyệt hồ sơ');
+    }
+
+    console.log('[toggleAcceptingRides] Validation passed, updating...');
     return this.driverModel.findByIdAndUpdate(
       driverId,
       { isAcceptingRides },
@@ -350,13 +603,39 @@ export class DriversService {
    * Set driver online status
    */
   async updateOnlineStatus(driverId: string, isOnline: boolean): Promise<DriverDocument> {
+    const driver = await this.driverModel.findById(driverId);
+    if (!driver) {
+      throw new NotFoundException(`Driver ${driverId} not found`);
+    }
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const lastDate = driver.lastOnlineDate ? driver.lastOnlineDate.toISOString().split('T')[0] : null;
+
     const updateData: any = { 
       isOnline,
       status: isOnline ? 'online' : 'offline',
       isAvailable: isOnline,
     };
+
+    // Reset daily tracking if it's a new day
+    if (lastDate !== today) {
+      updateData.todayOnlineMinutes = 0;
+      updateData.lastOnlineDate = now;
+    }
+
     if (isOnline) {
-      updateData.lastOnlineTime = new Date();
+      // Driver bật online → ghi thời điểm bắt đầu session
+      updateData.lastOnlineTime = now;
+      updateData.onlineSessionStart = now;
+    } else {
+      // Driver tắt offline → tính phút online và cộng vào tổng
+      if (driver.onlineSessionStart) {
+        const sessionMinutes = Math.floor((now.getTime() - driver.onlineSessionStart.getTime()) / 60000);
+        updateData.todayOnlineMinutes = (driver.todayOnlineMinutes || 0) + sessionMinutes;
+        updateData.onlineSessionStart = null; // Clear session
+        console.log(`[DriversService] 📊 Driver ${driverId} offline after ${sessionMinutes} minutes (total today: ${updateData.todayOnlineMinutes})`);
+      }
     }
 
     const updated = await this.driverModel.findByIdAndUpdate(
@@ -364,10 +643,6 @@ export class DriversService {
       updateData,
       { new: true },
     );
-
-    if (!updated) {
-      throw new NotFoundException(`Driver ${driverId} not found`);
-    }
 
     console.log(`[DriversService] Driver ${driverId} online status updated to:`, isOnline, 'status:', updateData.status, 'available:', isOnline);
     return updated;
@@ -426,5 +701,84 @@ export class DriversService {
     if (result.modifiedCount > 0) {
       console.log(`[DriversService] Auto-offlined ${result.modifiedCount} inactive drivers`);
     }
+  }
+
+  /**
+   * Approve driver (Admin action)
+   */
+  async approveDriver(id: string, notes?: string): Promise<DriverDocument> {
+    console.log(`[DriversService] Approving driver ${id}`);
+    
+    const driver = await this.driverModel.findById(id);
+    if (!driver) {
+      throw new NotFoundException(`Driver with ID ${id} not found`);
+    }
+
+    // Update approval status
+    driver.approvalStatus = DocumentStatus.APPROVED;
+    driver.licenseStatus = DocumentStatus.APPROVED; // Also approve license
+    driver.approvedAt = new Date();
+    
+    if (notes) {
+      driver.approvalNotes = notes;
+    }
+
+    await driver.save();
+
+    console.log(`[DriversService] ✅ Driver ${id} approved successfully`);
+
+    // Emit event for notifications
+    this.eventEmitter.emit('driver.approved', {
+      driverId: driver._id.toString(),
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+    });
+
+    return driver;
+  }
+
+  /**
+   * Reject driver (Admin action)
+   */
+  async rejectDriver(
+    id: string,
+    rejectionData: {
+      rejectedDocuments?: string[];
+      reasons?: Record<string, string>;
+      globalReason?: string;
+    },
+  ): Promise<DriverDocument> {
+    console.log(`[DriversService] Rejecting driver ${id}`, rejectionData);
+    
+    const driver = await this.driverModel.findById(id);
+    if (!driver) {
+      throw new NotFoundException(`Driver with ID ${id} not found`);
+    }
+
+    // Update approval status
+    driver.approvalStatus = DocumentStatus.REJECTED;
+    driver.rejectedAt = new Date();
+    driver.rejectionReasons = rejectionData.reasons || {};
+    driver.globalRejectionReason = rejectionData.globalReason || '';
+    driver.rejectedDocuments = rejectionData.rejectedDocuments || [];
+
+    await driver.save();
+
+    console.log(`[DriversService] ❌ Driver ${id} rejected`);
+
+    // Emit event for notifications
+    this.eventEmitter.emit('driver.rejected', {
+      driverId: driver._id.toString(),
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+      reasons: rejectionData.reasons,
+      globalReason: rejectionData.globalReason,
+    });
+
+    return driver;
   }
 }

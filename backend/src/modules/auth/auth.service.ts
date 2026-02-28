@@ -169,7 +169,7 @@ export class AuthService {
 
   private generateTokens(user: UserDocument): AuthResponseDto {
     const payload = {
-      sub: user._id,
+      sub: user._id.toString(),
       email: user.email,
       role: user.role,
     };
@@ -200,7 +200,7 @@ export class AuthService {
 
   private generateTokensForDriver(driver: DriverDocument): AuthResponseDto {
     const payload = {
-      sub: driver._id,
+      sub: driver._id.toString(),
       email: driver.email,
       role: 'driver',
     };
@@ -275,8 +275,17 @@ export class AuthService {
     userId: string,
     currentPassword: string,
     newPassword: string,
+    userRole?: string,
   ): Promise<void> {
-    const user = await this.userModel.findById(userId);
+    // Determine which model to use based on role
+    let user;
+    
+    if (userRole === 'driver') {
+      user = await this.driverModel.findById(userId);
+    } else {
+      user = await this.userModel.findById(userId);
+    }
+    
     if (!user) {
       throw new UnauthorizedException('User not found');
     }

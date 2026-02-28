@@ -438,6 +438,41 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  // Pricing Configuration - Topup Discount
+  async updateTopupDiscount(topupDiscountCustomer?: number, topupDiscountDriver?: number): Promise<any> {
+    const url = `${API_BASE_URL}/pricing/config/topup-discount`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        topupDiscountCustomer,
+        topupDiscountDriver,
+      }),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Get Pricing Config
+  async getPricingConfig(): Promise<any> {
+    const url = `${API_BASE_URL}/pricing/config`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Update Pricing Config (for wallet limits, etc.)
+  async updatePricingConfig(configData: any): Promise<any> {
+    const url = `${API_BASE_URL}/pricing/config`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(configData),
+    });
+    return this.handleResponse(response);
+  }
+
   // Password Management
   async changePassword(data: { currentPassword: string; newPassword: string }): Promise<any> {
     const url = `${API_BASE_URL}/auth/change-password`;

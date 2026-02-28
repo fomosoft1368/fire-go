@@ -6,6 +6,7 @@ import { Driver } from '../../drivers/schemas/driver.schema';
 import { CreateDeliveryDto } from '../dto/create-delivery.dto';
 import { UpdateDeliveryDto } from '../dto/update-delivery.dto';
 import { RateDeliveryDto } from '../dto/rate-delivery.dto';
+import { PricingConfig } from '../../pricing/pricing-config.schema';
 
 @Injectable()
 export class DeliveryService {
@@ -14,6 +15,7 @@ export class DeliveryService {
   constructor(
     @InjectModel(Delivery.name) private deliveryModel: Model<Delivery>,
     @InjectModel(Driver.name) private driverModel: Model<Driver>,
+    @InjectModel('PricingConfig') private pricingConfigModel: Model<PricingConfig>,
   ) {}
 
   async create(createDeliveryDto: CreateDeliveryDto): Promise<Delivery> {
@@ -134,6 +136,32 @@ export class DeliveryService {
       });
       
       this.logger.log(`Set driver ${driverId} back to available after delivery ${updateDeliveryDto.status}`);
+
+      // ⭐ DEDUCT commission from driver wallet when delivery is DELIVERED (20% default)
+      if (updateDeliveryDto.status === DeliveryStatus.DELIVERED) {
+        try {
+          const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+          const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80%
+          const platformCommission = Math.round((updatedDelivery.estimatedPrice * (100 - driverShare)) / 100);
+
+          this.logger.log(`[DeliveryService] 💰 Wallet deduction:`, {
+            driverId: driverId.toString(),
+            estimatedPrice: updatedDelivery.estimatedPrice,
+            driverShare: `${driverShare}%`,
+            platformCommission: platformCommission,
+          });
+
+          // Deduct from driver wallet
+          await this.driverModel.findByIdAndUpdate(driverId, {
+            $inc: { walletBalance: -platformCommission },
+          });
+
+          this.logger.log(`[DeliveryService] ✅ Deducted ${platformCommission}đ from driver wallet (${100 - driverShare}% commission)`);
+        } catch (walletError) {
+          this.logger.warn(`[DeliveryService] ⚠️ Warning: Failed to deduct wallet commission: ${walletError.message}`);
+          // Don't fail the delivery completion if wallet deduction fails
+        }
+      }
     }
 
     return updatedDelivery;

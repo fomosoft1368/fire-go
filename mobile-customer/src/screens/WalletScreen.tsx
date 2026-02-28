@@ -41,6 +41,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
   const [showQRModal, setShowQRModal] = useState(false)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [bankAccounts, setBankAccounts] = useState<PaymentMethod[]>([])
+  const [topupDiscount, setTopupDiscount] = useState<number>(0)
 
   // Deposit form state
   const [depositAmount, setDepositAmount] = useState('')
@@ -61,7 +62,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
   const loadData = async () => {
     try {
       setLoading(true)
-      await Promise.all([loadWallet(), loadTransactions(), loadPaymentMethods()])
+      await Promise.all([loadWallet(), loadTransactions(), loadPaymentMethods(), loadTopupDiscount()])
     } finally {
       setLoading(false)
     }
@@ -93,6 +94,15 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
       setBankAccounts(accounts)
     } catch (error) {
       console.error('Error loading payment methods:', error)
+    }
+  }
+
+  const loadTopupDiscount = async () => {
+    try {
+      const discount = await walletService.getTopupDiscount()
+      setTopupDiscount(discount)
+    } catch (error) {
+      console.error('Error loading topup discount:', error)
     }
   }
 
@@ -268,7 +278,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionBtn, styles.depositBtn]}
-              onPress={() => setShowDepositModal(true)}
+              onPress={() => navigation.navigate('Topup')}
             >
               <MaterialIcons name="arrow-downward" size={20} color="#FF6B00" />
               <Text style={styles.actionBtnText}>Nạp tiền</Text>
@@ -276,7 +286,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
 
             <TouchableOpacity
               style={[styles.actionBtn, styles.withdrawBtn]}
-              onPress={() => setShowWithdrawModal(true)}
+              onPress={() => navigation.navigate('Withdraw')}
             >
               <MaterialIcons name="arrow-upward" size={20} color="#fff" />
               <Text style={[styles.actionBtnText, { color: '#fff' }]}>Rút tiền</Text>
@@ -343,6 +353,24 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
                   onChangeText={setDepositAmount}
                 />
               </View>
+
+              {/* Discount Info */}
+              {depositAmount && topupDiscount > 0 && (
+                <View style={styles.discountInfo}>
+                  <View style={styles.discountRow}>
+                    <Text style={styles.discountLabel}>Số tiền nạp:</Text>
+                    <Text style={styles.discountValue}>{walletService.formatCurrency(parseInt(depositAmount) || 0)}</Text>
+                  </View>
+                  <View style={styles.discountRow}>
+                    <Text style={styles.discountLabel}>Chiết khấu ({topupDiscount}%):</Text>
+                    <Text style={[styles.discountValue, styles.discountAmount]}>-{walletService.formatCurrency(Math.round((parseInt(depositAmount) || 0) * topupDiscount / 100))}</Text>
+                  </View>
+                  <View style={styles.discountRow}>
+                    <Text style={styles.discountLabelBold}>Bạn nhận:</Text>
+                    <Text style={styles.discountValueBold}>{walletService.formatCurrency(Math.round((parseInt(depositAmount) || 0) * (100 - topupDiscount) / 100))}</Text>
+                  </View>
+                </View>
+              )}
 
               {/* Payment Method Selection */}
               <Text style={styles.formLabel}>Phương thức thanh toán</Text>
@@ -1011,6 +1039,44 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#0f172a',
     fontWeight: '500',
+  },
+
+  discountInfo: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    borderLeftWidth: 4,
+    borderLeftColor: '#22c55e',
+  },
+  discountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  discountLabel: {
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: '500',
+  },
+  discountValue: {
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  discountAmount: {
+    color: '#ef4444',
+  },
+  discountLabelBold: {
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: '700',
+  },
+  discountValueBold: {
+    fontSize: 16,
+    color: '#22c55e',
+    fontWeight: '800',
   },
 
   balanceInfo: {

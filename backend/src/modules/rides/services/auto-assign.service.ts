@@ -20,7 +20,7 @@ interface DriverScore {
 @Injectable()
 export class AutoAssignService {
   private readonly logger = new Logger(AutoAssignService.name);
-  private readonly REQUEST_TIMEOUT_SECONDS = 30; // Timeout 30 seconds (was 15) - gives frontend time to poll
+  private readonly REQUEST_TIMEOUT_SECONDS = 50; // Timeout 50 seconds (was 45) - gives frontend time to poll
   private timeoutHandlers = new Map<string, NodeJS.Timeout>(); // Track timeout handlers
 
   constructor(
@@ -220,31 +220,42 @@ export class AutoAssignService {
    * Driver accept assignment request
    */
   async acceptAssignmentRequest(requestId: string, driverId: string): Promise<RideDocument> {
+    this.logger.log('[AcceptAssignment] Starting acceptance process:', { requestId, driverId });
+
     const request = await this.assignmentRequestModel.findById(requestId);
 
     if (!request) {
+      this.logger.error('[AcceptAssignment] ❌ Request not found:', requestId);
       throw new NotFoundException('Không tìm thấy yêu cầu');
     }
 
-    // Check if request is still valid (not expired)
-    if (new Date() > request.expiresAt) {
-      throw new BadRequestException('Yêu cầu này đã hết hạn');
-    }
+    this.logger.log('[AcceptAssignment] 📬 Request found:', {
+      requestId: request._id,
+      requestDriverId: request.driverId?.toString(),
+      incomingDriverId: driverId,
+      status: request.status,
+      expiresAt: request.expiresAt,
+      now: new Date(),
+    });
 
-    if (request.status !== 'pending') {
-      throw new BadRequestException('Yêu cầu này đã được xử lý hoặc hết hạn');
-    }
+    // ✅ Better driver ID comparison - handle both string and ObjectId
+    // Driver được assign request này có quyền accept bất kỳ khi nào (pending, timeout, etc)
+    const requestDriverId = request.driverId?.toString?.() || request.driverId;
+    const incomingDriverId = driverId?.toString?.() || driverId;
 
-    if (request.driverId.toString() !== driverId) {
+    if (requestDriverId !== incomingDriverId) {
+      this.logger.error('[AcceptAssignment] ❌ Driver ID mismatch:', {
+        requestDriverId,
+        incomingDriverId,
+        equal: requestDriverId === incomingDriverId,
+      });
       throw new BadRequestException('Yêu cầu này không dành cho bạn');
     }
 
-    // Sử dụng atomic update để tránh race condition
+    // Atomic update - không cần check expiresAt, driver có quyền accept bất cứ khi nào
     const updatedRequest = await this.assignmentRequestModel.findOneAndUpdate(
       {
         _id: requestId,
-        status: 'pending', // Chỉ update nếu vẫn còn pending
-        expiresAt: { $gt: new Date() }, // Và chưa hết hạn
       },
       {
         status: 'accepted',
@@ -254,7 +265,8 @@ export class AutoAssignService {
     );
 
     if (!updatedRequest) {
-      throw new BadRequestException('Yêu cầu này đã được xử lý hoặc hết hạn');
+      this.logger.error('[AcceptAssignment] ❌ Failed to update request');
+      throw new BadRequestException('Không thể nhận yêu cầu này');
     }
 
     // QUAN TRỌNG: Cancel timeout handler để tránh retry sau khi đã accept
@@ -310,17 +322,35 @@ export class AutoAssignService {
     driverId: string,
     reason?: string,
   ): Promise<void> {
+    this.logger.log('[RejectAssignment] Starting rejection process:', { requestId, driverId });
+
     const request = await this.assignmentRequestModel.findById(requestId);
 
     if (!request) {
+      this.logger.error('[RejectAssignment] ❌ Request not found:', requestId);
       throw new NotFoundException('Không tìm thấy yêu cầu');
     }
 
-    if (request.status !== 'pending') {
-      throw new BadRequestException('Yêu cầu này đã được xử lý hoặc hết hạn');
-    }
+    this.logger.log('[RejectAssignment] 📬 Request found:', {
+      requestId: request._id,
+      requestDriverId: request.driverId?.toString(),
+      incomingDriverId: driverId,
+      status: request.status,
+      expiresAt: request.expiresAt,
+      now: new Date(),
+    });
 
-    if (request.driverId.toString() !== driverId) {
+    // ✅ Better driver ID comparison - handle both string and ObjectId
+    // Driver được assign request này có quyền reject bất kỳ khi nào
+    const requestDriverId = request.driverId?.toString?.() || request.driverId;
+    const incomingDriverId = driverId?.toString?.() || driverId;
+
+    if (requestDriverId !== incomingDriverId) {
+      this.logger.error('[RejectAssignment] ❌ Driver ID mismatch:', {
+        requestDriverId,
+        incomingDriverId,
+        equal: requestDriverId === incomingDriverId,
+      });
       throw new BadRequestException('Yêu cầu này không dành cho bạn');
     }
 
@@ -332,12 +362,23 @@ export class AutoAssignService {
       this.logger.log(`✅ Cancelled timeout handler for request ${requestId}`);
     }
 
-    // Update request status
-    await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
-      status: 'rejected',
-      respondedAt: new Date(),
-      rejectionReason: reason,
-    });
+    // Update request status - không cần check expiresAt, vì driver có quyền reject bất cứ khi nào
+    const updatedRequest = await this.assignmentRequestModel.findOneAndUpdate(
+      {
+        _id: requestId,
+      },
+      {
+        status: 'rejected',
+        respondedAt: new Date(),
+        rejectionReason: reason,
+      },
+      { new: true }
+    );
+
+    if (!updatedRequest) {
+      this.logger.error('[RejectAssignment] ❌ Failed to update request');
+      throw new BadRequestException('Không thể từ chối yêu cầu này');
+    }
 
     this.logger.log(`Driver ${driverId} rejected assignment request ${requestId}${reason ? `: ${reason}` : ''}`);
 
@@ -354,7 +395,6 @@ export class AutoAssignService {
     // Retry với driver tiếp theo
     await this.retryWithNextDriver(request, driverScores);
   }
-
   /**
    * Lấy danh sách tài xế sẵn có
    */

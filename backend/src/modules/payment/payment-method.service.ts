@@ -11,69 +11,102 @@ import {
   UpdatePaymentMethodDto,
   PaymentMethodResponseDto,
 } from './dto/payment-method.dto'
+import { Driver, DriverDocument } from '../drivers/schemas/driver.schema'
 
 @Injectable()
 export class PaymentMethodService {
   constructor(
     @InjectModel(PaymentMethod.name)
     private paymentMethodModel: Model<PaymentMethodDocument>,
+    @InjectModel(Driver.name)
+    private driverModel: Model<DriverDocument>,
   ) {}
 
+  /**
+   * Detect if user is driver or customer
+   */
+  private async detectUserType(userId: string): Promise<'driver' | 'customer'> {
+    const driver = await this.driverModel.findById(userId)
+    return driver ? 'driver' : 'customer'
+  }
+
   async createPaymentMethod(
-    customerId: string,
+    userId: string,
     dto: CreatePaymentMethodDto,
   ): Promise<PaymentMethodResponseDto> {
+    const userType = await this.detectUserType(userId)
+    const userIdObj = new Types.ObjectId(userId)
+
     // If setting as default, unset other defaults
     if (dto.isDefault) {
-      await this.paymentMethodModel.updateMany(
-        { customerId: new Types.ObjectId(customerId), isActive: true },
-        { isDefault: false },
-      )
+      const query = userType === 'driver' 
+        ? { driverId: userIdObj, isActive: true }
+        : { customerId: userIdObj, isActive: true }
+      await this.paymentMethodModel.updateMany(query, { isDefault: false })
     }
 
-    const paymentMethod = await this.paymentMethodModel.create({
-      customerId: new Types.ObjectId(customerId),
+    const paymentMethodData: any = {
       ...dto,
       isDefault: dto.isDefault || false,
-    })
+    }
+
+    if (userType === 'driver') {
+      paymentMethodData.driverId = userIdObj
+    } else {
+      paymentMethodData.customerId = userIdObj
+    }
+
+    const paymentMethod = await this.paymentMethodModel.create(paymentMethodData)
 
     return this.formatResponse(paymentMethod)
   }
 
-  async getPaymentMethods(customerId: string): Promise<PaymentMethodResponseDto[]> {
+  async getPaymentMethods(userId: string): Promise<PaymentMethodResponseDto[]> {
+    const userType = await this.detectUserType(userId)
+    const userIdObj = new Types.ObjectId(userId)
+
+    const query = userType === 'driver'
+      ? { driverId: userIdObj, isActive: true, deletedAt: null }
+      : { customerId: userIdObj, isActive: true, deletedAt: null }
+
     const methods = await this.paymentMethodModel
-      .find({
-        customerId: new Types.ObjectId(customerId),
-        isActive: true,
-        deletedAt: null,
-      })
+      .find(query)
       .sort({ isDefault: -1, createdAt: -1 })
 
     return methods.map(m => this.formatResponse(m))
   }
 
   async getDefaultPaymentMethod(
-    customerId: string,
+    userId: string,
   ): Promise<PaymentMethodResponseDto | null> {
-    const method = await this.paymentMethodModel.findOne({
-      customerId: new Types.ObjectId(customerId),
-      isDefault: true,
-      isActive: true,
-      deletedAt: null,
-    })
+    const userType = await this.detectUserType(userId)
+    const userIdObj = new Types.ObjectId(userId)
+
+    const query = userType === 'driver'
+      ? { driverId: userIdObj, isDefault: true, isActive: true, deletedAt: null }
+      : { customerId: userIdObj, isDefault: true, isActive: true, deletedAt: null }
+
+    const method = await this.paymentMethodModel.findOne(query)
 
     return method ? this.formatResponse(method) : null
   }
 
   async updatePaymentMethod(
     methodId: string,
-    customerId: string,
+    userId: string,
     dto: UpdatePaymentMethodDto,
   ): Promise<PaymentMethodResponseDto> {
-    const method = await this.paymentMethodModel.findOne({
-      _id: new Types.ObjectId(methodId),
-      customerId: new Types.ObjectId(customerId),
-    })
+    const userType = await this.detectUserType(userId)
+    const userIdObj = new Types.ObjectId(userId)
+
+    const query: any = { _id: new Types.ObjectId(methodId) }
+    if (userType === 'driver') {
+      query.driverId = userIdObj
+    } else {
+      query.customerId = userIdObj
+    }
+
+    const method = await this.paymentMethodModel.findOne(query)
 
     if (!method) {
       throw new Error('Payment method not found')
@@ -81,13 +114,10 @@ export class PaymentMethodService {
 
     // If setting as default, unset other defaults
     if (dto.isDefault) {
-      await this.paymentMethodModel.updateMany(
-        {
-          customerId: new Types.ObjectId(customerId),
-          _id: { $ne: new Types.ObjectId(methodId) },
-        },
-        { isDefault: false },
-      )
+      const updateQuery = userType === 'driver'
+        ? { driverId: userIdObj, _id: { $ne: new Types.ObjectId(methodId) } }
+        : { customerId: userIdObj, _id: { $ne: new Types.ObjectId(methodId) } }
+      await this.paymentMethodModel.updateMany(updateQuery, { isDefault: false })
     }
 
     Object.assign(method, dto)
@@ -98,12 +128,19 @@ export class PaymentMethodService {
 
   async deletePaymentMethod(
     methodId: string,
-    customerId: string,
+    userId: string,
   ): Promise<void> {
-    const method = await this.paymentMethodModel.findOne({
-      _id: new Types.ObjectId(methodId),
-      customerId: new Types.ObjectId(customerId),
-    })
+    const userType = await this.detectUserType(userId)
+    const userIdObj = new Types.ObjectId(userId)
+
+    const query: any = { _id: new Types.ObjectId(methodId) }
+    if (userType === 'driver') {
+      query.driverId = userIdObj
+    } else {
+      query.customerId = userIdObj
+    }
+
+    const method = await this.paymentMethodModel.findOne(query)
 
     if (!method) {
       throw new Error('Payment method not found')
@@ -117,15 +154,16 @@ export class PaymentMethodService {
 
   async setDefaultPaymentMethod(
     methodId: string,
-    customerId: string,
+    userId: string,
   ): Promise<PaymentMethodResponseDto> {
-    return this.updatePaymentMethod(methodId, customerId, { isDefault: true })
+    return this.updatePaymentMethod(methodId, userId, { isDefault: true })
   }
 
   private formatResponse(doc: PaymentMethodDocument): PaymentMethodResponseDto {
     return {
       _id: doc._id.toString(),
-      customerId: doc.customerId.toString(),
+      customerId: doc.customerId?.toString(),
+      driverId: doc.driverId?.toString(),
       type: doc.type,
       name: doc.name,
       cardNumber: doc.cardNumber,

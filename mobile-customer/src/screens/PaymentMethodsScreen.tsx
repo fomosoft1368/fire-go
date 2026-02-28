@@ -127,7 +127,7 @@ export default function PaymentMethodsScreen({ navigation }: PaymentMethodsScree
 
     return (
       <View key={method._id} style={styles.cardContainer}>
-        <View style={[styles.card, { borderColor: cardColor.border, backgroundColor: cardColor.bg }]}>
+        <View style={[styles.card, { borderColor: cardColor.border, backgroundColor: cardColor.card }]}>
           {/* Card Header */}
           <View style={styles.cardHeader}>
             <View style={styles.cardIconSection}>
@@ -175,7 +175,7 @@ export default function PaymentMethodsScreen({ navigation }: PaymentMethodsScree
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[styles.actionBtn, styles.deleteBtn]}
+              style={[styles.actionBtn, { backgroundColor: COLORS.primary }]}
               onPress={() => handleDeletePaymentMethod(method._id, method.name)}
             >
               <MaterialIcons name="delete" size={16} color="#fff" />
@@ -452,7 +452,7 @@ export default function PaymentMethodsScreen({ navigation }: PaymentMethodsScree
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: COLORS.card,
   },
   header: {
     flexDirection: 'row',
@@ -505,17 +505,18 @@ const styles = StyleSheet.create({
   },
   cardIcon: {
     fontSize: 32,
+    color: '#130a0a',
   },
   cardType: {
     fontSize: 12,
-    color: '#9CA3AF',
-    textTransform: 'uppercase',
+    color: '#0f0f0f',
+    textTransform: 'uppercase', //
   },
   cardName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 4,
+    color: '#0c0c0c',
+    marginTop: 4, //
   },
   defaultBadge: {
     flexDirection: 'row',
@@ -536,10 +537,10 @@ const styles = StyleSheet.create({
   },
   cardNumber: {
     fontSize: 16,
-    color: '#fff',
+    color: '#080808',
     letterSpacing: 2,
     fontWeight: '600',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.sm, //
   },
   cardMeta: {
     flexDirection: 'row',
@@ -548,7 +549,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    color: '#D1D5DB',
+    color: '#161616', //
   },
   cardActions: {
     flexDirection: 'row',
@@ -570,7 +571,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.2)',
   },
   deleteBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: 'rgba(241, 147, 6, 0.2)',
   },
   actionBtnText: {
     fontSize: 12,

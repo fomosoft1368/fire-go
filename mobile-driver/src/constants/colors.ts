@@ -7,10 +7,18 @@ export const COLORS = {
   darkBg: '#0f1419',
   darkCard: '#1a1f2e',
   darkBorder: '#2a3244',
+ 
+
+  // Light theme
+  lightBg: '#ffffff',
+  lightCard: '#f5f6f8',
+  lightBorder: '#e0e4eb',
 
   // Text
-  text: '#ffffff',
+  text: '#0a0a0a',
   textSecondary: '#8b92a5',
+  textDark: '#0f1419',
+  textDarkSecondary: '#64748b',
 
   // Status
   success: '#4caf50',

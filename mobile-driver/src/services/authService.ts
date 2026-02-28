@@ -115,20 +115,28 @@ const getCurrentUser = async () => {
   }
 }
 
-const changePassword = async (data: { currentPassword: string; newPassword: string }) => {
+const changePassword = async (currentPassword: string, newPassword: string) => {
   try {
     const token = await AsyncStorage.getItem('token')
     if (!token) {
       throw new Error('No authentication token found')
     }
 
-    const response = await axios.post(`${API_URL}/auth/change-password`, data, {
-      headers: {
-        Authorization: `Bearer ${token}`,
+    const response = await axios.post(
+      `${API_URL}/auth/change-password`,
+      {
+        currentPassword,
+        newPassword,
       },
-    })
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
     return response.data
-  } catch (error) {
+  } catch (error: any) {
+    console.log('Change password error:', error.response?.data || error.message)
     throw error
   }
 }

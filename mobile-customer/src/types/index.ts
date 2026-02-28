@@ -105,10 +105,14 @@ export type RootStackParamList = {
     deliveryId: string
     pickup: string
     dropoff: string
+    pickupCoordinates: [number, number]
+    dropoffCoordinates: [number, number]
     goodsType: string
     weight: string
     vehicle: string
     estimatedPrice: number
+    distance?: string
+    duration?: string
   }
   FindingDelivery: {
     deliveryId: string
@@ -184,6 +188,8 @@ export type RootStackParamList = {
   PrivacyPolicy: undefined
   TermsOfService: undefined
   Support: undefined
+  Topup: undefined
+  Withdraw: undefined
 }
 
 // API Response Types

@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
-@Controller('api/customers')
+@Controller('customers')
 export class CustomersController {
   constructor(
     private readonly customersService: CustomersService,

@@ -181,7 +181,7 @@ export default function SupportScreen() {
   )
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: COLORS_LIGHT.primary, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>

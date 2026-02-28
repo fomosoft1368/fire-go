@@ -5,7 +5,10 @@ import { WalletsController } from './wallets.controller';
 import { Wallet, WalletSchema } from './schemas/wallet.schema';
 import { Transaction, TransactionSchema } from './schemas/transaction.schema';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
+import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 import { PaymentMethod, PaymentMethodSchema } from '../payment/schemas/payment-method.schema';
+import { PricingModule } from '../pricing/pricing.module';
+import { SepayService } from '../drivers/services/sepay.service';
 
 @Module({
   imports: [
@@ -13,11 +16,13 @@ import { PaymentMethod, PaymentMethodSchema } from '../payment/schemas/payment-m
       { name: Wallet.name, schema: WalletSchema },
       { name: Transaction.name, schema: TransactionSchema },
       { name: Customer.name, schema: CustomerSchema },
+      { name: Driver.name, schema: DriverSchema },
       { name: PaymentMethod.name, schema: PaymentMethodSchema },
     ]),
+    PricingModule,
   ],
   controllers: [WalletsController],
-  providers: [WalletsService],
+  providers: [WalletsService, SepayService],
   exports: [WalletsService],
 })
 export class WalletsModule {}

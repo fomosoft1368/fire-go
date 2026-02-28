@@ -1175,8 +1175,8 @@ export default function DriverFoundScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
+      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.card} />
 
       <View style={styles.mapContainer}>
         {/* Map - Updates based on trip status */}
@@ -1231,7 +1231,7 @@ export default function DriverFoundScreen() {
         {/* Share Button - Floating */}
         <View style={styles.shareButtonContainer}>
           <TouchableOpacity
-            style={[styles.shareButton, { backgroundColor: colors.bgSecondary }]}
+            style={[styles.shareButton, { backgroundColor: colors.warning }]}
             onPress={handleShare}
           >
             <View style={styles.shareIconContainer}>
@@ -1244,10 +1244,10 @@ export default function DriverFoundScreen() {
 
       {/* Bottom Sheet Info Card */}
       <LinearGradient
-        colors={[colors.bgSecondary, colors.bgSecondary]}
+        colors={[colors.card, colors.card]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={[styles.bottomSheet, { backgroundColor: colors.bgSecondary }]}
+        style={[styles.bottomSheet, { backgroundColor: colors.card }]}
       >
         {/* Drag Handle */}
         <View style={styles.dragHandle}>
@@ -1294,7 +1294,7 @@ export default function DriverFoundScreen() {
           </View>
 
           {/* Driver & Vehicle Profile */}
-          <View style={[styles.driverCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+          <View style={[styles.driverCard, { backgroundColor: colors.card, borderColor: colors.warning }]}>
             <View style={styles.driverCardContent}>
               <View style={styles.driverAvatar}>
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
@@ -1328,7 +1328,7 @@ export default function DriverFoundScreen() {
           {/* Action Buttons */}
           <View style={styles.actionButtonsGrid}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+              style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.warning }]}
               onPress={handleChat}
             >
               <MaterialIcons name="chat-bubble" size={20} color="#FF6B00" />
@@ -1337,7 +1337,7 @@ export default function DriverFoundScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+              style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.warning }]}
               onPress={handleCall}
             >
               <MaterialIcons name="call" size={20} color="#FF6B00" />
@@ -1349,7 +1349,7 @@ export default function DriverFoundScreen() {
           {/* ✅ Hiển thị nút hủy khi status = 'pending' hoặc 'accepted' */}
           {(rideRequest?.status === 'pending' || rideRequest?.status === 'accepted') && (
             <TouchableOpacity
-              style={styles.cancelButton}
+              style={[styles.cancelButton, { backgroundColor: colors.card, borderColor: colors.warning }]}
               onPress={handleCancelTrip}
             >
               <MaterialIcons name="cancel" size={20} color="#ef4444" />
@@ -1368,7 +1368,7 @@ export default function DriverFoundScreen() {
           )}
 
           {/* Trip Details - Optional */}
-          <View style={[styles.tripDetailsCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+          <View style={[styles.tripDetailsCard, { backgroundColor: colors.card, borderColor: colors.warning }]}>
             <Text style={[styles.tripDetailsTitle, { color: colors.text }]}>Chi tiết chuyến đi</Text>
             <View style={styles.tripDetailRow}>
               <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Loại xe</Text>

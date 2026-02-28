@@ -162,7 +162,7 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.darkBg} />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.lightBg} />
       
       {/* Header */}
       <View style={styles.header}>
@@ -171,7 +171,7 @@ export default function EditProfileScreen() {
           onPress={handleCancel}
           activeOpacity={0.7}
         >
-          <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
+          <MaterialIcons name="arrow-back" size={24} color={COLORS.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Chỉnh sửa hồ sơ</Text>
         <View style={{ width: 40 }} />
@@ -204,14 +204,14 @@ export default function EditProfileScreen() {
               <MaterialIcons
                 name="person-outline"
                 size={20}
-                color={COLORS.textSecondary}
+                color={COLORS.textDarkSecondary}
                 style={styles.inputIcon}
               />
               <TextInput
                 style={[styles.input, styles.inputTextDisabled]}
                 value={formData.name}
                 placeholder="Nhập họ và tên"
-                placeholderTextColor={COLORS.textSecondary}
+                placeholderTextColor={COLORS.textDarkSecondary}
                 editable={false}
               />
             </View>
@@ -224,7 +224,7 @@ export default function EditProfileScreen() {
               <MaterialIcons
                 name="phone"
                 size={20}
-                color={COLORS.textSecondary}
+                color={COLORS.textDarkSecondary}
                 style={styles.inputIcon}
               />
               <TextInput
@@ -232,7 +232,7 @@ export default function EditProfileScreen() {
                 value={formData.phone}
                 onChangeText={(text) => setFormData({ ...formData, phone: text })}
                 placeholder="Nhập số điện thoại"
-                placeholderTextColor={COLORS.textSecondary}
+                placeholderTextColor={COLORS.textDarkSecondary}
                 keyboardType="phone-pad"
               />
             </View>
@@ -245,7 +245,7 @@ export default function EditProfileScreen() {
               <MaterialIcons
                 name="email"
                 size={20}
-                color={COLORS.textSecondary}
+                color={COLORS.textDarkSecondary}
                 style={styles.inputIcon}
               />
               <TextInput
@@ -253,7 +253,7 @@ export default function EditProfileScreen() {
                 value={formData.email}
                 onChangeText={(text) => setFormData({ ...formData, email: text })}
                 placeholder="Nhập email"
-                placeholderTextColor={COLORS.textSecondary}
+                placeholderTextColor={COLORS.textDarkSecondary}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
@@ -285,7 +285,7 @@ export default function EditProfileScreen() {
                       <MaterialIcons
                         name={option.icon as any}
                         size={24}
-                        color={isSelected ? COLORS.primary : COLORS.textSecondary}
+                        color={isSelected ? COLORS.primary : COLORS.textDarkSecondary}
                       />
                     </View>
                     <Text
@@ -324,7 +324,7 @@ export default function EditProfileScreen() {
             <MaterialIcons
               name="chevron-right"
               size={24}
-              color={COLORS.textSecondary}
+              color={COLORS.textDarkSecondary}
             />
           </TouchableOpacity>
 
@@ -342,11 +342,15 @@ export default function EditProfileScreen() {
             <MaterialIcons
               name="chevron-right"
               size={24}
-              color={COLORS.textSecondary}
+              color={COLORS.textDarkSecondary}
             />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.infoItem} activeOpacity={0.7}>
+          <TouchableOpacity 
+            style={styles.infoItem} 
+            activeOpacity={0.7}
+            onPress={() => (navigation as any).navigate('ChangePassword')}
+          >
             <View style={styles.infoLeft}>
               <View style={styles.infoIconContainer}>
                 <MaterialIcons
@@ -360,7 +364,7 @@ export default function EditProfileScreen() {
             <MaterialIcons
               name="chevron-right"
               size={24}
-              color={COLORS.textSecondary}
+              color={COLORS.textDarkSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -397,7 +401,7 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightBg,
   },
   header: {
     flexDirection: 'row',
@@ -406,7 +410,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
+    borderBottomColor: COLORS.lightBorder,
   },
   backButton: {
     width: 40,
@@ -417,7 +421,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textDark,
   },
   container: {
     flex: 1,
@@ -453,7 +457,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: COLORS.darkBg,
+    borderColor: COLORS.lightBg,
   },
   changePhotoText: {
     fontSize: 14,
@@ -472,16 +476,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textDark,
     marginBottom: SPACING.xs / 2,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
     paddingHorizontal: SPACING.md,
   },
   inputIcon: {
@@ -490,15 +494,15 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: COLORS.text,
+    color: COLORS.textDark,
     paddingVertical: SPACING.md,
   },
   inputDisabled: {
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightBg,
     opacity: 0.6,
   },
   inputTextDisabled: {
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
   },
 
   // Driver Type Section
@@ -508,34 +512,34 @@ const styles = StyleSheet.create({
   },
   driverTypeCard: {
     flex: 1,
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 2,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
     padding: SPACING.md,
     alignItems: 'center',
     position: 'relative',
   },
   driverTypeCardSelected: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '10',
+    backgroundColor: COLORS.primary + '08',
   },
   driverTypeIconWrapper: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightBg,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
   driverTypeIconWrapperSelected: {
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: COLORS.primary + '15',
   },
   driverTypeLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
     textAlign: 'center',
   },
   driverTypeLabelSelected: {
@@ -558,10 +562,10 @@ const styles = StyleSheet.create({
   infoSection: {
     marginTop: SPACING.xl,
     marginHorizontal: SPACING.lg,
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
     overflow: 'hidden',
   },
   infoItem: {
@@ -571,7 +575,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
+    borderBottomColor: COLORS.lightBorder,
   },
   infoLeft: {
     flexDirection: 'row',
@@ -589,7 +593,7 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textDark,
   },
 
   // Bottom Actions
@@ -599,22 +603,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
     borderTopWidth: 1,
-    borderTopColor: COLORS.darkBorder,
-    backgroundColor: COLORS.darkBg,
+    borderTopColor: COLORS.lightBorder,
+    backgroundColor: COLORS.lightBg,
   },
   cancelButton: {
     flex: 1,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightCard,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textDark,
   },
   saveButton: {
     flex: 1,
@@ -629,6 +633,6 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#ffffff',
   },
 })

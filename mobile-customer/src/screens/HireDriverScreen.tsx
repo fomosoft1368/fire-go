@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
@@ -19,7 +19,10 @@ import {
   TextInput,
   Alert,
   FlatList,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  PanResponder,
+  Dimensions,
 } from 'react-native'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS, COLORS_DARK, COLORS_LIGHT } from '../constants'
@@ -98,6 +101,65 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
   const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+
+  // Draggable Bottom Sheet
+  const screenHeight = Dimensions.get('window').height
+  const minHeight = screenHeight * 0.1 // 10%
+  const maxHeight = screenHeight * 0.95 // 95%
+  const initialHeight = screenHeight * 0.5 // 50%
+  const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
+  const lastGestureDy = useRef(0)
+
+  // PanResponder for draggable bottom sheet
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 5
+      },
+      onPanResponderGrant: () => {
+        translateY.setOffset(lastGestureDy.current)
+        translateY.setValue(0)
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const newValue = gestureState.dy
+        if (newValue >= 0 && lastGestureDy.current + newValue <= screenHeight - minHeight) {
+          translateY.setValue(newValue)
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        translateY.flattenOffset()
+        const currentY = lastGestureDy.current + gestureState.dy
+        const velocity = gestureState.vy
+
+        let snapTo: number
+        const midPoint = screenHeight - (maxHeight + minHeight) / 2
+        
+        if (Math.abs(velocity) > 0.8) {
+          snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
+        } else if (currentY > midPoint) {
+          snapTo = screenHeight - minHeight
+        } else {
+          snapTo = screenHeight - maxHeight
+        }
+
+        lastGestureDy.current = snapTo
+        
+        Animated.spring(translateY, {
+          toValue: snapTo,
+          velocity: velocity * -1,
+          tension: 65,
+          friction: 12,
+          useNativeDriver: true,
+        }).start()
+      },
+    })
+  ).current
+
+  // Initialize bottom sheet position
+  useEffect(() => {
+    lastGestureDy.current = screenHeight - initialHeight
+  }, [])
 
   // Reset ride state khi cancel
   const resetRideState = () => {
@@ -582,8 +644,18 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         </TouchableOpacity>
         <Text style={styles.logoText}>firego</Text>
       </View>
-      <View style={styles.card}>
-        <View style={styles.handleBar} />
+      <Animated.View 
+        style={[
+          styles.card,
+          {
+            transform: [{ translateY }],
+            height: screenHeight,
+          }
+        ]}
+      >
+        <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+          <View style={styles.handleBar} />
+        </View>
         {/* Title Section */}
         <View style={styles.cardHeader}>
           <MaterialCommunityIcons name="truck-delivery" size={28} color="#FF6B00" />
@@ -604,7 +676,11 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
           )}
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          style={styles.scrollContent}
+          contentContainerStyle={{ paddingBottom: 80 }}
+        >
           <View style={styles.locationsContainer}>
             {/* Pickup Location */}
             <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
@@ -765,8 +841,8 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
                   style={[
                     styles.carTypeButton,
                     {
-                      backgroundColor: carType === car.id ? 'rgba(255, 107, 0, 0.1)' : colors.bgSecondary,
-                      borderColor: carType === car.id ? '#FF6B00' : colors.border,
+                      backgroundColor: carType === car.id ? 'rgba(255, 107, 0, 0.1)' : colors.card,
+                      borderColor: carType === car.id ? '#FF6B00' : colors.warning,
                     },
                     carType === car.id && styles.carTypeButtonActive,
                   ]}
@@ -792,7 +868,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
             {/* License Plate Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.sectionLabel}>Biển số xe</Text>
-              <View style={[styles.inputContainer, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.warning }]}>
                 <MaterialIcons name="pin" size={20} color={colors.textSecondary} />
                 <TextInput
                   style={[styles.textInput, { color: colors.text }]}
@@ -812,8 +888,8 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
                   style={[
                     styles.transmissionButton,
                     {
-                      backgroundColor: transmission === 'auto' ? 'rgba(255, 107, 0, 0.1)' : colors.bgSecondary,
-                      borderColor: transmission === 'auto' ? '#FF6B00' : colors.border,
+                      backgroundColor: transmission === 'auto' ? 'rgba(255, 107, 0, 0.1)' : colors.card,
+                      borderColor: transmission === 'auto' ? '#FF6B00' : colors.warning,
                     },
                   ]}
                   onPress={() => setTransmission('auto')}
@@ -839,8 +915,8 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
                   style={[
                     styles.transmissionButton,
                     {
-                      backgroundColor: transmission === 'manual' ? 'rgba(255, 107, 0, 0.1)' : colors.bgSecondary,
-                      borderColor: transmission === 'manual' ? '#FF6B00' : colors.border,
+                      backgroundColor: transmission === 'manual' ? 'rgba(255, 107, 0, 0.1)' : colors.card,
+                      borderColor: transmission === 'manual' ? '#FF6B00' : colors.warning,
                     },
                   ]}
                   onPress={() => setTransmission('manual')}
@@ -869,7 +945,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
           {/* Driver Note */}
           <View style={styles.noteSection}>
             <Text style={styles.sectionLabel}>Ghi chú cho tài xế</Text>
-            <View style={[styles.noteContainer, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+            <View style={[styles.noteContainer, { backgroundColor: colors.card, borderColor: colors.warning }]}>
               <TextInput
                 style={[styles.noteInput, { color: colors.text }]}
                 placeholder="Xe đỗ ở hầm B1, cột A05..."
@@ -897,7 +973,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
             </>
           )}
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </View>
   )
 }
@@ -943,22 +1019,24 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
+    paddingTop: 0,
+    paddingBottom: 34,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 15,
-    maxHeight: '50%',
+  },
+  handleBarContainer: {
+    paddingVertical: 12,
+    paddingTop: 12,
+    alignItems: 'center',
   },
   handleBar: {
     width: 40,
     height: 5,
     backgroundColor: '#D1D5DB',
     borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 16,
   },
   cardHeader: {
     flexDirection: 'row',

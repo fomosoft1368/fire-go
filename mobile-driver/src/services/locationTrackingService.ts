@@ -18,16 +18,35 @@ class LocationTrackingService {
     this.driverId = driverId
 
     try {
-      // Request permissions
-      const { status } = await Location.requestForegroundPermissionsAsync()
+      // First, check if permission is already granted
+      const currentPermission = await Location.getForegroundPermissionsAsync()
+      console.log('[LocationTracking] Current foreground permission status:', currentPermission.status)
+
+      // Request permissions if not already granted
+      let status = currentPermission.status
       if (status !== 'granted') {
-        console.warn('[LocationTracking] ⚠️ Location permission not granted')
-        return
+        console.log('[LocationTracking] 📍 Requesting foreground location permission...')
+        const { status: newStatus } = await Location.requestForegroundPermissionsAsync()
+        status = newStatus
+        console.log('[LocationTracking] Permission request result:', status)
       }
 
-      // Request background permissions for continuous tracking
-      const bgStatus = await Location.requestBackgroundPermissionsAsync()
-      console.log('[LocationTracking] Background permission:', bgStatus.status)
+      if (status !== 'granted') {
+        console.warn('[LocationTracking] ⚠️ Permission not granted, but continuing with geolocation...')
+        // Don't return - try anyway
+      } else {
+        console.log('[LocationTracking] ✅ Foreground permission granted')
+      }
+
+      // Request background permissions for continuous tracking (optional)
+      try {
+        console.log('[LocationTracking] 📍 Requesting background location permission...')
+        const bgStatus = await Location.requestBackgroundPermissionsAsync()
+        console.log('[LocationTracking] Background permission:', bgStatus.status)
+      } catch (bgError: any) {
+        console.warn('[LocationTracking] ⚠️ Background permission failed (non-critical):', bgError.message)
+        // Background permission is optional for delivery tracking
+      }
 
       // Start watching location with high accuracy
       this.locationSubscription = await Location.watchPositionAsync(
@@ -57,6 +76,10 @@ class LocationTrackingService {
       this.startServerUpdates()
     } catch (error) {
       console.error('[LocationTracking] ❌ Error starting location tracking:', error)
+      console.error('[LocationTracking] Error name:', (error as any)?.name)
+      console.error('[LocationTracking] Error message:', (error as any)?.message)
+      console.error('[LocationTracking] Error code:', (error as any)?.code)
+      console.error('[LocationTracking] Error stack:', (error as any)?.stack?.substring(0, 500))
     }
   }
 

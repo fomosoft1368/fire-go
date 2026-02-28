@@ -1,7 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import * as bcrypt from 'bcrypt';
 
-export type DriverDocument = Driver & Document;
+export type DriverDocument = Driver & Document & {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+};
 
 export enum DocumentStatus {
   PENDING = 'pending',
@@ -21,6 +24,13 @@ export enum DriverType {
   HIRE = 'hire',          // Lái xe hộ
   RIDESHARE = 'rideshare', // Ghép xe
   DELIVERY = 'delivery',   // Vận chuyển
+}
+
+export enum VehicleType {
+  SEDAN = 'sedan',           // Xe 4 chỗ
+  SUV = 'suv',               // Xe SUV 7 chỗ
+  PICKUP = 'pickup',         // Bán tải
+  MOTORCYCLE = 'motorcycle', // Xe máy
 }
 
 @Schema({ timestamps: true })
@@ -61,6 +71,13 @@ export class Driver {
     default: [DriverType.RIDESHARE],
   })
   driverTypes: DriverType[]; // Tài xế có thể làm nhiều loại
+
+  @Prop({
+    type: String,
+    enum: VehicleType,
+    default: VehicleType.SEDAN,
+  })
+  vehicleType: VehicleType; // Loại xe: sedan, suv, pickup, motorcycle
 
   // Vehicle information
   @Prop()
@@ -170,6 +187,15 @@ export class Driver {
   @Prop()
   lastOnlineTime?: Date; // Thời gian cuối cùng online
 
+  @Prop({ default: 0 })
+  todayOnlineMinutes: number; // Tổng số phút online hôm nay
+
+  @Prop()
+  lastOnlineDate?: Date; // Ngày tracking (để reset mỗi ngày)
+
+  @Prop()
+  onlineSessionStart?: Date; // Thời điểm bắt đầu session online hiện tại
+
   // Current location (geospatial)
   @Prop({
     type: { type: String, enum: ['Point'] },
@@ -223,14 +249,56 @@ export class Driver {
   suspendedUntil?: Date;
 
   // Documents approval
+  @Prop({
+    type: String,
+    enum: DocumentStatus,
+    default: DocumentStatus.PENDING,
+  })
+  approvalStatus: DocumentStatus; // Tình trạng duyệt tài xế
+
   @Prop()
   approvedAt?: Date;
 
   @Prop()
   approvedBy?: string;
+
+  @Prop()
+  approvalNotes?: string;
+
+  @Prop()
+  rejectedAt?: Date;
+
+  @Prop({ type: Object })
+  rejectionReasons?: Record<string, string>;
+
+  @Prop()
+  globalRejectionReason?: string;
+
+  @Prop({ type: [String] })
+  rejectedDocuments?: string[];
 }
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);
+
+// Hash password before saving
+DriverSchema.pre<DriverDocument>('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+// Add comparePassword method
+DriverSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password);
+};
 
 // Sparse index for geospatial queries - only on documents with currentLocation
 DriverSchema.index({ 'currentLocation': '2dsphere' }, { sparse: true });

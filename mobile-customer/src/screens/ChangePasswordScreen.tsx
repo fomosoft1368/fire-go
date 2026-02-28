@@ -128,7 +128,7 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
         console.log('[ChangePassword] Could not decode token:', e)
       }
     
-      const url = `${process.env.REACT_APP_API_URL || 'http://192.168.1.16:3000/api'}/customers/change-password`
+      const url = `${process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'}/customers/change-password`
       console.log('[ChangePassword] Request URL:', url)
       console.log('[ChangePassword] Authorization:', `Bearer ${token.substring(0, 20)}...`)
       
@@ -174,7 +174,7 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+          <MaterialIcons name="arrow-back" size={24} color="#0f0f0f" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Đổi mật khẩu</Text>
         <View style={{ width: 40 }} />
@@ -279,7 +279,7 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#f9fafc',
   },
   header: {
     flexDirection: 'row',
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#0e0e0e',
   },
   content: {
     flex: 1,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.card,
     lineHeight: 20,
   },
   formContainer: {
@@ -328,17 +328,17 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#080808',
     marginBottom: SPACING.sm,
   },
   passwordInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
     paddingRight: SPACING.sm,
-    backgroundColor: '#1a202c',
+    backgroundColor: '#fafaf8',
   },
   formInput: {
     flex: 1,

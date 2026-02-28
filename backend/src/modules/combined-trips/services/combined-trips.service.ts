@@ -128,8 +128,9 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('   Origin:', origin);
       console.log('   Destination:', destination);
 
-      // ✅ OPTIMIZED: Request MULTIPLE routes and pick the SHORTEST one
-      // Thêm parameters để ưu tiên đường cao tốc/đường lớn và lấy route ngắn nhất
+      // ✅ SIMPLIFIED: Request MULTIPLE alternative routes and pick the ABSOLUTE SHORTEST
+      // No waypoints - let Google Maps find the best route naturally
+      // Just like Google Maps on mobile phone
       const params = new URLSearchParams({
         origin,
         destination,
@@ -137,10 +138,10 @@ export class CombinedTripsService implements OnModuleInit {
         mode: 'driving',
         region: 'vn',
         language: 'vi',
-        alternatives: 'true', // ✅ Lấy nhiều routes để so sánh
-        avoid: 'ferries', // ✅ Tránh đường phà
+        alternatives: 'true', // ✅ Get up to 3 alternative routes
         units: 'metric',
-        // ✅ Không set traffic_model vì sẽ bị charge thêm, chỉ dùng bản free
+        // ✅ NO AVOID parameters - allow all routes (even tolls/highways)
+        // ✅ NO WAYPOINTS - let Google choose naturally
       });
 
       const url = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
@@ -162,36 +163,51 @@ export class CombinedTripsService implements OnModuleInit {
 
       // Check if route found
       if (data.status === 'OK' && data.routes && data.routes.length > 0) {
-        // ✅ CRITICAL: Chọn route NGẮN NHẤT (shortest distance)
-        // Google trả về nhiều routes, ta chọn route có khoảng cách ngắn nhất
-        console.log('🔍 Analyzing all routes to find shortest...');
+        // ✅ SIMPLE: Pick the ABSOLUTE SHORTEST route (like Google Maps mobile)
+        // No complex scoring - distance is king!
+        console.log(`🔍 Found ${data.routes.length} alternative routes, analyzing...`);
         
         let shortestRoute = data.routes[0];
-        let shortestDistance = data.routes[0].legs[0].distance.value;
+        let shortestDistance = data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
 
         for (const route of data.routes) {
-          const routeDistance = route.legs[0].distance.value;
-          console.log(`📏 Route option: ${(routeDistance / 1000).toFixed(2)}km - ${route.summary}`);
+          const totalDistance = route.legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
+          const totalDuration = route.legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0);
           
-          if (routeDistance < shortestDistance) {
+          console.log(`📏 Route ${data.routes.indexOf(route) + 1}:`);
+          console.log(`   Distance: ${(totalDistance / 1000).toFixed(2)}km`);
+          console.log(`   Duration: ${Math.ceil(totalDuration / 60)}min`);
+          console.log(`   Summary: ${route.summary}`);
+          
+          // ✅ Pick SHORTEST distance (simplest logic)
+          if (totalDistance < shortestDistance) {
             shortestRoute = route;
-            shortestDistance = routeDistance;
+            shortestDistance = totalDistance;
+            console.log(`   ⭐ NEW SHORTEST ROUTE!`);
           }
         }
 
         console.log(`✅ Selected SHORTEST route: ${(shortestDistance / 1000).toFixed(2)}km - ${shortestRoute.summary}`);
 
         const route = shortestRoute;
-        const leg = route.legs[0];
-
-        const distanceKm = leg.distance.value / 1000; // Convert meters to km
-        const durationMinutes = Math.ceil(leg.duration.value / 60); // Convert seconds to minutes
+        
+        // ✅ Calculate distance and duration from selected route
+        const totalDistance = route.legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
+        const totalDuration = route.legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0);
+        
+        const distanceKm = totalDistance / 1000; // Convert meters to km
+        const durationMinutes = Math.ceil(totalDuration / 60); // Convert seconds to minutes
+        
+        // Format text
+        const distanceText = `${distanceKm.toFixed(1)} km`;
+        const durationText = `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`.replace('0h ', '');
 
         console.log('✅ Route found:', {
           distanceKm: distanceKm.toFixed(2),
           durationMinutes,
-          distanceText: leg.distance.text,
-          durationText: leg.duration.text,
+          distanceText,
+          durationText,
+          legs: route.legs.length,
         });
 
         // Decode the polyline
@@ -202,8 +218,8 @@ export class CombinedTripsService implements OnModuleInit {
         const response = {
           distance: distanceKm, // in km
           duration: durationMinutes, // in minutes
-          distanceText: leg.distance.text,
-          durationText: leg.duration.text,
+          distanceText,
+          durationText,
           features: [
             {
               geometry: {
@@ -212,8 +228,9 @@ export class CombinedTripsService implements OnModuleInit {
               },
               properties: {
                 summary: {
-                  distance: leg.distance.value,
-                  duration: leg.duration.value,
+                  distance: totalDistance,
+                  duration: totalDuration,
+                  routeSummary: route.summary, // Include route name (e.g., "via QL1A")
                 }
               }
             }
@@ -570,7 +587,7 @@ export class CombinedTripsService implements OnModuleInit {
 
       const trips = await this.combinedTripModel
         .find(filters || {})
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate')
+        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
         .populate('customerId', 'firstName lastName phone avatar')
         .sort({ requestedAt: -1 });
 
@@ -613,7 +630,7 @@ export class CombinedTripsService implements OnModuleInit {
 
       const trips = await this.combinedTripModel
         .find(query)
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate')
+        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
         .populate('customerId', 'firstName lastName phone avatar')
         .sort({ requestedAt: -1 })
         .limit(10);
@@ -631,13 +648,14 @@ export class CombinedTripsService implements OnModuleInit {
    */
   async getCombinedTripDetail(combinedTripId: string): Promise<any> {
     try {
-      console.log('[CombinedTripsService] Getting trip detail for ID:', combinedTripId);
+      
       const tripIdObj = new Types.ObjectId(combinedTripId);
 
       const trip = await this.combinedTripModel
         .findById(tripIdObj)
         .populate({
           path: 'driverId',
+          select: 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType vehicleColor phone',
           // Don't fail if driver is null
           options: { strictPopulate: false },
         })
@@ -884,7 +902,7 @@ export class CombinedTripsService implements OnModuleInit {
         },
         { new: true },
       )
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate')
+        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
         .populate('customerId', 'firstName lastName phone avatar')
         .exec();
 
@@ -971,8 +989,18 @@ export class CombinedTripsService implements OnModuleInit {
         throw new NotFoundException(`Combined trip not found: ${combinedTripId}`);
       }
       
+      // ⭐ CRITICAL FIX: If trip is driver-created, skip finding drivers (driver already assigned)
+      if (combinedTrip.createdBy === 'driver') {
+        console.log('⚠️ [findAndNotifyDrivers] Trip created by DRIVER - skipping driver search (driver already assigned)');
+        console.log('🚗 Assigned driver:', combinedTrip.driverId);
+        return; // Early return - no need to find drivers
+      }
+      
+      // Only for customer-created trips, we need to find drivers
       const customerId = combinedTrip.customerId && combinedTrip.customerId[0] ? combinedTrip.customerId[0] : null;
       if (!customerId) {
+        console.log('⚠️ [findAndNotifyDrivers] No customer ID found for trip:', combinedTripId);
+        console.log('⚠️ Trip details:', { createdBy: combinedTrip.createdBy, status: combinedTrip.status });
         throw new BadRequestException(`No customer ID found for trip: ${combinedTripId}`);
       }
 
@@ -1009,12 +1037,16 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('📊 Busy drivers (already have active trips):', busyDriverIds.length);
 
       // ✅ NEW: Get list of drivers who already REJECTED or TIMED OUT for THIS trip
+      // 🔥 CRITICAL: Only exclude drivers with requests that are STILL VALID (not expired)
+      // Don't exclude drivers from old/expired requests
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
       const rejectedRequests = await this.rideRequestModel.find({
         combinedTripId: new Types.ObjectId(combinedTripId),
         status: { $in: ['rejected', 'timeout'] }, // Include both rejected AND timeout
+        createdAt: { $gte: thirtyMinutesAgo }, // ✅ Only from last 30 minutes
       });
-      const rejectedDriverIds = rejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
-      console.log('📊 Rejected/timeout drivers for this trip:', rejectedDriverIds.length, rejectedDriverIds);
+      const rejectedDriverIds = rejectedRequests.map(req => req.driverId?.toString()).filter(Boolean)
+      console.log('📊 Rejected/timeout drivers for this trip (last 30 min):', rejectedDriverIds.length, rejectedDriverIds)
 
       // Combine exclusion lists: busy drivers + rejected drivers
       const excludedDriverIds = [...busyDriverIds, ...rejectedDriverIds];
@@ -1107,7 +1139,7 @@ export class CombinedTripsService implements OnModuleInit {
         seats: combinedTrip.availableSeats,
         distance: combinedTrip.distance,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 15000), // 15 seconds timeout
+        expiresAt: new Date(Date.now() + 50000), // ✅ FIX: 50 seconds (consistent with manual requests)
       });
 
       await rideRequest.save();
@@ -1174,13 +1206,16 @@ export class CombinedTripsService implements OnModuleInit {
       });
       const busyDriverIds = activeTrips.map(trip => trip.driverId?.toString()).filter(Boolean);
       
-      // ✅ CRITICAL FIX: Get ALL drivers who already rejected/timeout for THIS trip from database
+      // ✅ CRITICAL FIX: Get ALL drivers who recently rejected/timeout for THIS trip
+      // Only exclude drivers with requests from last 30 minutes (not old expired ones)
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
       const allRejectedRequests = await this.rideRequestModel.find({
         combinedTripId: new Types.ObjectId(combinedTripId),
         status: 'rejected',
+        createdAt: { $gte: thirtyMinutesAgo }, // ✅ Only from last 30 minutes
       });
       const allRejectedDriverIds = allRejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
-      console.log('📊 All previously rejected drivers for this trip:', allRejectedDriverIds.length, allRejectedDriverIds);
+      console.log('📊 All recently rejected drivers (last 30 min):', allRejectedDriverIds.length, allRejectedDriverIds);
       
       // Combine all exclusion lists: busy drivers + ALL rejected drivers (not just current one)
       const excludedDriverIds = [...busyDriverIds, ...allRejectedDriverIds];
@@ -1248,7 +1283,7 @@ export class CombinedTripsService implements OnModuleInit {
         seats: trip.availableSeats,
         distance: trip.distance,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 15000), // 15 seconds timeout
+        expiresAt: new Date(Date.now() + 45000), // ✅ FIX: 45 seconds (consistent with all combined trip requests)
       });
 
       await newRideRequest.save();

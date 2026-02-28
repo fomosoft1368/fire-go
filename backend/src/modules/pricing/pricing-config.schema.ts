@@ -153,6 +153,34 @@ export class PricingConfig {
   @Prop({ type: [HireDriverPricing], default: [] })
   hireDriverPricing: HireDriverPricing[];
   // ============ END LÁI XE HỘ ============
+
+  // ============ TOPUP DISCOUNT - Nạp tiền chiết khấu ============
+  @Prop({ required: false, default: 0 })
+  topupDiscountCustomer: number; // Phần trăm chiết khấu nạp tiền khách hàng (0-100)
+
+  @Prop({ required: false, default: 0 })
+  topupDiscountDriver: number; // Phần trăm chiết khấu nạp tiền tài xế (0-100)
+  // ============ END TOPUP DISCOUNT ============
+
+  // ============ WALLET & TOPUP LIMITS - Giới hạn ví & nạp tiền ============
+  @Prop({ default: 10000 })
+  minTopupAmountDriver: number; // Số tiền nạp tối thiểu cho tài xế (VNĐ)
+
+  @Prop({ default: 10000 })
+  minTopupAmountCustomer: number; // Số tiền nạp tối thiểu cho khách hàng (VNĐ)
+
+  @Prop({ default: 50000 })
+  minWithdrawAmountDriver: number; // Số tiền rút tối thiểu cho tài xế (VNĐ)
+
+  @Prop({ default: 50000 })
+  minWithdrawAmountCustomer: number; // Số tiền rút tối thiểu cho khách hàng (VNĐ)
+
+  @Prop({ default: 100000 })
+  minWalletBalanceToGoOnline: number; // Số dư ví tối thiểu để bật online nhận chuyến (VNĐ)
+
+  @Prop({ default: 100000000 })
+  maxTopupAmount: number; // Số tiền nạp tối đa mỗi lần (VNĐ)
+  // ============ END WALLET & TOPUP LIMITS ============
 }
 
 export const PricingConfigSchema = SchemaFactory.createForClass(PricingConfig);

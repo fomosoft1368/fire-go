@@ -385,8 +385,8 @@ export default function RideDetailRequestScreen() {
   const seatsState = getSeatsState()
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.bg} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
+      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.card} />
 
       {!ride ? (
         <View style={styles.errorContainer}>
@@ -424,9 +424,9 @@ export default function RideDetailRequestScreen() {
             </View>
 
             {/* Content Below Map */}
-            <View style={[styles.contentWrapper, { backgroundColor: colors.bg }]}>
+            <View style={[styles.contentWrapper, { backgroundColor: colors.card }]}>
               {/* Driver Section - Simple Layout */}
-              <View style={[styles.driverSection, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <View style={[styles.driverSection, { backgroundColor: colors.card, borderColor: colors.warning }]}>
                 <View style={styles.driverRow}>
                   <View style={styles.driverAvatarContainer}>
                     <View style={[styles.driverAvatar, { backgroundColor: '#FF6B00' }]}>
@@ -459,7 +459,7 @@ export default function RideDetailRequestScreen() {
               </View>
 
               {/* Timeline Section */}
-              <View style={[styles.timelineSection, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <View style={[styles.timelineSection, { backgroundColor: colors.card, borderColor: colors.warning }]}>
                 <View style={styles.timelineContainer}>
                   {/* Pickup Point */}
                   <View style={styles.timelineRow}>
@@ -478,10 +478,10 @@ export default function RideDetailRequestScreen() {
                   {/* Dropoff Point */}
                   <View style={styles.timelineRow}>
                     <View style={styles.timelineLeft}>
-                      <MaterialIcons name="location-on" size={24} color={colors.textSecondary} />
+                      <MaterialIcons name="location-on" size={24} color={colors.success} />
                     </View>
                     <View style={styles.timelineContent}>
-                      <Text style={[styles.timelineTime, { color: colors.textSecondary }]}>10:30 • Trả khách</Text>
+                      <Text style={[styles.timelineTime, { color: colors.success }]}>10:30 • Trả khách</Text>
                       <Text style={[styles.timelineAddress, { color: colors.text }]} numberOfLines={2}>
                         {dropoffAddress}
                       </Text>
@@ -491,7 +491,7 @@ export default function RideDetailRequestScreen() {
               </View>
 
             {/* Seat Selection - Car Layout */}
-              <View style={[styles.seatSection, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+              <View style={[styles.seatSection, { backgroundColor: colors.card, borderColor: colors.warning }]}>
                 <View style={styles.seatHeaderSimple}>
                   <Text style={[styles.seatTitleSimple, { color: colors.text }]}>Chọn ghế ngồi</Text>
                   <View style={styles.seatsAvailableBadge}>
@@ -500,7 +500,7 @@ export default function RideDetailRequestScreen() {
                 </View>
 
                 {/* Car Layout Visualization */}
-                <View style={[styles.carLayout, { backgroundColor: colors.bgSecondary }]}>
+                <View style={[styles.carLayout, { backgroundColor: colors.card, borderColor: colors.warning }]}>
                   {/* Steering Wheel */}
                   <View style={styles.steeringWheel}>
                     <MaterialIcons name="directions-car" size={28} color={colors.textSecondary + '4D'} />
@@ -641,7 +641,7 @@ export default function RideDetailRequestScreen() {
           </ScrollView>
 
           {/* Sticky Footer */}
-          <View style={[styles.footer, { backgroundColor: colors.bgSecondary, borderTopColor: colors.border }]}>
+          <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.warning }]}>
             <View style={styles.priceSection}>
               <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Tổng cộng ({selectedSeats.length} ghế)</Text>
               <View style={styles.priceValue}>
@@ -675,7 +675,7 @@ export default function RideDetailRequestScreen() {
       {/* Requesting Modal */}
       <Modal visible={requesting && requestStatus === 'pending'} transparent>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.bgSecondary }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <ActivityIndicator color="#53d22d" size={40} />
             <Text style={[styles.modalTitle, { color: colors.text }]}>Đang gửi yêu cầu</Text>
             <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>

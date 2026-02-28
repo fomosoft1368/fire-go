@@ -19,7 +19,7 @@ import {
 } from './dto/payment-method.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 
-@Controller('api/payment-methods')
+@Controller('payment-methods')
 export class PaymentMethodController {
   constructor(private readonly paymentMethodService: PaymentMethodService) {
     console.log('[PaymentMethodController] Initialized')

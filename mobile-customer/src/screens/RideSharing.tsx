@@ -14,6 +14,8 @@ import {
   FlatList,
   StatusBar,
   Modal,
+  Animated,
+  PanResponder,
 } from 'react-native'
 import * as Location from 'expo-location'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
@@ -72,6 +74,14 @@ export default function RideSharing(props?: RideSharingProps) {
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
   const [loading, setLoading] = useState(false)
 
+  // Draggable Bottom Sheet
+  const screenHeight = Dimensions.get('window').height
+  const minHeight = screenHeight * 0.1 // 10%
+  const maxHeight = screenHeight * 0.95 // 95%
+  const initialHeight = screenHeight * 0.5 // 50%
+  const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
+  const lastGestureDy = useRef(0)
+
   // Places autocomplete states
   const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
   const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
@@ -91,6 +101,59 @@ export default function RideSharing(props?: RideSharingProps) {
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
   const isMountedRef = useRef(true)
   const setRideMode = props?.setRideMode
+
+  // PanResponder for draggable bottom sheet
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to vertical drags > 5px
+        return Math.abs(gestureState.dy) > 5
+      },
+      onPanResponderGrant: () => {
+        translateY.setOffset(lastGestureDy.current)
+        translateY.setValue(0)
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Limit dragging within bounds
+        const newValue = gestureState.dy
+        if (newValue >= 0 && lastGestureDy.current + newValue <= screenHeight - minHeight) {
+          translateY.setValue(newValue)
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        translateY.flattenOffset()
+        const currentY = lastGestureDy.current + gestureState.dy
+        const velocity = gestureState.vy
+
+        // Snap to either min (10%) or max (95%) only
+        let snapTo: number
+        const midPoint = screenHeight - (maxHeight + minHeight) / 2
+        
+        // Strong velocity influence
+        if (Math.abs(velocity) > 0.8) {
+          snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
+        }
+        // Position-based snapping
+        else if (currentY > midPoint) {
+          snapTo = screenHeight - minHeight // Snap to collapsed (10%)
+        } else {
+          snapTo = screenHeight - maxHeight // Snap to expanded (95%)
+        }
+
+        lastGestureDy.current = snapTo
+        
+        Animated.spring(translateY, {
+          toValue: snapTo,
+          velocity: velocity * -1,
+          tension: 65,
+          friction: 12,
+          useNativeDriver: true,
+        }).start()
+      },
+    })
+  ).current
+
   useEffect(() => {
     return () => {
       isMountedRef.current = false
@@ -103,6 +166,11 @@ export default function RideSharing(props?: RideSharingProps) {
         clearTimeout(recalculateTimeoutRef.current)
       }
     }
+  }, [])
+
+  // Initialize bottom sheet position
+  useEffect(() => {
+    lastGestureDy.current = screenHeight - initialHeight
   }, [])
 
   /**
@@ -699,7 +767,7 @@ export default function RideSharing(props?: RideSharingProps) {
         onRequestClose={() => setIsTimeModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.bg }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Chọn thời gian</Text>
               <TouchableOpacity onPress={() => setIsTimeModalVisible(false)}>
@@ -710,7 +778,7 @@ export default function RideSharing(props?: RideSharingProps) {
             {/* Date and Time Display */}
             <View style={styles.dateTimeDisplayContainer}>
               <TouchableOpacity
-                style={[styles.dateTimeButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+                style={[styles.dateTimeButton, { backgroundColor: colors.card, borderColor: colors.warning }]}
                 onPress={() => setShowDatePicker(true)}
               >
                 <MaterialIcons name="calendar-today" size={20} color={colors.primary} />
@@ -720,7 +788,7 @@ export default function RideSharing(props?: RideSharingProps) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.dateTimeButton, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+                style={[styles.dateTimeButton, { backgroundColor: colors.card, borderColor: colors.warning }]}
                 onPress={() => setShowTimePicker(true)}
               >
                 <MaterialIcons name="schedule" size={20} color={colors.primary} />
@@ -761,7 +829,7 @@ export default function RideSharing(props?: RideSharingProps) {
               />
             )}
 
-            <View style={[styles.modalFooter, { borderTopColor: colors.border, backgroundColor: colors.bgSecondary }]}>
+            <View style={[styles.modalFooter, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => setSelectedDateTime(new Date())}
@@ -783,8 +851,18 @@ export default function RideSharing(props?: RideSharingProps) {
           </View>
         </View>
       </Modal>
-      <View style={styles.card}>
-        <View style={styles.handleBar} />
+      <Animated.View 
+        style={[
+          styles.card,
+          {
+            transform: [{ translateY }],
+            height: screenHeight,
+          }
+        ]}
+      >
+        <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+          <View style={styles.handleBar} />
+        </View>
         {/* Title Section */}
         <View style={styles.cardHeader}>
           <MaterialCommunityIcons name="truck-delivery" size={28} color="#FF6B00" />
@@ -808,7 +886,11 @@ export default function RideSharing(props?: RideSharingProps) {
           ) : null} */}
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false} 
+          style={styles.scrollContent}
+          contentContainerStyle={{ paddingBottom: 80 }}
+        >
           {/* Locations Section */}
           <View style={styles.locationsContainer}>
             <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
@@ -892,7 +974,7 @@ export default function RideSharing(props?: RideSharingProps) {
 
           {/* Time & Passenger Section */}
           <View style={styles.timePassengerSection}>
-            <View style={[styles.timeWrapper, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+            <View style={[styles.timeWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
               <View>
                 <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Thời gian</Text>
                 <View style={styles.immediateBox}>
@@ -911,11 +993,11 @@ export default function RideSharing(props?: RideSharingProps) {
               />
             </View>
 
-            <View style={[styles.passengerWrapper, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+            <View style={[styles.passengerWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
               <Text style={[styles.passengerLabel, { color: colors.textSecondary }]}>Số khách</Text>
               <View style={styles.passengerControls}>
                 <TouchableOpacity
-                  style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.border }]}
+                  style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.warning }]}
                   onPress={() => {
                     if (passengerCount > 1) setPassengerCount(passengerCount - 1)
                   }}
@@ -924,7 +1006,7 @@ export default function RideSharing(props?: RideSharingProps) {
                 </TouchableOpacity>
                 <Text style={[styles.passengerCount, { color: colors.text }]}>{passengerCount}</Text>
                 <TouchableOpacity
-                  style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.border }]}
+                  style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.warning }]}
                   onPress={() => {
                     if (passengerCount < 6) setPassengerCount(passengerCount + 1)
                   }}
@@ -937,9 +1019,9 @@ export default function RideSharing(props?: RideSharingProps) {
 
           {/* Route Map & Info */}
           {routeInfo && (
-            <View style={[styles.routeSection, { backgroundColor: colors.bgSecondary }]}>
+            <View style={[styles.routeSection, { backgroundColor: colors.card }]}>
               {/* Route Info */}
-              <View style={[styles.routeInfo, { borderTopColor: colors.border }]}>
+              <View style={[styles.routeInfo, { borderTopColor: colors.warning }]}>
                 <View style={styles.routeInfoItem}>
                   <MaterialIcons name="straighten" size={18} color="#FF6B00" />
                   <Text style={[styles.routeText, { color: colors.text }]}>
@@ -979,7 +1061,7 @@ export default function RideSharing(props?: RideSharingProps) {
             </>
           )}
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </View>
   )
 }
@@ -1044,22 +1126,24 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24,
+    paddingTop: 0,
+    paddingBottom: 100,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 15,
-    maxHeight: '50%',
+  },
+  handleBarContainer: {
+    paddingVertical: 12,
+    paddingTop: 12,
+    alignItems: 'center',
   },
   handleBar: {
     width: 40,
     height: 5,
     backgroundColor: '#D1D5DB',
     borderRadius: 3,
-    alignSelf: 'center',
-    marginBottom: 16,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1135,6 +1219,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    marginTop: 16,
     shadowColor: '#FF6B00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

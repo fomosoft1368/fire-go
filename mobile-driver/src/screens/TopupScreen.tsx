@@ -18,6 +18,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { walletService } from '../services/walletService'
+import { pricingService } from '../services/pricingService'
 
 const PRESET_AMOUNTS = [100000, 200000, 500000, 1000000, 2000000, 5000000]
 
@@ -30,32 +31,25 @@ interface PaymentMethod {
 
 const PAYMENT_METHODS: PaymentMethod[] = [
   {
-    id: 'vnpay',
-    name: 'VNPay',
-    icon: 'credit-card',
-    description: 'Thẻ tín dụng / Thẻ ghi nợ',
-  },
-  {
-    id: 'wallet',
-    name: 'Ví điện tử',
-    icon: 'account-balance-wallet',
-    description: 'Ví điện tử phổ biến',
-  },
-  {
     id: 'bank',
     name: 'Chuyển khoản ngân hàng',
-    icon: 'apartment',
-    description: 'Chuyển khoản trực tiếp',
+    icon: 'account-balance-wallet',
+    description: 'Quét mã QR hoặc chuyển khoản',
   },
 ]
 
 export default function TopupScreen({ navigation }: any) {
   const [customAmount, setCustomAmount] = useState('')
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('vnpay')
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('bank')
   const [isProcessing, setIsProcessing] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showSepayModal, setShowSepayModal] = useState(false)
+  const [topupDiscount, setTopupDiscount] = useState<number>(0)
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false)
+  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'checking' | 'completed'>('pending')
+  const [minTopupAmount, setMinTopupAmount] = useState(10000)
+  const [maxTopupAmount, setMaxTopupAmount] = useState(100000000)
   const [sepayData, setSepayData] = useState<{
     qrCodeUrl: string;
     accountNo: string;
@@ -66,7 +60,100 @@ export default function TopupScreen({ navigation }: any) {
     transactionId: string;
   } | null>(null)
 
+  React.useEffect(() => {
+    loadTopupDiscount()
+    loadPricingConfig()
+  }, [])
+
+  // ⭐ Auto-check payment status when Sepay modal is open
+  React.useEffect(() => {
+    if (!showSepayModal || !sepayData?.transactionId) {
+      return
+    }
+
+    console.log('[TopupScreen] Starting auto-check for transaction:', sepayData.transactionId)
+    setIsCheckingPayment(true)
+    setPaymentStatus('checking')
+
+    // Poll every 3 seconds
+    const intervalId = setInterval(async () => {
+      try {
+        console.log('[TopupScreen] Checking transaction status...')
+        const status = await walletService.checkTransactionStatus(sepayData.transactionId)
+        console.log('[TopupScreen] Transaction status:', status)
+
+        if (status === 'completed') {
+          console.log('[TopupScreen] ✅ Payment completed!')
+          setPaymentStatus('completed')
+          setIsCheckingPayment(false)
+          
+          // Show success message
+          Alert.alert(
+            'Nạp tiền thành công',
+            `Số dư đã được cập nhật. Bạn đã nạp ${sepayData.amount.toLocaleString('vi-VN')}đ`,
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setShowSepayModal(false)
+                  navigation?.goBack()
+                }
+              }
+            ]
+          )
+          
+          // Clear interval
+          clearInterval(intervalId)
+        }
+      } catch (error) {
+        console.error('[TopupScreen] Error checking payment:', error)
+      }
+    }, 3000) // Check every 3 seconds
+
+    // Cleanup
+    return () => {
+      console.log('[TopupScreen] Stopping auto-check')
+      clearInterval(intervalId)
+      setIsCheckingPayment(false)
+    }
+  }, [showSepayModal, sepayData?.transactionId])
+
+  const loadTopupDiscount = async () => {
+    try {
+      const discount = await walletService.getTopupDiscount()
+      setTopupDiscount(discount)
+    } catch (error) {
+      console.error('[TopupScreen] Error loading topup discount:', error)
+    }
+  }
+
+  const loadPricingConfig = async () => {
+    try {
+      const minAmount = await pricingService.getMinTopupAmountDriver()
+      const maxAmount = await pricingService.getMaxTopupAmount()
+      setMinTopupAmount(minAmount)
+      setMaxTopupAmount(maxAmount)
+      console.log('[TopupScreen] Loaded pricing config:', { minAmount, maxAmount })
+    } catch (error) {
+      console.error('[TopupScreen] Error loading pricing config:', error)
+    }
+  }
+
   const amount = selectedAmount || (customAmount ? parseInt(customAmount) : 0)
+
+  // Validation error message
+  const getValidationError = (): string | null => {
+    if (amount <= 0) return null; // Don't show error for empty input
+    if (amount < minTopupAmount) {
+      return `Số tiền nạp tối thiểu là ${minTopupAmount.toLocaleString('vi-VN')}đ`;
+    }
+    if (amount > maxTopupAmount) {
+      return `Số tiền nạp tối đa là ${maxTopupAmount.toLocaleString('vi-VN')}đ`;
+    }
+    return null;
+  };
+
+  const validationError = getValidationError();
 
   const handleAmountSelect = (value: number) => {
     setSelectedAmount(value)
@@ -84,13 +171,13 @@ export default function TopupScreen({ navigation }: any) {
       return
     }
 
-    if (amount < 50000) {
-      Alert.alert('Lỗi', 'Số tiền nạp tối thiểu là 50.000đ')
+    if (amount < minTopupAmount) {
+      Alert.alert('Lỗi', `Số tiền nạp tối thiểu là ${minTopupAmount.toLocaleString('vi-VN')}đ`)
       return
     }
 
-    if (amount > 100000000) {
-      Alert.alert('Lỗi', 'Số tiền nạp tối đa là 100.000.000đ')
+    if (amount > maxTopupAmount) {
+      Alert.alert('Lỗi', `Số tiền nạp tối đa là ${maxTopupAmount.toLocaleString('vi-VN')}đ`)
       return
     }
 
@@ -105,28 +192,22 @@ export default function TopupScreen({ navigation }: any) {
         paymentMethod: selectedPaymentMethod,
       })
 
-      if (selectedPaymentMethod === 'bank') {
-        // Sepay bank transfer QR code
-        const result = await walletService.createSepayPayment(amount)
-        console.log('[TopupScreen] Sepay payment created:', result)
-        
-        setSepayData({
-          qrCodeUrl: result.qrCodeUrl,
-          accountNo: result.accountNo,
-          accountName: result.accountName,
-          bankName: result.bankName,
-          amount: result.amount,
-          content: result.content,
-          transactionId: result.transactionId,
-        })
-        
-        setShowPaymentModal(false)
-        setShowSepayModal(true)
-      } else if (selectedPaymentMethod === 'vnpay') {
-        Alert.alert('Thông báo', 'VNPay đang được tích hợp')
-      } else {
-        Alert.alert('Thông báo', 'Phương thức này đang được phát triển')
-      }
+      // Sepay bank transfer QR code
+      const result = await walletService.createSepayPayment(amount)
+      console.log('[TopupScreen] Sepay payment created:', result)
+      
+      setSepayData({
+        qrCodeUrl: result.qrCodeUrl,
+        accountNo: result.accountNo,
+        accountName: result.accountName,
+        bankName: result.bankName,
+        amount: result.amount,
+        content: result.content,
+        transactionId: result.transactionId,
+      })
+      
+      setShowPaymentModal(false)
+      setShowSepayModal(true)
     } catch (error: any) {
       console.error('[TopupScreen] Payment error:', error)
       Alert.alert('Lỗi', error.message || 'Lỗi trong quá trình thanh toán')
@@ -146,7 +227,7 @@ export default function TopupScreen({ navigation }: any) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation?.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
+            <MaterialIcons name="arrow-back" size={24} color={COLORS.textDark} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Nạp tiền</Text>
           <View style={{ width: 24 }} />
@@ -162,14 +243,25 @@ export default function TopupScreen({ navigation }: any) {
               <Text style={styles.currencyText}>đ</Text>
             </View>
             <TextInput
-              style={styles.customAmountInput}
+              style={[
+                styles.customAmountInput,
+                validationError && styles.customAmountInputError
+              ]}
               placeholder="Nhập số tiền"
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor={COLORS.textDarkSecondary}
               value={customAmount}
               onChangeText={handleCustomAmountChange}
               keyboardType="number-pad"
             />
           </View>
+
+          {/* Validation Error */}
+          {validationError && (
+            <View style={styles.errorContainer}>
+              <MaterialIcons name="error-outline" size={16} color="#ef4444" />
+              <Text style={styles.errorText}>{validationError}</Text>
+            </View>
+          )}
 
           {/* Preset Amounts */}
           <View style={styles.presetsContainer}>
@@ -201,6 +293,24 @@ export default function TopupScreen({ navigation }: any) {
               <Text style={styles.selectedAmount}>
                 {amount.toLocaleString('vi-VN')}đ
               </Text>
+            </View>
+          )}
+
+          {/* Discount Info */}
+          {amount > 0 && topupDiscount > 0 && (
+            <View style={styles.discountInfo}>
+              <View style={styles.discountRow}>
+                <Text style={styles.discountLabel}>Số tiền nạp:</Text>
+                <Text style={styles.discountValue}>{amount.toLocaleString('vi-VN')}đ</Text>
+              </View>
+              <View style={styles.discountRow}>
+                <Text style={styles.discountLabel}>Chiết khấu ({topupDiscount}%):</Text>
+                <Text style={[styles.discountValue, styles.discountAmount]}>-{Math.round((amount * topupDiscount) / 100).toLocaleString('vi-VN')}đ</Text>
+              </View>
+              <View style={styles.discountRow}>
+                <Text style={styles.discountLabelBold}>Bạn nhận:</Text>
+                <Text style={styles.discountValueBold}>{Math.round((amount * (100 - topupDiscount)) / 100).toLocaleString('vi-VN')}đ</Text>
+              </View>
             </View>
           )}
         </View>
@@ -292,9 +402,12 @@ export default function TopupScreen({ navigation }: any) {
       {/* Footer Button */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.payButton, amount <= 0 && styles.payButtonDisabled]}
+          style={[
+            styles.payButton,
+            (amount <= 0 || validationError) && styles.payButtonDisabled
+          ]}
           onPress={handleProcessPayment}
-          disabled={amount <= 0}
+          disabled={amount <= 0 || !!validationError}
         >
           <Text style={styles.payButtonText}>
             Tiếp tục với {amount.toLocaleString('vi-VN')}đ
@@ -318,7 +431,7 @@ export default function TopupScreen({ navigation }: any) {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Xác nhận nạp tiền</Text>
                 <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
-                  <MaterialIcons name="close" size={24} color={COLORS.text} />
+                  <MaterialIcons name="close" size={24} color={COLORS.textDark} />
                 </TouchableOpacity>
               </View>
 
@@ -391,11 +504,21 @@ export default function TopupScreen({ navigation }: any) {
                 setShowSepayModal(false)
                 navigation?.goBack()
               }}>
-                <MaterialIcons name="close" size={24} color={COLORS.text} />
+                <MaterialIcons name="close" size={24} color={COLORS.textDark} />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Payment Status Indicator */}
+              {isCheckingPayment && (
+                <View style={styles.paymentStatusCard}>
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                  <Text style={styles.paymentStatusText}>
+                    Đang chờ xác nhận thanh toán...
+                  </Text>
+                </View>
+              )}
+
               {/* QR Code */}
               {sepayData && (
                 <>
@@ -490,7 +613,7 @@ export default function TopupScreen({ navigation }: any) {
                   </View>
 
                   {/* Done Button */}
-                  <TouchableOpacity
+                  {/* <TouchableOpacity
                     style={styles.doneButton}
                     onPress={() => {
                       setShowSepayModal(false)
@@ -498,7 +621,7 @@ export default function TopupScreen({ navigation }: any) {
                     }}
                   >
                     <Text style={styles.doneButtonText}>Đã chuyển khoản</Text>
-                  </TouchableOpacity>
+                  </TouchableOpacity> */}
 
                   <View style={{ height: 40 }} />
                 </>
@@ -514,11 +637,11 @@ export default function TopupScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightBg,
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightBg,
     paddingHorizontal: SPACING.lg,
   },
   header: {
@@ -528,11 +651,13 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.lg,
     marginBottom: SPACING.xl,
     paddingTop: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightBorder,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textDark,
   },
   section: {
     marginBottom: SPACING.xl,
@@ -540,16 +665,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textDark,
     marginBottom: SPACING.lg,
   },
   customAmountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
     marginBottom: SPACING.lg,
     paddingLeft: SPACING.md,
   },
@@ -568,7 +693,22 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingRight: SPACING.md,
     fontSize: 16,
-    color: COLORS.text,
+    color: COLORS.textDark,
+  },
+  customAmountInputError: {
+    color: '#ef4444',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: SPACING.sm,
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#ef4444',
+    flex: 1,
   },
   presetsContainer: {
     flexDirection: 'row',
@@ -579,41 +719,91 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: '30%',
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
     alignItems: 'center',
   },
   presetButtonActive: {
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: COLORS.primary + '15',
     borderColor: COLORS.primary,
   },
   presetText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
   },
   presetTextActive: {
     color: COLORS.primary,
   },
   selectedAmountCard: {
-    backgroundColor: COLORS.primary + '10',
+    backgroundColor: COLORS.primary + '08',
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     borderLeftWidth: 4,
     borderLeftColor: COLORS.primary,
     marginTop: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.lightBorder,
   },
   selectedAmountLabel: {
     fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
+    color: COLORS.textDarkSecondary,
+    marginBottom: SPACING.sm,
   },
   selectedAmount: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: COLORS.primary,
+  },
+
+  discountInfo: {
+    backgroundColor: COLORS.lightCard,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+    marginTop: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.lightBorder,
+  },
+  discountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  discountLabel: {
+    fontSize: 13,
+    color: COLORS.textDarkSecondary,
+    fontWeight: '500',
+  },
+  discountValue: {
+    fontSize: 13,
+    color: COLORS.textDark,
+    fontWeight: '600',
+  },
+  discountAmount: {
+    color: '#ef4444',
+  },
+  discountLabelBold: {
+    fontSize: 14,
+    color: COLORS.textDark,
+    fontWeight: '700',
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightBorder,
+  },
+  discountValueBold: {
+    fontSize: 16,
+    color: COLORS.primary,
+    fontWeight: '800',
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightBorder,
   },
   paymentMethodsContainer: {
     gap: SPACING.md,
@@ -622,15 +812,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
   },
   paymentMethodCardActive: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '10',
+    backgroundColor: COLORS.primary + '08',
   },
   paymentMethodLeft: {
     flex: 1,
@@ -642,29 +832,29 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightBg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   paymentMethodIconActive: {
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: COLORS.primary + '15',
   },
   paymentMethodName: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textDark,
     marginBottom: SPACING.xs,
   },
   paymentMethodDescription: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
   },
   radioButton: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
   },
   radioButtonActive: {
     borderColor: COLORS.primary,
@@ -673,25 +863,31 @@ const styles = StyleSheet.create({
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: COLORS.primary + '10',
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     gap: SPACING.md,
     marginBottom: SPACING.xl,
+    borderWidth: 1,
+    borderLeftWidth: 4,
+    borderColor: COLORS.lightBorder,
+    borderLeftColor: COLORS.primary,
   },
   infoText: {
     flex: 1,
     fontSize: 12,
-    color: COLORS.text,
+    color: COLORS.textDark,
     lineHeight: 18,
   },
   feeSection: {
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.xl,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
   },
   feeRow: {
     flexDirection: 'row',
@@ -700,22 +896,22 @@ const styles = StyleSheet.create({
   },
   feeLabel: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
   },
   feeValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textDark,
   },
   feeDivider: {
     height: 1,
-    backgroundColor: COLORS.darkBorder,
+    backgroundColor: COLORS.lightBorder,
     marginVertical: SPACING.md,
   },
   feeTotalLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textDark,
   },
   feeTotalValue: {
     fontSize: 14,
@@ -725,23 +921,23 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightBg,
     borderTopWidth: 1,
-    borderTopColor: COLORS.darkBorder,
+    borderTopColor: COLORS.lightBorder,
   },
   payButton: {
     backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.md,
     alignItems: 'center',
   },
   payButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   payButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#ffffff',
   },
 
   // Modal Styles
@@ -755,12 +951,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightBg,
     borderTopLeftRadius: BORDER_RADIUS.xl,
     borderTopRightRadius: BORDER_RADIUS.xl,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
     paddingBottom: SPACING.xl,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightBorder,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -771,7 +969,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textDark,
   },
   confirmationContent: {
     alignItems: 'center',
@@ -780,14 +978,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: COLORS.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
   confirmLabel: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
     marginBottom: SPACING.xs,
   },
   confirmAmount: {
@@ -798,10 +996,12 @@ const styles = StyleSheet.create({
   },
   confirmDetails: {
     width: '100%',
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.lightBorder,
   },
   detailRow: {
     flexDirection: 'row',
@@ -810,12 +1010,12 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
   },
   detailValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textDark,
   },
   confirmButtons: {
     flexDirection: 'row',
@@ -827,13 +1027,14 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: COLORS.lightBorder,
     alignItems: 'center',
+    backgroundColor: COLORS.lightCard,
   },
   cancelButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: COLORS.textDark,
   },
   confirmButton: {
     flex: 1,
@@ -845,22 +1046,29 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: '#ffffff',
   },
   
   // Sepay Modal Styles
   sepayModalContent: {
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightBg,
     borderTopLeftRadius: BORDER_RADIUS.xl,
     borderTopRightRadius: BORDER_RADIUS.xl,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
     paddingBottom: SPACING.xl,
     maxHeight: '95%',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightBorder,
   },
   qrContainer: {
     alignItems: 'center',
     paddingVertical: SPACING.xl,
+    backgroundColor: COLORS.lightCard,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.lightBorder,
   },
   qrCode: {
     width: 280,
@@ -871,19 +1079,21 @@ const styles = StyleSheet.create({
   },
   qrHint: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
     marginTop: SPACING.md,
   },
   bankInfoSection: {
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.lightBorder,
   },
   bankInfoTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textDark,
     marginBottom: SPACING.md,
   },
   infoRow: {
@@ -891,21 +1101,23 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
     marginBottom: SPACING.xs,
   },
   infoValueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: COLORS.lightBg,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.lightBorder,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: COLORS.textDark,
     flex: 1,
   },
   amountHighlight: {
@@ -919,35 +1131,39 @@ const styles = StyleSheet.create({
   warningBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FFA726' + '15',
+    backgroundColor: COLORS.lightCard,
     borderLeftWidth: 3,
-    borderLeftColor: '#FFA726',
+    borderLeftColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.lg,
     gap: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.lightBorder,
   },
   warningText: {
     flex: 1,
     fontSize: 12,
-    color: COLORS.text,
+    color: COLORS.textDark,
     lineHeight: 18,
   },
   instructionsBox: {
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: COLORS.lightCard,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.lightBorder,
   },
   instructionsTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textDark,
     marginBottom: SPACING.sm,
   },
   instructionItem: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: COLORS.textDarkSecondary,
     marginBottom: SPACING.xs,
     lineHeight: 20,
   },
@@ -961,6 +1177,23 @@ const styles = StyleSheet.create({
   doneButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#ffffff',
+  },
+  paymentStatusCard: {
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  paymentStatusText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+    flex: 1,
   },
 })

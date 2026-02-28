@@ -53,7 +53,8 @@ export class UpdatePaymentMethodDto {
 
 export class PaymentMethodResponseDto {
   _id: string
-  customerId: string
+  customerId?: string
+  driverId?: string
   type: PaymentMethodType
   name: string
   cardNumber?: string

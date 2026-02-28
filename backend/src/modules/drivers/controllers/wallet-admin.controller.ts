@@ -10,9 +10,9 @@ import {
 } from '@nestjs/common';
 import { WalletService } from '../services/wallet.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { TransactionType, TransactionStatus } from '../schemas/wallet-transaction.schema';
+import { TransactionType, TransactionStatus } from '../../wallets/schemas/transaction.schema';
 
-@Controller('api/wallet/admin')
+@Controller('wallet/admin')
 @UseGuards(JwtAuthGuard) // Only authenticated admins
 export class WalletAdminController {
   constructor(private readonly walletService: WalletService) {}

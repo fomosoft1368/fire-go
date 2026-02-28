@@ -136,43 +136,59 @@ export class PricingService {
   }
 
   async getConfig(): Promise<PricingConfigDocument> {
-    console.log('🔍 [PricingService] Getting config from database...');
-    const config = await this.pricingConfigModel.findOne().exec();
-    
-    console.log('📊 [PricingService] Config from DB:', {
-      found: !!config,
-      _id: config?._id,
-      vehicleTypesCount: config?.vehicleTypes?.length,
-      carpoolDiscountsCount: config?.carpoolDiscounts?.length,
-      carpoolDiscounts: config?.carpoolDiscounts?.map(d => ({ 
-        passengers: d.passengers, 
-        discount: d.discount 
-      })),
-      peakMultiplier: config?.peakMultiplier,
-      driverShare: config?.driverShare,
-    });
-    
-    if (!config) {
-      console.warn('⚠️ [PricingService] No config in DB, creating default...');
-      // Create default config if none exists
-      return this.createDefaultConfig();
+    try {
+      console.log('🔍 [PricingService] Getting config from database...');
+      const config = await this.pricingConfigModel.findOne().exec();
+      
+      console.log('📊 [PricingService] Config from DB:', {
+        found: !!config,
+        _id: config?._id,
+        vehicleTypesCount: config?.vehicleTypes?.length,
+        carpoolDiscountsCount: config?.carpoolDiscounts?.length,
+        carpoolDiscounts: config?.carpoolDiscounts?.map(d => ({ 
+          passengers: d.passengers, 
+          discount: d.discount 
+        })),
+        peakMultiplier: config?.peakMultiplier,
+        driverShare: config?.driverShare,
+        topupDiscountCustomer: config?.topupDiscountCustomer,
+        topupDiscountDriver: config?.topupDiscountDriver,
+      });
+      
+      if (!config) {
+        console.warn('⚠️ [PricingService] No config in DB, creating default...');
+        // Create default config if none exists
+        return await this.createDefaultConfig();
+      }
+      
+      console.log('✅ [PricingService] Using config from DATABASE');
+      return config;
+    } catch (error) {
+      console.error('❌ [PricingService] Error in getConfig:', error);
+      console.error('❌ [PricingService] Error stack:', error.stack);
+      // Try to create default config as fallback
+      console.warn('⚠️ [PricingService] Attempting to create default config as fallback...');
+      return await this.createDefaultConfig();
     }
-    
-    console.log('✅ [PricingService] Using config from DATABASE');
-    return config;
   }
 
   async updateConfig(configData: Partial<PricingConfig>): Promise<PricingConfigDocument> {
-    const existingConfig = await this.pricingConfigModel.findOne().exec();
+    let config = await this.pricingConfigModel.findOne().exec();
     
-    if (existingConfig) {
-      // Xóa document cũ và tạo mới để tránh các field cũ không mong muốn
-      await this.pricingConfigModel.deleteOne({ _id: existingConfig._id }).exec();
+    if (!config) {
+      // Create new config if none exists
+      config = new this.pricingConfigModel(configData);
+      return config.save();
     }
     
-    // Tạo config mới với data sạch
-    const newConfig = new this.pricingConfigModel(configData);
-    return newConfig.save();
+    // ✅ Update only provided fields, preserve others (e.g., topupDiscount, vehicleTypes)
+    Object.keys(configData).forEach(key => {
+      if (configData[key] !== undefined) {
+        config[key] = configData[key];
+      }
+    });
+    
+    return config.save();
   }
 
   async resetToDefaults(): Promise<PricingConfigDocument> {
@@ -332,6 +348,11 @@ export class PricingService {
         },
       ],
       // ============ END LÁI XE HỘ ============
+
+      // ============ TOPUP DISCOUNT - Default ============
+      topupDiscountCustomer: 0,
+      topupDiscountDriver: 0,
+      // ============ END TOPUP DISCOUNT ============
     });
     
     return defaultConfig.save();
@@ -426,4 +447,101 @@ export class PricingService {
     };
   }
   // ============ END LÁI XE HỘ ============
+
+  // ============ TOPUP DISCOUNT Methods ============
+  async updateTopupDiscount(
+    topupDiscountCustomer?: number,
+    topupDiscountDriver?: number,
+  ): Promise<PricingConfig> {
+    const config = await this.getConfig();
+    
+    if (topupDiscountCustomer !== undefined) {
+      // Validate 0-100
+      config.topupDiscountCustomer = Math.max(0, Math.min(100, topupDiscountCustomer));
+    }
+    
+    if (topupDiscountDriver !== undefined) {
+      // Validate 0-100
+      config.topupDiscountDriver = Math.max(0, Math.min(100, topupDiscountDriver));
+    }
+    
+    return config.save();
+  }
+
+  async getTopupDiscount(userType: 'customer' | 'driver'): Promise<number> {
+    try {
+      console.log(`[PricingService] Getting topup discount for: ${userType}`);
+      const config = await this.getConfig();
+      
+      console.log('[PricingService] Config loaded:', {
+        hasConfig: !!config,
+        topupDiscountCustomer: config?.topupDiscountCustomer,
+        topupDiscountDriver: config?.topupDiscountDriver,
+      });
+      
+      if (userType === 'customer') {
+        const discount = config.topupDiscountCustomer || 0;
+        console.log(`[PricingService] ✅ Customer discount: ${discount}%`);
+        return discount;
+      } else {
+        const discount = config.topupDiscountDriver || 0;
+        console.log(`[PricingService] ✅ Driver discount: ${discount}%`);
+        return discount;
+      }
+    } catch (error) {
+      console.error('[PricingService] ❌ Error getting topup discount:', error);
+      console.error('[PricingService] ❌ Error stack:', error.stack);
+      // Return 0 on error to prevent crash
+      return 0;
+    }
+  }
+
+  async getMinTopupAmount(userType: 'customer' | 'driver'): Promise<number> {
+    try {
+      const config = await this.getConfig();
+      if (userType === 'customer') {
+        return config.minTopupAmountCustomer || 10000;
+      } else {
+        return config.minTopupAmountDriver || 10000;
+      }
+    } catch (error) {
+      console.error('[PricingService] Error getting min topup amount:', error);
+      return 10000; // Default fallback
+    }
+  }
+
+  async getMaxTopupAmount(): Promise<number> {
+    try {
+      const config = await this.getConfig();
+      return config.maxTopupAmount || 100000000;
+    } catch (error) {
+      console.error('[PricingService] Error getting max topup amount:', error);
+      return 100000000; // Default fallback
+    }
+  }
+
+  async getMinWithdrawAmount(userType: 'driver' | 'customer'): Promise<number> {
+    try {
+      const config = await this.getConfig();
+      if (userType === 'customer') {
+        return config.minWithdrawAmountCustomer || 50000;
+      } else {
+        return config.minWithdrawAmountDriver || 50000;
+      }
+    } catch (error) {
+      console.error('[PricingService] Error getting min withdraw amount:', error);
+      return 50000; // Default fallback
+    }
+  }
+
+  async getMinWalletBalanceToGoOnline(): Promise<number> {
+    try {
+      const config = await this.getConfig();
+      return config.minWalletBalanceToGoOnline || 100000;
+    } catch (error) {
+      console.error('[PricingService] Error getting min wallet balance:', error);
+      return 100000; // Default fallback
+    }
+  }
+  // ============ END TOPUP DISCOUNT ============
 }

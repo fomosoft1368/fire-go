@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Query, HttpCode } from '@nestjs/common';
 import { DriversService } from './drivers.service';
-import { CreateDriverDto, UpdateDriverDto, UpdateLocationDto } from './dto';
+import { CreateDriverDto, UpdateDriverDto, UpdateLocationDto, ApproveDriverDto, RejectDriverDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DriverStatus } from './schemas/driver.schema';
 
-@Controller('api/drivers')
+@Controller('drivers')
 export class DriversController {
   constructor(private readonly driversService: DriversService) {}
 
@@ -60,7 +60,24 @@ export class DriversController {
   @UseGuards(JwtAuthGuard)
   async getMyProfile(@Request() req: any) {
     // req.user.id is the driver's _id from JWT token
-    return this.driversService.findById(req.user.id);
+    const driver = await this.driversService.findById(req.user.id);
+    
+    // Calculate online hours from minutes
+    const onlineHours = (driver.todayOnlineMinutes || 0) / 60;
+    
+    console.log('[GET /api/drivers/me] Returning driver profile:', {
+      id: driver._id,
+      walletBalance: driver.walletBalance,
+      licenseStatus: driver.licenseStatus,
+      todayOnlineMinutes: driver.todayOnlineMinutes,
+      onlineHours: onlineHours.toFixed(1),
+      fullDriver: driver,
+    });
+    
+    return {
+      ...driver.toObject(),
+      onlineHours: parseFloat(onlineHours.toFixed(1)), // Add computed field
+    };
   }
 
   /**
@@ -138,6 +155,11 @@ export class DriversController {
     @Request() req: any,
     @Body('isAcceptingRides') isAcceptingRides: boolean,
   ) {
+    console.log('[toggleAcceptingRides]', {
+      driverId: req.user?.id,
+      isAcceptingRides,
+      user: req.user,
+    });
     return this.driversService.toggleAcceptingRides(req.user.id, isAcceptingRides);
   }
 
@@ -242,6 +264,32 @@ export class DriversController {
     @Body() updateLocationDto: UpdateLocationDto,
   ) {
     return this.driversService.updateLocation(id, updateLocationDto);
+  }
+
+  /**
+   * PATCH /api/drivers/:id/approve
+   * Duyệt tài xế (Admin only)
+   */
+  @Patch(':id/approve')
+  @HttpCode(200)
+  async approveDriver(
+    @Param('id') id: string,
+    @Body() approveDriverDto: ApproveDriverDto,
+  ) {
+    return this.driversService.approveDriver(id, approveDriverDto.notes);
+  }
+
+  /**
+   * PATCH /api/drivers/:id/reject
+   * Từ chối tài xế (Admin only)
+   */
+  @Patch(':id/reject')
+  @HttpCode(200)
+  async rejectDriver(
+    @Param('id') id: string,
+    @Body() rejectDriverDto: RejectDriverDto,
+  ) {
+    return this.driversService.rejectDriver(id, rejectDriverDto);
   }
 
   /**

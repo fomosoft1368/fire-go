@@ -682,10 +682,14 @@ export default function CreateRideScreen() {
   )
 }
 
+// ...existing code...
+
+// ...existing code...
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.darkBg,
+    backgroundColor: '#fff',
   },
   backButtonContainer: {
     position: 'absolute',
@@ -697,62 +701,72 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.sm,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    width: 48, // Bigger
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
     elevation: 5,
   },
   loadingRouteOverlay: {
     position: 'absolute',
     top: 60,
     right: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: 10,
     zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   loadingRouteText: {
-    color: COLORS.text,
-    fontSize: 12,
+    color: '#1a1a1a',
+    fontSize: 14, // Bigger text
     fontWeight: '600',
   },
   routeInfoCard: {
     position: 'absolute',
     top: 60,
     left: 16,
-    backgroundColor: 'rgba(10, 10, 10, 0.85)',
-    borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: 12,
     zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   routeInfoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   routeInfoDivider: {
     width: 1,
-    height: 16,
-    backgroundColor: COLORS.darkBorder,
+    height: 20,
+    backgroundColor: '#e0e0e0',
   },
   routeInfoText: {
-    color: COLORS.text,
-    fontSize: 12,
+    color: '#1a1a1a',
+    fontSize: 14, // Bigger
     fontWeight: '700',
   },
   bottomSheet: {
@@ -760,206 +774,216 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: COLORS.darkCard,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 28, // More rounded
+    borderTopRightRadius: 28,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
     elevation: 20,
   },
   dragHandleContainer: {
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.sm,
+    paddingTop: 16,
+    paddingBottom: 12,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
+    borderBottomColor: '#f0f0f0',
   },
   dragHandle: {
-    width: 40,
+    width: 48, // Bigger drag handle
     height: 5,
-    backgroundColor: COLORS.textSecondary,
+    backgroundColor: '#ddd',
     borderRadius: 3,
-    marginBottom: SPACING.sm,
+    marginBottom: 12,
   },
   sheetTitle: {
-    fontSize: 16,
+    fontSize: 18, // Bigger title
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1a1a1a',
   },
   sheetContent: {
     flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
+    paddingHorizontal: 20, // More padding
+    paddingTop: 20,
   },
   section: {
-    marginBottom: SPACING.md,
+    marginBottom: 24, // More spacing
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
+    gap: 8,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
+    fontSize: 13, // Bigger
+    fontWeight: '700', // Bolder
+    color: '#FF6B35', // Orange accent
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   detailsCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16, // More rounded
+    padding: 20, // More padding
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: '#e8e8e8',
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: 16, // Bigger
     fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.md,
+    color: '#1a1a1a',
+    marginBottom: 16,
   },
   fieldContainer: {
-    marginBottom: SPACING.md,
+    marginBottom: 20, // More spacing between fields
   },
   fieldLabel: {
-    fontSize: 12,
+    fontSize: 13, // Bigger
     fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
+    color: '#666',
+    marginBottom: 10,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    color: COLORS.text,
-    fontSize: 13,
+    backgroundColor: '#fff',
+    borderWidth: 1.5, // Thicker border
+    borderColor: '#e0e0e0',
+    borderRadius: 12, // More rounded
+    paddingHorizontal: 16, // More padding
+    paddingVertical: 14, // Taller input
+    color: '#1a1a1a',
+    fontSize: 15, // Bigger text
+    fontWeight: '500',
   },
   inputContainer: {
     position: 'relative',
   },
   searchIndicator: {
     position: 'absolute',
-    right: SPACING.md,
+    right: 16,
     top: '50%',
     marginTop: -10,
   },
   suggestionsContainer: {
-    backgroundColor: COLORS.darkCard,
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    borderColor: '#e0e0e0',
     borderTopWidth: 0,
-    borderBottomLeftRadius: BORDER_RADIUS.md,
-    borderBottomRightRadius: BORDER_RADIUS.md,
-    maxHeight: 160,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    maxHeight: 180, // Taller suggestions
     marginTop: -1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
   suggestionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 14, // Taller items
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.darkBorder,
-    gap: SPACING.xs,
+    borderBottomColor: '#f5f5f5',
+    gap: 10,
   },
   suggestionContent: {
     flex: 1,
   },
   suggestionName: {
-    fontSize: 13,
+    fontSize: 14, // Bigger
     fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 2,
+    color: '#1a1a1a',
+    marginBottom: 4,
   },
   suggestionAddress: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: '#999',
+    lineHeight: 16,
   },
   notesInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    color: COLORS.text,
-    fontSize: 13,
-    minHeight: 60,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: '#1a1a1a',
+    fontSize: 15,
+    minHeight: 80, // Taller notes input
     textAlignVertical: 'top',
   },
   dateTimeButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14, // Taller button
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
+    gap: 10,
   },
   dateTimeText: {
-    fontSize: 13,
-    color: COLORS.text,
+    fontSize: 15, // Bigger text
+    color: '#1a1a1a',
     fontWeight: '600',
     flex: 1,
   },
   seatsSelector: {
     flexDirection: 'row',
-    gap: SPACING.xs,
+    gap: 10, // More spacing between seats
     flexWrap: 'wrap',
   },
   seatButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.darkBorder,
+    width: 48, // Bigger seats
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
     justifyContent: 'center',
     alignItems: 'center',
   },
   seatButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
+    transform: [{ scale: 1.05 }], // Slightly bigger when active
   },
   seatButtonText: {
-    fontSize: 15,
+    fontSize: 17, // Bigger number
     fontWeight: '700',
-    color: COLORS.textSecondary,
+    color: '#999',
   },
   seatButtonTextActive: {
     color: '#fff',
   },
   createButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.md,
+    backgroundColor: '#FF6B35',
+    borderRadius: 14, // More rounded
+    paddingVertical: 18, // Taller button
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
+    gap: 10,
+    marginBottom: 16,
+    marginTop: 8,
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 8,
   },
   createButtonDisabled: {
     opacity: 0.6,
   },
   createButtonText: {
-    fontSize: 15,
+    fontSize: 17, // Bigger text
     fontWeight: '700',
     color: '#fff',
+    letterSpacing: 0.5,
   },
 })

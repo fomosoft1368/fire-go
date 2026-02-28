@@ -3,20 +3,21 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Driver, DriverDocument } from '../schemas/driver.schema';
 import {
-  WalletTransaction,
-  WalletTransactionDocument,
+  Transaction,
+  TransactionDocument,
+  UserType,
   TransactionType,
   TransactionStatus,
   PaymentMethod,
-} from '../schemas/wallet-transaction.schema';
+} from '../../wallets/schemas/transaction.schema';
 import { PricingService } from '../../pricing/pricing.service';
 
 @Injectable()
 export class WalletService {
   constructor(
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
-    @InjectModel(WalletTransaction.name)
-    private walletTransactionModel: Model<WalletTransactionDocument>,
+    @InjectModel(Transaction.name)
+    private transactionModel: Model<TransactionDocument>,
     private readonly pricingService: PricingService,
   ) {}
 
@@ -47,8 +48,20 @@ export class WalletService {
     paymentMethod: PaymentMethod,
     note?: string,
   ) {
-    if (amount < 10000) {
-      throw new BadRequestException('Số tiền nạp tối thiểu là 10.000đ');
+    // Get dynamic limits from pricing config
+    const minAmount = await this.pricingService.getMinTopupAmount('driver');
+    const maxAmount = await this.pricingService.getMaxTopupAmount();
+
+    if (amount < minAmount) {
+      throw new BadRequestException(
+        `Số tiền nạp tối thiểu là ${minAmount.toLocaleString('vi-VN')}đ`
+      );
+    }
+
+    if (amount > maxAmount) {
+      throw new BadRequestException(
+        `Số tiền nạp tối đa là ${maxAmount.toLocaleString('vi-VN')}đ`
+      );
     }
 
     const driver = await this.driverModel.findById(driverId);
@@ -56,11 +69,33 @@ export class WalletService {
       throw new NotFoundException('Tài xế không tồn tại');
     }
 
+    // Get topup discount from pricing config
+    console.log('[DriverWalletService] Getting topup discount for driver...');
+    const discountPercent = await this.pricingService.getTopupDiscount('driver');
+    console.log(`[DriverWalletService] Discount: ${discountPercent}%`);
+
+    // Calculate discount amount
+    const discountAmount = Math.round((amount * discountPercent) / 100);
+    
+    // Actual amount to add to wallet (original - discount)
+    const actualAmount = amount - discountAmount;
+
     const balanceBefore = driver.walletBalance || 0;
-    const balanceAfter = balanceBefore + amount;
+    const balanceAfter = balanceBefore + actualAmount; // Use actualAmount, not original amount
+
+    console.log('[DriverWalletService] Topup with discount:', {
+      driverId,
+      originalAmount: amount,
+      discountPercent: `${discountPercent}%`,
+      discountAmount,
+      actualAmount,
+      balanceBefore,
+      balanceAfter,
+    });
 
     // Create transaction record
-    const transaction = new this.walletTransactionModel({
+    const transaction = new this.transactionModel({
+      userType: UserType.DRIVER,
       driverId: new Types.ObjectId(driverId),
       type: TransactionType.TOPUP,
       amount,
@@ -70,6 +105,8 @@ export class WalletService {
       paymentMethod,
       description: `Nạp tiền qua ${paymentMethod}`,
       note,
+      discountPercent,
+      discountAmount,
     });
 
     await transaction.save();
@@ -95,7 +132,7 @@ export class WalletService {
    * Complete top-up transaction (called after payment confirmed)
    */
   async completeTopup(transactionId: string) {
-    const transaction = await this.walletTransactionModel.findById(transactionId);
+    const transaction = await this.transactionModel.findById(transactionId);
     
     if (!transaction) {
       throw new NotFoundException('Giao dịch không tồn tại');
@@ -110,8 +147,20 @@ export class WalletService {
       throw new NotFoundException('Tài xế không tồn tại');
     }
 
-    // Update driver wallet balance
-    driver.walletBalance = (driver.walletBalance || 0) + transaction.amount;
+    // Calculate actual amount after discount
+    const discountAmount = transaction.discountAmount || 0;
+    const actualAmount = transaction.amount - discountAmount;
+
+    console.log('[DriverWalletService] Completing topup:', {
+      transactionId,
+      originalAmount: transaction.amount,
+      discountAmount,
+      actualAmount,
+      balanceBefore: driver.walletBalance,
+    });
+
+    // Update driver wallet balance with actual amount (after discount)
+    driver.walletBalance = (driver.walletBalance || 0) + actualAmount;
     
     // Unlock wallet if balance >= minimum
     if (driver.walletBalance >= driver.minimumBalance) {
@@ -123,7 +172,13 @@ export class WalletService {
     // Update transaction status
     transaction.status = TransactionStatus.COMPLETED;
     transaction.completedAt = new Date();
+    transaction.balanceAfter = driver.walletBalance;
     await transaction.save();
+
+    console.log('[DriverWalletService] ✅ Topup completed:', {
+      transactionId,
+      newBalance: driver.walletBalance,
+    });
 
     return {
       success: true,
@@ -143,8 +198,9 @@ export class WalletService {
     accountHolderName: string,
     note?: string,
   ) {
-    if (amount < 50000) {
-      throw new BadRequestException('Số tiền rút tối thiểu là 50.000đ');
+    const minWithdrawAmount = await this.pricingService.getMinWithdrawAmount('driver');
+    if (amount < minWithdrawAmount) {
+      throw new BadRequestException(`Số tiền rút tối thiểu là ${minWithdrawAmount.toLocaleString('vi-VN')}đ`);
     }
 
     const driver = await this.driverModel.findById(driverId);
@@ -159,8 +215,12 @@ export class WalletService {
     const balanceBefore = driver.walletBalance;
     const balanceAfter = balanceBefore - amount;
 
+    // Generate transaction code
+    const transactionCode = `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
     // Create withdrawal transaction
-    const transaction = new this.walletTransactionModel({
+    const transaction = new this.transactionModel({
+      userType: UserType.DRIVER,
       driverId: new Types.ObjectId(driverId),
       type: TransactionType.WITHDRAWAL,
       amount: -amount, // Negative for withdrawal
@@ -168,6 +228,7 @@ export class WalletService {
       balanceAfter,
       status: TransactionStatus.PENDING,
       paymentMethod: PaymentMethod.BANK_TRANSFER,
+      transactionCode,
       bankAccountNumber,
       bankName,
       accountHolderName,
@@ -223,7 +284,8 @@ export class WalletService {
     const balanceAfter = balanceBefore - commissionAmount;
 
     // Create commission transaction
-    const transaction = new this.walletTransactionModel({
+    const transaction = new this.transactionModel({
+      userType: UserType.DRIVER,
       driverId: new Types.ObjectId(driverId),
       type: TransactionType.COMMISSION,
       amount: -commissionAmount,
@@ -266,14 +328,35 @@ export class WalletService {
     limit: number = 20,
     skip: number = 0,
   ) {
-    const transactions = await this.walletTransactionModel
-      .find({ driverId: new Types.ObjectId(driverId) })
+    const transactions = await this.transactionModel
+      .find({ 
+        userType: UserType.DRIVER,
+        driverId: new Types.ObjectId(driverId) 
+      })
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
       .lean();
 
     return transactions;
+  }
+
+  /**
+   * Get transaction status by transactionId
+   */
+  async getTransactionStatus(transactionId: string) {
+    const transaction = await this.transactionModel
+      .findById(transactionId)
+      .select('status')
+      .lean();
+
+    if (!transaction) {
+      throw new NotFoundException('Giao dịch không tồn tại');
+    }
+
+    return {
+      status: transaction.status,
+    };
   }
 
   /**
@@ -290,7 +373,8 @@ export class WalletService {
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Calculate earnings this week
-    const thisWeekTransactions = await this.walletTransactionModel.find({
+    const thisWeekTransactions = await this.transactionModel.find({
+      userType: UserType.DRIVER,
       driverId: new Types.ObjectId(driverId),
       type: TransactionType.COMMISSION,
       createdAt: { $gte: weekAgo },
@@ -301,7 +385,8 @@ export class WalletService {
     );
 
     // Calculate earnings this month
-    const thisMonthTransactions = await this.walletTransactionModel.find({
+    const thisMonthTransactions = await this.transactionModel.find({
+      userType: UserType.DRIVER,
       driverId: new Types.ObjectId(driverId),
       type: TransactionType.COMMISSION,
       createdAt: { $gte: monthAgo },
@@ -312,7 +397,8 @@ export class WalletService {
     );
 
     // Calculate total earnings (all time)
-    const allCommissions = await this.walletTransactionModel.find({
+    const allCommissions = await this.transactionModel.find({
+      userType: UserType.DRIVER,
       driverId: new Types.ObjectId(driverId),
       type: TransactionType.COMMISSION,
     });
@@ -320,7 +406,8 @@ export class WalletService {
     const total = Math.abs(allCommissions.reduce((sum, t) => sum + t.amount, 0));
 
     // Calculate bonus
-    const bonusTransactions = await this.walletTransactionModel.find({
+    const bonusTransactions = await this.transactionModel.find({
+      userType: UserType.DRIVER,
       driverId: new Types.ObjectId(driverId),
       type: TransactionType.BONUS,
     });
@@ -338,37 +425,119 @@ export class WalletService {
   }
 
   /**
+   * Create topup transaction for Sepay payment
+   * Called by mobile to initiate topup process
+   * Returns transaction that can be used to generate QR code
+   */
+  async createTopupTransaction(
+    driverId: string | Types.ObjectId,
+    amount: number,
+  ) {
+    if (amount < 10000) {
+      throw new BadRequestException('Số tiền nạp tối thiểu là 10.000đ');
+    }
+
+    const driver = await this.driverModel.findById(driverId);
+    if (!driver) {
+      throw new NotFoundException('Tài xế không tồn tại');
+    }
+
+    const balanceBefore = driver.walletBalance || 0;
+    const balanceAfter = balanceBefore + amount;
+
+    // Create transaction record
+    const transaction = new this.transactionModel({
+      userType: UserType.DRIVER,
+      driverId: new Types.ObjectId(driverId),
+      type: TransactionType.TOPUP,
+      amount,
+      balanceBefore,
+      balanceAfter,
+      status: TransactionStatus.PENDING,
+      paymentMethod: PaymentMethod.BANK_TRANSFER,
+      description: `Nạp tiền qua chuyển khoản ngân hàng`,
+    });
+
+    await transaction.save();
+
+    console.log('[WalletService] ✅ Topup transaction created:', {
+      transactionId: transaction._id,
+      driverId,
+      amount,
+    });
+
+    return transaction;
+  }
+
+  /**
    * Find pending transaction by transfer content
    * Used by Sepay webhook to match bank transfer with transaction
    */
   async findPendingTransactionByContent(transactionId: string) {
-    // Extract last 8 chars from transaction ID (matching Sepay QR content format)
-    const contentMatch = transactionId.substring(Math.max(0, transactionId.length - 8)).toUpperCase();
+    console.log('[WalletService] 🔍 Searching for transaction with ID:', transactionId);
+    console.log('[WalletService] ID length:', transactionId.length);
     
-    console.log('[WalletService] Searching for transaction with ID ending:', contentMatch);
-
-    // Find transaction with matching ID (pending topup)
-    const transaction = await this.walletTransactionModel.findOne({
-      _id: new Types.ObjectId(transactionId),
+    let transaction = null;
+    
+    // Strategy 1: Try full transaction ID (if it looks like MongoDB ObjectId - 24 chars)
+    if (transactionId.length === 24) {
+      try {
+        transaction = await this.transactionModel.findOne({
+          _id: new Types.ObjectId(transactionId),
+          userType: UserType.DRIVER,
+          type: TransactionType.TOPUP,
+          status: TransactionStatus.PENDING,
+        });
+        
+        if (transaction) {
+          console.log('[WalletService] ✅ Found by full ID (24 chars):', transaction._id);
+          return transaction;
+        }
+      } catch (error) {
+        console.log('[WalletService] ⚠️ Full ID search failed (invalid ObjectId format):', error.message);
+      }
+    }
+    
+    // Strategy 2: Try last 8 characters matching
+    const last8Chars = transactionId.substring(Math.max(0, transactionId.length - 8)).toUpperCase();
+    console.log('[WalletService] 🔍 Trying last 8 chars match:', last8Chars);
+    
+    // Find all pending topup transactions
+    const allPending = await this.transactionModel.find({
+      userType: UserType.DRIVER,
       type: TransactionType.TOPUP,
       status: TransactionStatus.PENDING,
-    });
-
-    if (!transaction) {
-      console.log('[WalletService] ❌ Transaction not found or already completed:', transactionId);
-      return null;
+    }).sort({ createdAt: -1 }).limit(50); // Check last 50 pending transactions
+    
+    console.log('[WalletService] Found', allPending.length, 'pending transactions to check');
+    
+    // Find transaction where last 8 chars of ID match
+    for (const tx of allPending) {
+      const txIdStr = tx._id.toString();
+      const txLast8 = txIdStr.substring(txIdStr.length - 8).toUpperCase();
+      
+      if (txLast8 === last8Chars) {
+        console.log('[WalletService] ✅ Found by last 8 chars:', tx._id);
+        console.log('[WalletService] Full ID:', txIdStr);
+        console.log('[WalletService] Amount:', tx.amount);
+        console.log('[WalletService] Created:', tx.createdAt);
+        return tx;
+      }
     }
 
-    console.log('[WalletService] ✅ Found pending transaction:', transaction._id);
-    return transaction;
+    console.log('[WalletService] ❌ No matching transaction found');
+    console.log('[WalletService] Searched ID:', transactionId);
+    console.log('[WalletService] Last 8 chars:', last8Chars);
+    return null;
   }
 
   /**
    * Complete topup transaction after bank transfer confirmed
    * Called by Sepay webhook
+   * Applies topup discount configured in PricingConfig
    */
   async completeTopupTransaction(transactionId: string, sepayTransactionId: string) {
-    const transaction = await this.walletTransactionModel.findById(transactionId);
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
       throw new NotFoundException('Transaction not found');
@@ -379,20 +548,45 @@ export class WalletService {
       return transaction;
     }
 
-    // Update transaction status
-    transaction.status = TransactionStatus.COMPLETED;
-    transaction.completedAt = new Date();
-    transaction.description = `${transaction.description} - Sepay: ${sepayTransactionId}`;
-    await transaction.save();
+    // Use discount already saved in transaction (set when created)
+    // If not present (old transactions), calculate now for backward compatibility
+    let discountPercent = transaction.discountPercent || 0;
+    let discountAmount = transaction.discountAmount || 0;
 
-    // Update driver wallet balance
+    if (discountPercent === 0 && discountAmount === 0) {
+      // Old transaction without discount - calculate now
+      const pricingConfig = await this.pricingService.getConfig();
+      discountPercent = pricingConfig.topupDiscountDriver || 0;
+      discountAmount = Math.round(transaction.amount * (discountPercent / 100));
+      
+      console.log('[WalletService] ⚠️ Old transaction - calculating discount now:', {
+        discountPercent,
+        discountAmount,
+      });
+    } else {
+      console.log('[WalletService] ✅ Using pre-calculated discount from transaction:', {
+        discountPercent,
+        discountAmount,
+      });
+    }
+
+    console.log('[WalletService] 💳 Completing topup with discount:', {
+      transactionId,
+      amount: transaction.amount,
+      discountPercent: `${discountPercent}%`,
+      discountAmount,
+    });
+
+    // Update driver wallet balance (apply discount)
     const driver = await this.driverModel.findById(transaction.driverId);
     if (!driver) {
       throw new NotFoundException('Driver not found');
     }
 
     const balanceBefore = driver.walletBalance;
-    const balanceAfter = balanceBefore + transaction.amount;
+    // Driver gets: topup amount - discount
+    const actualNetAmount = transaction.amount - discountAmount;
+    const balanceAfter = balanceBefore + actualNetAmount;
 
     driver.walletBalance = balanceAfter;
 
@@ -401,17 +595,24 @@ export class WalletService {
       driver.isWalletLocked = false;
     }
 
-    await driver.save();
+    await driver.save({ validateBeforeSave: false }); // Skip validation for wallet update
 
-    // Update transaction balance fields
+    // Update transaction status and ensure discount fields are saved
+    transaction.status = TransactionStatus.COMPLETED;
+    transaction.completedAt = new Date();
+    transaction.discountPercent = discountPercent;
+    transaction.discountAmount = discountAmount;
     transaction.balanceBefore = balanceBefore;
     transaction.balanceAfter = balanceAfter;
+    transaction.description = `${transaction.description} - Sepay: ${sepayTransactionId}`;
     await transaction.save();
 
-    console.log('[WalletService] ✅ Topup completed:', {
+    console.log('[WalletService] ✅ Driver topup completed:', {
       transactionId,
       driverId: driver._id,
-      amount: transaction.amount,
+      originalAmount: transaction.amount,
+      discountAmount,
+      netAmount: actualNetAmount,
       newBalance: balanceAfter,
     });
 
@@ -426,7 +627,9 @@ export class WalletService {
     status?: TransactionStatus;
     driverId?: string;
   }) {
-    const query: any = {};
+    const query: any = {
+      userType: UserType.DRIVER,
+    };
 
     if (filters?.type) {
       query.type = filters.type;
@@ -440,7 +643,7 @@ export class WalletService {
       query.driverId = new Types.ObjectId(filters.driverId);
     }
 
-    const transactions = await this.walletTransactionModel
+    const transactions = await this.transactionModel
       .find(query)
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -448,7 +651,7 @@ export class WalletService {
       .populate('driverId', 'firstName lastName phoneNumber')
       .lean();
 
-    const total = await this.walletTransactionModel.countDocuments(query);
+    const total = await this.transactionModel.countDocuments(query);
 
     return {
       transactions,

@@ -4,13 +4,14 @@ import {
   Post,
   Body,
   Query,
+  Param,
   UseGuards,
   Request,
 } from '@nestjs/common';
 import { WalletService } from '../services/wallet.service';
 import { SepayService } from '../services/sepay.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { PaymentMethod } from '../schemas/wallet-transaction.schema';
+import { PaymentMethod } from '../../wallets/schemas/transaction.schema';
 
 class TopupDto {
   amount: number;
@@ -26,7 +27,7 @@ class WithdrawDto {
   note?: string;
 }
 
-@Controller('api/wallet')
+@Controller('wallet')
 @UseGuards(JwtAuthGuard)
 export class WalletController {
   constructor(
@@ -91,6 +92,15 @@ export class WalletController {
     const skipNum = skip ? parseInt(skip) : 0;
     
     return await this.walletService.getTransactions(driverId, limitNum, skipNum);
+  }
+
+  /**
+   * GET /drivers/wallet/transactions/:transactionId/status
+   * Get transaction status by transactionId
+   */
+  @Get('transactions/:transactionId/status')
+  async getTransactionStatus(@Param('transactionId') transactionId: string) {
+    return await this.walletService.getTransactionStatus(transactionId);
   }
 
   /**

@@ -12,6 +12,8 @@ import {
     FlatList,
     Animated,
     TextInput,
+    PanResponder,
+    Dimensions,
 } from 'react-native'
 import * as Location from 'expo-location'
 import { COLORS, SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
@@ -113,6 +115,14 @@ export default function Delivery(props?: DeliveryProps) {
     const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [drivers, setDrivers] = useState<any[]>([])
     
+    // Draggable Bottom Sheet
+    const screenHeight = Dimensions.get('window').height
+    const minHeight = screenHeight * 0.1 // 10%
+    const maxHeight = screenHeight * 0.95 // 95%
+    const initialHeight = screenHeight * 0.5 // 50%
+    const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
+    const lastGestureDy = useRef(0)
+    
     // Initialize pickup location with current user location
     useEffect(() => {
         const initializePickupLocation = async () => {
@@ -138,10 +148,15 @@ export default function Delivery(props?: DeliveryProps) {
                 console.log('[Delivery] 🏠 Address from coordinates:', address)
                 
                 setPickup(address)
+                setPickupCoordinates([longitude, latitude])
+                setIsPickupSelected(true)
+                console.log('[Delivery] ✅ Pickup initialized at current location')
             } catch (error) {
                 console.error('[Delivery] ❌ Error getting location:', error)
                 // Fallback to default location
                 setPickup('Hà Nội, Việt Nam')
+                // Still mark as selected so route can calc if dropoff is selected
+                setIsPickupSelected(true)
             }
         }
 
@@ -222,6 +237,57 @@ export default function Delivery(props?: DeliveryProps) {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
     const setRideMode = props?.setRideMode
 
+    // PanResponder for draggable bottom sheet
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gestureState) => {
+                return Math.abs(gestureState.dy) > 5
+            },
+            onPanResponderGrant: () => {
+                translateY.setOffset(lastGestureDy.current)
+                translateY.setValue(0)
+            },
+            onPanResponderMove: (_, gestureState) => {
+                const newValue = gestureState.dy
+                if (newValue >= 0 && lastGestureDy.current + newValue <= screenHeight - minHeight) {
+                    translateY.setValue(newValue)
+                }
+            },
+            onPanResponderRelease: (_, gestureState) => {
+                translateY.flattenOffset()
+                const currentY = lastGestureDy.current + gestureState.dy
+                const velocity = gestureState.vy
+
+                let snapTo: number
+                const midPoint = screenHeight - (maxHeight + minHeight) / 2
+                
+                if (Math.abs(velocity) > 0.8) {
+                    snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
+                } else if (currentY > midPoint) {
+                    snapTo = screenHeight - minHeight
+                } else {
+                    snapTo = screenHeight - maxHeight
+                }
+
+                lastGestureDy.current = snapTo
+                
+                Animated.spring(translateY, {
+                    toValue: snapTo,
+                    velocity: velocity * -1,
+                    tension: 65,
+                    friction: 12,
+                    useNativeDriver: true,
+                }).start()
+            },
+        })
+    ).current
+
+    // Initialize bottom sheet position
+    useEffect(() => {
+        lastGestureDy.current = screenHeight - initialHeight
+    }, [])
+
     // ============ GIAO HÀNG - Load Config from Backend ============
     useEffect(() => {
         const loadDeliveryConfig = async () => {
@@ -252,6 +318,39 @@ export default function Delivery(props?: DeliveryProps) {
         loadDeliveryConfig()
     }, [])
     // ============ END GIAO HÀNG ============
+
+    // ============ AUTO-CALCULATE ROUTE WHEN BOTH LOCATIONS SELECTED ============
+    useEffect(() => {
+        const autoCalculateRoute = async () => {
+            if (!isPickupSelected || !isDropoffSelected) {
+                console.log('[Delivery] 📍 Waiting for both locations... pickup:', isPickupSelected, 'dropoff:', isDropoffSelected)
+                return
+            }
+
+            // Check if coordinates are not at default values
+            const isPickupDefault = pickupCoordinates[0] === 105.8342 && pickupCoordinates[1] === 21.0278
+            const isDropoffDefault = dropoffCoordinates[0] === 105.8542 && dropoffCoordinates[1] === 21.0378
+            
+            if (isPickupDefault || isDropoffDefault) {
+                console.log('[Delivery] ⚠️ Using default coordinates, not calculating')
+                return
+            }
+
+            // Check if route info already exists (avoid duplicate calculations)
+            if (routeInfo && routeInfo.distance > 0) {
+                console.log('[Delivery] ✅ Route already calculated:', routeInfo.distance, 'km')
+                return
+            }
+
+            console.log('[Delivery] 🚀 AUTO-CALCULATING ROUTE')
+            console.log('[Delivery] From:', pickupCoordinates)
+            console.log('[Delivery] To:', dropoffCoordinates)
+            await calculateRoute(pickupCoordinates, dropoffCoordinates)
+        }
+
+        autoCalculateRoute()
+    }, [isPickupSelected, isDropoffSelected, pickupCoordinates, dropoffCoordinates, routeInfo])
+    // ============ END AUTO-CALCULATE ============
 
     const handlePickupLocationChange = (text: string) => {
         setPickup(text)
@@ -318,6 +417,7 @@ export default function Delivery(props?: DeliveryProps) {
 
         // Gọi geocode API để lấy tọa độ thực tế
         try {
+            console.log('[Delivery] ========== PICKUP SELECTION START ==========')
             console.log('[Delivery] Geocoding pickup location:', suggestion.fullText)
             const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
 
@@ -328,16 +428,24 @@ export default function Delivery(props?: DeliveryProps) {
                 ]
                 setPickupCoordinates(coords)
                 setIsPickupSelected(true)
-                console.log('[Delivery] Pickup coordinates set:', coords)
+                console.log('[Delivery] ✅ Pickup coordinates set:', coords)
 
                 // Tự động tính tuyến đường nếu đã có điểm giao hàng
                 if (dropoff.trim() && isDropoffSelected) {
-                    console.log('[Delivery] Auto-calculating route...')
+                    console.log('[Delivery] 📍 Both locations selected, calculating route...')
+                    console.log('[Delivery] Pickup coords (new):', coords)
+                    console.log('[Delivery] Dropoff coords (current):', dropoffCoordinates)
                     await calculateRoute(coords, dropoffCoordinates)
+                } else {
+                    console.log('[Delivery] ⏳ Waiting for dropoff to be selected...')
+                    console.log('[Delivery] dropoff.trim():', !!dropoff.trim(), 'isDropoffSelected:', isDropoffSelected)
                 }
+                console.log('[Delivery] ========== PICKUP SELECTION END ==========')
+            } else {
+                console.error('[Delivery] ❌ No coordinates in geocode result')
             }
         } catch (error) {
-            console.error('[Delivery] Geocoding error:', error)
+            console.error('[Delivery] ❌ Geocoding error:', error)
             Alert.alert('Lỗi', 'Không thể lấy tọa độ điểm lấy hàng')
         }
     }
@@ -349,6 +457,7 @@ export default function Delivery(props?: DeliveryProps) {
 
         // Gọi geocode API để lấy tọa độ thực tế
         try {
+            console.log('[Delivery] ========== DROPOFF SELECTION START ==========')
             console.log('[Delivery] Geocoding dropoff location:', suggestion.fullText)
             const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
 
@@ -359,23 +468,33 @@ export default function Delivery(props?: DeliveryProps) {
                 ]
                 setDropoffCoordinates(coords)
                 setIsDropoffSelected(true)
-                console.log('[Delivery] Dropoff coordinates set:', coords)
+                console.log('[Delivery] ✅ Dropoff coordinates set:', coords)
 
                 // Tự động tính tuyến đường nếu đã có điểm lấy hàng
                 if (pickup.trim() && isPickupSelected) {
-                    console.log('[Delivery] Auto-calculating route...')
+                    console.log('[Delivery] 📍 Both locations selected, calculating route...')
+                    console.log('[Delivery] Pickup coords (current):', pickupCoordinates)
+                    console.log('[Delivery] Dropoff coords (new):', coords)
                     await calculateRoute(pickupCoordinates, coords)
+                } else {
+                    console.log('[Delivery] ⏳ Waiting for pickup to be selected...')
+                    console.log('[Delivery] pickup.trim():', !!pickup.trim(), 'isPickupSelected:', isPickupSelected)
                 }
+                console.log('[Delivery] ========== DROPOFF SELECTION END ==========')
+            } else {
+                console.error('[Delivery] ❌ No coordinates in geocode result')
             }
         } catch (error) {
-            console.error('[Delivery] Geocoding error:', error)
+            console.error('[Delivery] ❌ Geocoding error:', error)
             Alert.alert('Lỗi', 'Không thể lấy tọa độ điểm giao hàng')
         }
     }
 
     const calculateRoute = async (startCoords: [number, number], endCoords: [number, number]) => {
         try {
-            console.log('[Delivery] Calculating route...');
+            console.log('[Delivery] ========== CALCULATING ROUTE START ==========')
+            console.log('[Delivery] Start:', startCoords, 'End:', endCoords)
+            console.log('[Delivery] Calling rideService.getDirections...')
             const directions = await rideService.getDirections(
                 startCoords[0],
                 startCoords[1],
@@ -383,7 +502,10 @@ export default function Delivery(props?: DeliveryProps) {
                 endCoords[1],
             );
 
-            console.log('[Delivery] Raw directions response:', directions);
+            console.log('[Delivery] ✅ Got directions response')
+            console.log('[Delivery] Response type:', typeof directions)
+            console.log('[Delivery] Response keys:', directions ? Object.keys(directions) : 'null')
+            console.log('[Delivery] Full response:', JSON.stringify(directions, null, 2));
 
             // Handle different response formats from backend
             let distance = 0;
@@ -392,12 +514,14 @@ export default function Delivery(props?: DeliveryProps) {
 
             // Format: features[0].geometry.coordinates and properties.summary
             if (directions.features?.[0]) {
+                console.log('[Delivery] 📍 Using features[0] format')
                 const feature = directions.features[0];
 
                 // Get distance and duration
                 if (feature.properties?.summary) {
                     distance = feature.properties.summary.distance;
                     duration = feature.properties.summary.duration;
+                    console.log('[Delivery] Got summary:', { distance, duration })
                 }
 
                 // Get route coordinates from geometry
@@ -407,29 +531,38 @@ export default function Delivery(props?: DeliveryProps) {
                         latitude: coord[1],
                         longitude: coord[0],
                     }));
+                    console.log('[Delivery] Got coordinates:', routeCoordinates.length, 'points')
                 }
             }
             // Fallback: direct properties
             else if (directions.distance !== undefined && directions.duration !== undefined) {
+                console.log('[Delivery] 📍 Using direct properties format')
                 distance = directions.distance;
                 duration = directions.duration;
+                console.log('[Delivery] Got distance/duration:', { distance, duration })
             }
             // Fallback: routes array
             else if (directions.routes?.[0]) {
+                console.log('[Delivery] 📍 Using routes[0] format')
                 distance = directions.routes[0].distance;
                 duration = directions.routes[0].duration;
+                console.log('[Delivery] Got from routes[0]:', { distance, duration })
                 if (directions.routes[0].geometry?.coordinates) {
                     routeCoordinates = directions.routes[0].geometry.coordinates.map((coord: [number, number]) => ({
                         latitude: coord[1],
                         longitude: coord[0],
                     }));
+                    console.log('[Delivery] Got coordinates:', routeCoordinates.length, 'points')
                 }
+            } else {
+                console.error('[Delivery] ❌ Unknown response format!')
+                console.error('[Delivery] Expected features[0], or routes[0], or direct distance/duration')
             }
 
-            console.log('[Delivery] Extracted:', { distance, duration, routeCoordinatesCount: routeCoordinates.length });
+            console.log('[Delivery] 📊 Extracted:', { distance, duration, routeCoordinatesCount: routeCoordinates.length });
 
             if (!distance || !duration || distance === 0 || duration === 0) {
-                console.error('[Delivery] Invalid distance or duration:', { distance, duration });
+                console.error('[Delivery] ❌ Invalid distance or duration:', { distance, duration });
                 Alert.alert('Lỗi', 'Không thể tính tuyến đường. Vui lòng kiểm tra địa chỉ và thử lại.');
                 return;
             }
@@ -445,9 +578,13 @@ export default function Delivery(props?: DeliveryProps) {
                 routeCoordinates: routeCoordinates,
             });
 
-            console.log('[Delivery] Route info set:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length });
+            console.log('[Delivery] ✅ Route info SET:', { distanceKm, duration, routeCoordinatesCount: routeCoordinates.length });
+            console.log('[Delivery] ========== CALCULATING ROUTE END ==========')
         } catch (error: any) {
-            console.error('[Delivery] Route calculation error:', error);
+            console.error('[Delivery] ========== ROUTE CALCULATION ERROR ==========')
+            console.error('[Delivery] Error message:', error.message);
+            console.error('[Delivery] Error stack:', error.stack);
+            console.error('[Delivery] Full error:', error);
             Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
         }
     };
@@ -462,7 +599,17 @@ export default function Delivery(props?: DeliveryProps) {
 
     // Calculate price based on selections and distance using backend pricing API
     useEffect(() => {
+        console.log('[Delivery] 💰 Price calculation effect triggered')
+        console.log('[Delivery] routeInfo:', routeInfo)
+        console.log('[Delivery] vehicle:', vehicle)
+        console.log('[Delivery] weight:', weight)
+        console.log('[Delivery] goodsType:', goodsType)
+        console.log('[Delivery] vehicles config available:', vehicles.length)
+        console.log('[Delivery] weightRanges config available:', weightRanges.length)
+        console.log('[Delivery] goodsTypes config available:', goodsTypes.length)
+
         if (!routeInfo?.distance) {
+            console.log('[Delivery] ⚠️ No route info or distance, setting price to 0')
             setEstimatedPrice(0)
             return
         }
@@ -470,42 +617,47 @@ export default function Delivery(props?: DeliveryProps) {
         const calculateDeliveryPrice = async () => {
             try {
                 const distanceKm = routeInfo.distance
+                console.log('[Delivery] 📍 Calculating price for distance:', distanceKm, 'km')
 
                 // ============ GIAO HÀNG - Get vehicle mapping from config ============
                 const selectedVehicle = vehicles.find(v => v.key === vehicle)
                 const carType = (selectedVehicle?.vehicleTypeMapping || 'bike') as 'bike' | 'sedan' | 'truck'
+                console.log('[Delivery] 🚗 Vehicle selected:', vehicle, '→ carType:', carType)
                 // ============ END GIAO HÀNG ============
 
                 // Tính giá giao hàng: không có giảm giá ghép xe (totalPassengers = 1)
                 // Backend tự động check giờ cao điểm và áp dụng multiplier nếu cần
+                console.log('[Delivery] 📤 Calling calculateFare with:', { distanceKm, carType })
                 const fareBreakdown = await calculateFare(distanceKm, carType, 1, true)
+                console.log('[Delivery] ✅ Fare breakdown received:', fareBreakdown)
                 
                 // ============ GIAO HÀNG - Weight surcharge from config ============
                 const weightConfig = weightRanges.find(w => w.key === weight)
                 const weightSurcharge = weightConfig?.surcharge || 0
+                console.log('[Delivery] ⚖️ Weight:', weight, '→ surcharge:', weightSurcharge)
                 // ============ END GIAO HÀNG ============
 
                 // ============ GIAO HÀNG - Goods type surcharge from config ============
                 const goodsConfig = goodsTypes.find(g => g.key === goodsType)
                 const goodsSurcharge = goodsConfig?.surcharge || 0
+                console.log('[Delivery] 📦 Goods type:', goodsType, '→ surcharge:', goodsSurcharge)
                 // ============ END GIAO HÀNG ============
 
                 // Total price = base fare từ backend + surcharges
                 const totalPrice = fareBreakdown.finalPrice + weightSurcharge + goodsSurcharge
 
-                console.log('[Delivery] Price calculation:', {
-                    distance: distanceKm,
-                    carType,
+                console.log('[Delivery] 💰 FINAL PRICE CALCULATION:', {
                     baseFare: fareBreakdown.finalPrice,
-                    isPeakTime: fareBreakdown.isPeakTime,
                     weightSurcharge,
                     goodsSurcharge,
                     totalPrice,
+                    rounded: Math.round(totalPrice / 1000) * 1000,
                 })
 
                 setEstimatedPrice(Math.round(totalPrice / 1000) * 1000) // Round to nearest 1000
             } catch (error) {
-                console.error('[Delivery] Price calculation error:', error)
+                console.error('[Delivery] ❌ Price calculation error:', error)
+                console.error('[Delivery] Error details:', error instanceof Error ? error.message : String(error))
                 // Fallback to 0 if API fails
                 setEstimatedPrice(0)
             }
@@ -572,8 +724,18 @@ export default function Delivery(props?: DeliveryProps) {
                 <Text style={styles.logoText}>firego</Text>
             </View>
 
-            <View style={styles.card}>
-                <View style={styles.handleBar} />
+            <Animated.View 
+                style={[
+                    styles.card,
+                    {
+                        transform: [{ translateY }],
+                        height: screenHeight,
+                    }
+                ]}
+            >
+                <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+                    <View style={styles.handleBar} />
+                </View>
 
                 {/* Title Section */}
                 <View style={styles.cardHeader}>
@@ -589,7 +751,11 @@ export default function Delivery(props?: DeliveryProps) {
                     )}
                 </View>
 
-                <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
+                <ScrollView 
+                    showsVerticalScrollIndicator={false} 
+                    style={styles.scrollContent}
+                    contentContainerStyle={{ paddingBottom: 80 }}
+                >
                     {/* Location Inputs */}
                     <View style={styles.locationsContainer}>
                         <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
@@ -784,7 +950,7 @@ export default function Delivery(props?: DeliveryProps) {
                         </>
                     )}
                 </TouchableOpacity>
-            </View>
+            </Animated.View>
         </View>
     )
 }
@@ -830,22 +996,24 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         paddingHorizontal: 20,
-        paddingTop: 12,
-        paddingBottom: 24,
+        paddingTop: 0,
+        paddingBottom: 34,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -6 },
         shadowOpacity: 0.2,
         shadowRadius: 12,
         elevation: 15,
-        maxHeight: '50%',
+    },
+    handleBarContainer: {
+        paddingVertical: 12,
+        paddingTop: 12,
+        alignItems: 'center',
     },
     handleBar: {
         width: 40,
         height: 5,
         backgroundColor: '#D1D5DB',
         borderRadius: 3,
-        alignSelf: 'center',
-        marginBottom: 16,
     },
     cardHeader: {
         flexDirection: 'row',

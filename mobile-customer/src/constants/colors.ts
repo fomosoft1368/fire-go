@@ -7,13 +7,16 @@ export const COLORS_DARK = {
   // Dark theme
   bg: '#0f172a',
   bgSecondary: '#1a202c',
-  background: '#0f172a',
-  border: 'rgba(255, 255, 255, 0.05)',
+  background: '#faf9f9',
+  card: '#f8f9fa',
+  border: 'rgba(247, 144, 11, 0.05)',
   borderLight: 'rgba(255, 255, 255, 0.1)',
+  borderhunt: 'rgba(247, 232, 21, 0.1)',
 
   // Text
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
+  text: '#0e0d0d',
+  textPrimary: '#131212',
+  textSecondary: '#101111',
 
   // Status
   success: '#4caf50',
@@ -33,14 +36,16 @@ export const COLORS_LIGHT = {
   primaryLight: '#FF6B0020',
 
   // Light theme
-  bg: '#ffffff',
+  bg: '#f0eded',
   bgSecondary: '#f5f5f5',
   background: '#ffffff',
+  card: '#f8fafc',
   border: 'rgba(0, 0, 0, 0.05)',
   borderLight: 'rgba(0, 0, 0, 0.1)',
 
   // Text
   text: '#1a202c',
+  textPrimary: '#1a202c',
   textSecondary: '#64748b',
 
   // Status

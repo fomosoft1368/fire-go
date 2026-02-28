@@ -251,9 +251,23 @@ export const calculateFare = async (
 ): Promise<FareBreakdown> => {
   const config = await getPricingConfig()
   
+  console.log('🔍 [calculateFare] DEBUG CONFIG:', {
+    hasConfig: !!config,
+    hasVehicleTypes: !!config?.vehicleTypes,
+    vehicleTypesIsArray: Array.isArray(config?.vehicleTypes),
+    vehicleTypesLength: config?.vehicleTypes?.length,
+    availableTypes: config?.vehicleTypes?.map(v => v.type),
+    lookingFor: carType,
+  })
+  
   // Lấy config cho loại xe
   const vehicleConfig = config.vehicleTypes.find(v => v.type === carType)
   if (!vehicleConfig) {
+    console.error('❌ [calculateFare] VEHICLE CONFIG NOT FOUND:', {
+      carType,
+      availableTypes: config?.vehicleTypes?.map(v => ({ type: v.type, name: v.name })),
+      fullConfig: JSON.stringify(config, null, 2),
+    })
     throw new Error(`Vehicle type ${carType} not found`)
   }
 

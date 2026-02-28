@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import * as crypto from 'crypto';
 
 interface SepayQRPayload {
   accountNo: string;
   accountName: string;
-  acqId: string; // Bank ID (VCB=970436, TCB=970407, MB=970422, etc.)
+  acqId: string; // Bank ID (VCB=970436, TCB: 970407, MB=970422, etc.)
   amount: number;
   addInfo: string; // Transaction content
   format: 'text' | 'compact';
@@ -12,17 +13,26 @@ interface SepayQRPayload {
 
 @Injectable()
 export class SepayService {
+  // Sepay API credentials (load from .env)
+  private readonly SEPAY_API_KEY = process.env.SEPAY_API_KEY;
+  private readonly SEPAY_SECRET_KEY = process.env.SEPAY_SECRET_KEY;
+  
   // Thông tin tài khoản nhận tiền (config từ .env trong production)
-  private readonly ACCOUNT_NO = '0986190053'; // Số tài khoản ngân hàng
-  private readonly ACCOUNT_NAME = 'HO VAN TRINH'; // Tên chủ tài khoản
-  private readonly BANK_ID = '970422'; // VCB: 970436, TCB: 970407, MB: 970422
-  private readonly BANK_NAME = 'MB'; // Tên ngân hàng
+  private readonly ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NUMBER || 'VQRQAHGIQ8468'; // Tài khoản VA
+  private readonly ACCOUNT_NAME = process.env.SEPAY_ACCOUNT_NAME || 'HO VAN TRINH'; // Tên chủ tài khoản
+  private readonly BANK_ID = process.env.SEPAY_BANK_ID || '970422'; // VCB: 970436, TCB: 970407, MB: 970422
+  private readonly BANK_NAME = process.env.SEPAY_BANK_NAME || 'MB'; // Tên ngân hàng
 
   /**
    * Generate Sepay QR code URL for bank transfer
+   * Supports both driver (DRV_) and customer (CUST_) payments
    * Reference: https://www.sepay.vn/ or https://img.vietqr.io/
    */
-  generateQRCode(amount: number, transactionId: string): {
+  generateQRCode(
+    amount: number,
+    transactionId: string,
+    userType: 'driver' | 'customer' = 'driver',
+  ): {
     qrCodeUrl: string;
     accountNo: string;
     accountName: string;
@@ -31,8 +41,17 @@ export class SepayService {
     content: string;
     bankId: string;
   } {
-    // Generate unique transaction content
-    const content = `NAPVI ${transactionId.substring(transactionId.length - 8).toUpperCase()}`;
+    // Generate unique transaction content with user type prefix
+    // Format: DRV8A9B0C1D or CUST9B0C2D2E (no underscore - banks don't allow it)
+    const last8Chars = transactionId.substring(transactionId.length - 8).toUpperCase();
+    const prefix = userType === 'driver' ? 'DRV' : 'CUST';
+    const content = `${prefix}${last8Chars}`; // No underscore!
+    
+    console.log('[SepayService] 🔖 Generating QR code:');
+    console.log('[SepayService] User Type:', userType);
+    console.log('[SepayService] Full Transaction ID:', transactionId);
+    console.log('[SepayService] Last 8 chars:', last8Chars);
+    console.log('[SepayService] Content:', content);
 
     // VietQR API URL (Free, public)
     const qrCodeUrl = this.buildVietQRUrl({
@@ -57,47 +76,65 @@ export class SepayService {
   }
 
   /**
-   * Build VietQR URL
-   * Format: https://img.vietqr.io/image/{BANK_ID}-{ACCOUNT_NO}-{TEMPLATE}.png?amount={amount}&addInfo={content}&accountName={name}
+   * Build Sepay QR URL
+   * Format: https://qr.sepay.vn/img?acc={ACCOUNT_NO}&bank={BANK_NAME}&amount={amount}&des={content}
    */
   private buildVietQRUrl(payload: SepayQRPayload): string {
-    const baseUrl = 'https://img.vietqr.io/image';
-    const template = payload.template || 'compact2';
+    const baseUrl = 'https://qr.sepay.vn/img';
     
-    // URL encode params
+    // URL encode params for Sepay format
     const params = new URLSearchParams({
+      acc: payload.accountNo,
+      bank: this.BANK_NAME, // MBBank, VCBBank, etc.
       amount: payload.amount.toString(),
-      addInfo: payload.addInfo,
-      accountName: payload.accountName,
+      des: payload.addInfo,
     });
 
-    return `${baseUrl}/${payload.acqId}-${payload.accountNo}-${template}.png?${params.toString()}`;
+    return `${baseUrl}?${params.toString()}`;
   }
 
   /**
    * Verify Sepay webhook signature
-   * In production, use HMAC-SHA256 with secret key from Sepay
+   * Uses HMAC-SHA256 with secret key from Sepay
    */
   verifyWebhookSignature(payload: string, signature: string): boolean {
-    // TODO: Implement real signature verification when you have Sepay secret key
-    // const crypto = require('crypto');
-    // const hmac = crypto.createHmac('sha256', SEPAY_SECRET_KEY);
-    // hmac.update(payload);
-    // const computedSignature = hmac.digest('hex');
-    // return computedSignature === signature;
+    // If no secret key configured, accept all (development mode)
+    if (!this.SEPAY_SECRET_KEY) {
+      console.log('[SepayService] ⚠️ No SEPAY_SECRET_KEY configured - accepting all webhooks (DEV MODE)');
+      console.log('[SepayService] 💡 To enable signature verification, add SEPAY_SECRET_KEY to .env');
+      return true;
+    }
 
-    // For now, accept all (development only!)
-    console.log('[SepayService] ⚠️ Signature verification skipped (development mode)');
-    return true;
+    try {
+      // Compute HMAC-SHA256 signature
+      const hmac = crypto.createHmac('sha256', this.SEPAY_SECRET_KEY);
+      hmac.update(payload);
+      const computedSignature = hmac.digest('hex');
+      
+      const isValid = computedSignature === signature;
+      
+      if (isValid) {
+        console.log('[SepayService] ✅ Webhook signature VALID');
+      } else {
+        console.log('[SepayService] ❌ Webhook signature INVALID');
+        console.log('[SepayService] Expected:', computedSignature);
+        console.log('[SepayService] Received:', signature);
+      }
+      
+      return isValid;
+    } catch (error) {
+      console.error('[SepayService] ❌ Error verifying signature:', error);
+      return false;
+    }
   }
 
   /**
    * Validate transaction content format
-   * Format: NAPVI + 8 chars transaction ID
+   * Format: DH + 8-24 chars transaction ID (hex)
    */
   validateTransactionContent(content: string, transactionId: string): boolean {
     const expectedSuffix = transactionId.substring(transactionId.length - 8).toUpperCase();
-    const expectedContent = `NAPVI ${expectedSuffix}`;
+    const expectedContent = `DH${expectedSuffix}`;
     return content.toUpperCase().includes(expectedSuffix);
   }
 }

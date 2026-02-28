@@ -6,6 +6,14 @@ export interface User {
   phone: string
   role: 'admin' | 'driver' | 'customer'
   avatar?: string
+  // Driver-specific fields
+  totalRides?: number
+  averageRating?: number
+  onlineHours?: number
+  walletBalance?: number
+  vehicleType?: string
+  vehicleModel?: string
+  vehiclePlate?: string
 }
 
 export interface AuthState {

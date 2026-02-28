@@ -29,7 +29,7 @@ export default function TermsOfServiceScreen() {
   )
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: '#FF6B00', borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
