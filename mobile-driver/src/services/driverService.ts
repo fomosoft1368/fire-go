@@ -27,15 +27,28 @@ interface LocationData {
   accuracy?: number;
 }
 
-interface EarningsData {
+export interface EarningsData {
   amount: number;
   increase: number;
   totalTrips: number;
   driverShare?: number;
   breakdown?: {
-    rides?: number;
-    combinedTrips?: number;
-    deliveries?: number;
+    rides: {
+      trips: number;
+      totalFare: number;
+      driverEarnings: number;
+    };
+    combinedTrips: {
+      trips: number;
+      requests: number;
+      totalFare: number;
+      driverEarnings: number;
+    };
+    deliveries: {
+      deliveries: number;
+      totalFare: number;
+      driverEarnings: number;
+    };
   };
 }
 

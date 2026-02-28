@@ -18,6 +18,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { walletService } from '../services/walletService'
+import { pricingService } from '../services/pricingService'
 
 const PRESET_AMOUNTS = [100000, 200000, 500000, 1000000, 2000000, 5000000]
 
@@ -47,6 +48,8 @@ export default function TopupScreen({ navigation }: any) {
   const [topupDiscount, setTopupDiscount] = useState<number>(0)
   const [isCheckingPayment, setIsCheckingPayment] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'checking' | 'completed'>('pending')
+  const [minTopupAmount, setMinTopupAmount] = useState(10000)
+  const [maxTopupAmount, setMaxTopupAmount] = useState(100000000)
   const [sepayData, setSepayData] = useState<{
     qrCodeUrl: string;
     accountNo: string;
@@ -59,6 +62,7 @@ export default function TopupScreen({ navigation }: any) {
 
   React.useEffect(() => {
     loadTopupDiscount()
+    loadPricingConfig()
   }, [])
 
   // ⭐ Auto-check payment status when Sepay modal is open
@@ -130,7 +134,33 @@ export default function TopupScreen({ navigation }: any) {
     }
   }
 
+  const loadPricingConfig = async () => {
+    try {
+      const minAmount = await pricingService.getMinTopupAmountCustomer()
+      const maxAmount = await pricingService.getMaxTopupAmount()
+      setMinTopupAmount(minAmount)
+      setMaxTopupAmount(maxAmount)
+      console.log('[TopupScreen] Loaded pricing config:', { minAmount, maxAmount })
+    } catch (error) {
+      console.error('[TopupScreen] Error loading pricing config:', error)
+    }
+  }
+
   const amount = selectedAmount || (customAmount ? parseInt(customAmount) : 0)
+
+  // Validation error message
+  const getValidationError = (): string | null => {
+    if (amount <= 0) return null; // Don't show error for empty input
+    if (amount < minTopupAmount) {
+      return `Số tiền nạp tối thiểu là ${minTopupAmount.toLocaleString('vi-VN')}đ`;
+    }
+    if (amount > maxTopupAmount) {
+      return `Số tiền nạp tối đa là ${maxTopupAmount.toLocaleString('vi-VN')}đ`;
+    }
+    return null;
+  };
+
+  const validationError = getValidationError();
 
   const handleAmountSelect = (value: number) => {
     setSelectedAmount(value)
@@ -148,13 +178,13 @@ export default function TopupScreen({ navigation }: any) {
       return
     }
 
-    if (amount < 50000) {
-      Alert.alert('Lỗi', 'Số tiền nạp tối thiểu là 50.000đ')
+    if (amount < minTopupAmount) {
+      Alert.alert('Lỗi', `Số tiền nạp tối thiểu là ${minTopupAmount.toLocaleString('vi-VN')}đ`)
       return
     }
 
-    if (amount > 100000000) {
-      Alert.alert('Lỗi', 'Số tiền nạp tối đa là 100.000.000đ')
+    if (amount > maxTopupAmount) {
+      Alert.alert('Lỗi', `Số tiền nạp tối đa là ${maxTopupAmount.toLocaleString('vi-VN')}đ`)
       return
     }
 
@@ -220,7 +250,10 @@ export default function TopupScreen({ navigation }: any) {
               <Text style={styles.currencyText}>đ</Text>
             </View>
             <TextInput
-              style={styles.customAmountInput}
+              style={[
+                styles.customAmountInput,
+                validationError && styles.customAmountInputError
+              ]}
               placeholder="Nhập số tiền"
               placeholderTextColor={COLORS.textSecondary}
               value={customAmount}
@@ -228,6 +261,14 @@ export default function TopupScreen({ navigation }: any) {
               keyboardType="number-pad"
             />
           </View>
+
+          {/* Validation Error */}
+          {validationError && (
+            <View style={styles.errorContainer}>
+              <MaterialIcons name="error-outline" size={16} color="#ef4444" />
+              <Text style={styles.errorText}>{validationError}</Text>
+            </View>
+          )}
 
           {/* Preset Amounts */}
           <View style={styles.presetsContainer}>
@@ -368,9 +409,12 @@ export default function TopupScreen({ navigation }: any) {
       {/* Footer Button */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.payButton, amount <= 0 && styles.payButtonDisabled]}
+          style={[
+            styles.payButton,
+            (amount <= 0 || validationError) && styles.payButtonDisabled
+          ]}
           onPress={handleProcessPayment}
-          disabled={amount <= 0}
+          disabled={amount <= 0 || !!validationError}
         >
           <Text style={styles.payButtonText}>
             Tiếp tục với {amount.toLocaleString('vi-VN')}đ
@@ -659,6 +703,21 @@ const styles = StyleSheet.create({
     paddingRight: SPACING.md,
     fontSize: 16,
     color: '#1a1a1a', // Dark text
+  },
+  customAmountInputError: {
+    color: '#ef4444',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: SPACING.sm,
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#ef4444',
+    flex: 1,
   },
   presetsContainer: {
     flexDirection: 'row',

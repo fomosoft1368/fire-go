@@ -173,16 +173,22 @@ export class PricingService {
   }
 
   async updateConfig(configData: Partial<PricingConfig>): Promise<PricingConfigDocument> {
-    const existingConfig = await this.pricingConfigModel.findOne().exec();
+    let config = await this.pricingConfigModel.findOne().exec();
     
-    if (existingConfig) {
-      // Xóa document cũ và tạo mới để tránh các field cũ không mong muốn
-      await this.pricingConfigModel.deleteOne({ _id: existingConfig._id }).exec();
+    if (!config) {
+      // Create new config if none exists
+      config = new this.pricingConfigModel(configData);
+      return config.save();
     }
     
-    // Tạo config mới với data sạch
-    const newConfig = new this.pricingConfigModel(configData);
-    return newConfig.save();
+    // ✅ Update only provided fields, preserve others (e.g., topupDiscount, vehicleTypes)
+    Object.keys(configData).forEach(key => {
+      if (configData[key] !== undefined) {
+        config[key] = configData[key];
+      }
+    });
+    
+    return config.save();
   }
 
   async resetToDefaults(): Promise<PricingConfigDocument> {
@@ -487,6 +493,54 @@ export class PricingService {
       console.error('[PricingService] ❌ Error stack:', error.stack);
       // Return 0 on error to prevent crash
       return 0;
+    }
+  }
+
+  async getMinTopupAmount(userType: 'customer' | 'driver'): Promise<number> {
+    try {
+      const config = await this.getConfig();
+      if (userType === 'customer') {
+        return config.minTopupAmountCustomer || 10000;
+      } else {
+        return config.minTopupAmountDriver || 10000;
+      }
+    } catch (error) {
+      console.error('[PricingService] Error getting min topup amount:', error);
+      return 10000; // Default fallback
+    }
+  }
+
+  async getMaxTopupAmount(): Promise<number> {
+    try {
+      const config = await this.getConfig();
+      return config.maxTopupAmount || 100000000;
+    } catch (error) {
+      console.error('[PricingService] Error getting max topup amount:', error);
+      return 100000000; // Default fallback
+    }
+  }
+
+  async getMinWithdrawAmount(userType: 'driver' | 'customer'): Promise<number> {
+    try {
+      const config = await this.getConfig();
+      if (userType === 'customer') {
+        return config.minWithdrawAmountCustomer || 50000;
+      } else {
+        return config.minWithdrawAmountDriver || 50000;
+      }
+    } catch (error) {
+      console.error('[PricingService] Error getting min withdraw amount:', error);
+      return 50000; // Default fallback
+    }
+  }
+
+  async getMinWalletBalanceToGoOnline(): Promise<number> {
+    try {
+      const config = await this.getConfig();
+      return config.minWalletBalanceToGoOnline || 100000;
+    } catch (error) {
+      console.error('[PricingService] Error getting min wallet balance:', error);
+      return 100000; // Default fallback
     }
   }
   // ============ END TOPUP DISCOUNT ============

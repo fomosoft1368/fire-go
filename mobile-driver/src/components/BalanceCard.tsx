@@ -2,25 +2,41 @@ import React from 'react'
 import { View, Text, Switch, StyleSheet, TouchableOpacity } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { SPACING } from '../constants'
 
 interface BalanceCardProps {
   amount: number
   dailyAmount: number
   increase: number
+  breakdown?: {
+    rides: { trips: number; totalFare: number; driverEarnings: number }
+    combinedTrips: { trips: number; requests: number; totalFare: number; driverEarnings: number }
+    deliveries: { deliveries: number; totalFare: number; driverEarnings: number }
+  }
   isOnline: boolean
   onToggleOnline: (value: boolean) => void
   onViewDetails?: () => void
+  totalRides?: number
+  averageRating?: number
+  onlineHours?: number
 }
 
 export const BalanceCard: React.FC<BalanceCardProps> = ({
   amount,
   dailyAmount,
   increase,
+  breakdown,
   isOnline,
   onToggleOnline,
   onViewDetails,
+  totalRides = 0,
+  averageRating = 0,
+  onlineHours = 0,
 }) => {
+  // Calculate if we have earnings from each source
+  const hasRidesEarnings = (breakdown?.rides?.driverEarnings || 0) > 0
+  const hasCombinedEarnings = (breakdown?.combinedTrips?.driverEarnings || 0) > 0
+  const hasDeliveryEarnings = (breakdown?.deliveries?.driverEarnings || 0) > 0
   return (
     <View style={styles.cardWrapper}>
       <LinearGradient
@@ -76,6 +92,36 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
             </View>
             <Text style={styles.trendLabel}>so với hôm qua</Text>
           </View>
+          
+          {/* Earnings Breakdown Badges */}
+          {breakdown && (hasRidesEarnings || hasCombinedEarnings || hasDeliveryEarnings) && (
+            <View style={styles.breakdownRow}>
+              {hasRidesEarnings && (
+                <View style={styles.breakdownBadge}>
+                  <MaterialIcons name="directions-car" size={14} color="rgba(255, 255, 255, 0.9)" />
+                  <Text style={styles.breakdownText}>
+                    {(breakdown.rides.driverEarnings || 0).toLocaleString('vi-VN')}đ
+                  </Text>
+                </View>
+              )}
+              {hasCombinedEarnings && (
+                <View style={styles.breakdownBadge}>
+                  <MaterialIcons name="people" size={14} color="rgba(255, 255, 255, 0.9)" />
+                  <Text style={styles.breakdownText}>
+                    {(breakdown.combinedTrips.driverEarnings || 0).toLocaleString('vi-VN')}đ
+                  </Text>
+                </View>
+              )}
+              {hasDeliveryEarnings && (
+                <View style={styles.breakdownBadge}>
+                  <MaterialIcons name="local-shipping" size={14} color="rgba(255, 255, 255, 0.9)" />
+                  <Text style={styles.breakdownText}>
+                    {(breakdown.deliveries.driverEarnings || 0).toLocaleString('vi-VN')}đ
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Stats Row */}
@@ -85,7 +131,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
               <MaterialIcons name="local-shipping" size={20} color="#fff" />
             </View>
             <View style={styles.statContent}>
-              <Text style={styles.statValue}>12</Text>
+              <Text style={styles.statValue}>{totalRides}</Text>
               <Text style={styles.statLabel}>Chuyến đi</Text>
             </View>
           </View>
@@ -97,7 +143,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
               <MaterialIcons name="access-time" size={20} color="#fff" />
             </View>
             <View style={styles.statContent}>
-              <Text style={styles.statValue}>8.5h</Text>
+              <Text style={styles.statValue}>{onlineHours > 0 ? `${onlineHours.toFixed(1)}h` : '--'}</Text>
               <Text style={styles.statLabel}>Trực tuyến</Text>
             </View>
           </View>
@@ -109,7 +155,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
               <MaterialIcons name="star" size={20} color="#FFD700" />
             </View>
             <View style={styles.statContent}>
-              <Text style={styles.statValue}>4.9</Text>
+              <Text style={styles.statValue}>{averageRating > 0 ? averageRating.toFixed(1) : '--'}</Text>
               <Text style={styles.statLabel}>Đánh giá</Text>
             </View>
           </View>
@@ -272,6 +318,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.75)',
     fontWeight: '500',
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  breakdownBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
+  },
+  breakdownText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.95)',
   },
   statsRow: {
     flexDirection: 'row',

@@ -87,7 +87,7 @@ export default function ScheduleDateTimeModal({
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Chọn thời gian hẹn</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onCancel}>
-              <MaterialIcons name="close" size={24} color="#fff" />
+              <MaterialIcons name="close" size={24} color="#1a1919" />
             </TouchableOpacity>
           </View>
 
@@ -107,14 +107,14 @@ export default function ScheduleDateTimeModal({
               style={[styles.modeButton, pickerMode === 'date' && styles.modeButtonActive]}
               onPress={() => setPickerMode('date')}
             >
-              <MaterialIcons name="calendar-today" size={20} color={pickerMode === 'date' ? '#FF6B00' : '#94a3b8'} />
+              <MaterialIcons name="calendar-today" size={20} color={pickerMode === 'date' ? '#faf9f9' : '#050607'} />
               <Text style={[styles.modeText, pickerMode === 'date' && styles.modeTextActive]}>Ngày</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modeButton, pickerMode === 'time' && styles.modeButtonActive]}
               onPress={() => setPickerMode('time')}
             >
-              <MaterialIcons name="access-time" size={20} color={pickerMode === 'time' ? '#FF6B00' : '#94a3b8'} />
+              <MaterialIcons name="access-time" size={20} color={pickerMode === 'time' ? '#fcf9f7' : '#03060a'} />
               <Text style={[styles.modeText, pickerMode === 'time' && styles.modeTextActive]}>Giờ</Text>
             </TouchableOpacity>
           </View>
@@ -261,15 +261,15 @@ export default function ScheduleDateTimeModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgb(0, 0, 0)',
     justifyContent: 'flex-end',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgb(12, 12, 12)',
   },
   modalContent: {
-    backgroundColor: '#1a202c',
+    backgroundColor: '#fafafa',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: SPACING.lg,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
+    color: '#111111',
   },
   closeButton: {
     width: 40,
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   displayContainer: {
-    backgroundColor: '#0f172a',
+    backgroundColor: '#fbfcfd',
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.xl,
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   displayText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#131212',
     textAlign: 'center',
   },
   modeSelector: {
@@ -330,30 +330,30 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#f5f6f8',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(252, 153, 5, 0.9)',
   },
   modeButtonActive: {
-    backgroundColor: '#374151',
+    backgroundColor: '#ff7f07',
     borderColor: '#FF6B00',
   },
   modeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#94a3b8',
+    color: '#0a0a0a',
   },
   modeTextActive: {
-    color: '#FF6B00',
+    color: '#faf8f7',
   },
   pickerContainer: {
-    backgroundColor: '#0f172a',
+    backgroundColor: '#f6f6f7',
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
     height: 220,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(252, 186, 3, 0.97)',
   },
   wheelContainer: {
     flexDirection: 'row',

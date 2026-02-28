@@ -17,10 +17,11 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { COLORS, SPACING } from '../constants'
 import { RideCard, BalanceCard } from '../components'
-import { driverService } from '../services/driverService'
+import { driverService, type EarningsData } from '../services/driverService'
 import { locationTrackingService } from '../services/locationTrackingService'
+import { pricingService } from '../services/pricingService'
 import type { RootState } from '../redux/store'
 import type { RideItem } from '../types'
 import { updateUser } from '../redux/slices/authSlice'
@@ -31,7 +32,17 @@ export default function HomeScreen() {
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [earnings, setEarnings] = useState({ amount: 0, increase: 0 })
+  const [earnings, setEarnings] = useState<Omit<EarningsData, 'totalTrips' | 'driverShare'> & { 
+    breakdown: NonNullable<EarningsData['breakdown']> 
+  }>({ 
+    amount: 0, 
+    increase: 0,
+    breakdown: {
+      rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+      combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+      deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+    }
+  })
   const [walletBalance, setWalletBalance] = useState(0)
   const [walletWarning, setWalletWarning] = useState(false)
 
@@ -69,15 +80,33 @@ export default function HomeScreen() {
         console.log('[HomeScreen] 📊 Fetching today\'s earnings...')
         const earningsData = await driverService.getTodayEarnings()
         console.log('[HomeScreen] ✅ Earnings loaded:', earningsData)
+        console.log('[HomeScreen] 💰 Breakdown:', {
+          rides: earningsData.breakdown?.rides?.driverEarnings || 0,
+          combined: earningsData.breakdown?.combinedTrips?.driverEarnings || 0,
+          delivery: earningsData.breakdown?.deliveries?.driverEarnings || 0,
+        })
         setEarnings({
           amount: earningsData.amount || 0,
           increase: earningsData.increase || 0,
+          breakdown: earningsData.breakdown || {
+            rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+            combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+            deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+          }
         })
 
 
       } catch (error) {
         console.error('[HomeScreen] ❌ Error fetching earnings/wallet:', error)
-        setEarnings({ amount: 0, increase: 0 })
+        setEarnings({ 
+          amount: 0, 
+          increase: 0,
+          breakdown: {
+            rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+            combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+            deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+          }
+        })
         setWalletBalance(0)
       }
     }
@@ -106,9 +135,25 @@ export default function HomeScreen() {
           status: profile.status,
           walletBalance: profile.walletBalance,
           licenseStatus: profile.licenseStatus,
+          totalRides: profile.totalRides,
+          completedRides: profile.completedRides,
+          averageRating: profile.averageRating,
+          onlineHours: profile.onlineHours,
         }))
 
         setIsOnline(profile.isOnline || false)
+        
+        // ✅ Check wallet warning on mount
+        const balance = profile.walletBalance || 0
+        setWalletBalance(balance)
+        const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
+        setWalletWarning(balance < minBalance)
+        
+        console.log('[HomeScreen] Wallet check on mount:', {
+          balance,
+          minBalance,
+          hasWarning: balance < minBalance,
+        })
       } catch (error) {
         console.error('[HomeScreen] ❌ Error fetching profile:', error)
         setIsOnline(false)
@@ -126,12 +171,35 @@ export default function HomeScreen() {
       setEarnings({
         amount: earningsData.amount || 0,
         increase: earningsData.increase || 0,
+        breakdown: earningsData.breakdown || {
+          rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
+          combinedTrips: { trips: 0, requests: 0, totalFare: 0, driverEarnings: 0 },
+          deliveries: { deliveries: 0, totalFare: 0, driverEarnings: 0 },
+        }
       })
 
       const profile = await driverService.getProfile()
       const balance = profile?.walletBalance || 0
       setWalletBalance(balance)
-      setWalletWarning(balance < 200000)
+      
+      // Update Redux with latest profile data
+      dispatch(updateUser({
+        walletBalance: balance,
+        totalRides: profile.totalRides,
+        completedRides: profile.completedRides,
+        averageRating: profile.averageRating,
+        onlineHours: profile.onlineHours,
+      }))
+      
+      // ✅ Get dynamic minimum balance from config
+      const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
+      setWalletWarning(balance < minBalance)
+      
+      console.log('[HomeScreen] Wallet check:', {
+        balance,
+        minBalance,
+        hasWarning: balance < minBalance,
+      })
     } catch (error) {
       console.error('[HomeScreen] Error refreshing:', error)
     } finally {
@@ -150,13 +218,16 @@ export default function HomeScreen() {
           fullUser: user,
         })
 
+        // Get dynamic minimum balance requirement
+        const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
+
         // Check wallet balance
         const balance = user?.walletBalance || 0
-        if (balance < 100000) {
-          console.log('[HomeScreen] Wallet too low:', balance)
+        if (balance < minBalance) {
+          console.log('[HomeScreen] Wallet too low:', balance, 'required:', minBalance)
           Alert.alert(
             'Số dư không đủ',
-            `Số dư ví phải từ 100.000 đ trở lên để nhận cuốc. Hiện tại: ${(balance || 0).toLocaleString('vi-VN')}đ`,
+            `Số dư ví phải từ ${minBalance.toLocaleString('vi-VN')} đ trở lên để nhận cuốc. Hiện tại: ${(balance || 0).toLocaleString('vi-VN')}đ`,
             [{ text: 'OK' }]
           )
           return
@@ -385,9 +456,13 @@ export default function HomeScreen() {
           amount={earnings.amount}
           dailyAmount={earnings.amount}
           increase={earnings.increase}
+          breakdown={earnings.breakdown}
           isOnline={isOnline}
           onToggleOnline={handleToggleOnline}
           onViewDetails={() => navigation.navigate('Earnings' as never)}
+          totalRides={user?.totalRides || 0}
+          averageRating={user?.averageRating || 0}
+          onlineHours={user?.onlineHours || 0}
         />
         {/* Filter Buttons */}
         <FilterButtons activeFilter={activeFilter} onFilterChange={setActiveFilter} />

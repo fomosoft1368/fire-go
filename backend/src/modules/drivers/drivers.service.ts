@@ -11,6 +11,7 @@ export class DriversService {
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     @InjectModel('Ride') private rideModel: Model<any>,
     @InjectModel('CombinedTrip') private combinedTripModel: Model<any>,
+    @InjectModel('RideRequest') private rideRequestModel: Model<any>,
     @InjectModel('Delivery') private deliveryModel: Model<any>,
     @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
     private eventEmitter: EventEmitter2,
@@ -376,22 +377,24 @@ export class DriversService {
       let combinedTodayEarnings = 0;
 
       try {
+        // Get completed combined trips
         completedCombinedTrips = await this.combinedTripModel.find({
           driverId: new Types.ObjectId(driverId),
           status: 'completed',
           createdAt: { $gte: today, $lt: tomorrow },
-        }).populate('rideRequests');
+        });
 
-        for (const trip of completedCombinedTrips) {
-          if (trip.rideRequests && Array.isArray(trip.rideRequests)) {
-            for (const request of trip.rideRequests) {
-              if (request.status === 'completed' && request.fare) {
-                combinedTodayTotal += request.fare;
-                completedRequestsCount++;
-              }
-            }
-          } else if (trip.totalFare) {
-            combinedTodayTotal += trip.totalFare;
+        // Get all RideRequests for these trips
+        const tripIds = completedCombinedTrips.map(trip => trip._id);
+        const completedRequests = await this.rideRequestModel.find({
+          combinedTripId: { $in: tripIds },
+          status: 'completed',
+        });
+
+        // Calculate total fare from all completed requests
+        for (const request of completedRequests) {
+          if (request.fare) {
+            combinedTodayTotal += request.fare;
             completedRequestsCount++;
           }
         }
@@ -458,18 +461,19 @@ export class DriversService {
           driverId: new Types.ObjectId(driverId),
           status: 'completed',
           createdAt: { $gte: yesterday, $lt: today },
-        }).populate('rideRequests');
+        });
+
+        // Get all RideRequests for yesterday's trips
+        const tripIdsYesterday = completedCombinedTripsYesterday.map(trip => trip._id);
+        const completedRequestsYesterday = await this.rideRequestModel.find({
+          combinedTripId: { $in: tripIdsYesterday },
+          status: 'completed',
+        });
 
         let combinedYesterdayTotal = 0;
-        for (const trip of completedCombinedTripsYesterday) {
-          if (trip.rideRequests && Array.isArray(trip.rideRequests)) {
-            for (const request of trip.rideRequests) {
-              if (request.status === 'completed' && request.fare) {
-                combinedYesterdayTotal += request.fare;
-              }
-            }
-          } else if (trip.totalFare) {
-            combinedYesterdayTotal += trip.totalFare;
+        for (const request of completedRequestsYesterday) {
+          if (request.fare) {
+            combinedYesterdayTotal += request.fare;
           }
         }
         combinedYesterdayEarnings = Math.round((combinedYesterdayTotal * driverShare) / 100);
@@ -599,13 +603,39 @@ export class DriversService {
    * Set driver online status
    */
   async updateOnlineStatus(driverId: string, isOnline: boolean): Promise<DriverDocument> {
+    const driver = await this.driverModel.findById(driverId);
+    if (!driver) {
+      throw new NotFoundException(`Driver ${driverId} not found`);
+    }
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const lastDate = driver.lastOnlineDate ? driver.lastOnlineDate.toISOString().split('T')[0] : null;
+
     const updateData: any = { 
       isOnline,
       status: isOnline ? 'online' : 'offline',
       isAvailable: isOnline,
     };
+
+    // Reset daily tracking if it's a new day
+    if (lastDate !== today) {
+      updateData.todayOnlineMinutes = 0;
+      updateData.lastOnlineDate = now;
+    }
+
     if (isOnline) {
-      updateData.lastOnlineTime = new Date();
+      // Driver bật online → ghi thời điểm bắt đầu session
+      updateData.lastOnlineTime = now;
+      updateData.onlineSessionStart = now;
+    } else {
+      // Driver tắt offline → tính phút online và cộng vào tổng
+      if (driver.onlineSessionStart) {
+        const sessionMinutes = Math.floor((now.getTime() - driver.onlineSessionStart.getTime()) / 60000);
+        updateData.todayOnlineMinutes = (driver.todayOnlineMinutes || 0) + sessionMinutes;
+        updateData.onlineSessionStart = null; // Clear session
+        console.log(`[DriversService] 📊 Driver ${driverId} offline after ${sessionMinutes} minutes (total today: ${updateData.todayOnlineMinutes})`);
+      }
     }
 
     const updated = await this.driverModel.findByIdAndUpdate(
@@ -613,10 +643,6 @@ export class DriversService {
       updateData,
       { new: true },
     );
-
-    if (!updated) {
-      throw new NotFoundException(`Driver ${driverId} not found`);
-    }
 
     console.log(`[DriversService] Driver ${driverId} online status updated to:`, isOnline, 'status:', updateData.status, 'available:', isOnline);
     return updated;
@@ -675,5 +701,84 @@ export class DriversService {
     if (result.modifiedCount > 0) {
       console.log(`[DriversService] Auto-offlined ${result.modifiedCount} inactive drivers`);
     }
+  }
+
+  /**
+   * Approve driver (Admin action)
+   */
+  async approveDriver(id: string, notes?: string): Promise<DriverDocument> {
+    console.log(`[DriversService] Approving driver ${id}`);
+    
+    const driver = await this.driverModel.findById(id);
+    if (!driver) {
+      throw new NotFoundException(`Driver with ID ${id} not found`);
+    }
+
+    // Update approval status
+    driver.approvalStatus = DocumentStatus.APPROVED;
+    driver.licenseStatus = DocumentStatus.APPROVED; // Also approve license
+    driver.approvedAt = new Date();
+    
+    if (notes) {
+      driver.approvalNotes = notes;
+    }
+
+    await driver.save();
+
+    console.log(`[DriversService] ✅ Driver ${id} approved successfully`);
+
+    // Emit event for notifications
+    this.eventEmitter.emit('driver.approved', {
+      driverId: driver._id.toString(),
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+    });
+
+    return driver;
+  }
+
+  /**
+   * Reject driver (Admin action)
+   */
+  async rejectDriver(
+    id: string,
+    rejectionData: {
+      rejectedDocuments?: string[];
+      reasons?: Record<string, string>;
+      globalReason?: string;
+    },
+  ): Promise<DriverDocument> {
+    console.log(`[DriversService] Rejecting driver ${id}`, rejectionData);
+    
+    const driver = await this.driverModel.findById(id);
+    if (!driver) {
+      throw new NotFoundException(`Driver with ID ${id} not found`);
+    }
+
+    // Update approval status
+    driver.approvalStatus = DocumentStatus.REJECTED;
+    driver.rejectedAt = new Date();
+    driver.rejectionReasons = rejectionData.reasons || {};
+    driver.globalRejectionReason = rejectionData.globalReason || '';
+    driver.rejectedDocuments = rejectionData.rejectedDocuments || [];
+
+    await driver.save();
+
+    console.log(`[DriversService] ❌ Driver ${id} rejected`);
+
+    // Emit event for notifications
+    this.eventEmitter.emit('driver.rejected', {
+      driverId: driver._id.toString(),
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+      reasons: rejectionData.reasons,
+      globalReason: rejectionData.globalReason,
+    });
+
+    return driver;
   }
 }

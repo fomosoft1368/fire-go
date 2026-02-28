@@ -16,6 +16,7 @@ import { PricingModule } from '../pricing/pricing.module';
 import { WalletsModule } from '../wallets/wallets.module';
 import { Ride, RideSchema } from '../rides/schemas/ride.schema';
 import { CombinedTrip, CombinedTripSchema } from '../combined-trips/schemas/combined-trip.schema';
+import { RideRequest, RideRequestSchema } from '../combined-trips/schemas/ride-request.schema';
 import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
 
@@ -26,6 +27,7 @@ import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.sc
       { name: Transaction.name, schema: TransactionSchema },
       { name: Ride.name, schema: RideSchema },
       { name: CombinedTrip.name, schema: CombinedTripSchema },
+      { name: RideRequest.name, schema: RideRequestSchema },
       { name: Delivery.name, schema: DeliverySchema },
       { name: PricingConfig.name, schema: PricingConfigSchema },
     ]),

@@ -187,6 +187,15 @@ export class Driver {
   @Prop()
   lastOnlineTime?: Date; // Thời gian cuối cùng online
 
+  @Prop({ default: 0 })
+  todayOnlineMinutes: number; // Tổng số phút online hôm nay
+
+  @Prop()
+  lastOnlineDate?: Date; // Ngày tracking (để reset mỗi ngày)
+
+  @Prop()
+  onlineSessionStart?: Date; // Thời điểm bắt đầu session online hiện tại
+
   // Current location (geospatial)
   @Prop({
     type: { type: String, enum: ['Point'] },
@@ -252,6 +261,21 @@ export class Driver {
 
   @Prop()
   approvedBy?: string;
+
+  @Prop()
+  approvalNotes?: string;
+
+  @Prop()
+  rejectedAt?: Date;
+
+  @Prop({ type: Object })
+  rejectionReasons?: Record<string, string>;
+
+  @Prop()
+  globalRejectionReason?: string;
+
+  @Prop({ type: [String] })
+  rejectedDocuments?: string[];
 }
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);

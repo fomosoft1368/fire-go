@@ -99,11 +99,6 @@ export class WalletsController {
     return { balance }
   }
 
-  @Get(':id')
-  async getWalletById(@Param('id') id: string) {
-    return this.walletsService.getWalletById(id);
-  }
-
   /**
    * POST /api/wallets/sepay-topup
    * Create a topup transaction and generate Sepay QR code for customers
@@ -265,5 +260,14 @@ export class WalletsController {
       dto.amount,
       dto.description,
     );
+  }
+
+  /**
+   * GET /api/wallets/:id
+   * Get wallet by ID (place last to avoid route conflicts with specific routes)
+   */
+  @Get(':id')
+  async getWalletById(@Param('id') id: string) {
+    return this.walletsService.getWalletById(id);
   }
 }

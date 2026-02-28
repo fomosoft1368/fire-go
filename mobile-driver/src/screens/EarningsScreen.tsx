@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { walletService } from '../services/walletService'
 import { driverService } from '../services/driverService'
+import { pricingService } from '../services/pricingService'
 
 interface EarningsData {
   balance: number
@@ -77,8 +78,12 @@ export default function EarningsScreen({ navigation }: any) {
       const profile = await driverService.getProfile()
       const balance = profile?.walletBalance || 0
       setWalletBalance(balance)
-      setShowLowBalanceWarning(balance < 200000)
-      console.log('[EarningsScreen] 💰 Wallet balance:', balance, 'Warning:', balance < 200000)
+      
+      // ✅ Get dynamic minimum balance from config
+      const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
+      setShowLowBalanceWarning(balance < minBalance)
+      
+      console.log('[EarningsScreen] 💰 Wallet balance:', balance, 'Min required:', minBalance, 'Warning:', balance < minBalance)
     } catch (error) {
       console.error('[EarningsScreen] Error fetching wallet:', error)
     }

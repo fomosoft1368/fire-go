@@ -14,6 +14,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { walletService } from '../services/walletService'
 import { paymentMethodService, PaymentMethod } from '../services/paymentMethodService'
+import { pricingService } from '../services/pricingService'
 
 interface BankInfo {
   accountNumber: string
@@ -43,10 +44,12 @@ export default function WithdrawScreen({ navigation }: any) {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [useNewAccount, setUseNewAccount] = useState(false)
+  const [minWithdrawAmount, setMinWithdrawAmount] = useState(50000)
 
   useEffect(() => {
     fetchBalance()
     fetchPaymentMethods()
+    loadPricingConfig()
   }, [])
 
   const fetchBalance = async () => {
@@ -78,21 +81,42 @@ export default function WithdrawScreen({ navigation }: any) {
     }
   }
 
+  const loadPricingConfig = async () => {
+    try {
+      const minAmount = await pricingService.getMinWithdrawAmountCustomer()
+      setMinWithdrawAmount(minAmount)
+      console.log('[WithdrawScreen] Min withdraw amount loaded:', minAmount)
+    } catch (error) {
+      console.error('[WithdrawScreen] Error loading pricing config:', error)
+      // Keep default 50000
+    }
+  }
+
+  const getValidationError = (): string | null => {
+    const withdrawAmount = parseInt(amount)
+    if (!withdrawAmount || withdrawAmount <= 0) {
+      return null // Don't show error for empty input
+    }
+    if (withdrawAmount < minWithdrawAmount) {
+      return `Số tiền rút tối thiểu là ${minWithdrawAmount.toLocaleString('vi-VN')}đ`
+    }
+    if (withdrawAmount > balance) {
+      return 'Số dư không đủ để thực hiện giao dịch'
+    }
+    return null
+  }
+
   const handleWithdraw = async () => {
     const withdrawAmount = parseInt(amount)
 
+    const validationError = getValidationError()
+    if (validationError) {
+      Alert.alert('Lỗi', validationError)
+      return
+    }
+
     if (!withdrawAmount || withdrawAmount <= 0) {
       Alert.alert('Lỗi', 'Vui lòng nhập số tiền rút')
-      return
-    }
-
-    if (withdrawAmount < 50000) {
-      Alert.alert('Lỗi', 'Số tiền rút tối thiểu là 50.000đ')
-      return
-    }
-
-    if (withdrawAmount > balance) {
-      Alert.alert('Lỗi', 'Số dư không đủ để thực hiện giao dịch')
       return
     }
 
@@ -199,6 +223,14 @@ export default function WithdrawScreen({ navigation }: any) {
           </View>
           {amount && parseInt(amount) > 0 && (
             <Text style={styles.amountPreview}>{parseInt(amount).toLocaleString('vi-VN')} đồng</Text>
+          )}
+
+          {/* Validation Error */}
+          {getValidationError() && (
+            <View style={styles.errorContainer}>
+              <MaterialIcons name="error-outline" size={16} color={COLORS.error} />
+              <Text style={styles.errorText}>{getValidationError()}</Text>
+            </View>
           )}
 
           {/* Quick Withdraw All */}
@@ -349,15 +381,15 @@ export default function WithdrawScreen({ navigation }: any) {
           <View style={{ flex: 1 }}>
             <Text style={styles.infoText}>• Thời gian xử lý: 1-2 ngày làm việc</Text>
             <Text style={styles.infoText}>• Phí rút tiền: Miễn phí</Text>
-            <Text style={styles.infoText}>• Số tiền tối thiểu: 50.000đ</Text>
+            <Text style={styles.infoText}>• Số tiền tối thiểu: {minWithdrawAmount.toLocaleString('vi-VN')}đ</Text>
           </View>
         </View>
 
         {/* Confirm Button */}
         <TouchableOpacity
-          style={[styles.confirmBtn, loading && styles.confirmBtnDisabled]}
+          style={[styles.confirmBtn, (loading || getValidationError()) && styles.confirmBtnDisabled]}
           onPress={handleWithdraw}
-          disabled={loading}
+          disabled={loading || !!getValidationError()}
         >
           {loading ? (
             <ActivityIndicator color="#ffffff" />
@@ -514,6 +546,24 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: SPACING.sm,
     textAlign: 'right',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.error + '15',
+    borderRadius: BORDER_RADIUS.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.error,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 12,
+    color: COLORS.error,
+    fontWeight: '500',
   },
   withdrawAllBtn: {
     flexDirection: 'row',

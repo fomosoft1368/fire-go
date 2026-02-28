@@ -48,8 +48,20 @@ export class WalletService {
     paymentMethod: PaymentMethod,
     note?: string,
   ) {
-    if (amount < 10000) {
-      throw new BadRequestException('Số tiền nạp tối thiểu là 10.000đ');
+    // Get dynamic limits from pricing config
+    const minAmount = await this.pricingService.getMinTopupAmount('driver');
+    const maxAmount = await this.pricingService.getMaxTopupAmount();
+
+    if (amount < minAmount) {
+      throw new BadRequestException(
+        `Số tiền nạp tối thiểu là ${minAmount.toLocaleString('vi-VN')}đ`
+      );
+    }
+
+    if (amount > maxAmount) {
+      throw new BadRequestException(
+        `Số tiền nạp tối đa là ${maxAmount.toLocaleString('vi-VN')}đ`
+      );
     }
 
     const driver = await this.driverModel.findById(driverId);
@@ -57,8 +69,29 @@ export class WalletService {
       throw new NotFoundException('Tài xế không tồn tại');
     }
 
+    // Get topup discount from pricing config
+    console.log('[DriverWalletService] Getting topup discount for driver...');
+    const discountPercent = await this.pricingService.getTopupDiscount('driver');
+    console.log(`[DriverWalletService] Discount: ${discountPercent}%`);
+
+    // Calculate discount amount
+    const discountAmount = Math.round((amount * discountPercent) / 100);
+    
+    // Actual amount to add to wallet (original - discount)
+    const actualAmount = amount - discountAmount;
+
     const balanceBefore = driver.walletBalance || 0;
-    const balanceAfter = balanceBefore + amount;
+    const balanceAfter = balanceBefore + actualAmount; // Use actualAmount, not original amount
+
+    console.log('[DriverWalletService] Topup with discount:', {
+      driverId,
+      originalAmount: amount,
+      discountPercent: `${discountPercent}%`,
+      discountAmount,
+      actualAmount,
+      balanceBefore,
+      balanceAfter,
+    });
 
     // Create transaction record
     const transaction = new this.transactionModel({
@@ -72,6 +105,8 @@ export class WalletService {
       paymentMethod,
       description: `Nạp tiền qua ${paymentMethod}`,
       note,
+      discountPercent,
+      discountAmount,
     });
 
     await transaction.save();
@@ -112,8 +147,20 @@ export class WalletService {
       throw new NotFoundException('Tài xế không tồn tại');
     }
 
-    // Update driver wallet balance
-    driver.walletBalance = (driver.walletBalance || 0) + transaction.amount;
+    // Calculate actual amount after discount
+    const discountAmount = transaction.discountAmount || 0;
+    const actualAmount = transaction.amount - discountAmount;
+
+    console.log('[DriverWalletService] Completing topup:', {
+      transactionId,
+      originalAmount: transaction.amount,
+      discountAmount,
+      actualAmount,
+      balanceBefore: driver.walletBalance,
+    });
+
+    // Update driver wallet balance with actual amount (after discount)
+    driver.walletBalance = (driver.walletBalance || 0) + actualAmount;
     
     // Unlock wallet if balance >= minimum
     if (driver.walletBalance >= driver.minimumBalance) {
@@ -127,6 +174,11 @@ export class WalletService {
     transaction.completedAt = new Date();
     transaction.balanceAfter = driver.walletBalance;
     await transaction.save();
+
+    console.log('[DriverWalletService] ✅ Topup completed:', {
+      transactionId,
+      newBalance: driver.walletBalance,
+    });
 
     return {
       success: true,
@@ -146,8 +198,9 @@ export class WalletService {
     accountHolderName: string,
     note?: string,
   ) {
-    if (amount < 50000) {
-      throw new BadRequestException('Số tiền rút tối thiểu là 50.000đ');
+    const minWithdrawAmount = await this.pricingService.getMinWithdrawAmount('driver');
+    if (amount < minWithdrawAmount) {
+      throw new BadRequestException(`Số tiền rút tối thiểu là ${minWithdrawAmount.toLocaleString('vi-VN')}đ`);
     }
 
     const driver = await this.driverModel.findById(driverId);
@@ -495,24 +548,34 @@ export class WalletService {
       return transaction;
     }
 
-    // Get topup discount from Pricing Config
-    const pricingConfig = await this.pricingService.getConfig();
-    const discountPercent = pricingConfig.topupDiscountDriver || 0; // Default 0% if not set
-    const discountAmount = Math.round(transaction.amount * (discountPercent / 100));
+    // Use discount already saved in transaction (set when created)
+    // If not present (old transactions), calculate now for backward compatibility
+    let discountPercent = transaction.discountPercent || 0;
+    let discountAmount = transaction.discountAmount || 0;
 
-    console.log('[WalletService] 💳 Applying topup discount:', {
+    if (discountPercent === 0 && discountAmount === 0) {
+      // Old transaction without discount - calculate now
+      const pricingConfig = await this.pricingService.getConfig();
+      discountPercent = pricingConfig.topupDiscountDriver || 0;
+      discountAmount = Math.round(transaction.amount * (discountPercent / 100));
+      
+      console.log('[WalletService] ⚠️ Old transaction - calculating discount now:', {
+        discountPercent,
+        discountAmount,
+      });
+    } else {
+      console.log('[WalletService] ✅ Using pre-calculated discount from transaction:', {
+        discountPercent,
+        discountAmount,
+      });
+    }
+
+    console.log('[WalletService] 💳 Completing topup with discount:', {
+      transactionId,
       amount: transaction.amount,
-      discountPercent,
+      discountPercent: `${discountPercent}%`,
       discountAmount,
     });
-
-    // Update transaction status and discount
-    transaction.status = TransactionStatus.COMPLETED;
-    transaction.completedAt = new Date();
-    transaction.discountPercent = discountPercent;
-    transaction.discountAmount = discountAmount;
-    transaction.description = `${transaction.description} - Sepay: ${sepayTransactionId}`;
-    await transaction.save();
 
     // Update driver wallet balance (apply discount)
     const driver = await this.driverModel.findById(transaction.driverId);
@@ -534,12 +597,17 @@ export class WalletService {
 
     await driver.save({ validateBeforeSave: false }); // Skip validation for wallet update
 
-    // Update transaction balance fields
+    // Update transaction status and ensure discount fields are saved
+    transaction.status = TransactionStatus.COMPLETED;
+    transaction.completedAt = new Date();
+    transaction.discountPercent = discountPercent;
+    transaction.discountAmount = discountAmount;
     transaction.balanceBefore = balanceBefore;
     transaction.balanceAfter = balanceAfter;
+    transaction.description = `${transaction.description} - Sepay: ${sepayTransactionId}`;
     await transaction.save();
 
-    console.log('[WalletService] ✅ Topup completed with discount:', {
+    console.log('[WalletService] ✅ Driver topup completed:', {
       transactionId,
       driverId: driver._id,
       originalAmount: transaction.amount,

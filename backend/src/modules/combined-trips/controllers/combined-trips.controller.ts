@@ -244,7 +244,13 @@ export class CombinedTripsController {
         const driverId = typeof trip.driverId === 'object' ? trip.driverId._id : trip.driverId;
         await this.driverModel.findByIdAndUpdate(
           driverId,
-          { status: 'available' }
+          { 
+            status: 'available',
+            $inc: {
+              totalRides: 1,
+              completedRides: 1,
+            },
+          }
         );
 
         console.log(`[CombinedTripsController] ✅ Trip completed (commission already deducted per passenger):`, {

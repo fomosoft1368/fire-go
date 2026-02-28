@@ -587,7 +587,7 @@ export class CombinedTripsService implements OnModuleInit {
 
       const trips = await this.combinedTripModel
         .find(filters || {})
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate')
+        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
         .populate('customerId', 'firstName lastName phone avatar')
         .sort({ requestedAt: -1 });
 
@@ -630,7 +630,7 @@ export class CombinedTripsService implements OnModuleInit {
 
       const trips = await this.combinedTripModel
         .find(query)
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate')
+        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
         .populate('customerId', 'firstName lastName phone avatar')
         .sort({ requestedAt: -1 })
         .limit(10);
@@ -655,6 +655,7 @@ export class CombinedTripsService implements OnModuleInit {
         .findById(tripIdObj)
         .populate({
           path: 'driverId',
+          select: 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType vehicleColor phone',
           // Don't fail if driver is null
           options: { strictPopulate: false },
         })
@@ -901,7 +902,7 @@ export class CombinedTripsService implements OnModuleInit {
         },
         { new: true },
       )
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate')
+        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
         .populate('customerId', 'firstName lastName phone avatar')
         .exec();
 

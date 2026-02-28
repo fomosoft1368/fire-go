@@ -543,8 +543,13 @@ export class RidesService {
       await this.driverModel.findByIdAndUpdate(driverId, {
         status: DriverStatus.ONLINE,
         isAvailable: true,
+        $inc: {
+          totalRides: 1,
+          completedRides: 1,
+        },
       });
       console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE status with isAvailable=true after ride completion`);
+      console.log(`[RidesService] 📊 Incremented totalRides and completedRides for driver ${driverId}`);
 
       // ⭐ DEDUCT 20% commission from driver wallet (driverShare is 80%, platform takes 20%)
       try {

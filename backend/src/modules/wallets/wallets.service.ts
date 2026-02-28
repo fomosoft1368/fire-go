@@ -54,6 +54,24 @@ export class WalletsService {
       throw new BadRequestException('Top-up amount must be greater than 0');
     }
 
+    // Get dynamic limits from pricing config
+    const minAmount = await this.pricingService.getMinTopupAmount(
+      userType === UserType.CUSTOMER ? 'customer' : 'driver'
+    );
+    const maxAmount = await this.pricingService.getMaxTopupAmount();
+
+    if (topUpWalletDto.amount < minAmount) {
+      throw new BadRequestException(
+        `Top-up amount must be at least ${minAmount.toLocaleString('vi-VN')} VND`
+      );
+    }
+
+    if (topUpWalletDto.amount > maxAmount) {
+      throw new BadRequestException(
+        `Top-up amount must not exceed ${maxAmount.toLocaleString('vi-VN')} VND`
+      );
+    }
+
     const wallet = await this.getWallet(userId);
 
     if (wallet.isLocked) {
@@ -121,8 +139,16 @@ export class WalletsService {
     userId: string,
     amount: number,
   ): Promise<TransactionDocument> {
-    if (amount < 10000) {
-      throw new BadRequestException('Top-up amount must be at least 10,000 VND');
+    // Get dynamic limits from pricing config
+    const minAmount = await this.pricingService.getMinTopupAmount('customer');
+    const maxAmount = await this.pricingService.getMaxTopupAmount();
+
+    if (amount < minAmount) {
+      throw new BadRequestException(`Top-up amount must be at least ${minAmount.toLocaleString('vi-VN')} VND`);
+    }
+
+    if (amount > maxAmount) {
+      throw new BadRequestException(`Top-up amount must not exceed ${maxAmount.toLocaleString('vi-VN')} VND`);
     }
 
     const wallet = await this.getWallet(userId);
@@ -495,8 +521,16 @@ export class WalletsService {
       throw new BadRequestException('Số tiền nạp phải lớn hơn 0')
     }
 
-    if (amount < 10000) {
-      throw new BadRequestException('Số tiền tối thiểu 10,000 VND')
+    // Get dynamic limits from pricing config
+    const minAmount = await this.pricingService.getMinTopupAmount('customer');
+    const maxAmount = await this.pricingService.getMaxTopupAmount();
+
+    if (amount < minAmount) {
+      throw new BadRequestException(`Số tiền tối thiểu ${minAmount.toLocaleString('vi-VN')} VND`);
+    }
+
+    if (amount > maxAmount) {
+      throw new BadRequestException(`Số tiền tối đa ${maxAmount.toLocaleString('vi-VN')} VND`);
     }
 
     // Get or create wallet for customer (using customerId as identifier)
@@ -544,8 +578,9 @@ export class WalletsService {
       throw new BadRequestException('Số tiền rút phải lớn hơn 0')
     }
 
-    if (amount < 50000) {
-      throw new BadRequestException('Số tiền tối thiểu 50,000 VND')
+    const minWithdrawAmount = await this.pricingService.getMinWithdrawAmount('customer');
+    if (amount < minWithdrawAmount) {
+      throw new BadRequestException(`Số tiền tối thiểu ${minWithdrawAmount.toLocaleString('vi-VN')} VND`)
     }
 
     const wallet = await this.walletModel.findOne({ userId: new Types.ObjectId(customerId) })

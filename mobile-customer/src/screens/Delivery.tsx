@@ -12,6 +12,8 @@ import {
     FlatList,
     Animated,
     TextInput,
+    PanResponder,
+    Dimensions,
 } from 'react-native'
 import * as Location from 'expo-location'
 import { COLORS, SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
@@ -112,6 +114,14 @@ export default function Delivery(props?: DeliveryProps) {
     const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [drivers, setDrivers] = useState<any[]>([])
+    
+    // Draggable Bottom Sheet
+    const screenHeight = Dimensions.get('window').height
+    const minHeight = screenHeight * 0.1 // 10%
+    const maxHeight = screenHeight * 0.95 // 95%
+    const initialHeight = screenHeight * 0.5 // 50%
+    const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
+    const lastGestureDy = useRef(0)
     
     // Initialize pickup location with current user location
     useEffect(() => {
@@ -226,6 +236,57 @@ export default function Delivery(props?: DeliveryProps) {
     
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
     const setRideMode = props?.setRideMode
+
+    // PanResponder for draggable bottom sheet
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gestureState) => {
+                return Math.abs(gestureState.dy) > 5
+            },
+            onPanResponderGrant: () => {
+                translateY.setOffset(lastGestureDy.current)
+                translateY.setValue(0)
+            },
+            onPanResponderMove: (_, gestureState) => {
+                const newValue = gestureState.dy
+                if (newValue >= 0 && lastGestureDy.current + newValue <= screenHeight - minHeight) {
+                    translateY.setValue(newValue)
+                }
+            },
+            onPanResponderRelease: (_, gestureState) => {
+                translateY.flattenOffset()
+                const currentY = lastGestureDy.current + gestureState.dy
+                const velocity = gestureState.vy
+
+                let snapTo: number
+                const midPoint = screenHeight - (maxHeight + minHeight) / 2
+                
+                if (Math.abs(velocity) > 0.8) {
+                    snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
+                } else if (currentY > midPoint) {
+                    snapTo = screenHeight - minHeight
+                } else {
+                    snapTo = screenHeight - maxHeight
+                }
+
+                lastGestureDy.current = snapTo
+                
+                Animated.spring(translateY, {
+                    toValue: snapTo,
+                    velocity: velocity * -1,
+                    tension: 65,
+                    friction: 12,
+                    useNativeDriver: true,
+                }).start()
+            },
+        })
+    ).current
+
+    // Initialize bottom sheet position
+    useEffect(() => {
+        lastGestureDy.current = screenHeight - initialHeight
+    }, [])
 
     // ============ GIAO HÀNG - Load Config from Backend ============
     useEffect(() => {
@@ -663,8 +724,18 @@ export default function Delivery(props?: DeliveryProps) {
                 <Text style={styles.logoText}>firego</Text>
             </View>
 
-            <View style={styles.card}>
-                <View style={styles.handleBar} />
+            <Animated.View 
+                style={[
+                    styles.card,
+                    {
+                        transform: [{ translateY }],
+                        height: screenHeight,
+                    }
+                ]}
+            >
+                <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+                    <View style={styles.handleBar} />
+                </View>
 
                 {/* Title Section */}
                 <View style={styles.cardHeader}>
@@ -680,7 +751,11 @@ export default function Delivery(props?: DeliveryProps) {
                     )}
                 </View>
 
-                <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollContent}>
+                <ScrollView 
+                    showsVerticalScrollIndicator={false} 
+                    style={styles.scrollContent}
+                    contentContainerStyle={{ paddingBottom: 80 }}
+                >
                     {/* Location Inputs */}
                     <View style={styles.locationsContainer}>
                         <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
@@ -875,7 +950,7 @@ export default function Delivery(props?: DeliveryProps) {
                         </>
                     )}
                 </TouchableOpacity>
-            </View>
+            </Animated.View>
         </View>
     )
 }
@@ -921,22 +996,24 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         paddingHorizontal: 20,
-        paddingTop: 12,
-        paddingBottom: 24,
+        paddingTop: 0,
+        paddingBottom: 34,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -6 },
         shadowOpacity: 0.2,
         shadowRadius: 12,
         elevation: 15,
-        maxHeight: '50%',
+    },
+    handleBarContainer: {
+        paddingVertical: 12,
+        paddingTop: 12,
+        alignItems: 'center',
     },
     handleBar: {
         width: 40,
         height: 5,
         backgroundColor: '#D1D5DB',
         borderRadius: 3,
-        alignSelf: 'center',
-        marginBottom: 16,
     },
     cardHeader: {
         flexDirection: 'row',

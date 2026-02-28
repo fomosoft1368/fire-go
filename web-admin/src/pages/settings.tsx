@@ -179,6 +179,22 @@ const Settings: React.FC = () => {
       configs.forEach((cfg: SystemConfig) => {
         configMap[cfg.key] = cfg.value;
       });
+      
+      // Load pricing config for wallet/topup limits
+      try {
+        const pricingConfig = await apiService.getPricingConfig();
+        if (pricingConfig) {
+          configMap.minTopupAmountDriver = pricingConfig.minTopupAmountDriver || 10000;
+          configMap.minTopupAmountCustomer = pricingConfig.minTopupAmountCustomer || 10000;
+          configMap.minWalletBalanceToGoOnline = pricingConfig.minWalletBalanceToGoOnline || 100000;
+          configMap.maxTopupAmount = pricingConfig.maxTopupAmount || 100000000;
+          configMap.topupDiscountCustomer = pricingConfig.topupDiscountCustomer || 0;
+          configMap.topupDiscountDriver = pricingConfig.topupDiscountDriver || 0;
+        }
+      } catch (err) {
+        console.error('Error loading pricing config:', err);
+      }
+      
       setConfig(configMap);
       
       // Set notification settings from config
@@ -947,6 +963,209 @@ const Settings: React.FC = () => {
                           Ví dụ: 3% có nghĩa tài xế nạp 100k sẽ chỉ nhận 97k
                         </p>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet & Topup Limits Configuration */}
+                  <div className="space-y-4 pb-6 border-b border-slate-200 dark:border-slate-700">
+                    <h3 className="font-semibold text-slate-900 dark:text-white">Giới hạn Ví & Nạp tiền</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Quản lý số tiền nạp tối thiểu/tối đa và điều kiện hoạt động</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Min Topup Amount - Driver */}
+                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">local_taxi</span>
+                            Nạp tối thiểu (Tài xế)
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            placeholder="10000"
+                            defaultValue={config.minTopupAmountDriver || 10000}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                              setConfig(prev => ({ ...prev, minTopupAmountDriver: val }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          />
+                          <span className="text-slate-600 dark:text-slate-400 text-xs">VNĐ</span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          Số tiền nạp tối thiểu mỗi lần
+                        </p>
+                      </div>
+
+                      {/* Min Topup Amount - Customer */}
+                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">person</span>
+                            Nạp tối thiểu (Khách)
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            placeholder="10000"
+                            defaultValue={config.minTopupAmountCustomer || 10000}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                              setConfig(prev => ({ ...prev, minTopupAmountCustomer: val }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          />
+                          <span className="text-slate-600 dark:text-slate-400 text-xs">VNĐ</span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          Số tiền nạp tối thiểu mỗi lần
+                        </p>
+                      </div>
+
+                      {/* Min Wallet Balance to Go Online */}
+                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
+                            Số dư tối thiểu để online
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            step="10000"
+                            placeholder="100000"
+                            defaultValue={config.minWalletBalanceToGoOnline || 100000}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                              setConfig(prev => ({ ...prev, minWalletBalanceToGoOnline: val }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          />
+                          <span className="text-slate-600 dark:text-slate-400 text-xs">VNĐ</span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          Tài xế phải có số dư tối thiểu này để bật online
+                        </p>
+                      </div>
+
+                      {/* Max Topup Amount */}
+                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">credit_card</span>
+                            Nạp tối đa mỗi lần
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000000"
+                            placeholder="100000000"
+                            defaultValue={config.maxTopupAmount || 100000000}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                              setConfig(prev => ({ ...prev, maxTopupAmount: val }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          />
+                          <span className="text-slate-600 dark:text-slate-400 text-xs">VNĐ</span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          Giới hạn số tiền nạp tối đa mỗi lần
+                        </p>
+                      </div>
+
+                      {/* Min Withdraw Amount - Driver */}
+                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">local_taxi</span>
+                            Rút tối thiểu (Tài xế)
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            step="10000"
+                            placeholder="50000"
+                            defaultValue={config.minWithdrawAmountDriver || 50000}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                              setConfig(prev => ({ ...prev, minWithdrawAmountDriver: val }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          />
+                          <span className="text-slate-600 dark:text-slate-400 text-xs">VNĐ</span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          Số tiền rút tối thiểu mỗi lần
+                        </p>
+                      </div>
+
+                      {/* Min Withdraw Amount - Customer */}
+                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                          <span className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm">person</span>
+                            Rút tối thiểu (Khách)
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            step="10000"
+                            placeholder="50000"
+                            defaultValue={config.minWithdrawAmountCustomer || 50000}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                              setConfig(prev => ({ ...prev, minWithdrawAmountCustomer: val }));
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                          />
+                          <span className="text-slate-600 dark:text-slate-400 text-xs">VNĐ</span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          Số tiền rút tối thiểu mỗi lần
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Save Button for Wallet Limits */}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={async () => {
+                          setSaving(true);
+                          try {
+                            await apiService.updatePricingConfig({
+                              minTopupAmountDriver: config.minTopupAmountDriver,
+                              minTopupAmountCustomer: config.minTopupAmountCustomer,
+                              minWalletBalanceToGoOnline: config.minWalletBalanceToGoOnline,
+                              maxTopupAmount: config.maxTopupAmount,
+                              minWithdrawAmountDriver: config.minWithdrawAmountDriver,
+                              minWithdrawAmountCustomer: config.minWithdrawAmountCustomer,
+                            });
+                            setMessage({ type: 'success', text: 'Lưu cấu hình giới hạn ví thành công!' });
+                          } catch (err) {
+                            setMessage({ type: 'error', text: 'Lỗi lưu cấu hình: ' + (err instanceof Error ? err.message : 'Unknown') });
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                        className="px-6 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-medium transition-colors"
+                      >
+                        Lưu cấu hình
+                      </button>
                     </div>
                   </div>
 
