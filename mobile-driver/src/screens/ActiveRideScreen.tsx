@@ -11,6 +11,8 @@ import {
   Modal,
   FlatList,
   Animated,
+  Dimensions,
+  PanResponder,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import MapView, { Marker, Polyline } from 'react-native-maps'
@@ -26,6 +28,13 @@ import type { RootState } from '../redux/store'
 
 // Google Maps API Key from .env
 const GOOGLE_MAPS_API_KEY = 'AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY'
+
+const { height } = Dimensions.get('window')
+
+// Bottom Sheet Constants
+const COLLAPSED_HEIGHT = height * 0.30 // 30% of screen
+const EXPANDED_HEIGHT = height * 0.85 // 85% of screen
+const MINIMIZED_HEIGHT = 60 // Just handle bar
 
 interface RideDetailScreenProps {
   navigation: any
@@ -66,6 +75,13 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
   const isMountedRef = useRef(true)
   const mapRef = useRef<any>(null)
 
+  // Bottom Sheet Animation
+  const initialTranslateY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+  const translateY = useRef(new Animated.Value(initialTranslateY)).current
+  const lastGestureY = useRef(initialTranslateY)
+  const scrollViewRef = useRef<ScrollView>(null)
+  const isScrollEnabled = useRef(true)
+
   // Lấy ride ID từ route params
   const rideId = route?.params?.rideId
   const combinedTripId = route?.params?.combinedTripId
@@ -76,6 +92,122 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
   // Current passenger
   const currentPassenger = ride?.customerId?.[currentPassengerIndex]
+
+  // PanResponder for bottom sheet gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to vertical swipes
+        return Math.abs(gestureState.dy) > 5
+      },
+      onPanResponderGrant: () => {
+        translateY.setOffset(lastGestureY.current)
+        translateY.setValue(0)
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Dragging down (positive dy) = increase translateY = show less
+        // Dragging up (negative dy) = decrease translateY = show more
+        const newY = gestureState.dy
+        const minTranslate = 0 // Fully expanded
+        const maxTranslate = EXPANDED_HEIGHT - MINIMIZED_HEIGHT // Minimized
+        const calculatedY = lastGestureY.current + newY
+        
+        // Clamp the value
+        if (calculatedY < minTranslate) {
+          translateY.setValue(minTranslate - lastGestureY.current)
+        } else if (calculatedY > maxTranslate) {
+          translateY.setValue(maxTranslate - lastGestureY.current)
+        } else {
+          translateY.setValue(newY)
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        translateY.flattenOffset()
+        const currentY = lastGestureY.current + gestureState.dy
+        
+        // Snap logic
+        const expandedY = 0
+        const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+        const minimizedY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT
+        
+        let targetY = collapsedY
+        
+        if (gestureState.dy < -50) {
+          // Dragging up - snap to expanded
+          targetY = expandedY
+          isScrollEnabled.current = true
+        } else if (gestureState.dy > 50) {
+          // Dragging down - snap to minimized or collapsed
+          if (currentY > (collapsedY + minimizedY) / 2) {
+            targetY = minimizedY
+            isScrollEnabled.current = false
+          } else {
+            targetY = collapsedY
+            isScrollEnabled.current = true
+          }
+        } else {
+          // Small movement - snap to nearest state
+          const distToExpanded = Math.abs(currentY - expandedY)
+          const distToCollapsed = Math.abs(currentY - collapsedY)
+          const distToMinimized = Math.abs(currentY - minimizedY)
+          
+          if (distToExpanded < distToCollapsed && distToExpanded < distToMinimized) {
+            targetY = expandedY
+            isScrollEnabled.current = true
+          } else if (distToMinimized < distToCollapsed) {
+            targetY = minimizedY
+            isScrollEnabled.current = false
+          } else {
+            targetY = collapsedY
+            isScrollEnabled.current = true
+          }
+        }
+        
+        lastGestureY.current = targetY
+        
+        Animated.spring(translateY, {
+          toValue: targetY,
+          useNativeDriver: true,
+          damping: 20,
+          stiffness: 90,
+        }).start()
+      },
+    })
+  ).current
+
+  // Helper function to snap to specific state
+  const snapToState = (state: 'expanded' | 'collapsed' | 'minimized') => {
+    let targetY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT // collapsed by default
+    
+    if (state === 'expanded') {
+      targetY = 0
+      isScrollEnabled.current = true
+    } else if (state === 'minimized') {
+      targetY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT
+      isScrollEnabled.current = false
+    } else {
+      targetY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+      isScrollEnabled.current = true
+    }
+    
+    lastGestureY.current = targetY
+    
+    Animated.spring(translateY, {
+      toValue: targetY,
+      useNativeDriver: true,
+      damping: 20,
+      stiffness: 90,
+    }).start()
+  }
+
+  // Initialize bottom sheet position on mount
+  useEffect(() => {
+    // Start in collapsed state
+    const initialY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+    translateY.setValue(initialY)
+    lastGestureY.current = initialY
+  }, [])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1528,8 +1660,42 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
           </View>
           
 
-          {/* Details Section */}
-          <ScrollView style={styles.detailsContainer} showsVerticalScrollIndicator={false}>
+          {/* Details Section - Draggable Bottom Sheet */}
+          <Animated.View
+            style={[
+              styles.bottomSheetContainer,
+              { transform: [{ translateY }], backgroundColor: 'transparent' }
+            ]}
+          >
+            <View style={styles.bottomSheet}>
+              {/* Drag Handle */}
+              <View style={styles.dragHandleWrapper} {...panResponder.panHandlers}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    // Toggle between collapsed and expanded on tap
+                    const currentY = lastGestureY.current
+                    const expandedY = 0
+                    const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+                    
+                    if (Math.abs(currentY - collapsedY) < Math.abs(currentY - expandedY)) {
+                      snapToState('expanded')
+                    } else {
+                      snapToState('collapsed')
+                    }
+                  }}
+                >
+                  <View style={styles.dragHandleBar} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                ref={scrollViewRef}
+                style={styles.detailsContainer}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={isScrollEnabled.current}
+                bounces={false}
+              >
             {/* Empty State - No passengers yet */}
             {(!ride.customerId || ride.customerId.length === 0) ? (
               <View style={styles.emptyPassengerState}>
@@ -1817,6 +1983,8 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               </>
             )}
           </ScrollView>
+            </View>
+          </Animated.View>
 
           {/* Customer Request Modal */}
           <Modal
@@ -1955,7 +2123,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   mapContainer: {
-    height: '40%',
+    flex: 1, // Full screen height
     position: 'relative',
     backgroundColor: '#f5f5f5', // Light gray map background
   },
@@ -1990,9 +2158,9 @@ const styles = StyleSheet.create({
   },
   zoomControls: {
     position: 'absolute',
-    top: 12,
+    top: 122,
     right: 12,
-    flexDirection: 'row',
+    flexDirection: 'column', // Vertical layout
     gap: 8,
     zIndex: 10,
   },
@@ -2082,6 +2250,46 @@ const styles = StyleSheet.create({
     fontSize: 18, // Bigger
     fontWeight: '900',
     color: COLORS.primary, // Orange text
+  },
+  // Bottom Sheet Styles
+  bottomSheetContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: EXPANDED_HEIGHT,
+    zIndex: 10,
+    pointerEvents: 'box-none', // Allow touches to pass through to map
+  },
+  bottomSheet: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    pointerEvents: 'auto', // Capture touches on sheet
+  },
+  dragHandleWrapper: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  dragHandleBar: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#ddd',
+    borderRadius: 3,
   },
   detailsContainer: {
     flex: 1,

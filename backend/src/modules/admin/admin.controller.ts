@@ -13,6 +13,34 @@ export class AdminController {
     return this.adminService.getDashboardStats();
   }
 
+  // Revenue Analytics (from all sources: rides + combined trips + deliveries)
+  @Get('revenue/stats')
+  async getRevenueStats(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getActualRevenueStats(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('revenue/daily')
+  async getDailyRevenue(@Query('days') days: string = '7') {
+    return this.adminService.getDailyRevenueAll(parseInt(days, 10));
+  }
+
+  @Get('revenue/by-type')
+  async getRevenueByType(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getRevenueByServiceType(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
   // ========== USER MANAGEMENT ==========
 
   // Get all users (all roles including customers/drivers)

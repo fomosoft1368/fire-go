@@ -20,6 +20,7 @@ interface AssignmentRequestModalProps {
   onAccept: (requestData?: any) => Promise<void>
   onReject: (requestData?: any) => Promise<void>
   countdown: number
+  timeoutSeconds?: number // ✅ Dynamic timeout from backend (default 45s)
   driverTypes?: string[]
 }
 
@@ -29,6 +30,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
   onAccept,
   onReject,
   countdown,
+  timeoutSeconds = 45, // ✅ Default to 45s if not provided
   driverTypes = ['hire'],
 }) => {
   const [isAccepting, setIsAccepting] = useState(false)
@@ -347,7 +349,7 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
 
   console.log('✅ [AssignmentRequestModal] All conditions met, RENDERING MODAL')
 
-  const progressPercent = (countdown / 45) * 100
+  const progressPercent = (countdown / timeoutSeconds) * 100 // ✅ Use dynamic timeout
   const timerColor = countdown <= 10 ? '#f44336' : countdown <= 20 ? '#FF6B00' : '#4CAF50'
 
   return (

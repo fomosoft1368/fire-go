@@ -5,6 +5,8 @@ import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { Ride, RideDocument } from '../schemas/ride.schema';
 import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignment-request.schema';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ConfigService as DriverSearchConfigService } from '../../config/config.service';
+import { ServiceType } from '../../config/schemas/driver-search-config.schema';
 
 interface DriverScore {
   driver: DriverDocument;
@@ -20,7 +22,6 @@ interface DriverScore {
 @Injectable()
 export class AutoAssignService {
   private readonly logger = new Logger(AutoAssignService.name);
-  private readonly REQUEST_TIMEOUT_SECONDS = 50; // Timeout 50 seconds (was 45) - gives frontend time to poll
   private timeoutHandlers = new Map<string, NodeJS.Timeout>(); // Track timeout handlers
 
   constructor(
@@ -28,6 +29,7 @@ export class AutoAssignService {
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
     private eventEmitter: EventEmitter2,
+    private driverSearchConfigService: DriverSearchConfigService,
   ) {}
 
   /**
@@ -67,6 +69,9 @@ export class AutoAssignService {
       breakdown: ds.breakdown
     })));
 
+    // Get timeout from config
+    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(ServiceType.HIRE);
+
     // Tạo assignment request cho tài xế đầu tiên
     const selectedDriver = driverScores[0];
     const assignmentRequest = await this.createAssignmentRequest(
@@ -87,10 +92,11 @@ export class AutoAssignService {
       rideId: ride._id,
       ride: ride,
       expiresAt: assignmentRequest.expiresAt,
+      timeoutMs, // Pass timeout to frontend
     });
 
     // Lên lịch timeout check
-    this.scheduleTimeoutCheck(assignmentRequest._id.toString(), driverScores);
+    this.scheduleTimeoutCheck(assignmentRequest._id.toString(), driverScores, timeoutMs);
 
     return {
       success: true,
@@ -108,9 +114,11 @@ export class AutoAssignService {
     score: number,
     attemptNumber: number,
   ): Promise<AssignmentRequestDocument> {
-    const expiresAt = new Date(Date.now() + this.REQUEST_TIMEOUT_SECONDS * 1000);
+    // Get timeout from config (HIRE service)
+    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(ServiceType.HIRE);
+    const expiresAt = new Date(Date.now() + timeoutMs);
 
-    this.logger.log(`[createAssignmentRequest] Creating request for driver: ${driverId}, ride: ${rideId}, expires: ${expiresAt}`);
+    this.logger.log(`[createAssignmentRequest] Creating request for driver: ${driverId}, ride: ${rideId}, expires: ${expiresAt}, timeout: ${timeoutMs}ms`);
 
     const request = new this.assignmentRequestModel({
       rideId: new Types.ObjectId(rideId),
@@ -129,7 +137,7 @@ export class AutoAssignService {
   /**
    * Lên lịch kiểm tra timeout
    */
-  private scheduleTimeoutCheck(requestId: string, driverScores: DriverScore[]) {
+  private scheduleTimeoutCheck(requestId: string, driverScores: DriverScore[], timeoutMs: number) {
     const timeoutHandler = setTimeout(async () => {
       const request = await this.assignmentRequestModel.findById(requestId);
       
@@ -149,7 +157,7 @@ export class AutoAssignService {
       // Retry với driver tiếp theo
       await this.retryWithNextDriver(request, driverScores);
       this.timeoutHandlers.delete(requestId); // Cleanup
-    }, this.REQUEST_TIMEOUT_SECONDS * 1000);
+    }, timeoutMs);
 
     // Store timeout handler để có thể cancel sau
     this.timeoutHandlers.set(requestId, timeoutHandler);
@@ -204,16 +212,20 @@ export class AutoAssignService {
       `Retry attempt ${attemptNumber}: Created assignment request ${newRequest._id} for driver ${nextDriver.driver._id}`
     );
 
+    // Get timeout from config
+    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(ServiceType.HIRE);
+
     // Emit event
     this.eventEmitter.emit('assignment.request.created', {
       requestId: newRequest._id,
       driverId: nextDriver.driver._id,
       rideId: previousRequest.rideId,
       expiresAt: newRequest.expiresAt,
+      timeoutMs,
     });
 
     // Lên lịch timeout check
-    this.scheduleTimeoutCheck(newRequest._id.toString(), driverScores);
+    this.scheduleTimeoutCheck(newRequest._id.toString(), driverScores, timeoutMs);
   }
 
   /**

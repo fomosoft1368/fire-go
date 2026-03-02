@@ -9,6 +9,8 @@ import { TripPhaseEnum } from '../dto/upload-vehicle-condition.dto';
 import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 import { AutoAssignService } from './auto-assign.service';
 import { Driver, DriverDocument, DriverStatus } from '../../drivers/schemas/driver.schema';
+import { ConfigService } from '../../config/config.service';
+import { ServiceType } from '../../config/schemas/driver-search-config.schema';
 
 @Injectable()
 export class RidesService {
@@ -20,6 +22,7 @@ export class RidesService {
     private eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => AutoAssignService))
     private autoAssignService: AutoAssignService,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -1028,13 +1031,15 @@ export class RidesService {
   /**
    * Find nearby online drivers
    */
-  async findNearbyDrivers(latitude: number, longitude: number, radius: number = 5, vehicleType?: string, limit: number = 10) {
+  async findNearbyDrivers(latitude: number, longitude: number, radius?: number, vehicleType?: string, limit: number = 10) {
     if (isNaN(latitude) || isNaN(longitude)) {
       throw new BadRequestException('Invalid coordinates')
     }
 
+    // Get search radius from config if not provided (default to config's HIRE radius)
+    const searchRadiusKm = radius ?? (await this.configService.getSearchRadius(ServiceType.HIRE)) / 1000;
     // Convert radius to meters for geospatial query
-    const radiusInMeters = radius * 1000
+    const radiusInMeters = searchRadiusKm * 1000
 
     const drivers = await this.rideModel.db.collection('drivers')
       .aggregate([

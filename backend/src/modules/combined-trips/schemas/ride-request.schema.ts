@@ -77,6 +77,9 @@ export class RideRequest extends Document {
 
   @Prop({ type: Date })
   expiresAt?: Date // When this request expires (for timeout logic)
+
+  @Prop({ type: Boolean, default: false })
+  hasRated?: boolean // Track if customer has rated this trip
 }
 
 export type RideRequestDocument = RideRequest & Document

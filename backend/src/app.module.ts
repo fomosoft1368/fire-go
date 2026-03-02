@@ -16,6 +16,7 @@ import { PlacesModule } from './modules/places/places.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { PricingModule } from './modules/pricing/pricing.module';
+import { DriverSearchConfigModule } from './modules/config/config.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { PricingModule } from './modules/pricing/pricing.module';
     PaymentModule,
     DeliveryModule,
     PricingModule,
+    DriverSearchConfigModule,
   ],
   controllers: [],
   providers: [],

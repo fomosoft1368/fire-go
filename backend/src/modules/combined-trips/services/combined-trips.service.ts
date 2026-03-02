@@ -8,6 +8,8 @@ import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 
 import { PricingService } from '../../pricing/pricing.service';
+import { ConfigService } from '../../config/config.service';
+import { ServiceType } from '../../config/schemas/driver-search-config.schema';
 import { ModuleRef } from '@nestjs/core';
 
 @Injectable()
@@ -24,6 +26,7 @@ export class CombinedTripsService implements OnModuleInit {
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     private eventEmitter: EventEmitter2,
     private moduleRef: ModuleRef,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -606,10 +609,11 @@ export class CombinedTripsService implements OnModuleInit {
     lng: number,
     lat: number,
     pickupAddress: string,
-    maxDistance: number = 10000,
+    maxDistance?: number,
   ): Promise<CombinedTrip[]> {
     try {
-      
+      // Get search radius from config (default to 10000m if not set)
+      const searchRadius = maxDistance ?? await this.configService.getSearchRadius(ServiceType.RIDESHARE);
 
       // Build query with both geospatial filter AND address filter
       const query: any = {
@@ -621,7 +625,7 @@ export class CombinedTripsService implements OnModuleInit {
               type: 'Point',
               coordinates: [lng, lat],
             },
-            $maxDistance: maxDistance, // in meters
+            $maxDistance: searchRadius, // in meters
           },
         },
       };
@@ -1052,9 +1056,15 @@ export class CombinedTripsService implements OnModuleInit {
       const excludedDriverIds = [...busyDriverIds, ...rejectedDriverIds];
       console.log('📊 Total excluded drivers:', excludedDriverIds.length);
 
-      // Find available drivers within 10km radius, sorted by distance
+      // Get search radius from config (default to 10000m if not set)
+      const searchRadiusMeters = await this.configService.getSearchRadius(ServiceType.RIDESHARE);
+      const searchRadiusKm = (searchRadiusMeters / 1000).toFixed(1);
+      const searchRadiusForSphere = searchRadiusMeters / 1000 / 6378.1; // Convert to radians for $centerSphere
+
+      // Find available drivers within configured radius, sorted by priorityScore then averageRating
       // Exclude drivers who already have active trips OR rejected/timeout this trip
       // ✅ NGHIỆP VỤ: Chỉ tìm driver ONLINE + có loại RIDESHARE
+      // ✅ NEW: Sort by priorityScore (higher = more reliable) then averageRating
       const drivers = await this.driverModel.find({
         _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
         $or: [
@@ -1063,17 +1073,15 @@ export class CombinedTripsService implements OnModuleInit {
         ], // Driver must be available
         driverTypes: { $in: ['rideshare'] }, // ✅ CHỈ lấy driver có loại RIDESHARE
         currentLocation: {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: pickupCoordinates,
-            },
-            $maxDistance: 10000, // 10km radius
+          $geoWithin: {
+            $centerSphere: [pickupCoordinates, searchRadiusForSphere] // Dynamic radius from config (Earth radius = 6378.1km)
           },
         },
-      }).limit(10); // Get top 10 nearest drivers
+      })
+      .sort({ priorityScore: -1, averageRating: -1 }) // ✅ Sort by priority score first, then rating
+      .limit(10); // Get top 10 highest priority drivers
 
-      console.log('✅ Found RIDESHARE drivers within 10km (online + rideshare type):', drivers.length);
+      console.log(`✅ Found RIDESHARE drivers within ${searchRadiusKm}km (sorted by priority):`, drivers.length);
       
       if (drivers.length > 0) {
         console.log('🚗 RIDESHARE Driver details:', drivers.map(d => ({
@@ -1081,12 +1089,14 @@ export class CombinedTripsService implements OnModuleInit {
           name: `${d.firstName} ${d.lastName}`,
           status: d.status,
           driverTypes: d.driverTypes, // ✅ Show driver types
+          priorityScore: d.priorityScore || 0, // ✅ Show priority score
+          averageRating: d.averageRating || 0,
           location: d.currentLocation,
         })));
       }
 
       if (drivers.length === 0) {
-        console.warn('⚠️ No RIDESHARE drivers found (need: online + rideshare type) - will retry in 30s');
+        console.warn(`⚠️ No RIDESHARE drivers found within ${searchRadiusKm}km (need: online + rideshare type) - will retry in 30s`);
         // Don't mark as no_drivers_available - keep trying forever until customer cancels
         // Schedule retry after 30 seconds
         setTimeout(async () => {
@@ -1123,6 +1133,9 @@ export class CombinedTripsService implements OnModuleInit {
       });
 
       // Create ride request for this driver with complete trip details
+      // Get timeout from config (RIDESHARE service)
+      const timeoutMs = await this.configService.getRequestTimeout(ServiceType.RIDESHARE);
+
       const rideRequest = new this.rideRequestModel({
         combinedTripId: new Types.ObjectId(combinedTripId),
         customerId: new Types.ObjectId(customerId), // ✅ Add required customerId
@@ -1139,7 +1152,7 @@ export class CombinedTripsService implements OnModuleInit {
         seats: combinedTrip.availableSeats,
         distance: combinedTrip.distance,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 50000), // ✅ FIX: 50 seconds (consistent with manual requests)
+        expiresAt: new Date(Date.now() + timeoutMs), // Dynamic timeout from config
       });
 
       await rideRequest.save();
@@ -1151,6 +1164,7 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('Trip ID:', combinedTripId);
       console.log('Status:', rideRequest.status);
       console.log('Expires at:', rideRequest.expiresAt);
+      console.log('Timeout configured:', `${timeoutMs}ms`);
       console.log('⏰ Timeout will be checked by polling endpoint');
       console.log('═══════════════════════════════════════════════════════════');
       console.log('');
@@ -1266,6 +1280,9 @@ export class CombinedTripsService implements OnModuleInit {
       // Get customerId from trip
       const customerId = trip.customerId && trip.customerId[0] ? trip.customerId[0] : null;
 
+      // Get timeout from config (RIDESHARE service)
+      const timeoutMs = await this.configService.getRequestTimeout(ServiceType.RIDESHARE);
+
       // Create new ride request for next driver
       const newRideRequest = new this.rideRequestModel({
         combinedTripId: new Types.ObjectId(combinedTripId),
@@ -1283,13 +1300,14 @@ export class CombinedTripsService implements OnModuleInit {
         seats: trip.availableSeats,
         distance: trip.distance,
         createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 45000), // ✅ FIX: 45 seconds (consistent with all combined trip requests)
+        expiresAt: new Date(Date.now() + timeoutMs), // Dynamic timeout from config
       });
 
       await newRideRequest.save();
       console.log('✅ New ride request created for next driver');
       console.log('📬 New request ID:', newRideRequest._id);
       console.log('📬 Next driver ID:', nextDriver._id);
+      console.log('Timeout configured:', `${timeoutMs}ms`);
       console.log('⏰ Timeout will be checked by polling endpoint');
 
       // ✅ NO setTimeout - timeout is handled by polling endpoint checking expiresAt

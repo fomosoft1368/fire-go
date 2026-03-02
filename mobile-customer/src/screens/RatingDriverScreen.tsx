@@ -19,7 +19,7 @@ interface RatingDriverScreenProps {
 }
 
 export default function RatingDriverScreen({ navigation, route }: RatingDriverScreenProps) {
-  const { rideId, driver } = route?.params || {}
+  const { rideId, driver, tripType = 'ride' } = route?.params || {} // tripType: 'ride' or 'combined'
   
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
@@ -51,14 +51,25 @@ export default function RatingDriverScreen({ navigation, route }: RatingDriverSc
 
     setSubmitting(true)
     try {
-      console.log('🔍 [Rating] Submitting rating for rideId:', rideId)
+      console.log('🔍 [Rating] Submitting rating:', { rideId, tripType })
       const AsyncStorage = require('@react-native-async-storage/async-storage').default
-      const token = await AsyncStorage.getItem('token')
+      const token = await AsyncStorage.getItem('authToken') // ✅ Fix: Use correct key 'authToken'
+      
+      if (!token) {
+        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.')
+      }
       
       const API_URL = 'http://192.168.1.18:3000/api'
-      console.log('🔍 [Rating] API URL:', `${API_URL}/rides/${rideId}/rate`)
       
-      const response = await fetch(`${API_URL}/rides/${rideId}/rate`, {
+      // ✅ Use different endpoint based on trip type
+      const endpoint = tripType === 'combined' 
+        ? `${API_URL}/combined-trips/${rideId}/rate`
+        : `${API_URL}/rides/${rideId}/rate`
+      
+      console.log('🔍 [Rating] API URL:', endpoint)
+      console.log('🔍 [Rating] Token exists:', !!token)
+      
+      const response = await fetch(endpoint, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

@@ -282,6 +282,18 @@ export default function Layout({ children }: LayoutProps) {
           </button>
 
           <button
+            onClick={() => navigate('/driver-search-settings')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/driver-search-settings')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/driver-search-settings') ? 'filled' : ''}`}>my_location</span>
+            <span className="font-semibold whitespace-nowrap">{t('sidebar.driverSearchSettings', 'Tìm kiếm tài xế')}</span>
+          </button>
+
+          <button
             onClick={() => navigate('/dispatch')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
               isActive('/dispatch')

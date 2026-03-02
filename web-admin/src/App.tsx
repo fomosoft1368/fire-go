@@ -21,6 +21,7 @@ import WalletManagement from './pages/transaction-management'
 import WalletTransactions from './pages/WalletTransactions'
 import NotificationsManagement from './pages/NotificationsManagement'
 import PricingConfig from './pages/pricing-config'
+import DriverSearchSettings from './pages/driver-search-settings'
 import './App.css'
 
 function App() {
@@ -89,6 +90,7 @@ function App() {
               <Route path="/transactions" element={<WalletManagement />} />
               <Route path="/wallet-transactions" element={<WalletTransactions />} />
               <Route path="/pricing-config" element={<PricingConfig />} />
+              <Route path="/driver-search-settings" element={<DriverSearchSettings />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Router>

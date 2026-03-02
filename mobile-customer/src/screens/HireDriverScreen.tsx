@@ -23,6 +23,8 @@ import {
   Animated,
   PanResponder,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS, COLORS_DARK, COLORS_LIGHT } from '../constants'
@@ -676,11 +678,17 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
           )}
         </View>
 
-        <ScrollView 
-          showsVerticalScrollIndicator={false} 
-          style={styles.scrollContent}
-          contentContainerStyle={{ paddingBottom: 80 }}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
+          <ScrollView 
+            showsVerticalScrollIndicator={false} 
+            style={styles.scrollContent}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            keyboardShouldPersistTaps="handled"
+          >
           <View style={styles.locationsContainer}>
             {/* Pickup Location */}
             <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
@@ -957,6 +965,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
             </View>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
         {/* Confirm Button */}
         <TouchableOpacity
           style={styles.confirmButton}
@@ -1130,6 +1139,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    marginTop: 12,
+    marginBottom: 8,
     shadowColor: '#FF6B00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

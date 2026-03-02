@@ -7,9 +7,11 @@ import { Delivery, DeliverySchema } from './schemas/delivery.schema';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 import { DeliveryAssignmentRequest, DeliveryAssignmentRequestSchema } from './schemas/delivery-assignment-request.schema';
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
+import { DriverSearchConfigModule } from '../config/config.module';
 
 @Module({
   imports: [
+    DriverSearchConfigModule,
     MongooseModule.forFeature([
       { name: Delivery.name, schema: DeliverySchema },
       { name: Driver.name, schema: DriverSchema },

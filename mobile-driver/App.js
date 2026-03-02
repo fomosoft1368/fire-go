@@ -570,6 +570,7 @@ export default function App() {
   const [assignmentRequest, setAssignmentRequest] = useState(null)
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
   const [countdown, setCountdown] = useState(45)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(45) // ✅ Dynamic timeout from backend (default 45s)
   const navigationRef = useRef(null)
   const lastRequestIdRef = useRef(null)  // ✅ Track last request ID to avoid reset countdown
 
@@ -616,8 +617,12 @@ export default function App() {
 
         // ✅ ONLY reset countdown for NEW requests, not for updates
         if (isNewRequest) {
-          console.log('[App] ✅ New request, resetting countdown to 45')
-          setCountdown(45)
+          // Parse timeoutMs from request (default to 45000ms = 45s)
+          const timeoutMs = request.timeoutMs || 45000
+          const timeoutSec = Math.ceil(timeoutMs / 1000)
+          console.log('[App] ✅ New request, setting countdown to', timeoutSec, 'seconds (timeout:', timeoutMs, 'ms)')
+          setCountdown(timeoutSec)
+          setTimeoutSeconds(timeoutSec)
 
           // If rideId already populated with distance/duration, use it immediately
           if (request.type === 'ride' && rideHasFullData) {
@@ -901,7 +906,7 @@ export default function App() {
         if (prev <= 1) {
           // Auto reject when timeout
           handleRejectAssignment()
-          return 45
+          return timeoutSeconds // ✅ Reset to dynamic timeout instead of hardcoded 45
         }
         return prev - 1
       })
@@ -1193,7 +1198,8 @@ export default function App() {
           onAccept={handleAcceptAssignment}
           onReject={handleRejectAssignment}
           countdown={countdown}
-          driverTypes={store.getState().auth.user?.driverTypes || ['rideshare']}
+          timeoutSeconds={timeoutSeconds}
+          driverTypes={store.getState().auth.user?.driverTypes|| ['rideshare']}
         />
       </NavigationContainer>
     </Provider>

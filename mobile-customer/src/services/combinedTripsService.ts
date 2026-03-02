@@ -9,19 +9,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 export const combinedTripsService = {
   /**
    * Find combined trips (share rides) by location
+   * Backend will use configured search radius from DriverSearchConfig
    */
   async findCombinedTrips(
     longitude: number,
     latitude: number,
-    pickupAddress: string,
-    maxDistance: number = 10000
+    pickupAddress: string
   ) {
     try {
       const params = new URLSearchParams({
         lng: longitude.toString(),
         lat: latitude.toString(),
         pickupAddress: pickupAddress,
-        maxDistance: maxDistance.toString(),
       })
 
       const url = `${API_BASE_URL}/combined-trips/find-share-rides?${params}`
@@ -29,7 +28,7 @@ export const combinedTripsService = {
         lng: longitude,
         lat: latitude,
         pickupAddress,
-        maxDistance,
+        note: 'Using backend configured search radius',
       })
 
       const response = await fetch(url, {

@@ -1,29 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    SafeAreaView,
     ScrollView,
-    ActivityIndicator,
     Alert,
-    Modal,
-    FlatList,
     Animated,
     TextInput,
     PanResponder,
     Dimensions,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native'
 import * as Location from 'expo-location'
-import { COLORS, SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
+import { SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
 import MapViewComponent from '../components/MapView'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
-import { deliveryService } from '../services/deliveryService'
 import { mapsService } from '../services/mapsService'
 import { rideService } from '../services/rideService'
-import { calculateFare, formatCurrency, getPricingConfig } from '../utils/pricing' // giao hàng
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { calculateFare, getPricingConfig } from '../utils/pricing'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useNavigation } from '@react-navigation/native'
 import type { RootStackParamList } from '../types'
@@ -44,17 +40,6 @@ interface DeliveryProps {
     dropoffLocation?: string
     setDropoffLocation?: (value: string) => void
     setRideMode?: (mode: 'share' | 'hire') => void
-}
-
-interface Customer {
-    _id: string
-    name?: string
-    firstName?: string
-    lastName?: string
-    phone: string
-    rating: number
-    avatar?: string
-    address?: string
 }
 
 // ============ GIAO HÀNG - Dynamic Config from Backend ============
@@ -101,7 +86,6 @@ export default function Delivery(props?: DeliveryProps) {
     const [weight, setWeight] = useState<string>('')
     const [vehicle, setVehicle] = useState<string>('bike')
     const [estimatedPrice, setEstimatedPrice] = useState<number>(0)
-    const [loading, setLoading] = useState(false)
     const [pickupCoordinates, setPickupCoordinates] = useState<[number, number]>([105.8342, 21.0278]) // Default Hanoi
     const [dropoffCoordinates, setDropoffCoordinates] = useState<[number, number]>([105.8542, 21.0378])
     const [isPickupSelected, setIsPickupSelected] = useState(false)
@@ -689,28 +673,26 @@ export default function Delivery(props?: DeliveryProps) {
 
     return (
         <View style={styles.container}>
-            <View style={StyleSheet.absoluteFillObject}>
-                <MapViewComponent
-                    height={'100%'}
-                    initialRegion={{
-                        latitude: pickupCoordinates[1],
-                        longitude: pickupCoordinates[0],
-                        latitudeDelta: 0.0922,
-                        longitudeDelta: 0.0421,
-                    }}
-                    markers={[]}
-                    pickupCoords={isPickupSelected ? {
-                        latitude: pickupCoordinates[1],
-                        longitude: pickupCoordinates[0],
-                    } : undefined}
-                    dropoffCoords={isDropoffSelected ? {
-                        latitude: dropoffCoordinates[1],
-                        longitude: dropoffCoordinates[0],
-                    } : undefined}
-                    routeCoordinates={routeInfo?.routeCoordinates || []}
-                    drivers={drivers}
-                />
-            </View>
+            <MapViewComponent
+                height={screenHeight}
+                initialRegion={{
+                    latitude: pickupCoordinates[1],
+                    longitude: pickupCoordinates[0],
+                    latitudeDelta: 0.0922,
+                    longitudeDelta: 0.0421,
+                }}
+                markers={[]}
+                pickupCoords={isPickupSelected ? {
+                    latitude: pickupCoordinates[1],
+                    longitude: pickupCoordinates[0],
+                } : undefined}
+                dropoffCoords={isDropoffSelected ? {
+                    latitude: dropoffCoordinates[1],
+                    longitude: dropoffCoordinates[0],
+                } : undefined}
+                routeCoordinates={routeInfo?.routeCoordinates || []}
+                drivers={drivers}
+            />
             <View style={styles.header}>
                 <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => {
                     if (setRideMode) {
@@ -726,13 +708,19 @@ export default function Delivery(props?: DeliveryProps) {
 
             <Animated.View 
                 style={[
-                    styles.card,
                     {
-                        transform: [{ translateY }],
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
                         height: screenHeight,
+                        backgroundColor: 'transparent',
+                        transform: [{ translateY }],
                     }
                 ]}
+                pointerEvents="box-none"
             >
+                <View style={styles.card} pointerEvents="auto">
                 <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
                     <View style={styles.handleBar} />
                 </View>
@@ -751,11 +739,17 @@ export default function Delivery(props?: DeliveryProps) {
                     )}
                 </View>
 
-                <ScrollView 
-                    showsVerticalScrollIndicator={false} 
-                    style={styles.scrollContent}
-                    contentContainerStyle={{ paddingBottom: 80 }}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                 >
+                    <ScrollView 
+                        showsVerticalScrollIndicator={false} 
+                        style={styles.scrollContent}
+                        contentContainerStyle={{ paddingBottom: 100 }}
+                        keyboardShouldPersistTaps="handled"
+                    >
                     {/* Location Inputs */}
                     <View style={styles.locationsContainer}>
                         <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
@@ -933,23 +927,18 @@ export default function Delivery(props?: DeliveryProps) {
                         </View>
                     </View>
                 </ScrollView>
+                </KeyboardAvoidingView>
 
                 {/* Confirm Button */}
                 <TouchableOpacity
                     style={styles.confirmButton}
                     onPress={handleConfirm}
                     activeOpacity={0.8}
-                    disabled={loading}
                 >
-                    {loading ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <>
-                            <Text style={styles.confirmButtonText}>Xác nhận đặt hàng</Text>
-                            <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-                        </>
-                    )}
+                    <Text style={styles.confirmButtonText}>Xác nhận đặt hàng</Text>
+                    <MaterialIcons name="arrow-forward" size={20} color="#fff" />
                 </TouchableOpacity>
+                </View>
             </Animated.View>
         </View>
     )
@@ -988,10 +977,7 @@ const styles = StyleSheet.create({
         color: '#FF6B00',
     },
     card: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        flex: 1,
         backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
@@ -1199,6 +1185,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
+        marginTop: 12,
+        marginBottom: 8,
         shadowColor: '#FF6B00',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,

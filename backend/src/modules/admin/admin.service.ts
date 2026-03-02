@@ -8,6 +8,9 @@ import { SystemConfigDto, CreateUserDto, UpdateUserDto, UpdateUserPermissionsDto
 import { User, UserStatus, UserRole } from '../auth/schemas/user.schema';
 import { Customer } from '../customers/schemas/customer.schema';
 import { Driver } from '../drivers/schemas/driver.schema';
+import { Ride } from '../rides/schemas/ride.schema';
+import { RideRequest } from '../combined-trips/schemas/ride-request.schema';
+import { Delivery } from '../delivery/schemas/delivery.schema';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -19,6 +22,9 @@ export class AdminService {
     @InjectModel(User.name) private userModel: Model<any>,
     @InjectModel(Customer.name) private customerModel: Model<any>,
     @InjectModel(Driver.name) private driverModel: Model<any>,
+    @InjectModel(Ride.name) private rideModel: Model<any>,
+    @InjectModel(RideRequest.name) private rideRequestModel: Model<any>,
+    @InjectModel(Delivery.name) private deliveryModel: Model<any>,
   ) {}
 
   // Admin Logging
@@ -471,6 +477,283 @@ export class AdminService {
     }
 
     return { message: 'Xóa người dùng thành công' };
+  }
+
+  /**
+   * Get actual revenue stats from all sources (Rides + Combined Trips + Deliveries)
+   */
+  async getActualRevenueStats(startDate?: Date, endDate?: Date): Promise<any> {
+    const matchStage: any = {};
+
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      matchStage.completedAt = dateFilter;
+    }
+
+    // 1. Get revenue from regular rides
+    const ridesStats = await this.rideModel.aggregate([
+      { $match: { status: 'completed', ...matchStage } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$totalFare' },
+          totalRides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // 2. Get revenue from combined trips (carpooling)
+    const combinedTripsStats = await this.rideRequestModel.aggregate([
+      { $match: { status: 'completed', combinedTripId: { $exists: true }, ...matchStage } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$fare' },
+          totalRides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // 3. Get revenue from deliveries
+    const deliveryMatchStage: any = { status: 'delivered' };
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      deliveryMatchStage.deliveredAt = dateFilter;
+    }
+
+    const deliveriesStats = await this.deliveryModel.aggregate([
+      { $match: deliveryMatchStage },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$fare' },
+          totalRides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Combine all sources
+    const rides = ridesStats[0] || { totalRevenue: 0, totalRides: 0 };
+    const combinedTrips = combinedTripsStats[0] || { totalRevenue: 0, totalRides: 0 };
+    const deliveries = deliveriesStats[0] || { totalRevenue: 0, totalRides: 0 };
+
+    const totalRevenue = rides.totalRevenue + combinedTrips.totalRevenue + deliveries.totalRevenue;
+    const totalRides = rides.totalRides + combinedTrips.totalRides + deliveries.totalRides;
+
+    console.log('[Admin Revenue Stats]', {
+      rides: { revenue: rides.totalRevenue, count: rides.totalRides },
+      combinedTrips: { revenue: combinedTrips.totalRevenue, count: combinedTrips.totalRides },
+      deliveries: { revenue: deliveries.totalRevenue, count: deliveries.totalRides },
+      total: { revenue: totalRevenue, count: totalRides },
+    });
+
+    return {
+      totalRevenue,
+      totalRides,
+      averageFare: totalRides > 0 ? totalRevenue / totalRides : 0,
+      breakdown: {
+        rides: rides.totalRevenue,
+        combinedTrips: combinedTrips.totalRevenue,
+        deliveries: deliveries.totalRevenue,
+      },
+    };
+  }
+
+  /**
+   * Get daily revenue from all sources
+   */
+  async getDailyRevenueAll(days: number = 7): Promise<any[]> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    // 1. Daily revenue from rides
+    const ridesDaily = await this.rideModel.aggregate([
+      {
+        $match: {
+          status: 'completed',
+          completedAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$completedAt' },
+            month: { $month: '$completedAt' },
+            day: { $dayOfMonth: '$completedAt' },
+          },
+          revenue: { $sum: '$totalFare' },
+          rides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // 2. Daily revenue from combined trips
+    const combinedTripsDaily = await this.rideRequestModel.aggregate([
+      {
+        $match: {
+          status: 'completed',
+          combinedTripId: { $exists: true },
+          completedAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$completedAt' },
+            month: { $month: '$completedAt' },
+            day: { $dayOfMonth: '$completedAt' },
+          },
+          revenue: { $sum: '$fare' },
+          rides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // 3. Daily revenue from deliveries
+    const deliveriesDaily = await this.deliveryModel.aggregate([
+      {
+        $match: {
+          status: 'delivered',
+          deliveredAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$deliveredAt' },
+            month: { $month: '$deliveredAt' },
+            day: { $dayOfMonth: '$deliveredAt' },
+          },
+          revenue: { $sum: '$fare' },
+          rides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Merge all sources by date
+    const dailyMap = new Map<string, any>();
+
+    [...ridesDaily, ...combinedTripsDaily, ...deliveriesDaily].forEach((item) => {
+      const key = `${item._id.year}-${item._id.month}-${item._id.day}`;
+      if (!dailyMap.has(key)) {
+        dailyMap.set(key, {
+          _id: item._id,
+          revenue: 0,
+          rides: 0,
+        });
+      }
+      const existing = dailyMap.get(key);
+      existing.revenue += item.revenue;
+      existing.rides += item.rides;
+    });
+
+    // Convert to array and sort
+    const result = Array.from(dailyMap.values())
+      .sort((a, b) => {
+        const dateA = new Date(a._id.year, a._id.month - 1, a._id.day);
+        const dateB = new Date(b._id.year, b._id.month - 1, b._id.day);
+        return dateA.getTime() - dateB.getTime();
+      })
+      .map((item) => ({
+        date: new Date(item._id.year, item._id.month - 1, item._id.day),
+        day: item._id.day,
+        month: `T${item._id.month}`,
+        revenue: item.revenue,
+        rides: item.rides,
+      }));
+
+    console.log('[Admin Daily Revenue]', result);
+    return result;
+  }
+
+  /**
+   * Get revenue by service type from all sources
+   */
+  async getRevenueByServiceType(startDate?: Date, endDate?: Date): Promise<any[]> {
+    const matchStage: any = {};
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      matchStage.completedAt = dateFilter;
+    }
+
+    // Get stats from each source
+    const ridesStats = await this.rideModel.aggregate([
+      { $match: { status: 'completed', ...matchStage } },
+      {
+        $group: {
+          _id: null,
+          revenue: { $sum: '$totalFare' },
+          rides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const combinedTripsStats = await this.rideRequestModel.aggregate([
+      { $match: { status: 'completed', combinedTripId: { $exists: true }, ...matchStage } },
+      {
+        $group: {
+          _id: null,
+          revenue: { $sum: '$fare' },
+          rides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const deliveryMatchStage: any = { status: 'delivered' };
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      deliveryMatchStage.deliveredAt = dateFilter;
+    }
+
+    const deliveriesStats = await this.deliveryModel.aggregate([
+      { $match: deliveryMatchStage },
+      {
+        $group: {
+          _id: null,
+          revenue: { $sum: '$fare' },
+          rides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const rides = ridesStats[0] || { revenue: 0, rides: 0 };
+    const combinedTrips = combinedTripsStats[0] || { revenue: 0, rides: 0 };
+    const deliveries = deliveriesStats[0] || { revenue: 0, rides: 0 };
+
+    const totalRides = rides.rides + combinedTrips.rides + deliveries.rides;
+
+    const result = [
+      {
+        type: 'hire',
+        revenue: rides.revenue,
+        rides: rides.rides,
+        percentage: totalRides > 0 ? ((rides.rides / totalRides) * 100).toFixed(2) : 0,
+      },
+      {
+        type: 'share',
+        revenue: combinedTrips.revenue,
+        rides: combinedTrips.rides,
+        percentage: totalRides > 0 ? ((combinedTrips.rides / totalRides) * 100).toFixed(2) : 0,
+      },
+      {
+        type: 'delivery',
+        revenue: deliveries.revenue,
+        rides: deliveries.rides,
+        percentage: totalRides > 0 ? ((deliveries.rides / totalRides) * 100).toFixed(2) : 0,
+      },
+    ];
+
+    console.log('[Admin Revenue By Type]', result);
+    return result;
   }
 
   /**

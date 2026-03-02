@@ -5,6 +5,8 @@ import { Delivery, DeliveryStatus } from '../schemas/delivery.schema';
 import { Driver } from '../../drivers/schemas/driver.schema';
 import { DeliveryAssignmentRequest, DeliveryAssignmentRequestDocument } from '../schemas/delivery-assignment-request.schema';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ConfigService } from '../../config/config.service';
+import { ServiceType } from '../../config/schemas/driver-search-config.schema';
 
 interface DriverScore {
   driver: any;
@@ -19,7 +21,6 @@ interface DriverScore {
 @Injectable()
 export class DeliveryAutoAssignService {
   private readonly logger = new Logger(DeliveryAutoAssignService.name);
-  private readonly REQUEST_TIMEOUT_SECONDS = 50; // Timeout 15 giây
   private timeoutHandlers = new Map<string, NodeJS.Timeout>(); // Track timeout handlers
 
   constructor(
@@ -27,6 +28,7 @@ export class DeliveryAutoAssignService {
     @InjectModel(Driver.name) private driverModel: Model<Driver>,
     @InjectModel(DeliveryAssignmentRequest.name) private assignmentRequestModel: Model<DeliveryAssignmentRequestDocument>,
     private eventEmitter: EventEmitter2,
+    private configService: ConfigService,
   ) {}
 
   /**
@@ -106,7 +108,10 @@ export class DeliveryAutoAssignService {
 
       // Get the best driver (highest score)
       const selectedDriver = driverScores[0];
-      console.log(`[autoAssignDriver] 🎯 Selected best driver: ${selectedDriver.driver.firstName} ${selectedDriver.driver.lastName} (${selectedDriver.driver._id}) with score ${selectedDriver.score.toFixed(2)}`);
+      console.log(`[autoAssignDriver] ✅ Selected best driver: ${selectedDriver.driver.firstName} ${selectedDriver.driver.lastName} (${selectedDriver.driver._id}) with score ${selectedDriver.score.toFixed(2)}`);
+
+      // Get timeout from config (DELIVERY service)
+      const timeoutMs = await this.configService.getRequestTimeout(ServiceType.DELIVERY);
 
       // Create assignment request
       console.log(`[autoAssignDriver] Creating assignment request...`);
@@ -126,12 +131,13 @@ export class DeliveryAutoAssignService {
         deliveryId: delivery._id,
         delivery: delivery,
         expiresAt: assignmentRequest.expiresAt,
+        timeoutMs, // Pass timeout to frontend
       });
       console.log(`[autoAssignDriver] ✅ Event emitted for polling`);
 
       // Lên lịch timeout check
-      this.scheduleTimeoutCheck(assignmentRequest._id.toString(), driverScores);
-      console.log(`[autoAssignDriver] ✅ Timeout check scheduled for ${this.REQUEST_TIMEOUT_SECONDS} seconds`);
+      this.scheduleTimeoutCheck(assignmentRequest._id.toString(), driverScores, timeoutMs);
+      console.log(`[autoAssignDriver] ✅ Timeout check scheduled for ${timeoutMs}ms`);
       console.log(`========== END AUTO-ASSIGN (SUCCESS) ==========\n`)
 
       return {
@@ -155,7 +161,9 @@ export class DeliveryAutoAssignService {
     score: number,
     attemptNumber: number,
   ): Promise<DeliveryAssignmentRequestDocument> {
-    const expiresAt = new Date(Date.now() + this.REQUEST_TIMEOUT_SECONDS * 1000);
+    // Get timeout from config (DELIVERY service)
+    const timeoutMs = await this.configService.getRequestTimeout(ServiceType.DELIVERY);
+    const expiresAt = new Date(Date.now() + timeoutMs);
 
     const request = new this.assignmentRequestModel({
       deliveryId: new Types.ObjectId(deliveryId),
@@ -172,7 +180,7 @@ export class DeliveryAutoAssignService {
   /**
    * Lên lịch kiểm tra timeout
    */
-  private scheduleTimeoutCheck(requestId: string, driverScores: DriverScore[]) {
+  private scheduleTimeoutCheck(requestId: string, driverScores: DriverScore[], timeoutMs: number) {
     const timeoutHandler = setTimeout(async () => {
       try {
         console.log(`\n========== TIMEOUT CHECK TRIGGERED ==========`)
@@ -226,7 +234,7 @@ export class DeliveryAutoAssignService {
         console.error(`[scheduleTimeoutCheck] Error stack:`, error instanceof Error ? error.stack : '')
         this.timeoutHandlers.delete(requestId);
       }
-    }, this.REQUEST_TIMEOUT_SECONDS * 1000);
+    }, timeoutMs);
 
     this.timeoutHandlers.set(requestId, timeoutHandler);
   }
@@ -310,18 +318,22 @@ export class DeliveryAutoAssignService {
       console.log(`[retryWithNextDriver] ✅ Created assignment request ${newRequest._id} for driver ${nextDriver.driver._id}`);
       console.log(`[retryWithNextDriver] 📋 Request will expire at: ${newRequest.expiresAt}`);
 
+      // Get timeout from config
+      const timeoutMs = await this.configService.getRequestTimeout(ServiceType.DELIVERY);
+
       // Emit event
       this.eventEmitter.emit('delivery.assignment.request.created', {
         requestId: newRequest._id,
         driverId: nextDriver.driver._id,
         deliveryId: previousRequest.deliveryId,
         expiresAt: newRequest.expiresAt,
+        timeoutMs,
       });
       console.log(`[retryWithNextDriver] ✅ Event emitted for polling`);
 
       // Lên lịch timeout check - pass freshDriverScores instead of stale one
-      this.scheduleTimeoutCheck(newRequest._id.toString(), freshDriverScores);
-      console.log(`[retryWithNextDriver] ✅ Timeout check scheduled for ${this.REQUEST_TIMEOUT_SECONDS} seconds`);
+      this.scheduleTimeoutCheck(newRequest._id.toString(), freshDriverScores, timeoutMs);
+      console.log(`[retryWithNextDriver] ✅ Timeout check scheduled for ${timeoutMs}ms`);
       console.log(`[retryWithNextDriver] ========== END RETRY (SUCCESS) ==========\n`);
     } catch (error) {
       console.error(`[retryWithNextDriver] ❌ Error creating assignment request:`, error);
@@ -509,7 +521,8 @@ export class DeliveryAutoAssignService {
    * Get available drivers with scores
    */
   private async getAvailableDriversWithScores(lng: number, lat: number): Promise<DriverScore[]> {
-    const maxDistance = 5000; // Back to 5km (location tracking to be fixed)
+    // Get search radius from config (default to 5000m if not set)
+    const maxDistance = await this.configService.getSearchRadius(ServiceType.DELIVERY);
 
     console.log(`\n========== SEARCHING FOR DRIVERS ==========`)
     console.log(`[getAvailableDriversWithScores] Searching for drivers near [${lng}, ${lat}] within ${maxDistance}m`);

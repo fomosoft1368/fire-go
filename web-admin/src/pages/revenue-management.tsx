@@ -56,19 +56,19 @@ export default function RevenueManagement() {
         startDate.setDate(startDate.getDate() - 29);
       }
 
-      // Fetch revenue stats
-      const statsResponse = await apiService.getRevenueStats(
+      // Fetch actual revenue stats from all sources (rides + combined trips + deliveries)
+      const statsResponse = await apiService.getActualRevenueStats(
         startDate.toISOString(),
         endDate.toISOString()
       );
-      console.log('[Revenue] Stats response:', statsResponse);
+      console.log('[Revenue] Actual stats response:', statsResponse);
       if (statsResponse) {
         setRevenueStats(statsResponse);
       }
 
-      // Fetch daily revenue
-      const dailyResponse = await apiService.getDailyRevenue(days);
-      console.log('[Revenue] Daily response:', dailyResponse);
+      // Fetch actual daily revenue from all sources
+      const dailyResponse = await apiService.getActualDailyRevenue(days);
+      console.log('[Revenue] Actual daily response:', dailyResponse);
       if (Array.isArray(dailyResponse) && dailyResponse.length > 0) {
         const formattedDaily: DailyRevenue[] = dailyResponse.map((item, idx) => {
           const revenueNum = typeof item.revenue === 'string' ? parseInt(item.revenue) : item.revenue;
@@ -85,12 +85,12 @@ export default function RevenueManagement() {
         setDailyRevenues(formattedDaily);
       }
 
-      // Fetch revenue by type
-      const typeResponse = await apiService.getRevenueByType(
+      // Fetch actual revenue by type from all sources
+      const typeResponse = await apiService.getActualRevenueByType(
         startDate.toISOString(),
         endDate.toISOString()
       );
-      console.log('[Revenue] Type response:', typeResponse);
+      console.log('[Revenue] Actual type response:', typeResponse);
       if (Array.isArray(typeResponse) && typeResponse.length > 0) {
         setRevenueByType(typeResponse);
       }
@@ -102,9 +102,9 @@ export default function RevenueManagement() {
   };
 
   // Calculate total revenue from stats
-  const totalRevenue = revenueStats?.totalRevenue || 1250000000;
+  const totalRevenue = revenueStats?.totalRevenue || 0;
   const previousRevenue = totalRevenue * 0.95; // Assume 5% growth
-  const growthPercentage = ((totalRevenue - previousRevenue) / previousRevenue * 100).toFixed(1);
+  const growthPercentage = totalRevenue > 0 ? ((totalRevenue - previousRevenue) / previousRevenue * 100).toFixed(1) : '0';
 
   // Generate chart data from daily revenues
   const generateChartPath = () => {
@@ -259,15 +259,20 @@ export default function RevenueManagement() {
               {revenueByType.length > 0 ? (
                 revenueByType.map((item, idx) => {
                   const colors = ['bg-primary', 'bg-purple-500', 'bg-blue-500'];
-                  const percentage = typeof item.percentage === 'string' ? parseInt(item.percentage) : item.percentage;
+                  const typeNames: Record<string, string> = {
+                    hire: 'Lái xe hộ',
+                    share: 'Ghép xe',
+                    delivery: 'Giao hàng',
+                  };
+                  const percentage = typeof item.percentage === 'string' ? parseFloat(item.percentage) : item.percentage;
                   return (
                     <div key={item.type || idx} className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2">
                           <span className={`w-2.5 h-2.5 rounded-full ${colors[idx % colors.length]}`}></span>
-                          {item.type === 'share' ? 'Xe máy' : item.type === 'hire' ? 'Ô tô' : 'Khác'}
+                          {typeNames[item.type] || item.type}
                         </span>
-                        <span className="text-slate-900 dark:text-white font-bold">{percentage}%</span>
+                        <span className="text-slate-900 dark:text-white font-bold">{percentage.toFixed(1)}%</span>
                       </div>
                       <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div 
@@ -279,17 +284,7 @@ export default function RevenueManagement() {
                   );
                 })
               ) : (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-primary"></span> Xe máy
-                    </span>
-                    <span className="text-slate-900 dark:text-white font-bold">45%</span>
-                  </div>
-                  <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: '45%' }}></div>
-                  </div>
-                </div>
+                <div className="text-center py-8 text-slate-500">Không có dữ liệu</div>
               )}
             </div>
           </div>
@@ -302,7 +297,7 @@ export default function RevenueManagement() {
               </div>
               <p className="text-slate-500 dark:text-slate-400 text-xs font-medium">Chi trả tài xế</p>
               <p className="text-slate-900 dark:text-white text-xl font-bold">
-                {loading ? '...' : `${(totalRevenue * 0.68 / 1000000).toFixed(0)}M`}
+                {loading ? '...' : totalRevenue > 0 ? `${(totalRevenue * 0.68 / 1000000).toFixed(0)}M` : '0'}
               </p>
             </div>
             <div className="bg-white dark:bg-card-dark p-5 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col gap-2 shadow-sm">
@@ -311,7 +306,7 @@ export default function RevenueManagement() {
               </div>
               <p className="text-slate-500 dark:text-slate-400 text-xs font-medium">Tổng hoa hồng</p>
               <p className="text-slate-900 dark:text-white text-xl font-bold">
-                {loading ? '...' : `${(totalRevenue * 0.2 / 1000000).toFixed(0)}M`}
+                {loading ? '...' : totalRevenue > 0 ? `${(totalRevenue * 0.2 / 1000000).toFixed(0)}M` : '0'}
               </p>
             </div>
             <div className="bg-white dark:bg-card-dark p-5 rounded-2xl border border-slate-200 dark:border-slate-700 col-span-2 shadow-sm">
@@ -323,7 +318,7 @@ export default function RevenueManagement() {
                   <div>
                     <p className="text-slate-500 dark:text-slate-400 text-xs font-medium">Chiết khấu hiện tại</p>
                     <p className="text-slate-900 dark:text-white text-base font-bold">
-                      20% <span className="text-slate-500 text-xs font-normal">(Xe máy)</span>
+                      20% <span className="text-slate-500 text-xs font-normal">(Hệ thống)</span>
                     </p>
                   </div>
                 </div>
