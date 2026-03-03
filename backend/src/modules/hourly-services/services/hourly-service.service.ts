@@ -58,8 +58,8 @@ export class HourlyServiceService {
       const services = await this.hourlyServiceModel
         .find({ customerId })
         .sort({ createdAt: -1 })
-        .populate('customerId', 'name email phone')
-        .populate('workerId', 'name email phone')
+        .populate('customerId', 'firstName lastName email phone avatar')
+        .populate('workerId', 'firstName lastName email phone avatar')
         .exec()
 
       return services
@@ -76,8 +76,8 @@ export class HourlyServiceService {
     try {
       const service = await this.hourlyServiceModel
         .findById(id)
-        .populate('customerId', 'name email phone')
-        .populate('workerId', 'name email phone')
+        .populate('customerId', 'firstName lastName email phone avatar')
+        .populate('workerId', 'firstName lastName email phone avatar')
         .exec()
 
       if (!service) {
@@ -92,6 +92,32 @@ export class HourlyServiceService {
   }
 
   /**
+   * Get all services with filters
+   */
+  async findAll(status?: string, limit: number = 100, skip: number = 0): Promise<HourlyService[]> {
+    try {
+      const query: any = {}
+      if (status && status !== 'all') {
+        query.status = status
+      }
+
+      const services = await this.hourlyServiceModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(skip)
+        .populate('customerId', 'firstName lastName email phone avatar')
+        .populate('workerId', 'firstName lastName email phone avatar')
+        .exec()
+
+      return services
+    } catch (error) {
+      console.error('[HourlyServiceService] Error finding all services:', error)
+      throw error
+    }
+  }
+
+  /**
    * Get all pending services
    */
   async findPending(limit: number = 20, skip: number = 0): Promise<HourlyService[]> {
@@ -101,7 +127,8 @@ export class HourlyServiceService {
         .sort({ createdAt: -1 })
         .limit(limit)
         .skip(skip)
-        .populate('customerId', 'name email phone')
+        .populate('customerId', 'firstName lastName email phone avatar')
+        .populate('workerId', 'firstName lastName email phone avatar')
         .exec()
 
       return services
@@ -118,8 +145,8 @@ export class HourlyServiceService {
     try {
       const service = await this.hourlyServiceModel
         .findByIdAndUpdate(id, updateDto, { new: true })
-        .populate('customerId', 'name email phone')
-        .populate('workerId', 'name email phone')
+        .populate('customerId', 'firstName lastName email phone avatar')
+        .populate('workerId', 'firstName lastName email phone avatar')
         .exec()
 
       if (!service) {
@@ -260,6 +287,24 @@ export class HourlyServiceService {
       }
     } catch (error) {
       console.error('[HourlyServiceService] Error getting statistics:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Delete service
+   */
+  async delete(id: string): Promise<void> {
+    try {
+      const service = await this.hourlyServiceModel.findByIdAndDelete(id).exec()
+
+      if (!service) {
+        throw new NotFoundException('Service not found')
+      }
+
+      console.log('[HourlyServiceService] Service deleted:', id)
+    } catch (error) {
+      console.error('[HourlyServiceService] Error deleting service:', error)
       throw error
     }
   }

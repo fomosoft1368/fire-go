@@ -16,19 +16,17 @@ import {
   Popconfirm,
   message,
   Empty,
-  Badge,
   Descriptions,
 } from 'antd'
 import {
   EyeOutlined,
   DeleteOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
   SearchOutlined,
   PhoneOutlined,
   MailOutlined,
   EnvironmentOutlined,
 } from '@ant-design/icons'
+import { hourlyServiceAPI, type HourlyService as APIHourlyService } from '../services/hourlyService'
 
 interface HourlyService {
   _id: string
@@ -41,7 +39,6 @@ interface HourlyService {
   workerName?: string
   workerAvatar?: string
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
-  serviceType: 'standard' | 'premium' | 'economy'
   hours: number
   address: string
   selectedDate: string
@@ -73,130 +70,63 @@ export default function HourlyServices() {
     totalRevenue: 0,
   })
 
-  const mockServices: HourlyService[] = [
-    {
-      _id: 'svc-001',
-      customerId: 'cust-001',
-      customerName: 'Trần Thị Hương',
-      customerEmail: 'huong.tran@example.com',
-      customerPhone: '0987654321',
-      customerAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Huong',
-      workerId: 'worker-001',
-      workerName: 'Nguyễn Thị Hoa',
-      workerAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hoa',
-      status: 'in_progress',
-      serviceType: 'standard',
-      hours: 2,
-      address: '123 Đường Lê Lợi, Quận 1, TP.HCM',
-      selectedDate: '2024-02-27',
-      selectedTime: '09:00',
-      estimatedPrice: 500000,
-      notes: 'Dọn giàn phơi, lau cửa kính',
-      services: [
-        { name: 'Sofa', price: 250000, selected: true },
-        { name: 'Rèm cửa', price: 150000, selected: false },
-        { name: 'Tủ lạnh', price: 100000, selected: false },
-      ],
-      createdAt: '2024-02-27T08:00:00Z',
-    },
-    {
-      _id: 'svc-002',
-      customerId: 'cust-002',
-      customerName: 'Phạm Văn An',
-      customerEmail: 'an.pham@example.com',
-      customerPhone: '0912345678',
-      customerAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=An',
-      status: 'pending',
-      serviceType: 'premium',
-      hours: 3,
-      address: '456 Đường Nguyễn Huệ, Quận 1, TP.HCM',
-      selectedDate: '2024-02-28',
-      selectedTime: '14:00',
-      estimatedPrice: 750000,
-      notes: 'Vệ sinh toàn bộ căn hộ',
-      services: [
-        { name: 'Sofa', price: 250000, selected: true },
-        { name: 'Rèm cửa', price: 150000, selected: true },
-        { name: 'Tủ lạnh', price: 100000, selected: false },
-      ],
-      createdAt: '2024-02-27T10:30:00Z',
-    },
-    {
-      _id: 'svc-003',
-      customerId: 'cust-003',
-      customerName: 'Lê Thị Lan',
-      customerEmail: 'lan.le@example.com',
-      customerPhone: '0923456789',
-      customerAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lan',
-      workerId: 'worker-002',
-      workerName: 'Trần Thị Thu Hương',
-      workerAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Huong2',
-      status: 'completed',
-      serviceType: 'standard',
-      hours: 1,
-      address: '789 Đường Võ Văn Kiệt, Quận 5, TP.HCM',
-      selectedDate: '2024-02-26',
-      selectedTime: '10:00',
-      estimatedPrice: 250000,
-      actualPrice: 250000,
-      notes: 'Dọn dẹp phòng ngủ',
-      services: [
-        { name: 'Sofa', price: 250000, selected: false },
-        { name: 'Rèm cửa', price: 150000, selected: false },
-        { name: 'Tủ lạnh', price: 100000, selected: false },
-      ],
-      createdAt: '2024-02-26T09:00:00Z',
-      completedAt: '2024-02-26T10:30:00Z',
-    },
-    {
-      _id: 'svc-004',
-      customerId: 'cust-004',
-      customerName: 'Ngô Minh Hùng',
-      customerEmail: 'hung.ngo@example.com',
-      customerPhone: '0934567890',
-      customerAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hung',
-      status: 'cancelled',
-      serviceType: 'economy',
-      hours: 1,
-      address: '321 Đường Trần Hưng Đạo, Quận 3, TP.HCM',
-      selectedDate: '2024-02-27',
-      selectedTime: '16:00',
-      estimatedPrice: 200000,
-      notes: 'Vệ sinh nhanh',
-      services: [
-        { name: 'Sofa', price: 250000, selected: false },
-        { name: 'Rèm cửa', price: 150000, selected: false },
-        { name: 'Tủ lạnh', price: 100000, selected: false },
-      ],
-      createdAt: '2024-02-27T14:00:00Z',
-    },
-  ]
-
   useEffect(() => {
     fetchServices()
   }, [])
 
-  const fetchServices = async () => {
+  const fetchServices = async (status?: string) => {
     try {
       setLoading(true)
-      const serviceList = mockServices
-      setServices(serviceList)
+      
+      // Use passed status parameter or current filterStatus
+      const targetStatus = status !== undefined ? status : filterStatus
+      
+      // Fetch services and statistics from API
+      const [apiServices, apiStats] = await Promise.all([
+        hourlyServiceAPI.getAll(targetStatus === 'all' ? undefined : targetStatus),
+        hourlyServiceAPI.getStatistics(),
+      ])
 
-      const pending = serviceList.filter((s) => s.status === 'pending').length
-      const inProgress = serviceList.filter((s) => s.status === 'in_progress').length
-      const completed = serviceList.filter((s) => s.status === 'completed').length
-      const totalRevenue = serviceList.reduce((sum, s) => sum + (s.actualPrice || s.estimatedPrice), 0)
+      // Transform API data to component format
+      const transformedServices: HourlyService[] = apiServices.map((service: APIHourlyService) => ({
+        _id: service._id,
+        customerId: service.customerId?._id || '',
+        customerName: service.customerId
+          ? `${service.customerId.firstName} ${service.customerId.lastName}`
+          : 'N/A',
+        customerEmail: service.customerId?.email || '',
+        customerPhone: service.customerId?.phone || '',
+        customerAvatar: service.customerId?.avatar,
+        workerId: service.workerId?._id,
+        workerName: service.workerId
+          ? `${service.workerId.firstName} ${service.workerId.lastName}`
+          : undefined,
+        workerAvatar: service.workerId?.avatar,
+        status: service.status,
+        hours: service.hours,
+        address: service.address,
+        selectedDate: service.selectedDate?.toString() || '',
+        selectedTime: service.selectedTime,
+        estimatedPrice: service.estimatedPrice,
+        actualPrice: service.actualPrice,
+        notes: service.notes,
+        services: service.services,
+        createdAt: service.createdAt,
+        completedAt: service.completedAt,
+      }))
 
+      setServices(transformedServices)
       setStats({
-        total: serviceList.length,
-        pending,
-        inProgress,
-        completed,
-        totalRevenue,
+        total: apiStats.totalServices,
+        pending: apiStats.pendingServices,
+        inProgress: 0, // Not provided by API, calculate from data
+        completed: apiStats.completedServices,
+        totalRevenue: apiStats.totalRevenue,
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching services:', error)
-      message.error('Lỗi tải danh sách dịch vụ')
+      message.error(error.message || 'Lỗi tải danh sách dịch vụ')
+      setServices([])
     } finally {
       setLoading(false)
     }
@@ -236,36 +166,33 @@ export default function HourlyServices() {
     return <Tag color={colors[status] || 'default'}>{labels[status]}</Tag>
   }
 
-  const getServiceTypeTag = (type: string) => {
-    const colors: Record<string, string> = {
-      standard: 'blue',
-      premium: 'gold',
-      economy: 'cyan',
+  const handleUpdateStatus = async (service: HourlyService, newStatus: string) => {
+    try {
+      await hourlyServiceAPI.update(service._id, { status: newStatus })
+      
+      const updatedServices = services.map((s) =>
+        s._id === service._id
+          ? { ...s, status: newStatus as any, completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined }
+          : s
+      )
+      setServices(updatedServices)
+      setSelectedService(updatedServices.find((s) => s._id === service._id) || null)
+      message.success('Cập nhật trạng thái thành công')
+    } catch (error: any) {
+      message.error(error.message || 'Không thể cập nhật trạng thái')
     }
-    const labels: Record<string, string> = {
-      standard: 'Tiêu chuẩn',
-      premium: 'Premium',
-      economy: 'Tiết kiệm',
-    }
-    return <Tag color={colors[type] || 'default'}>{labels[type]}</Tag>
   }
 
-  const handleUpdateStatus = (service: HourlyService, newStatus: string) => {
-    const updatedServices = services.map((s) =>
-      s._id === service._id
-        ? { ...s, status: newStatus as any, completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined }
-        : s
-    )
-    setServices(updatedServices)
-    setSelectedService(updatedServices.find((s) => s._id === service._id) || null)
-    message.success('Cập nhật trạng thái thành công')
-  }
-
-  const handleDelete = (service: HourlyService) => {
-    setServices(services.filter((s) => s._id !== service._id))
-    setShowDetail(false)
-    setSelectedService(null)
-    message.success('Xóa dịch vụ thành công')
+  const handleDelete = async (service: HourlyService) => {
+    try {
+      await hourlyServiceAPI.delete(service._id)
+      setServices(services.filter((s) => s._id !== service._id))
+      setShowDetail(false)
+      setSelectedService(null)
+      message.success('Xóa dịch vụ thành công')
+    } catch (error: any) {
+      message.error(error.message || 'Không thể xóa dịch vụ')
+    }
   }
 
   const columns = [
@@ -275,7 +202,11 @@ export default function HourlyServices() {
       width: 220,
       render: (_, service: HourlyService) => (
         <Space>
-          <Avatar src={service.customerAvatar} alt={service.customerName} size={40} />
+          <Avatar 
+            src={service.customerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${service.customerName}`} 
+            alt={service.customerName} 
+            size={40} 
+          />
           <div>
             <div style={{ fontWeight: 600 }}>{service.customerName}</div>
             <div style={{ fontSize: '12px', color: '#999' }}>{service.customerPhone}</div>
@@ -308,12 +239,7 @@ export default function HourlyServices() {
           <Tag color="orange">Chờ gán</Tag>
         ),
     },
-    {
-      title: 'Loại',
-      key: 'serviceType',
-      width: 120,
-      render: (_, service: HourlyService) => getServiceTypeTag(service.serviceType),
-    },
+
     {
       title: 'Giờ',
       dataIndex: 'hours',
@@ -428,7 +354,11 @@ export default function HourlyServices() {
             />
             <Select
               value={filterStatus}
-              onChange={(value) => setFilterStatus(value)}
+              onChange={(value) => {
+                setFilterStatus(value)
+                // Refetch with new filter
+                fetchServices(value)
+              }}
               style={{ width: '200px' }}
               options={[
                 { label: 'Tất cả', value: 'all' },
@@ -569,12 +499,9 @@ export default function HourlyServices() {
               <div>
                 <h3>Thông tin dịch vụ</h3>
                 <Descriptions column={2} size="small">
-                  <Descriptions.Item label="Loại dịch vụ">
-                    {getServiceTypeTag(selectedService.serviceType)}
-                  </Descriptions.Item>
                   <Descriptions.Item label="Giờ">{selectedService.hours}h</Descriptions.Item>
                   <Descriptions.Item label="Ngày">{selectedService.selectedDate}</Descriptions.Item>
-                  <Descriptions.Item label="Giờ">{selectedService.selectedTime}</Descriptions.Item>
+                  <Descriptions.Item label="Giờ bắt đầu">{selectedService.selectedTime}</Descriptions.Item>
                 </Descriptions>
               </div>
 

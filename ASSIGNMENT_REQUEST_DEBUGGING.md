@@ -106,7 +106,7 @@ If you see error logs, check:
 - Problem: Route not found
 - Check: Backend is running and built
   ```bash
-  curl http://192.168.1.18:3000/api/combined-trips/driver/xxx/pending-requests
+  curl http://192.168.1.16:3000/api/combined-trips/driver/xxx/pending-requests
   ```
 
 #### Error: `Combined-trips endpoint returned 500`
@@ -123,7 +123,7 @@ If you see error logs, check:
 ```bash
 # On your development machine:
 curl -H "Authorization: Bearer <token>" \
-  http://192.168.1.18:3000/api/combined-trips/driver/<driverId>/pending-requests
+  http://192.168.1.16:3000/api/combined-trips/driver/<driverId>/pending-requests
 
 # Should return:
 # - 200: Array of requests (may be empty [])

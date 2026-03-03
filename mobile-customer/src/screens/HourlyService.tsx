@@ -66,7 +66,8 @@ export default function HourlyService() {
     const [hours, setHours] = useState(3)
     const [selectedDate, setSelectedDate] = useState(5)
     const [selectedTime, setSelectedTime] = useState('09:30')
-    const [address, setAddress] = useState('123 Đường Nguyễn Huệ, Bến Nghé, Quận 1')
+    const [propertyType, setPropertyType] = useState<'apartment' | 'house'>('apartment')
+    const [address, setAddress] = useState('')
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(false)
     const [loadingServices, setLoadingServices] = useState(true)
@@ -139,6 +140,7 @@ export default function HourlyService() {
                 hours,
                 selectedDate,
                 selectedTime,
+                propertyType,
                 address,
                 notes: notes.trim(),
                 services: services.map(({ id, name, price, duration, selected }) => ({
@@ -321,6 +323,71 @@ export default function HourlyService() {
                 {/* Divider */}
                 <View style={styles.divider} />
 
+                {/* Property Type Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Loại hình nhà ở</Text>
+                    <View style={styles.propertyTypeContainer}>
+                        <TouchableOpacity
+                            style={[
+                                styles.propertyTypeButton,
+                                propertyType === 'apartment' && styles.propertyTypeButtonSelected,
+                            ]}
+                            onPress={() => setPropertyType('apartment')}
+                        >
+                            <View style={[
+                                styles.propertyTypeIcon,
+                                propertyType === 'apartment' && styles.propertyTypeIconSelected,
+                            ]}>
+                                <MaterialIcons 
+                                    name="apartment" 
+                                    size={28} 
+                                    color={propertyType === 'apartment' ? '#FF6B35' : '#64748b'} 
+                                />
+                            </View>
+                            <Text style={[
+                                styles.propertyTypeText,
+                                propertyType === 'apartment' && styles.propertyTypeTextSelected,
+                            ]}>
+                                Chung cư
+                            </Text>
+                            <Text style={styles.propertyTypeSubtext}>
+                                Căn hộ, chung cư
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.propertyTypeButton,
+                                propertyType === 'house' && styles.propertyTypeButtonSelected,
+                            ]}
+                            onPress={() => setPropertyType('house')}
+                        >
+                            <View style={[
+                                styles.propertyTypeIcon,
+                                propertyType === 'house' && styles.propertyTypeIconSelected,
+                            ]}>
+                                <MaterialIcons 
+                                    name="home" 
+                                    size={28} 
+                                    color={propertyType === 'house' ? '#FF6B35' : '#64748b'} 
+                                />
+                            </View>
+                            <Text style={[
+                                styles.propertyTypeText,
+                                propertyType === 'house' && styles.propertyTypeTextSelected,
+                            ]}>
+                                Nhà ở
+                            </Text>
+                            <Text style={styles.propertyTypeSubtext}>
+                                Nhà riêng, biệt thự
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.divider} />
+
                 {/* Address Section */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Địa điểm làm việc</Text>
@@ -352,7 +419,7 @@ export default function HourlyService() {
 
                 {/* Add-on Services */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Dịch vụ thêm</Text>
+                    <Text style={styles.sectionTitle}>Dịch vụ</Text>
                     {loadingServices ? (
                         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
                             <ActivityIndicator size="large" color="#FF6B35" />
@@ -812,6 +879,52 @@ const styles = StyleSheet.create({
         color: '#0f172a',
         minHeight: 100,
         textAlignVertical: 'top',
+    },
+    propertyTypeContainer: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    propertyTypeButton: {
+        flex: 1,
+        backgroundColor: '#fff',
+        borderWidth: 2,
+        borderColor: '#e2e8f0',
+        borderRadius: 12,
+        paddingVertical: 16,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+        elevation: 2,
+    },
+    propertyTypeButtonSelected: {
+        borderColor: '#FF6B35',
+        backgroundColor: '#FFF3EE',
+        elevation: 4,
+    },
+    propertyTypeIcon: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#f1f5f9',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    propertyTypeIconSelected: {
+        backgroundColor: '#FFE5DB',
+    },
+    propertyTypeText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#475569',
+        marginBottom: 4,
+    },
+    propertyTypeTextSelected: {
+        color: '#FF6B35',
+    },
+    propertyTypeSubtext: {
+        fontSize: 12,
+        color: '#94a3b8',
+        textAlign: 'center',
     },
     bottomAction: {
         position: 'absolute',

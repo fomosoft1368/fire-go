@@ -280,8 +280,12 @@ class HourlyServiceService {
     try {
       const token = await AsyncStorage.getItem('authToken')
       const addonBaseUrl = `${API_BASE_URL}/addon-services`
+      const url = `${addonBaseUrl}/active`
 
-      const response = await fetch(`${addonBaseUrl}/active`, {
+      console.log('[HourlyServiceService] Fetching addon services from:', url)
+      console.log('[HourlyServiceService] Using token:', token ? `${token.substring(0, 30)}...` : 'NO TOKEN')
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -289,14 +293,33 @@ class HourlyServiceService {
         },
       })
 
+      console.log('[HourlyServiceService] Response status:', response.status, response.statusText)
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch addon services: ${response.statusText}`)
+        let errorData: any
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = { message: response.statusText || 'Unknown error' }
+        }
+        const errorMsg = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText || 'Unknown error'}`
+        console.error('[HourlyServiceService] Error response:', errorMsg)
+        throw new Error(errorMsg)
       }
 
       const data = await response.json()
+      console.log('[HourlyServiceService] Addon services fetched successfully:', data.data?.length || 0, 'services')
       return data.data || []
-    } catch (error) {
+    } catch (error: any) {
       console.error('[HourlyServiceService] Error fetching addon services:', error)
+      
+      // Provide more detailed error messages
+      if (error.message.includes('Network request failed')) {
+        throw new Error('Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.')
+      } else if (error.message.includes('Failed to fetch')) {
+        throw new Error('Không thể tải dữ liệu. Vui lòng kiểm tra máy chủ backend.')
+      }
+      
       throw error
     }
   }

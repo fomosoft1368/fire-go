@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Delete,
   Param,
   UseGuards,
   Request,
@@ -19,7 +20,7 @@ import {
 } from '../dto/create-hourly-service.dto'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 
-@Controller('api/hourly-services')
+@Controller('hourly-services')
 @UseGuards(JwtAuthGuard)
 export class HourlyServiceController {
   constructor(private readonly hourlyServiceService: HourlyServiceService) {}
@@ -51,6 +52,38 @@ export class HourlyServiceController {
       return {
         success: false,
         message: error.message || 'Failed to create service',
+        error: error.message,
+      }
+    }
+  }
+
+  /**
+   * Get all services
+   * GET /api/hourly-services?status=pending&limit=100&skip=0
+   */
+  @Get()
+  async getAllServices(
+    @Query('status') status?: string,
+    @Query('limit') limit: string = '100',
+    @Query('skip') skip: string = '0',
+  ) {
+    try {
+      const limitNum = parseInt(limit) || 100
+      const skipNum = parseInt(skip) || 0
+
+      const services = await this.hourlyServiceService.findAll(status, limitNum, skipNum)
+
+      return {
+        success: true,
+        message: 'Services retrieved successfully',
+        data: services,
+        total: services.length,
+      }
+    } catch (error: any) {
+      console.error('[HourlyServiceController] Error fetching all services:', error)
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch services',
         error: error.message,
       }
     }
@@ -254,6 +287,29 @@ export class HourlyServiceController {
       return {
         success: false,
         message: error.message || 'Failed to get pricing',
+        error: error.message,
+      }
+    }
+  }
+
+  /**
+   * Delete service (admin only)
+   * DELETE /api/hourly-services/:id
+   */
+  @Delete(':id')
+  async deleteService(@Param('id') id: string) {
+    try {
+      await this.hourlyServiceService.delete(id)
+
+      return {
+        success: true,
+        message: 'Service deleted successfully',
+      }
+    } catch (error: any) {
+      console.error('[HourlyServiceController] Error deleting service:', error)
+      return {
+        success: false,
+        message: error.message || 'Failed to delete service',
         error: error.message,
       }
     }

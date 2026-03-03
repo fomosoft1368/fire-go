@@ -13,7 +13,7 @@ import {
 import { AddonServiceService } from '../services/addon-service.service'
 import { CreateAddonServiceDto, UpdateAddonServiceDto } from '../dto/create-addon-service.dto'
 
-@Controller('api/addon-services')
+@Controller('addon-services')
 export class AddonServiceController {
   constructor(private readonly addonServiceService: AddonServiceService) {}
 

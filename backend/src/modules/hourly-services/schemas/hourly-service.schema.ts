@@ -6,10 +6,10 @@ export type HourlyServiceDocument = HourlyService & Document
 @Schema({ timestamps: true })
 export class HourlyService {
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
-  customerId: string
+  customerId: Types.ObjectId
 
   @Prop({ type: Types.ObjectId, ref: 'Worker', required: false })
-  workerId?: string
+  workerId?: Types.ObjectId
 
   @Prop({ required: true })
   hours: number
