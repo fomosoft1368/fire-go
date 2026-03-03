@@ -47,17 +47,17 @@ const getIconName = (backendIcon: string): string => {
 // Map backend icon names to colors
 const getIconColor = (backendIcon: string): string => {
     const colorMap: { [key: string]: string } = {
-        'sofa': '#3b82f6',
-        'window': '#8b5cf6',
-        'refrigerator': '#0d9488',
-        'air_conditioner': '#06b6d4',
-        'bed': '#f97316',
-        'carpet': '#ec4899',
-        'washing_machine': '#6366f1',
-        'kitchen': '#ea580c',
-        'bathroom': '#14b8a6',
+        'sofa': '#FF6B35',
+        'window': '#FF6B35',
+        'refrigerator': '#FF6B35',
+        'air_conditioner': '#FF6B35',
+        'bed': '#FF6B35',
+        'carpet': '#FF6B35',
+        'washing_machine': '#FF6B35',
+        'kitchen': '#FF6B35',
+        'bathroom': '#FF6B35',
     }
-    return colorMap[backendIcon] || '#6b7280'
+    return colorMap[backendIcon] || '#FF6B35'
 }
 
 export default function HourlyService() {
@@ -201,7 +201,7 @@ export default function HourlyService() {
                     onPress={() => navigation.goBack()}
                     style={styles.backButton}
                 >
-                    <MaterialIcons name="arrow-back" size={24} color="#0f172a" />
+                    <MaterialIcons name="arrow-back" size={24} color="#FF6B35" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Đặt dịch vụ Vệ sinh</Text>
                 <View style={{ width: 48 }} />
@@ -244,11 +244,11 @@ export default function HourlyService() {
                     <View style={styles.calendarCard}>
                         <View style={styles.calendarHeader}>
                             <TouchableOpacity style={styles.calendarNav}>
-                                <MaterialIcons name="chevron-left" size={24} color="#0f172a" />
+                                <MaterialIcons name="chevron-left" size={24} color="#FF6B35" />
                             </TouchableOpacity>
                             <Text style={styles.monthText}>{monthName}</Text>
                             <TouchableOpacity style={styles.calendarNav}>
-                                <MaterialIcons name="chevron-right" size={24} color="#0f172a" />
+                                <MaterialIcons name="chevron-right" size={24} color="#FF6B35" />
                             </TouchableOpacity>
                         </View>
 
@@ -333,7 +333,7 @@ export default function HourlyService() {
                             <MaterialIcons name="location-on" size={24} color="#fff" />
                         </View>
                         <View style={styles.addressInputContainer}>
-                            <MaterialIcons name="home" size={20} color="#0d7ff2" />
+                            <MaterialIcons name="home" size={20} color="#FF6B35" />
                             <View style={styles.inputWrapper}>
                                 <Text style={styles.inputLabel}>Địa chỉ chi tiết</Text>
                                 <TextInput
@@ -355,7 +355,7 @@ export default function HourlyService() {
                     <Text style={styles.sectionTitle}>Dịch vụ thêm</Text>
                     {loadingServices ? (
                         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                            <ActivityIndicator size="large" color="#FF6B00" />
+                            <ActivityIndicator size="large" color="#FF6B35" />
                             <Text style={{ marginTop: 8, color: '#999' }}>Đang tải dịch vụ...</Text>
                         </View>
                     ) : services.length === 0 ? (
@@ -428,7 +428,7 @@ export default function HourlyService() {
                                     <MaterialIcons 
                                         name={showAllServices ? "expand-less" : "expand-more"} 
                                         size={20} 
-                                        color="#0d7ff2" 
+                                        color="#FF6B35" 
                                     />
                                 </TouchableOpacity>
                             )}
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#0d7ff2',
+        backgroundColor: '#FF6B35',
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 2,
@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     dayButtonSelected: {
-        backgroundColor: '#0d7ff2',
+        backgroundColor: '#FF6B35',
     },
     dayText: {
         fontSize: 14,
@@ -661,8 +661,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
     },
     timeSlotSelected: {
-        backgroundColor: '#0d7ff2',
-        borderColor: '#0d7ff2',
+        backgroundColor: '#FF6B35',
+        borderColor: '#FF6B35',
     },
     timeSlotText: {
         fontSize: 14,
@@ -699,7 +699,7 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: 'rgba(13, 127, 242, 0.9)',
+        backgroundColor: 'rgba(255, 107, 53, 0.9)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
@@ -744,8 +744,8 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     serviceItemSelected: {
-        borderColor: '#0d7ff2',
-        backgroundColor: '#f0f7ff',
+        borderColor: '#FF6B35',
+        backgroundColor: '#FFF3EE',
     },
     serviceLeft: {
         flexDirection: 'row',
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
     servicePrice: {
         fontSize: 13,
         fontWeight: '700',
-        color: '#0d7ff2',
+        color: '#FF6B35',
     },
     checkbox: {
         width: 20,
@@ -791,8 +791,8 @@ const styles = StyleSheet.create({
         borderColor: '#cbd5e1',
     },
     checkboxSelected: {
-        backgroundColor: '#0d7ff2',
-        borderColor: '#0d7ff2',
+        backgroundColor: '#FF6B35',
+        borderColor: '#FF6B35',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
         color: '#0f172a',
     },
     continueButton: {
-        backgroundColor: '#0d7ff2',
+        backgroundColor: '#FF6B35',
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderRadius: 12,
@@ -869,13 +869,13 @@ const styles = StyleSheet.create({
         marginTop: 12,
         borderRadius: 12,
         borderWidth: 1.5,
-        borderColor: '#0d7ff2',
-        backgroundColor: '#f0f7ff',
+        borderColor: '#FF6B35',
+        backgroundColor: '#FFF3EE',
         gap: 8,
     },
     showMoreButtonText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#0d7ff2',
+        color: '#FF6B35',
     },
 })
