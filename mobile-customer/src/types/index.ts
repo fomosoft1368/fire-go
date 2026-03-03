@@ -102,7 +102,7 @@ export type RootStackParamList = {
   }
   Delivery: undefined
   ConfirmDelivery: {
-    deliveryId: string
+    deliveryId?: string
     pickup: string
     dropoff: string
     pickupCoordinates: [number, number]
@@ -183,6 +183,16 @@ export type RootStackParamList = {
     tripDetails?: {
       pickupAddress?: string
       dropoffAddress?: string
+    }
+  }
+  RatingDriver: {
+    rideId: string
+    tripType?: 'ride' | 'combined'
+    driver?: {
+      name: string
+      avatar?: string
+      carType?: string
+      licensePlate?: string
     }
   }
   PrivacyPolicy: undefined

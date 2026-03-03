@@ -98,7 +98,7 @@ export class RidesController {
     return this.ridesService.findNearbyDrivers(
       parseFloat(latitude),
       parseFloat(longitude),
-      radius ? parseFloat(radius) : 5,
+      radius ? parseFloat(radius) : undefined, // Let service use config default if not provided
       vehicleType,
       limit ? parseInt(limit) : 10,
     );

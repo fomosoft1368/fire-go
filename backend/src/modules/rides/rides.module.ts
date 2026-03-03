@@ -10,9 +10,11 @@ import { AutoAssignService } from './services/auto-assign.service'
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema'
 import { CombinedTripsModule } from '../combined-trips/combined-trips.module'
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema'
+import { DriverSearchConfigModule } from '../config/config.module'
 
 @Module({
   imports: [
+    DriverSearchConfigModule,
     MongooseModule.forFeature([
       { name: Ride.name, schema: RideSchema },
       { name: Pricing.name, schema: PricingSchema },

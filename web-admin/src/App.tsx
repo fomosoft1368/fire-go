@@ -24,6 +24,7 @@ import PricingConfig from './pages/pricing-config'
 import HourlyWorkers from './pages/hourly-workers'
 import HourlyServices from './pages/hourly-services'
 import AddonServices from './pages/addon-services'
+import DriverSearchSettings from './pages/driver-search-settings'
 import './App.css'
 
 function App() {
@@ -92,9 +93,13 @@ function App() {
               <Route path="/transactions" element={<WalletManagement />} />
               <Route path="/wallet-transactions" element={<WalletTransactions />} />
               <Route path="/pricing-config" element={<PricingConfig />} />
+<<<<<<< HEAD
               <Route path="/hourly-service-workers" element={<HourlyWorkers />} />
               <Route path="/hourly-services" element={<HourlyServices />} />
               <Route path="/addon-services" element={<AddonServices />} />
+=======
+              <Route path="/driver-search-settings" element={<DriverSearchSettings />} />
+>>>>>>> cc1fe0fe8bcdb31aaaff2953fc56b5310e343c3f
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Router>

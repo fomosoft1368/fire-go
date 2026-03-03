@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
+import { DriverSearchConfigModule } from '../config/config.module';
 import { CombinedTrip, CombinedTripSchema } from './schemas/combined-trip.schema';
 import { RideRequest, RideRequestSchema } from '../combined-trips/schemas/ride-request.schema';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
@@ -11,6 +12,7 @@ import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.sc
 @Module({
   imports: [
     AuthModule,
+    DriverSearchConfigModule,
     MongooseModule.forFeature([
       { name: CombinedTrip.name, schema: CombinedTripSchema },
       { name: RideRequest.name, schema: RideRequestSchema },

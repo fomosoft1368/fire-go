@@ -295,6 +295,120 @@ export class CombinedTripsController {
   }
 
   /**
+   * PATCH /combined-trips/:id/rate
+   * Rate driver for a completed combined trip
+   * Customer provides rating (1-5), optional comment, and tags
+   * Increments driver's priorityScore by 0.1 for each completion
+   */
+  @Patch(':id/rate')
+  @UseGuards(JwtAuthGuard)
+  async rateCombinedTrip(
+    @Param('id') combinedTripId: string,
+    @Body('rating') rating: number,
+    @Body('comment') comment?: string,
+    @Body('tags') tags?: string[],
+    @Request() req?: any,
+  ) {
+    try {
+      const customerId = req.user?.id || req.user?.sub;
+
+      if (!customerId) {
+        throw new BadRequestException('Customer ID not found in authentication token');
+      }
+
+      // Validate rating
+      if (!rating || rating < 1 || rating > 5) {
+        throw new BadRequestException('Rating must be between 1 and 5');
+      }
+
+      console.log('[CombinedTripsController] 🌟 Rating combined trip:', {
+        tripId: combinedTripId,
+        customerId,
+        rating,
+        comment: comment || 'No comment',
+        tags: tags || [],
+      });
+
+      // Find the combined trip
+      const trip = await this.combinedTripModel.findById(combinedTripId);
+      if (!trip) {
+        throw new BadRequestException('Trip not found');
+      }
+
+      // ✅ CRITICAL FIX: Check if THIS CUSTOMER's RideRequest is completed
+      // For combined trips, the trip may not be fully completed if other passengers are still riding
+      // But each passenger can rate once their own request is completed
+      const customerRequest = await this.rideRequestModel.findOne({
+        combinedTripId: new Types.ObjectId(combinedTripId),
+        customerId: new Types.ObjectId(customerId),
+      });
+
+      if (!customerRequest) {
+        throw new BadRequestException('Your ride request not found for this trip');
+      }
+
+      if (customerRequest.status !== 'completed') {
+        throw new BadRequestException(`Can only rate completed trips. Your request status: ${customerRequest.status}`);
+      }
+
+      // ✅ Check if customer already rated
+      if (customerRequest.hasRated) {
+        throw new BadRequestException('You have already rated this trip');
+      }
+
+      // Update trip with rating (keep latest rating)
+      trip.driverRating = rating;
+      trip.driverReview = comment || '';
+      await trip.save();
+
+      // ✅ Mark request as rated to prevent duplicate ratings
+      customerRequest.hasRated = true;
+      await customerRequest.save();
+
+      // Update driver rating and priority score
+      if (trip.driverId) {
+        const driverId = typeof trip.driverId === 'object' ? trip.driverId._id : trip.driverId;
+        const driver = await this.driverModel.findById(driverId);
+
+        if (driver) {
+          // Calculate new average rating (weighted average)
+          const currentTotal = driver.averageRating * driver.totalReviews;
+          const newTotal = currentTotal + rating;
+          const newReviewCount = driver.totalReviews + 1;
+          const newAverageRating = newTotal / newReviewCount;
+
+          // ✅ Increment priorityScore by 0.1 for each completed trip
+          const newPriorityScore = (driver.priorityScore || 0) + 0.1;
+
+          await this.driverModel.findByIdAndUpdate(driverId, {
+            averageRating: newAverageRating,
+            totalReviews: newReviewCount,
+            priorityScore: newPriorityScore, // ✅ Key feature: priority scoring
+          });
+
+          console.log('[CombinedTripsController] ✅ Driver rating updated:', {
+            driverId: driverId.toString(),
+            oldRating: driver.averageRating,
+            newRating: newAverageRating.toFixed(2),
+            oldPriorityScore: driver.priorityScore || 0,
+            newPriorityScore: newPriorityScore.toFixed(1),
+            totalReviews: newReviewCount,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Cảm ơn bạn đã đánh giá!',
+        trip: trip,
+      };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error rating trip:', error);
+      throw error;
+    }
+  }
+
+  /**
    * GET /combined-trips
    * Get all combined trips with optional filtering
    */
@@ -326,14 +440,13 @@ export class CombinedTripsController {
 
   /**
    * GET /combined-trips/find-share-rides
-   * Find share rides by location
+   * Find share rides by location using configured search radius
    */
   @Get('find-share-rides')
   async findShareRides(
     @Query('lng') lng: number,
     @Query('lat') lat: number,
     @Query('pickupAddress') pickupAddress: string,
-    @Query('maxDistance') maxDistance?: number,
   ) {
     try {
      
@@ -344,11 +457,11 @@ export class CombinedTripsController {
         );
       }
 
+      // Backend will use ConfigService.getSearchRadius(ServiceType.RIDESHARE)
       const rides = await this.combinedTripsService.findShareRides(
         Number(lng),
         Number(lat),
         pickupAddress,
-        maxDistance ? Number(maxDistance) : 10000,
       );
 
       return rides;

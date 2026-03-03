@@ -179,6 +179,9 @@ export class Driver {
   totalReviews: number;
 
   @Prop({ default: 0 })
+  priorityScore: number; // Increments by 0.1 for each completed trip (for matching priority)
+
+  @Prop({ default: 0 })
   totalEarnings: number;
 
   @Prop({ default: 0 })

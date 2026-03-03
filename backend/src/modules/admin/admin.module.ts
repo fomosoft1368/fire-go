@@ -8,6 +8,9 @@ import { Permission, PermissionSchema } from './schemas/permission.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
+import { Ride, RideSchema } from '../rides/schemas/ride.schema';
+import { RideRequest, RideRequestSchema } from '../combined-trips/schemas/ride-request.schema';
+import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
 
 @Module({
   imports: [
@@ -18,6 +21,9 @@ import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
       { name: User.name, schema: UserSchema },
       { name: Customer.name, schema: CustomerSchema },
       { name: Driver.name, schema: DriverSchema },
+      { name: Ride.name, schema: RideSchema },
+      { name: RideRequest.name, schema: RideRequestSchema },
+      { name: Delivery.name, schema: DeliverySchema },
     ]),
   ],
   controllers: [AdminController],

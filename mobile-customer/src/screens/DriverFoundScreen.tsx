@@ -10,6 +10,8 @@ import {
   Alert,
   Dimensions,
   StatusBar,
+  Animated,
+  PanResponder,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { MaterialIcons } from '@expo/vector-icons'
@@ -25,6 +27,11 @@ import { rideService } from '../services/rideService'
 import MapViewComponent from '../components/MapView'
 
 const { height } = Dimensions.get('window')
+
+// Bottom Sheet Constants
+const COLLAPSED_HEIGHT = height * 0.30 // 30% of screen
+const EXPANDED_HEIGHT = height * 0.85 // 85% of screen
+const MINIMIZED_HEIGHT = 60 // Just handle bar
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>
 
@@ -76,6 +83,133 @@ export default function DriverFoundScreen() {
   const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const locationInterval = useRef<NodeJS.Timeout | null>(null)
   const alertedStatuses = useRef<Set<string>>(new Set()) // Track alerted status changes
+
+  // Container will be EXPANDED_HEIGHT tall, positioned at bottom
+  // translateY will push it up or down to show different amounts
+  // translateY = 0: Show all EXPANDED_HEIGHT (fully expanded)
+  // translateY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT: Show only COLLAPSED_HEIGHT (collapsed)
+  // translateY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT: Show only MINIMIZED_HEIGHT (minimized)
+  const initialTranslateY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+  const translateY = useRef(new Animated.Value(initialTranslateY)).current
+  const lastGestureY = useRef(initialTranslateY)
+  const scrollViewRef = useRef<ScrollView>(null)
+  const isScrollEnabled = useRef(true)
+
+  // Pan Responder for drag gesture
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond if dragging vertically with sufficient movement
+        return Math.abs(gestureState.dy) > 5
+      },
+      onPanResponderGrant: () => {
+        translateY.setOffset(lastGestureY.current)
+        translateY.setValue(0)
+      },
+      onPanResponderMove: (_, gestureState) => {
+        // Dragging down (positive dy) = increase translateY = show less
+        // Dragging up (negative dy) = decrease translateY = show more
+        const newY = gestureState.dy
+        const minTranslate = 0 // Fully expanded
+        const maxTranslate = EXPANDED_HEIGHT - MINIMIZED_HEIGHT // Minimized
+        const calculatedY = lastGestureY.current + newY
+        
+        // Clamp the value
+        if (calculatedY < minTranslate) {
+          translateY.setValue(minTranslate - lastGestureY.current)
+        } else if (calculatedY > maxTranslate) {
+          translateY.setValue(maxTranslate - lastGestureY.current)
+        } else {
+          translateY.setValue(newY)
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        translateY.flattenOffset()
+        const currentY = lastGestureY.current + gestureState.dy
+        
+        // Snap logic
+        const expandedY = 0
+        const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+        const minimizedY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT
+        
+        let targetY = collapsedY
+        
+        if (gestureState.dy < -50) {
+          // Dragging up - snap to expanded
+          targetY = expandedY
+          isScrollEnabled.current = true
+        } else if (gestureState.dy > 50) {
+          // Dragging down - snap to minimized or collapsed
+          if (currentY > (collapsedY + minimizedY) / 2) {
+            targetY = minimizedY
+            isScrollEnabled.current = false
+          } else {
+            targetY = collapsedY
+            isScrollEnabled.current = true
+          }
+        } else {
+          // Small movement - snap to nearest state
+          const distToExpanded = Math.abs(currentY - expandedY)
+          const distToCollapsed = Math.abs(currentY - collapsedY)
+          const distToMinimized = Math.abs(currentY - minimizedY)
+          
+          if (distToExpanded < distToCollapsed && distToExpanded < distToMinimized) {
+            targetY = expandedY
+            isScrollEnabled.current = true
+          } else if (distToMinimized < distToCollapsed) {
+            targetY = minimizedY
+            isScrollEnabled.current = false
+          } else {
+            targetY = collapsedY
+            isScrollEnabled.current = true
+          }
+        }
+        
+        lastGestureY.current = targetY
+        
+        Animated.spring(translateY, {
+          toValue: targetY,
+          useNativeDriver: true,
+          damping: 20,
+          stiffness: 90,
+        }).start()
+      },
+    })
+  ).current
+
+  // Helper function to snap to specific state
+  const snapToState = (state: 'expanded' | 'collapsed' | 'minimized') => {
+    let targetY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT // collapsed by default
+    
+    if (state === 'expanded') {
+      targetY = 0
+      isScrollEnabled.current = true
+    } else if (state === 'minimized') {
+      targetY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT
+      isScrollEnabled.current = false
+    } else {
+      targetY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+      isScrollEnabled.current = true
+    }
+    
+    lastGestureY.current = targetY
+    
+    Animated.spring(translateY, {
+      toValue: targetY,
+      useNativeDriver: true,
+      damping: 20,
+      stiffness: 90,
+    }).start()
+  }
+
+  // Initialize bottom sheet position on mount
+  useEffect(() => {
+    // Start in collapsed state
+    const initialY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+    translateY.setValue(initialY)
+    lastGestureY.current = initialY
+  }, [])
 
   // Load trip details on mount
   useEffect(() => {
@@ -200,12 +334,20 @@ export default function DriverFoundScreen() {
           
           // Handle status changes with navigation or alerts
           if (response?.status === 'completed') {
-            console.log('🏁 Trip completed - should navigate to rating screen')
-            const alertKey = `completed-${response._id}`
-            if (!alertedStatuses.current.has(alertKey)) {
-              alertedStatuses.current.add(alertKey)
-              Alert.alert('Hoàn thành', 'Chuyến đi đã hoàn thành thành công!')
-            }
+            console.log('🏁 Trip completed - navigating to rating screen')
+            // ✅ Navigate to rating screen for combined trips
+            navigation.replace('RatingDriver', {
+              rideId: combinedTripId, // Use combinedTripId for rating endpoint
+              tripType: 'combined', // ✅ Tell RatingDriverScreen this is a combined trip
+              driver: {
+                name: tripData?.driverId?.firstName && tripData?.driverId?.lastName
+                  ? `${tripData.driverId.firstName} ${tripData.driverId.lastName}`
+                  : 'Tài xế',
+                avatar: tripData?.driverId?.avatar,
+                carType: tripData?.driverId?.vehicleType || tripData?.driverId?.vehicleModel,
+                licensePlate: tripData?.driverId?.licensePlate || tripData?.driverId?.vehiclePlate,
+              }
+            })
           } else if (response?.status === 'cancelled' || response?.status === 'deleted' || response?.status === 'rejected' || response?.status === 'timeout') {
             console.log('❌ Trip cancelled/rejected/timeout - should navigate back')
             const alertKey = `cancelled-${response._id}-${response.status}`
@@ -1178,10 +1320,11 @@ export default function DriverFoundScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
       <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.card} />
 
+      {/* Map Container - Full Screen */}
       <View style={styles.mapContainer}>
         {/* Map - Updates based on trip status */}
         <MapViewComponent
-          height={height * 0.55}
+          height={height}
           pickupCoords={mapPickupCoords ?? undefined}
           dropoffCoords={mapDropoffCoords ?? undefined}
           routeCoordinates={mapRouteCoordinates}
@@ -1242,20 +1385,55 @@ export default function DriverFoundScreen() {
         </View>
       </View>
 
-      {/* Bottom Sheet Info Card */}
-      <LinearGradient
-        colors={[colors.card, colors.card]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={[styles.bottomSheet, { backgroundColor: colors.card }]}
+      {/* Bottom Sheet Info Card - Draggable */}
+      <Animated.View
+        style={[
+          styles.bottomSheetContainer,
+          {
+            transform: [{ translateY }],
+            backgroundColor: 'transparent',
+          },
+        ]}
       >
-        {/* Drag Handle */}
-        <View style={styles.dragHandle}>
-          <View style={[styles.dragHandleBar, { backgroundColor: colors.border }]} />
+        <LinearGradient
+          colors={[colors.card, colors.card]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={[styles.bottomSheet, { backgroundColor: colors.card }]}
+        >
+          {/* Drag Handle - Touchable area for gestures */}
+          <View style={styles.dragHandleWrapper} {...panResponder.panHandlers}>
+            <TouchableOpacity
+              style={styles.dragHandle}
+              activeOpacity={0.8}
+              onPress={() => {
+                // Toggle between collapsed and expanded on tap
+                const currentY = lastGestureY.current
+                const expandedY = 0
+                const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
+                
+                if (Math.abs(currentY - collapsedY) < Math.abs(currentY - expandedY)) {
+                  snapToState('expanded')
+                } else {
+                  snapToState('collapsed')
+                }
+              }}
+            >
+              <View style={[styles.dragHandleBar, { backgroundColor: colors.border }]} />
+            </TouchableOpacity>
+          </View>
+ <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+          <View style={styles.handleBar} />
         </View>
-
-        <ScrollView style={styles.bottomSheetContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.bottomSheetContent}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={isScrollEnabled.current}
+            bounces={false}
+          >
           {/* Status Header - DYNAMIC */}
+         
           <View style={styles.statusHeader}>
             <View>
               <Text style={[styles.statusTitle, { color: colors.text }]}>{statusLabel}</Text>
@@ -1392,6 +1570,7 @@ export default function DriverFoundScreen() {
           <View style={{ height: SPACING.xl }} />
         </ScrollView>
       </LinearGradient>
+      </Animated.View>
     </SafeAreaView>
   )
 }
@@ -1402,8 +1581,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapContainer: {
+    flex: 1,
     position: 'relative',
-    height: height * 0.55,
   },
   mapOverlayTop: {
     position: 'absolute',
@@ -1480,15 +1659,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  bottomSheetContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: EXPANDED_HEIGHT, // Set to max height it can expand to
+    zIndex: 10,
+    pointerEvents: 'box-none', // Allow touches to pass through to map
+  },
   bottomSheet: {
     flex: 1,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    pointerEvents: 'auto', // Bottom sheet should capture touches
   },
-  dragHandle: {
+  dragHandleWrapper: {
     paddingTop: SPACING.md,
     paddingBottom: SPACING.xs,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dragHandle: {
+    width: '100%',
+    paddingVertical: SPACING.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1594,6 +1797,17 @@ const styles = StyleSheet.create({
     gap: 2,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.1)',
+  },
+  handleBarContainer: {
+    paddingVertical: 5,
+    paddingTop: 0,
+    alignItems: 'center',
+  },
+  handleBar: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 3,
   },
   ratingText: {
     fontSize: 10,

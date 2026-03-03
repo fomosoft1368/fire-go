@@ -18,6 +18,7 @@ import { DeliveryModule } from './modules/delivery/delivery.module';
 import { PricingModule } from './modules/pricing/pricing.module';
 import { HourlyServicesModule } from './modules/hourly-services/hourly-services.module';
 import { AddonServicesModule } from './modules/addon-services/addon-services.module';
+import { DriverSearchConfigModule } from './modules/config/config.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { AddonServicesModule } from './modules/addon-services/addon-services.mod
     PricingModule,
     HourlyServicesModule,
     AddonServicesModule,
+    DriverSearchConfigModule,
   ],
   controllers: [],
   providers: [],

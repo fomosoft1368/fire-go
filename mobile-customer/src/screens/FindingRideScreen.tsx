@@ -272,21 +272,19 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
       console.log('  1️⃣  Pickup address:', { pickupAddress, lng: startLng, lat: startLat })
       console.log('  2️⃣  Current GPS:', { lng: currentLocation.lng, lat: currentLocation.lat })
 
-      // Fetch from BOTH locations
+      // Fetch from BOTH locations (backend will use configured search radius)
       const [ridesFromPickup, ridesFromGPS] = await Promise.all([
         // Search near PICKUP address (user selected on map)
         combinedTripsService.findCombinedTrips(
           startLng,
           startLat,
-          pickupAddress,
-          10000  // 10km radius
+          pickupAddress
         ),
         // Search near CURRENT GPS location (where user is right now)
         combinedTripsService.findCombinedTrips(
           currentLocation.lng,
           currentLocation.lat,
-          pickupAddress,
-          10000  // 10km radius
+          pickupAddress
         ),
       ])
 

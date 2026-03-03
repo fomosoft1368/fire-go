@@ -648,6 +648,44 @@ class ApiService {
     return this.handleResponse<any[]>(response);
   }
 
+  // Admin Revenue API (from all sources: rides + combined trips + deliveries)
+  async getActualRevenueStats(startDate?: string, endDate?: string): Promise<any> {
+    let url = `${API_BASE_URL}/admin/revenue/stats`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return null;
+    return this.handleResponse(response);
+  }
+
+  async getActualDailyRevenue(days: number = 7): Promise<any[]> {
+    const url = `${API_BASE_URL}/admin/revenue/daily?days=${days}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getActualRevenueByType(startDate?: string, endDate?: string): Promise<any[]> {
+    let url = `${API_BASE_URL}/admin/revenue/by-type`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
   // Generic HTTP methods
   async get(endpoint: string): Promise<any> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -695,6 +733,21 @@ class ApiService {
     });
     if (!response.ok) return null;
     return this.handleResponse(response);
+  }
+
+  // ============================================
+  // Driver Search Config APIs
+  // ============================================
+  async getDriverSearchConfigs(): Promise<any> {
+    return this.get('/config/driver-search');
+  }
+
+  async getDriverSearchConfigByType(serviceType: string): Promise<any> {
+    return this.get(`/config/driver-search/${serviceType}`);
+  }
+
+  async updateDriverSearchConfig(serviceType: string, data: any): Promise<any> {
+    return this.patch(`/config/driver-search/${serviceType}`, data);
   }
 }
 

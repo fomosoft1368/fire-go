@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { apiService } from '../services/api';
 import { useNotification } from '../context/NotificationContext';
-import RideMap from '../components/RideMap';
+import DispatchMap from '../components/DispatchMap';
 
 interface Driver {
   _id?: string;
@@ -111,7 +111,9 @@ const DispatchManagement: React.FC = () => {
   // Dispatch states
   const [pendingRides, setPendingRides] = useState<Ride[]>([]);
   const [availableDrivers, setAvailableDrivers] = useState<Driver[]>([]);
+  const [allDrivers, setAllDrivers] = useState<Driver[]>([]); // All drivers for map
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [nearbyDrivers, setNearbyDrivers] = useState<NearbyDriver[]>([]);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -211,17 +213,20 @@ const DispatchManagement: React.FC = () => {
         return ride;
       }));
 
+      // Store all drivers for map display
+      const allDriversList = Array.isArray(driversRes) ? driversRes : [];
+
       // Filter only available drivers (not on ride/trip, online or offline)
-      const available = Array.isArray(driversRes)
-        ? driversRes.filter((d: any) => d.status !== 'on_ride' && d.status !== 'on_trip')
-        : [];
+      const available = allDriversList.filter((d: any) => d.status !== 'on_ride' && d.status !== 'on_trip');
 
       console.log('📍 Loaded pending rides:', pending.length);
       console.log('👥 Loaded available drivers:', available.length);
+      console.log('🗺️ Total drivers for map:', allDriversList.length);
       console.log('🔍 First ride customer data:', pending[0]?.customer || 'No customer');
       
       setPendingRides(pending);
       setAvailableDrivers(available);
+      setAllDrivers(allDriversList);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -600,7 +605,7 @@ const DispatchManagement: React.FC = () => {
         {activeTab === 'dispatch' && (
           <div className="space-y-6">
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between">
               <div>
@@ -609,6 +614,18 @@ const DispatchManagement: React.FC = () => {
               </div>
               <div className="p-3 bg-yellow-100 dark:bg-yellow-500/20 rounded-lg">
                 <span className="material-symbols-outlined text-yellow-600">pending_actions</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tổng số tài xế</p>
+                <p className="text-2xl font-bold text-blue-600">{allDrivers.length}</p>
+              </div>
+              <div className="p-3 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
+                <span className="material-symbols-outlined text-blue-600">group</span>
               </div>
             </div>
           </div>
@@ -629,10 +646,10 @@ const DispatchManagement: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tài xế gần đó</p>
-                <p className="text-2xl font-bold text-blue-600">{nearbyDrivers.length}</p>
+                <p className="text-2xl font-bold text-purple-600">{nearbyDrivers.length}</p>
               </div>
-              <div className="p-3 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
-                <span className="material-symbols-outlined text-blue-600">location_on</span>
+              <div className="p-3 bg-purple-100 dark:bg-purple-500/20 rounded-lg">
+                <span className="material-symbols-outlined text-purple-600">location_on</span>
               </div>
             </div>
           </div>
@@ -640,30 +657,74 @@ const DispatchManagement: React.FC = () => {
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Map */}
+          {/* Map - Always visible with all drivers */}
           <div className="lg:col-span-2">
-            {selectedRide && selectedRide.pickupLocation?.coordinates && selectedRide.dropoffLocation?.coordinates ? (
-              <RideMap
-                key={selectedRide._id}
-                pickupCoords={[selectedRide.pickupLocation.coordinates[0], selectedRide.pickupLocation.coordinates[1]]}
-                dropoffCoords={[selectedRide.dropoffLocation.coordinates[0], selectedRide.dropoffLocation.coordinates[1]]}
-                pickupAddress={selectedRide.pickupAddress}
-                dropoffAddress={selectedRide.dropoffAddress}
-              />
-            ) : (
-              <div
-                className="w-full h-[400px] rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center"
-              >
-                <div className="text-center text-slate-500 dark:text-slate-400">
-                  <p className="text-sm font-semibold mb-1">Chọn cuốc xe để xem bản đồ</p>
-                  <p className="text-xs">Click vào cuốc xe trong danh sách bên trái</p>
-                </div>
-              </div>
-            )}
+            <DispatchMap 
+              drivers={allDrivers}
+              onDriverClick={(driver) => setSelectedDriver(driver)}
+              selectedDriverId={selectedDriver?._id}
+            />
           </div>
 
           {/* Right Panel */}
           <div className="space-y-4">
+            {/* Selected Driver Info (if clicked on map) */}
+            {selectedDriver && (
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-slate-900 dark:text-white">Thông tin tài xế</h3>
+                  <button
+                    onClick={() => setSelectedDriver(null)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 text-sm mb-4">
+                  <div>
+                    <p className="text-xs text-slate-500">Tài xế:</p>
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      {selectedDriver.firstName} {selectedDriver.lastName}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Điện thoại:</p>
+                    <p className="font-bold text-slate-900 dark:text-white">{selectedDriver.phone || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Xe:</p>
+                    <p className="font-bold text-slate-900 dark:text-white">
+                      {selectedDriver.vehicleModel} - {selectedDriver.licensePlate}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Trạng thái:</p>
+                    <p className={`font-bold inline-block px-2 py-1 rounded text-xs ${
+                      selectedDriver.status === 'online' ? 'bg-green-100 text-green-700' :
+                      selectedDriver.status === 'on_ride' || selectedDriver.status === 'on_trip' ? 'bg-blue-100 text-blue-700' :
+                      selectedDriver.status === 'break' ? 'bg-amber-100 text-amber-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {selectedDriver.status === 'online' ? 'Online' :
+                       selectedDriver.status === 'on_ride' || selectedDriver.status === 'on_trip' ? '🚕 Đang trong chuyến' :
+                       selectedDriver.status === 'break' ? 'Nghỉ' : 'Offline'}
+                    </p>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <div>
+                      <p className="text-xs text-slate-500">Đánh giá</p>
+                      <p className="font-bold">⭐ {selectedDriver.averageRating || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Chuyến</p>
+                      <p className="font-bold">{selectedDriver.totalRides || 0}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Selected Ride Info */}
             {selectedRide ? (
               <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
