@@ -17,6 +17,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons'
 import MapView, { Marker, Polyline } from 'react-native-maps'
 import * as Location from 'expo-location'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { COLORS } from '../constants'
 import { API_BASE_URL } from '../constants/config'
 import { useNavigation } from '@react-navigation/native'
@@ -27,7 +28,7 @@ import { useSelector } from 'react-redux'
 import type { RootState } from '../redux/store'
 
 // Google Maps API Key from .env
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY'
+const GOOGLE_MAPS_API_KEY = 'AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo'
 
 const { height } = Dimensions.get('window')
 
@@ -719,6 +720,12 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       
       console.log(`🚗 [Attempt ${attempt}] Fetching ride detail from:`, endpoint)
       
+      // Get auth token
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+      
       // Add timeout to prevent infinite loading
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
@@ -731,6 +738,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
           signal: controller.signal,
         })

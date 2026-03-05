@@ -335,23 +335,30 @@ export class CombinedTripsController {
         throw new BadRequestException('Trip not found');
       }
 
-      // ✅ CRITICAL FIX: Check if THIS CUSTOMER's RideRequest is completed
+      // ✅ CRITICAL FIX: Find THIS CUSTOMER's COMPLETED RideRequest
       // For combined trips, the trip may not be fully completed if other passengers are still riding
       // But each passenger can rate once their own request is completed
+      // NOTE: A customer may have multiple requests (e.g., first was rejected/timeout, second was completed)
+      // So we need to find the COMPLETED request specifically
       const customerRequest = await this.rideRequestModel.findOne({
         combinedTripId: new Types.ObjectId(combinedTripId),
         customerId: new Types.ObjectId(customerId),
+        status: 'completed', // ✅ Only find completed requests
       });
 
       if (!customerRequest) {
-        throw new BadRequestException('Your ride request not found for this trip');
+        // Log all requests for debugging
+        const allRequests = await this.rideRequestModel.find({
+          combinedTripId: new Types.ObjectId(combinedTripId),
+          customerId: new Types.ObjectId(customerId),
+        });
+        console.error('[CombinedTripsController] ❌ No completed request found. All requests:', 
+          allRequests.map(r => ({ id: r._id, status: r.status, hasRated: r.hasRated }))
+        );
+        throw new BadRequestException('No completed ride request found for this trip. You can only rate trips you have completed.');
       }
 
-      if (customerRequest.status !== 'completed') {
-        throw new BadRequestException(`Can only rate completed trips. Your request status: ${customerRequest.status}`);
-      }
-
-      // ✅ Check if customer already rated
+      // ✅ Check if customer already rated this specific request
       if (customerRequest.hasRated) {
         throw new BadRequestException('You have already rated this trip');
       }
@@ -475,6 +482,7 @@ export class CombinedTripsController {
    * GET /combined-trips/directions
    * Get route directions for rideshare trips with automatic waypoints
    * ✅ Optimized for Vietnam - adds waypoints for long distances
+   * ⚠️ Public endpoint - no auth required
    */
   @Get('directions')
   async getDirections(
@@ -484,7 +492,13 @@ export class CombinedTripsController {
     @Query('endLat') endLat: number,
   ) {
     try {
-      
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('🗺️ [GET /combined-trips/directions] Route called');
+      console.log('📍 Coordinates:', {
+        start: [startLng, startLat],
+        end: [endLng, endLat],
+      });
+      console.log('═══════════════════════════════════════════════════════════');
 
       if (!startLng || !startLat || !endLng || !endLat) {
         throw new BadRequestException(
@@ -499,6 +513,7 @@ export class CombinedTripsController {
         Number(endLat),
       );
 
+      console.log('✅ Directions returned successfully');
       return directions;
     } catch (error: any) {
       console.error('[CombinedTripsController] Error getting directions:', error);
@@ -1573,11 +1588,22 @@ export class CombinedTripsController {
    * Route order: This route MUST be last to avoid matching specific routes
    */
   @Get(':combinedTripId')
-  async getCombinedTripDetail(@Param('combinedTripId') combinedTripId: string) {
+  @UseGuards(JwtAuthGuard)
+  async getCombinedTripDetail(
+    @Param('combinedTripId') combinedTripId: string,
+    @Request() req: any
+  ) {
     try {
+      console.log('[CombinedTripsController] ✅ GET /combined-trips/:id called, Trip ID:', combinedTripId);
       
-
       const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
+
+      if (!trip) {
+        throw new BadRequestException('Trip not found');
+      }
+
+      console.log('[CombinedTripsController] ✅ Trip status:', trip.status);
+      console.log('[CombinedTripsController] ✅ Has driverId:', !!trip.driverId);
 
       return trip;
     } catch (error: any) {

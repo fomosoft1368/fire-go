@@ -101,9 +101,9 @@ export default function Delivery(props?: DeliveryProps) {
     
     // Draggable Bottom Sheet
     const screenHeight = Dimensions.get('window').height
-    const minHeight = screenHeight * 0.1 // 10%
-    const maxHeight = screenHeight * 0.95 // 95%
-    const initialHeight = screenHeight * 0.5 // 50%
+    const minHeight = screenHeight * 0.42 // 42%
+    const maxHeight = screenHeight * 0.85 // 85%
+    const initialHeight = screenHeight * 0.42 // 42% - Start collapsed
     const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
     const lastGestureDy = useRef(0)
     
@@ -249,9 +249,9 @@ export default function Delivery(props?: DeliveryProps) {
                 if (Math.abs(velocity) > 0.8) {
                     snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
                 } else if (currentY > midPoint) {
-                    snapTo = screenHeight - minHeight
+                    snapTo = screenHeight - minHeight // Snap to collapsed (42%)
                 } else {
-                    snapTo = screenHeight - maxHeight
+                    snapTo = screenHeight - maxHeight // Snap to expanded (85%)
                 }
 
                 lastGestureDy.current = snapTo
@@ -741,13 +741,12 @@ export default function Delivery(props?: DeliveryProps) {
 
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={{ flex: 1 }}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                 >
                     <ScrollView 
                         showsVerticalScrollIndicator={false} 
                         style={styles.scrollContent}
-                        contentContainerStyle={{ paddingBottom: 100 }}
+                        contentContainerStyle={{ paddingBottom: 20 }}
                         keyboardShouldPersistTaps="handled"
                     >
                     {/* Location Inputs */}
@@ -926,18 +925,29 @@ export default function Delivery(props?: DeliveryProps) {
                             {/* ============ END GIAO HÀNG ============ */}
                         </View>
                     </View>
+                    <View style={styles.bottomAction}>
+                    {estimatedPrice > 0 && (
+                        <View style={styles.priceContainer}>
+                            <Text style={styles.priceLabel}>Tổng cộng</Text>
+                            <Text style={styles.totalPrice}>
+                                {estimatedPrice.toLocaleString('vi-VN')}đ
+                            </Text>
+                        </View>
+                    )}
+                    <TouchableOpacity
+                        style={styles.confirmButton}
+                        onPress={handleConfirm}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.confirmButtonText}>Xác nhận đặt hàng</Text>
+                        <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+                    </TouchableOpacity>
+                </View>
                 </ScrollView>
                 </KeyboardAvoidingView>
 
-                {/* Confirm Button */}
-                <TouchableOpacity
-                    style={styles.confirmButton}
-                    onPress={handleConfirm}
-                    activeOpacity={0.8}
-                >
-                    <Text style={styles.confirmButtonText}>Xác nhận đặt hàng</Text>
-                    <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-                </TouchableOpacity>
+                {/* Sticky Bottom Action */}
+                
                 </View>
             </Animated.View>
         </View>
@@ -1032,7 +1042,6 @@ const styles = StyleSheet.create({
         color: '#16A34A',
     },
     scrollContent: {
-        flex: 1,
         marginBottom: 16,
     },
     locationsContainer: {
@@ -1177,21 +1186,43 @@ const styles = StyleSheet.create({
         marginTop: 4,
         textAlign: 'center',
     },
+    bottomAction: {
+        backgroundColor: '#fff',
+        borderTopWidth: 1,
+        borderTopColor: '#e2e8f0',
+        paddingHorizontal: 20,
+        paddingVertical: 6,
+        paddingBottom: 42,
+    },
+    priceContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    priceLabel: {
+        fontSize: 14,
+        color: '#64748b',
+        fontWeight: '500',
+    },
+    totalPrice: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#FF6B00',
+    },
     confirmButton: {
         backgroundColor: '#FF6B00',
-        paddingVertical: 16,
-        borderRadius: 16,
+        paddingVertical: 14,
+        borderRadius: 12,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        marginTop: 12,
-        marginBottom: 8,
+        elevation: 4,
         shadowColor: '#FF6B00',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
+        shadowRadius: 4,
     },
     confirmButtonText: {
         fontSize: 16,

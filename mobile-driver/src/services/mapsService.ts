@@ -3,7 +3,7 @@
  * Dựa trên mapsService của mobile-customer
  */
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY'
+const GOOGLE_MAPS_API_KEY = 'AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo'
 
 interface Coordinates {
   latitude: number

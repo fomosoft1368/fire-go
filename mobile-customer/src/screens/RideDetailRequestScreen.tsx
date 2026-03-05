@@ -58,6 +58,7 @@ export default function RideDetailRequestScreen() {
   const [customerDistance, setCustomerDistance] = useState<number | null>(null)
   const [calculatingFare, setCalculatingFare] = useState(false)
   const [tripData, setTripData] = useState(ride) // ✅ Store ride data in state for updates
+  const [checkingPendingRequests, setCheckingPendingRequests] = useState(false)
   const statusCheckInterval = useRef<NodeJS.Timeout | null>(null)
   const tripPollInterval = useRef<NodeJS.Timeout | null>(null)
 
@@ -240,6 +241,57 @@ export default function RideDetailRequestScreen() {
       return
     }
 
+    // ✅ Bước 1: Kiểm tra xem có request nào đang pending không
+    setCheckingPendingRequests(true)
+    try {
+      console.log('[RideDetailRequestScreen] 🔍 Checking for pending requests...')
+      
+      // Lấy thông tin trip mới nhất để check pending requests
+      const latestTrip = await combinedTripsService.getCombinedTripDetail(combinedTripId)
+      
+      // Đếm số request đang pending (chưa được xử lý)
+      const pendingRequests = latestTrip.requests?.filter(
+        (req: any) => req.status === 'pending'
+      ) || []
+
+      console.log('[RideDetailRequestScreen] Pending requests count:', pendingRequests.length)
+
+      // ✅ Nếu có request đang pending, KHÔNG cho gửi thêm
+      if (pendingRequests.length > 0) {
+        setCheckingPendingRequests(false)
+        Alert.alert(
+          'Vui lòng đợi',
+          `Tài xế đang xem xét yêu cầu của ${pendingRequests.length} khách hàng khác. Vui lòng đợi trong giây lát và thử lại.`,
+          [{ text: 'OK' }]
+        )
+        return
+      }
+
+      // ✅ Kiểm tra lại số ghế available (có thể đã bị đặt trong lúc tính giá)
+      const currentBookedSeats = latestTrip.bookedSeats ?? (latestTrip.totalSeats - latestTrip.availableSeats)
+      const currentAvailableSeats = latestTrip.totalSeats - currentBookedSeats - selectedSeats.length
+
+      if (currentAvailableSeats < 0) {
+        setCheckingPendingRequests(false)
+        Alert.alert(
+          'Không đủ chỗ',
+          'Số ghế bạn chọn vượt quá số ghế còn trống. Vui lòng chọn lại.',
+          [{ text: 'OK' }]
+        )
+        return
+      }
+
+      console.log('[RideDetailRequestScreen] ✅ No pending requests, proceeding...')
+      setCheckingPendingRequests(false)
+      
+    } catch (error: any) {
+      console.error('[RideDetailRequestScreen] Error checking pending requests:', error)
+      setCheckingPendingRequests(false)
+      Alert.alert('Lỗi', 'Không thể kiểm tra trạng thái chuyến xe. Vui lòng thử lại.')
+      return
+    }
+
+    // ✅ Bước 2: Gửi request (chỉ khi không có pending request)
     setRequesting(true)
     try {
       console.log('[RideDetailRequestScreen] Creating combined trip request with customer coordinates:', {
@@ -657,10 +709,15 @@ export default function RideDetailRequestScreen() {
             <TouchableOpacity
               style={[styles.bookButton, { backgroundColor: '#FF6B00' }]}
               onPress={handleRequestRide}
-              disabled={requesting || availableSeats < 0 || calculatingFare || selectedSeats.length === 0}
+              disabled={requesting || checkingPendingRequests || availableSeats < 0 || calculatingFare || selectedSeats.length === 0}
             >
-              {requesting ? (
-                <ActivityIndicator color="black" size={20} />
+              {requesting || checkingPendingRequests ? (
+                <>
+                  <ActivityIndicator color="black" size={20} />
+                  <Text style={[styles.bookButtonText, { marginLeft: 8 }]}>
+                    {checkingPendingRequests ? 'Đang kiểm tra...' : 'Đang gửi...'}
+                  </Text>
+                </>
               ) : (
                 <>
                   <Text style={styles.bookButtonText}>Đặt chỗ ngay</Text>
