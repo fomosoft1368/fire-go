@@ -79,14 +79,14 @@ export default function ServiceRatingScreen() {
           AlertIOS.alert('Thành công', message, [
             {
               text: 'OK',
-              onPress: () => navigation.goBack(),
+              onPress: () => navigation.navigate('Home' as never),
             },
           ])
         } else {
           Alert.alert('Thành công', message, [
             {
               text: 'OK',
-              onPress: () => navigation.goBack(),
+              onPress: () => navigation.navigate('Home' as never),
             },
           ])
         }
@@ -102,7 +102,6 @@ export default function ServiceRatingScreen() {
       setSubmitting(false)
     }
   }
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}

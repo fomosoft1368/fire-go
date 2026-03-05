@@ -173,6 +173,40 @@ export class HourlyServiceController {
   }
 
   /**
+   * Get worker's services (for driver)
+   * GET /api/hourly-services/worker-services
+   */
+  @Get('worker-services')
+  async getWorkerServices(@Request() req: any, @Query('status') status?: string) {
+    try {
+      const workerId = req.user?.id
+      if (!workerId) {
+        return {
+          success: false,
+          message: 'User not authenticated',
+        }
+      }
+
+      console.log('[HourlyServiceController] Fetching services for worker:', workerId, 'status:', status)
+
+      const services = await this.hourlyServiceService.findByWorkerId(workerId, status)
+
+      return {
+        success: true,
+        message: 'Services retrieved successfully',
+        data: services,
+      }
+    } catch (error: any) {
+      console.error('[HourlyServiceController] Error fetching worker services:', error)
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch services',
+        error: error.message,
+      }
+    }
+  }
+
+  /**
    * Get service detail
    * GET /api/hourly-services/:id
    */
@@ -197,24 +231,37 @@ export class HourlyServiceController {
   }
 
   /**
-   * Update service
-   * PATCH /api/hourly-services/:id
+   * Assign worker to service
+   * PATCH /api/hourly-services/:id/assign-worker
    */
-  @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateDto: UpdateHourlyServiceDto) {
+  @Patch(':id/assign-worker')
+  async assignWorker(@Param('id') id: string, @Body() body: { workerId: string }, @Request() req: any) {
     try {
-      const service = await this.hourlyServiceService.update(id, updateDto)
+      // Use workerId from body or from JWT token
+      const workerId = body.workerId || req.user?.id
+
+      if (!workerId) {
+        return {
+          success: false,
+          message: 'Worker ID is required',
+        }
+      }
+
+      const service = await this.hourlyServiceService.update(id, {
+        workerId: workerId,
+        status: 'confirmed',
+      })
 
       return {
         success: true,
-        message: 'Service updated successfully',
+        message: 'Worker assigned successfully',
         data: service,
       }
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error updating service:', error)
+      console.error('[HourlyServiceController] Error assigning worker:', error)
       return {
         success: false,
-        message: error.message || 'Failed to update service',
+        message: error.message || 'Failed to assign worker',
         error: error.message,
       }
     }
@@ -239,6 +286,30 @@ export class HourlyServiceController {
       return {
         success: false,
         message: error.message || 'Failed to cancel service',
+        error: error.message,
+      }
+    }
+  }
+
+  /**
+   * Update service
+   * PATCH /api/hourly-services/:id
+   */
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() updateDto: UpdateHourlyServiceDto) {
+    try {
+      const service = await this.hourlyServiceService.update(id, updateDto)
+
+      return {
+        success: true,
+        message: 'Service updated successfully',
+        data: service,
+      }
+    } catch (error: any) {
+      console.error('[HourlyServiceController] Error updating service:', error)
+      return {
+        success: false,
+        message: error.message || 'Failed to update service',
         error: error.message,
       }
     }

@@ -40,7 +40,7 @@ const SNAP_POINTS = {
 export default function CreateRideScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
   const { user } = useSelector((state: RootState) => state.auth)
-  
+
   const [pickupLocation, setPickupLocation] = useState('')
   const [dropoffLocation, setDropoffLocation] = useState('')
   const [pickupCoords, setPickupCoords] = useState<[number, number] | null>(null)
@@ -50,7 +50,7 @@ export default function CreateRideScreen() {
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [showDateTimePicker, setShowDateTimePicker] = useState(false)
-  
+
   // Map state
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number; longitude: number }>>([])
   const [distance, setDistance] = useState<number>(0)
@@ -137,13 +137,13 @@ export default function CreateRideScreen() {
     try {
       const url = `${API_BASE_URL}/rides/directions?startLng=${pickupCoords[0]}&startLat=${pickupCoords[1]}&endLng=${dropoffCoords[0]}&endLat=${dropoffCoords[1]}`
       const response = await fetch(url)
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch route')
       }
 
       const data = await response.json()
-      
+
       // Convert GeoJSON coordinates [lng, lat] to React Native Maps format
       if (data.features && data.features[0]?.geometry?.coordinates) {
         const coords = data.features[0].geometry.coordinates.map(
@@ -154,7 +154,7 @@ export default function CreateRideScreen() {
         )
         setRouteCoordinates(coords)
       }
-      
+
       setDistance(data.distance || 0)
       setDuration(data.duration || 0)
     } catch (error) {
@@ -243,7 +243,7 @@ export default function CreateRideScreen() {
     }
 
     setPickupLocation(placeName)
-    
+
     // If place has real coordinates (lat/lng not 0), use them directly
     if (place.lat !== 0 && place.lng !== 0) {
       setPickupCoords([place.lng, place.lat]) // [longitude, latitude]
@@ -260,10 +260,10 @@ export default function CreateRideScreen() {
       if (!response.ok) {
         throw new Error(`Failed to fetch place details: ${response.status}`)
       }
-      
+
       const details = await response.json()
       console.log('📍 Got coordinates:', details)
-      
+
       if (details.lat && details.lng) {
         setPickupCoords([details.lng, details.lat]) // [longitude, latitude]
         console.log('✅ Pickup place selected:', placeName, { lng: details.lng, lat: details.lat })
@@ -276,7 +276,7 @@ export default function CreateRideScreen() {
       Alert.alert('Lỗi', 'Không thể lấy thông tin địa điểm')
       return
     }
-    
+
     setShowPickupSuggestions(false)
     setPickupSuggestions([])
   }
@@ -291,7 +291,7 @@ export default function CreateRideScreen() {
     }
 
     setDropoffLocation(placeName)
-    
+
     // If place has real coordinates (lat/lng not 0), use them directly
     if (place.lat !== 0 && place.lng !== 0) {
       setDropoffCoords([place.lng, place.lat]) // [longitude, latitude]
@@ -308,10 +308,10 @@ export default function CreateRideScreen() {
       if (!response.ok) {
         throw new Error(`Failed to fetch place details: ${response.status}`)
       }
-      
+
       const details = await response.json()
       console.log('📍 Got coordinates:', details)
-      
+
       if (details.lat && details.lng) {
         setDropoffCoords([details.lng, details.lat]) // [longitude, latitude]
         console.log('✅ Dropoff place selected:', placeName, { lng: details.lng, lat: details.lat })
@@ -324,7 +324,7 @@ export default function CreateRideScreen() {
       Alert.alert('Lỗi', 'Không thể lấy thông tin địa điểm')
       return
     }
-    
+
     setShowDropoffSuggestions(false)
     setDropoffSuggestions([])
   }
@@ -392,7 +392,7 @@ export default function CreateRideScreen() {
       }
 
       await driverService.createRide(rideData)
-      
+
       Alert.alert('Thành công', 'Chuyến xe đã được tạo', [
         {
           text: 'OK',
@@ -450,14 +450,12 @@ export default function CreateRideScreen() {
       )}
 
       {/* Back Button */}
-      <SafeAreaView style={styles.backButtonContainer}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={COLORS.text} />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
         </TouchableOpacity>
-      </SafeAreaView>
+        <Text style={styles.logoText}>firego</Text>
+      </View>
 
       {/* Bottom Sheet */}
       <Animated.View
@@ -592,7 +590,7 @@ export default function CreateRideScreen() {
           {/* Trip Details */}
           <View style={styles.detailsCard}>
             <Text style={styles.cardTitle}>Chi tiết chuyến xe</Text>
-            
+
             {/* Start DateTime */}
             <View style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>Thời gian xuất phát</Text>
@@ -691,6 +689,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+    header: {
+        position: 'absolute',
+        top: 50,
+        left: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        zIndex: 10,
+    },
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+    },
+    logoText: {
+        fontSize: 30,
+        fontWeight: '700',
+        letterSpacing: -0.5,
+        color: '#FF6B00',
+    },
   backButtonContainer: {
     position: 'absolute',
     top: 0,

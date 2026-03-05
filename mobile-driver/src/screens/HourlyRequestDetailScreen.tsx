@@ -11,6 +11,9 @@ import {
   Image,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import { useSelector } from 'react-redux'
+import type { RootState } from '../redux/store'
+import { hourlyServiceService } from '../services/hourlyServiceService'
 import { COLORS } from '../constants'
 
 interface RequestDetail {
@@ -44,6 +47,7 @@ export default function HourlyRequestDetailScreen({ route, navigation }: any) {
   const { request, requestId } = route.params as { request?: RequestDetail; requestId: string }
   const [loading, setLoading] = useState(!request)
   const [accepting, setAccepting] = useState(false)
+  const { user } = useSelector((state: RootState) => state.auth)
 
   useEffect(() => {
     if (!request) {
@@ -54,22 +58,28 @@ export default function HourlyRequestDetailScreen({ route, navigation }: any) {
 
   const handleAcceptRequest = async () => {
     try {
+      if (!user?.id) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin tài xế')
+        return
+      }
+
       setAccepting(true)
-      console.log('[HourlyRequestDetail] Accepting hourly request:', requestId)
-      
-      // In real app, call API to accept
-      // await driverService.acceptHourlyRequest(requestId)
-      
+      console.log('[HourlyRequestDetail] Accepting hourly request:', requestId, 'for driver:', user.id)
+
+      // Call API to accept and assign worker
+      await hourlyServiceService.acceptService(requestId, user.id)
+
       Alert.alert('Thành công', 'Bạn đã nhận nhiệm vụ này!', [
         {
           text: 'OK',
           onPress: () => {
-            // Navigate to active request or back
-            navigation.goBack()
+            // Navigate to ActiveHourlyService
+            navigation.replace('ActiveHourlyService', { serviceId: requestId })
           },
         },
       ])
     } catch (error: any) {
+      console.error('[HourlyRequestDetail] Error accepting request:', error)
       Alert.alert('Lỗi', error.message || 'Không thể nhận nhiệm vụ')
     } finally {
       setAccepting(false)
@@ -127,7 +137,7 @@ export default function HourlyRequestDetailScreen({ route, navigation }: any) {
         {/* Customer Info */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Thông tin khách hàng</Text>
-          <View style={styles.customerSection}>
+          {/* <View style={styles.customerSection}>
             <Image
               source={{
                 uri: request.customerId.avatar || 'https://via.placeholder.com/80x80?text=Avatar',
@@ -147,13 +157,13 @@ export default function HourlyRequestDetailScreen({ route, navigation }: any) {
                 <Text style={styles.contactText}>{request.customerId.email || 'N/A'}</Text>
               </View>
             </View>
-          </View>
+          </View> */}
         </View>
 
         {/* Location & Time */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Vị trí & Thời gian</Text>
-          
+
           <View style={styles.infoRow}>
             <MaterialIcons name="location-on" size={20} color={COLORS.primary} />
             <View style={styles.infoContent}>
@@ -214,7 +224,7 @@ export default function HourlyRequestDetailScreen({ route, navigation }: any) {
         {/* Pricing Summary */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Chi phí</Text>
-          
+
           <View style={styles.pricingRow}>
             <Text style={styles.pricingLabel}>Tổng giá</Text>
             <Text style={styles.pricingValue}>
@@ -228,9 +238,6 @@ export default function HourlyRequestDetailScreen({ route, navigation }: any) {
 
       {/* Action Buttons */}
       <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.rejectButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.rejectButtonText}>Từ chối</Text>
-        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.acceptButton, accepting && styles.acceptButtonLoading]}
           onPress={handleAcceptRequest}
@@ -256,19 +263,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    gap: 10,
+    zIndex: 10,
   },
-  headerTitle: {
-    fontSize: 18,
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  logoText: {
+    fontSize: 30,
     fontWeight: '700',
-    color: '#0f172a',
+    letterSpacing: -0.5,
+    color: '#FF6B00',
   },
   content: {
     flex: 1,
@@ -459,13 +478,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#ef4444',
     fontWeight: '600',
-  },
-  backButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    marginTop: 12,
   },
   backButtonText: {
     color: '#fff',

@@ -118,6 +118,34 @@ export class HourlyServiceService {
   }
 
   /**
+   * Get all services for a specific worker (driver)
+   */
+  async findByWorkerId(workerId: string, status?: string): Promise<HourlyService[]> {
+    try {
+      const query: any = { workerId }
+      if (status && status !== 'all') {
+        query.status = status
+      }
+
+      console.log('[HourlyServiceService] Finding services for workerId:', workerId, 'with query:', query)
+
+      const services = await this.hourlyServiceModel
+        .find(query)
+        .sort({ createdAt: -1 })
+        .populate('customerId', 'firstName lastName email phone avatar')
+        .populate('workerId', 'firstName lastName email phone avatar')
+        .exec()
+
+      console.log('[HourlyServiceService] Found services:', services.length)
+
+      return services
+    } catch (error) {
+      console.error('[HourlyServiceService] Error finding services by workerId:', error)
+      throw error
+    }
+  }
+
+  /**
    * Get all pending services
    */
   async findPending(limit: number = 20, skip: number = 0): Promise<HourlyService[]> {

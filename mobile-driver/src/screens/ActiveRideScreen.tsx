@@ -27,7 +27,7 @@ import { useSelector } from 'react-redux'
 import type { RootState } from '../redux/store'
 
 // Google Maps API Key from .env
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY'
+const GOOGLE_MAPS_API_KEY = 'AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo'
 
 const { height } = Dimensions.get('window')
 

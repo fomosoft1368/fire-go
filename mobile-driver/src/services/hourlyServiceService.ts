@@ -22,8 +22,12 @@ export interface HourlyRequest {
     price: number
     selected: boolean
   }>
+  notes?: string
   createdAt: string
   distance?: number
+  startTime?: string
+  endTime?: string
+  actualPrice?: number
 }
 
 export interface GetHourlyRequestsResponse {
@@ -109,14 +113,16 @@ class HourlyServiceService {
   }
 
   /**
-   * Accept a hourly service request
-   * POST /api/hourly-services/:id/accept
+   * Accept a hourly service request (assign worker/driver)
+   * POST /api/hourly-services/:id/assign-worker
    */
-  async acceptService(serviceId: string): Promise<any> {
+  async acceptService(serviceId: string, workerId: string): Promise<any> {
     try {
-      console.log('[HourlyServiceService] Accepting service:', serviceId)
+      console.log('[HourlyServiceService] Accepting service:', serviceId, 'for worker:', workerId)
 
-      const response = await this.api.post<any>(`/${serviceId}/accept`, {})
+      const response = await this.api.patch<any>(`/${serviceId}/assign-worker`, {
+        workerId,
+      })
 
       if (response.data.success) {
         console.log('[HourlyServiceService] Service accepted successfully')
@@ -130,7 +136,7 @@ class HourlyServiceService {
         status: error.response?.status,
         data: error.response?.data,
       })
-      throw error
+      throw new Error(error.response?.data?.message || error.message || 'Không thể nhận nhiệm vụ')
     }
   }
 
@@ -157,6 +163,74 @@ class HourlyServiceService {
         data: error.response?.data,
       })
       throw error
+    }
+  }
+
+  /**
+   * Update hourly service status (in_progress, completed, etc.)
+   * PATCH /api/hourly-services/:id
+   */
+  async updateStatus(
+    serviceId: string,
+    status: 'confirmed' | 'in_progress' | 'completed' | 'cancelled',
+    additionalData?: { startTime?: string; endTime?: string }
+  ): Promise<any> {
+    try {
+      console.log('[HourlyServiceService] Updating status:', serviceId, status)
+
+      const response = await this.api.patch<any>(`/${serviceId}`, {
+        status,
+        ...additionalData,
+      })
+
+      if (response.data.success) {
+        console.log('[HourlyServiceService] Status updated successfully')
+        return response.data.data
+      } else {
+        throw new Error(response.data.message || 'Failed to update status')
+      }
+    } catch (error: any) {
+      console.error('[HourlyServiceService] Error updating status:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      })
+      throw new Error(error.response?.data?.message || error.message || 'Không thể cập nhật trạng thái')
+    }
+  }
+
+  /**
+   * Get completed hourly services for driver
+   * GET /api/hourly-services/worker-services?status=completed
+   */
+  async getCompletedServices(driverId: string): Promise<HourlyRequest[]> {
+    try {
+      console.log('[HourlyServiceService] Fetching completed services for driver:', driverId)
+
+      const response = await this.api.get<GetHourlyRequestsResponse>('/worker-services', {
+        params: { 
+          status: 'completed'
+        },
+      })
+
+      if (response.data.success) {
+        const driverServices = response.data.data || []
+        console.log('[HourlyServiceService] Got completed services from worker-services endpoint:', driverServices.length)
+        if (driverServices.length > 0) {
+          console.log('[HourlyServiceService] Sample service:', JSON.stringify(driverServices[0], null, 2))
+        }
+        return driverServices
+      } else {
+        console.warn('[HourlyServiceService] API returned success=false:', response.data.message)
+        return []
+      }
+    } catch (error: any) {
+      console.error('[HourlyServiceService] Error fetching completed services:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      })
+      return []
     }
   }
 

@@ -4,6 +4,8 @@ import { RootState } from '../redux/store'
 import { rideService } from '../services/rideService'
 import { combinedTripsService } from '../services/combinedTripsService'
 import { deliveryService } from '../services/deliveryService'
+import { hourlyServiceService } from '../services/hourlyServiceService'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   View,
   Text,
@@ -22,7 +24,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '../types'
-import { SPACING, BORDER_RADIUS } from '../constants'
+import { SPACING } from '../constants'
 import type { RideBooking } from '../types'
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>
@@ -33,6 +35,7 @@ export default function TripHistoryScreen() {
   const [activeFilter, setActiveFilter] = useState('all')
   const [bookings, setBookings] = useState<RideBooking[]>([])
   const [loading, setLoading] = useState(true)
+  const [deletedTripIds, setDeletedTripIds] = useState<string[]>([])
   
   // Rating modal state
   const [isRatingModalVisible, setIsRatingModalVisible] = useState(false)
@@ -46,6 +49,7 @@ export default function TripHistoryScreen() {
     { key: 'share', label: 'Ghép xe' },
     { key: 'hire', label: 'Lái xe hộ' },
     { key: 'delivery', label: 'Giao hàng' },
+    { key: 'hourly', label: 'Làm sạch' },
   ]
 
   // Fetch ride history on component mount and when user changes
@@ -58,8 +62,33 @@ export default function TripHistoryScreen() {
       return
     }
     
+    loadDeletedTripIds()
     fetchRideHistory()
   }, [user])
+
+  const loadDeletedTripIds = async () => {
+    if (!user) return
+    try {
+      const userId = user._id || user.id
+      const stored = await AsyncStorage.getItem(`deleted_trips_customer_${userId}`)
+      if (stored) {
+        setDeletedTripIds(JSON.parse(stored))
+      }
+    } catch (err) {
+      console.error('[BookingsScreen] Error loading deleted trips:', err)
+    }
+  }
+
+  const saveDeletedTripIds = async (ids: string[]) => {
+    if (!user) return
+    try {
+      const userId = user._id || user.id
+      await AsyncStorage.setItem(`deleted_trips_customer_${userId}`, JSON.stringify(ids))
+      setDeletedTripIds(ids)
+    } catch (err) {
+      console.error('[BookingsScreen] Error saving deleted trips:', err)
+    }
+  }
 
   const fetchRideHistory = async () => {
     if (!user) {
@@ -83,8 +112,8 @@ export default function TripHistoryScreen() {
     try {
       console.log('[BookingsScreen] Starting fetch for user:', userId)
       
-      // Fetch HIRE rides, SHARE combined trips, và DELIVERIES
-      const [rideHistory, combinedTrips, deliveries] = await Promise.all([
+      // Fetch HIRE rides, SHARE combined trips, DELIVERIES, và HOURLY services
+      const [rideHistory, combinedTrips, deliveries, hourlyServices] = await Promise.all([
         rideService.getRideHistory(userId).catch((err) => {
           console.error('[BookingsScreen] Error fetching rides:', err)
           return []
@@ -97,12 +126,17 @@ export default function TripHistoryScreen() {
           console.error('[BookingsScreen] Error fetching deliveries:', err)
           return []
         }),
+        hourlyServiceService.getMyServices().catch((err) => {
+          console.error('[BookingsScreen] Error fetching hourly services:', err)
+          return []
+        }),
       ])
 
       console.log('[BookingsScreen] Fetch completed:')
       console.log('  - HIRE rides:', rideHistory?.length || 0)
       console.log('  - SHARE combined-trips:', combinedTrips?.length || 0)
       console.log('  - DELIVERIES:', deliveries?.length || 0)
+      console.log('  - HOURLY services:', hourlyServices?.length || 0)
       if (combinedTrips && combinedTrips.length > 0) {
         console.log('[BookingsScreen] First combined trip data:', JSON.stringify(combinedTrips[0], null, 2))
       }
@@ -130,6 +164,7 @@ export default function TripHistoryScreen() {
           id: trip._id || trip.id,
           rideType: 'share',
           estimatedFare: trip.customerFare || trip.totalFare || 0,
+          createdAtTimestamp: trip.createdAt ? new Date(trip.createdAt).getTime() : 0,
           bookingTime: trip.createdAt 
             ? new Date(trip.createdAt).toLocaleString('vi-VN')
             : 'N/A',
@@ -160,6 +195,7 @@ export default function TripHistoryScreen() {
         id: delivery._id || delivery.id,
         rideType: 'delivery',
         estimatedFare: delivery.estimatedPrice || delivery.totalPrice || 0,
+        createdAtTimestamp: delivery.createdAt ? new Date(delivery.createdAt).getTime() : 0,
         bookingTime: delivery.createdAt 
           ? new Date(delivery.createdAt).toLocaleString('vi-VN')
           : 'N/A',
@@ -175,8 +211,39 @@ export default function TripHistoryScreen() {
         deliveryId: delivery._id || delivery.id,
       }))
 
-      // Merge rides + combined trips + deliveries
-      const allBookings = [...rideHistory, ...formattedCombinedTrips, ...formattedDeliveries]
+      // Format hourly services thành RideBooking structure
+      const formattedHourlyServices = (hourlyServices || []).map((service: any) => ({
+        id: service._id || service.id,
+        rideType: 'hourly',
+        estimatedFare: service.estimatedPrice || service.actualPrice || 0,
+        createdAtTimestamp: service.createdAt ? new Date(service.createdAt).getTime() : 0,
+        bookingTime: service.createdAt 
+          ? new Date(service.createdAt).toLocaleString('vi-VN')
+          : 'N/A',
+        pickupLocation: service.address || 'Địa chỉ làm việc',
+        dropoffLocation: `${service.hours} giờ làm việc`,
+        pickupDistrict: new Date(service.selectedDate).toLocaleDateString('vi-VN'),
+        dropoffDistrict: service.selectedTime || '',
+        status: service.status?.toLowerCase() || 'pending',
+        driverName: service.workerId?.firstName && service.workerId?.lastName
+          ? `${service.workerId.firstName} ${service.workerId.lastName}`
+          : 'Chưa có nhân viên',
+        carPlate: 'N/A',
+        hourlyServiceId: service._id || service.id,
+      }))
+
+      // Format hire rides to ensure createdAtTimestamp exists
+      const formattedRideHistory = (rideHistory || []).map((ride: any) => ({
+        ...ride,
+        createdAtTimestamp: ride.createdAt 
+          ? new Date(ride.createdAt).getTime() 
+          : ride.bookingTime 
+            ? new Date(ride.bookingTime).getTime() 
+            : 0,
+      }))
+
+      // Merge rides + combined trips + deliveries + hourly services
+      const allBookings = [...formattedRideHistory, ...formattedCombinedTrips, ...formattedDeliveries, ...formattedHourlyServices]
       
       // ✅ Remove duplicates based on unique combination of id + rideType
       const uniqueBookings = allBookings.filter((booking, index, self) => {
@@ -190,11 +257,11 @@ export default function TripHistoryScreen() {
         removed: allBookings.length - uniqueBookings.length,
       })
       
-      // Sort by booking time (newest first)
+      // Sort by booking time (newest first - mới nhất trước)
       uniqueBookings.sort((a, b) => {
-        const timeA = new Date(a.bookingTime).getTime()
-        const timeB = new Date(b.bookingTime).getTime()
-        return timeB - timeA
+        const timeA = (a as any).createdAtTimestamp || 0
+        const timeB = (b as any).createdAtTimestamp || 0
+        return timeB - timeA  // Descending: newest first
       })
 
       console.log('[BookingsScreen] Total bookings:', uniqueBookings.length)
@@ -256,6 +323,91 @@ export default function TripHistoryScreen() {
     }
   }
 
+  const handleCancelBooking = async (booking: RideBooking) => {
+    Alert.alert(
+      'Hủy dịch vụ',
+      'Bạn có chắc chắn muốn hủy dịch vụ này?',
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hủy dịch vụ',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // TODO: Call API to cancel service based on type
+              if (booking.rideType === 'hourly' && booking.hourlyServiceId) {
+                // await hourlyServiceService.cancelService(booking.hourlyServiceId)
+                console.log('[BookingsScreen] Cancelling hourly service:', booking.hourlyServiceId)
+              } else if (booking.rideType === 'delivery' && booking.deliveryId) {
+                // await deliveryService.cancelDelivery(booking.deliveryId)
+                console.log('[BookingsScreen] Cancelling delivery:', booking.deliveryId)
+              }
+              Alert.alert('Thành công', 'Đã hủy dịch vụ')
+              fetchRideHistory()
+            } catch (error: any) {
+              Alert.alert('Lỗi', error.message || 'Không thể hủy dịch vụ')
+            }
+          },
+        },
+      ]
+    )
+  }
+
+  const handleRebookService = (booking: RideBooking) => {
+    Alert.alert(
+      'Đặt lại dịch vụ',
+      'Bạn muốn đặt lại dịch vụ này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đặt lại',
+          onPress: () => {
+            if (booking.rideType === 'hourly') {
+              navigation.navigate('HourlyService')
+            } else if (booking.rideType === 'delivery') {
+              navigation.navigate('Delivery')
+            } else if (booking.rideType === 'share') {
+              navigation.navigate('Home')
+            }
+          },
+        },
+      ]
+    )
+  }
+
+  const handleDeleteTrip = (tripId: string, tripStatus: string, rideType: string) => {
+    // Only allow deleting completed or cancelled trips
+    if (tripStatus !== 'completed' && tripStatus !== 'cancelled') {
+      Alert.alert(
+        'Không thể xóa',
+        'Chỉ có thể xóa các chuyến đi đã hoàn thành hoặc đã hủy.',
+        [{ text: 'Đồng ý' }]
+      )
+      return
+    }
+
+    Alert.alert(
+      'Xóa lịch sử',
+      'Bạn có chắc muốn xóa chuyến đi này khỏi lịch sử?',
+      [
+        {
+          text: 'Hủy',
+          style: 'cancel',
+        },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: () => {
+            const uniqueKey = `${tripId}_${rideType}`
+            const newDeletedIds = [...deletedTripIds, uniqueKey]
+            saveDeletedTripIds(newDeletedIds)
+          },
+        },
+      ],
+      { cancelable: true }
+    )
+  }
+
   const handleViewDetail = (booking: RideBooking) => {
     // Nếu là combined trip (share ride)
     if (booking.rideType === 'share' && booking.combinedTripId) {
@@ -269,6 +421,13 @@ export default function TripHistoryScreen() {
       navigation.navigate('DeliveryTracking', {
         deliveryId: booking.deliveryId,
       })
+    } else if (booking.rideType === 'hourly' && booking.hourlyServiceId) {
+      // Nếu là hourly service
+      console.log('[BookingsScreen] Navigating to ServiceDetail:', booking.hourlyServiceId)
+      navigation.navigate('ServiceDetail', {
+        serviceId: booking.hourlyServiceId,
+        serviceType: 'hourly',
+      })
     } else {
       // Nếu là hire ride
       Alert.alert('Chi tiết', `Chuyến đi ${booking.id}`)
@@ -276,29 +435,42 @@ export default function TripHistoryScreen() {
   }
 
   const filteredBookings = bookings.filter((booking) => {
+    // Filter out deleted trips
+    const uniqueKey = `${booking.id}_${booking.rideType}`
+    if (deletedTripIds.includes(uniqueKey)) {
+      return false
+    }
+
+    // Filter by ride type
     if (activeFilter === 'all') return true
     return booking.rideType === activeFilter
   })
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, rideType?: string) => {
     if (status === 'completed') {
       return { label: 'HOÀN THÀNH', color: '#10b981', bgColor: '#dcfce7' }
     } else if (status === 'cancelled') {
       return { label: 'ĐÃ HỦY', color: '#ef4444', bgColor: '#fee2e2' }
     } else if (status === 'in_progress') {
-      return { label: 'ĐANG ĐI', color: '#3b82f6', bgColor: '#dbeafe' }
+      return { label: rideType === 'hourly' ? 'ĐANG LÀM VIỆC' : 'ĐANG ĐI', color: '#3b82f6', bgColor: '#dbeafe' }
+    } else if (status === 'pending' || status === 'finding') {
+      return { label: 'ĐANG TÌM NGƯỜI', color: '#f59e0b', bgColor: '#fef3c7' }
+    } else if (status === 'confirmed' || status === 'accepted') {
+      return { label: 'ĐÃ CÓ NGƯỜI NHẬN', color: '#8b5cf6', bgColor: '#ede9fe' }
     }
   }
 
   const getRideTypeIcon = (rideType: string) => {
-    if (rideType === 'hire') return 'person-apron'
+    if (rideType === 'hire') return 'drive-eta'
     if (rideType === 'delivery') return 'local-shipping'
+    if (rideType === 'hourly') return 'cleaning-services'
     return 'commute'
   }
 
   const getRideTypeLabel = (rideType: string) => {
     if (rideType === 'hire') return 'Lái xe hộ'
     if (rideType === 'delivery') return 'Giao hàng'
+    if (rideType === 'hourly') return 'Làm sạch'
     return 'Ghép xe'
   }
 
@@ -306,10 +478,7 @@ export default function TripHistoryScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        {/* <TouchableOpacity style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity> */}
-        <Text style={styles.headerTitle}>Lịch sử chuyến đi</Text>
+        <Text style={styles.headerTitle}>Hoạt động</Text>
         <TouchableOpacity style={styles.calendarButton} onPress={fetchRideHistory}>
           <MaterialIcons name="refresh" size={24} color="#fff" />
         </TouchableOpacity>
@@ -324,7 +493,7 @@ export default function TripHistoryScreen() {
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#FF6B00" />
-            <Text style={styles.loadingText}>Đang tải lịch sử chuyến đi...</Text>
+            <Text style={styles.loadingText}>Đang tải lịch sử...</Text>
           </View>
         ) : (
           <>
@@ -382,22 +551,38 @@ export default function TripHistoryScreen() {
               <>
                 {/* Bookings List */}
                 {filteredBookings.map((booking) => {
-          const badge = getStatusBadge(booking.status)
+          const badge = getStatusBadge(booking.status, booking.rideType)
           const isCompleted = booking.status === 'completed'
           const isCancelled = booking.status === 'cancelled'
+          const isPending = ['pending', 'finding'].includes(booking.status)
+          const canDelete = isCompleted || isCancelled
 
           return (
             <View
               key={`${booking.id}_${booking.rideType}`}
               style={[styles.bookingCard, isCancelled && styles.bookingCardCancelled]}
             >
+              {/* Delete Button - Only for completed/cancelled */}
+              {canDelete && (
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => handleDeleteTrip(booking.id, booking.status, booking.rideType)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
+                </TouchableOpacity>
+              )}
+
               {/* Card Header */}
               <View style={styles.cardHeader}>
                 <View style={styles.headerLeft}>
                   <View
                     style={[
                       styles.iconContainer,
-                      booking.rideType === 'hire' ? styles.iconContainerHire : styles.iconContainerShare,
+                      booking.rideType === 'hire' && styles.iconContainerHire,
+                      booking.rideType === 'share' && styles.iconContainerShare,
+                      booking.rideType === 'delivery' && styles.iconContainerDelivery,
+                      booking.rideType === 'hourly' && styles.iconContainerHourly,
                     ]}
                   >
                     <MaterialIcons name={getRideTypeIcon(booking.rideType) as any} size={20} color="#FF6B00" />
@@ -460,6 +645,20 @@ export default function TripHistoryScreen() {
                   <MaterialIcons name="star-rate" size={18} color="#fff" style={{ marginRight: SPACING.sm }} />
                   <Text style={styles.rateButtonText}>Đánh giá tài xế</Text>
                 </TouchableOpacity>
+              ) : isPending ? (
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity style={styles.detailButton} onPress={() => handleViewDetail(booking)}>
+                    <MaterialIcons name="info" size={14} color="#53d22d" />
+                    <Text style={styles.detailButtonText}>Chi tiết</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.cardCancelButton} 
+                    onPress={() => handleCancelBooking(booking)}
+                  >
+                    <MaterialIcons name="close" size={16} color="#ef4444" />
+                    <Text style={styles.cardCancelButtonText}>Hủy</Text>
+                  </TouchableOpacity>
+                </View>
               ) : (
                 <View style={styles.cardFooter}>
                   {isCompleted && booking.rideType === 'share' && (
@@ -474,8 +673,11 @@ export default function TripHistoryScreen() {
                       <MaterialIcons name="info" size={14} color="#53d22d" />
                       <Text style={styles.detailButtonText}>Chi tiết</Text>
                     </TouchableOpacity>
-                    {isCompleted && booking.rideType === 'share' && (
-                      <TouchableOpacity style={styles.rebookButton}>
+                    {isCompleted && (booking.rideType === 'share' || booking.rideType === 'hourly' || booking.rideType === 'delivery') && (
+                      <TouchableOpacity 
+                        style={styles.rebookButton} 
+                        onPress={() => handleRebookService(booking)}
+                      >
                         <MaterialIcons name="replay" size={16} color="#94a3b8" />
                         <Text style={styles.rebookText}>Đặt lại</Text>
                       </TouchableOpacity>
@@ -602,15 +804,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    paddingTop: SPACING.xxl,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.lg,
+    paddingTop: SPACING.xxl + SPACING.lg,
+    paddingBottom: SPACING.xl,
     backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -755,6 +956,23 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     backgroundColor: '#f8fafc',
   },
+  deleteButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
+  },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -787,6 +1005,12 @@ const styles = StyleSheet.create({
   },
   iconContainerHire: {
     backgroundColor: '#fef3e8',
+  },
+  iconContainerDelivery: {
+    backgroundColor: '#e0f2fe',
+  },
+  iconContainerHourly: {
+    backgroundColor: '#f3e8ff',
   },
   headerInfo: {
     flex: 1,
@@ -935,6 +1159,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#64748b',
+  },
+  cardCancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 20,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fee2e2',
+  },
+  cardCancelButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ef4444',
+    letterSpacing: -0.2,
   },
   rateButton: {
     backgroundColor: '#FF6B00',

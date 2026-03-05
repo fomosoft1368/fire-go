@@ -15,8 +15,10 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
 import { useSelector } from 'react-redux'
 import { useEffect } from 'react'
+import * as Location from 'expo-location'
 import type { RootState } from '../redux/store'
 import { hourlyServiceService } from '../services/hourlyServiceService'
+import { mapsService } from '../services/mapsService'
 
 interface AddOnService {
     id: string
@@ -71,6 +73,7 @@ export default function HourlyService() {
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(false)
     const [loadingServices, setLoadingServices] = useState(true)
+    const [loadingAddress, setLoadingAddress] = useState(false)
     const [services, setServices] = useState<AddOnService[]>([])
     const [showAllServices, setShowAllServices] = useState(false)
 
@@ -81,6 +84,8 @@ export default function HourlyService() {
     // Fetch addon services từ API khi component mount
     useEffect(() => {
         fetchAddonServices()
+        // Tự động lấy vị trí hiện tại khi load màn hình
+        getCurrentLocation()
     }, [])
 
     const fetchAddonServices = async () => {
@@ -107,6 +112,41 @@ export default function HourlyService() {
             Alert.alert('Thông báo', 'Không thể tải các dịch vụ bổ sung')
         } finally {
             setLoadingServices(false)
+        }
+    }
+
+    const getCurrentLocation = async () => {
+        try {
+            setLoadingAddress(true)
+            console.log('[HourlyService] 📍 Requesting location permission...')
+            
+            const { status } = await Location.requestForegroundPermissionsAsync()
+            
+            if (status !== 'granted') {
+                console.log('[HourlyService] ⚠️ Location permission denied')
+                Alert.alert('Thông báo', 'Vui lòng cấp quyền truy cập vị trí để sử dụng tính năng này')
+                return
+            }
+
+            console.log('[HourlyService] ✅ Getting current position...')
+            const location = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+            })
+
+            const { latitude, longitude } = location.coords
+            console.log('[HourlyService] 📍 Current position:', { latitude, longitude })
+
+            // Reverse geocode to get address
+            const address = await mapsService.reverseGeocode(latitude, longitude)
+            console.log('[HourlyService] 🏠 Address from coordinates:', address)
+            
+            setAddress(address)
+            console.log('[HourlyService] ✅ Address set successfully')
+        } catch (error) {
+            console.error('[HourlyService] ❌ Error getting location:', error)
+            Alert.alert('Lỗi', 'Không thể lấy vị trí hiện tại. Vui lòng nhập địa chỉ thủ công.')
+        } finally {
+            setLoadingAddress(false)
         }
     }
 
@@ -206,7 +246,6 @@ export default function HourlyService() {
                     <MaterialIcons name="arrow-back" size={24} color="#FF6B35" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Đặt dịch vụ Vệ sinh</Text>
-                <View style={{ width: 48 }} />
             </View>
 
             <ScrollView
@@ -402,16 +441,33 @@ export default function HourlyService() {
                         <View style={styles.addressInputContainer}>
                             <MaterialIcons name="home" size={20} color="#FF6B35" />
                             <View style={styles.inputWrapper}>
-                                <Text style={styles.inputLabel}>Địa chỉ chi tiết</Text>
+                                <View style={styles.inputLabelRow}>
+                                    <Text style={styles.inputLabel}>Địa chỉ chi tiết</Text>
+                                    <TouchableOpacity
+                                        style={styles.currentLocationButton}
+                                        onPress={getCurrentLocation}
+                                        disabled={loadingAddress}
+                                    >
+                                        {loadingAddress ? (
+                                            <ActivityIndicator size="small" color="#FF6B35" />
+                                        ) : (
+                                            <>
+                                                <MaterialIcons name="my-location" size={14} color="#FF6B35" />
+                                                <Text style={styles.currentLocationText}>Lấy vị trí</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
                                 <TextInput
                                     style={styles.addressInput}
                                     value={address}
                                     onChangeText={setAddress}
                                     placeholder="Nhập địa chỉ..."
+                                    editable={!loadingAddress}
                                 />
                             </View>
                         </View>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Divider */}
@@ -783,12 +839,36 @@ const styles = StyleSheet.create({
     inputWrapper: {
         flex: 1,
     },
+    inputLabelRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
     inputLabel: {
         fontSize: 12,
         fontWeight: '700',
         color: '#94a3b8',
         textTransform: 'uppercase',
-        marginBottom: 4,
+    },
+    currentLocationButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        backgroundColor: '#FFF3EE',
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#FF6B35',
+        minHeight: 24,
+        minWidth: 80,
+        justifyContent: 'center',
+    },
+    currentLocationText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#FF6B35',
     },
     addressInput: {
         fontSize: 14,

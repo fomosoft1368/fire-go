@@ -62,6 +62,14 @@ export class UpdateHourlyServiceDto {
   @IsOptional()
   @IsString()
   cancelReason?: string
+
+  @IsOptional()
+  @IsString()
+  startTime?: string
+
+  @IsOptional()
+  @IsString()
+  endTime?: string
 }
 
 export class RateHourlyServiceDto {

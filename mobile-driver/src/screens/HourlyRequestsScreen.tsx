@@ -113,17 +113,17 @@ export default function HourlyRequestsScreen({ navigation }: any) {
     >
       <View style={styles.cardHeader}>
         <View style={styles.customerInfo}>
-          <Image
+          {/* <Image
             source={{
               uri: item.customerId.avatar || 'https://via.placeholder.com/48x48?text=Avatar',
             }}
             style={styles.avatar}
-          />
+          /> */}
           <View style={styles.customerDetails}>
-            <Text style={styles.customerName}>
+            {/* <Text style={styles.customerName}>
               {item.customerId.firstName} {item.customerId.lastName}
-            </Text>
-            <Text style={styles.customerPhone}>{item.customerId.phone}</Text>
+            </Text> */}
+            {/* <Text style={styles.customerPhone}>{item.customerId.phone}</Text> */}
           </View>
         </View>
         <View style={styles.priceTag}>
@@ -173,7 +173,7 @@ export default function HourlyRequestsScreen({ navigation }: any) {
         ) : (
           <>
             <MaterialIcons name="check-circle" size={18} color="#fff" />
-            <Text style={styles.acceptButtonText}>Nhận nhiệm vụ</Text>
+            <Text style={styles.acceptButtonText}>Xem chi tiết</Text>
           </>
         )}
       </TouchableOpacity>
@@ -239,6 +239,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    paddingTop: 46,
   },
   headerTitle: {
     fontSize: 18,

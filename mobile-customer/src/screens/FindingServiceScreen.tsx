@@ -30,12 +30,22 @@ export default function FindingServiceScreen() {
       return
     }
 
-    // Fetch service detail
+    // Fetch service detail and check for worker assignment
     const fetchService = async () => {
       try {
         const data = await hourlyServiceService.getServiceDetail(serviceId)
         setService(data)
         console.log('[FindingService] Service detail:', data)
+        
+        // Check if worker has been assigned
+        if (data.status === 'confirmed' || data.status === 'in_progress') {
+          if (data.workerId) {
+            console.log('[FindingService] Worker found:', data.workerId)
+            setStatus('found')
+          }
+        } else if (data.status === 'cancelled') {
+          setError('Dịch vụ đã bị hủy')
+        }
       } catch (err: any) {
         console.error('[FindingService] Error fetching service:', err)
         setError(err.message || 'Không thể lấy thông tin dịch vụ')
@@ -45,19 +55,18 @@ export default function FindingServiceScreen() {
     fetchService()
 
     // Timer for elapsed time
-    const timer = setInterval(() => {
+    const elapsedTimer = setInterval(() => {
       setElapsedTime((prev) => prev + 1)
     }, 1000)
 
-    // Simulate finding after 3-5 seconds
-    const findingTimeout = setTimeout(() => {
-      setStatus('found')
-      console.log('[FindingService] Worker found!')
-    }, 3000 + Math.random() * 2000)
+    // Poll service status every 3 seconds
+    const pollingInterval = setInterval(() => {
+      fetchService()
+    }, 3000)
 
     return () => {
-      clearInterval(timer)
-      clearTimeout(findingTimeout)
+      clearInterval(elapsedTimer)
+      clearInterval(pollingInterval)
     }
   }, [serviceId])
 
@@ -97,7 +106,7 @@ export default function FindingServiceScreen() {
         onPress: async () => {
           try {
             await hourlyServiceService.cancelService(serviceId, 'Khách hàng hủy')
-            navigation.goBack()
+            navigation.navigate('Home' as never)
           } catch (err) {
             Alert.alert('Lỗi', 'Không thể hủy dịch vụ. Vui lòng thử lại.')
           }
@@ -105,6 +114,10 @@ export default function FindingServiceScreen() {
         style: 'destructive',
       },
     ])
+  }
+
+  const handleGoHome = () => {
+    navigation.navigate('Home' as never)
   }
 
   const handleContinue = () => {
@@ -126,6 +139,13 @@ export default function FindingServiceScreen() {
             onPress={() => navigation.goBack()}
           >
             <Text style={styles.retryButtonText}>Quay lại</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.homeButton}
+            onPress={handleGoHome}
+          >
+            <MaterialIcons name="home" size={20} color="#0d7ff2" />
+            <Text style={styles.homeButtonText}>Về trang chủ</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -187,6 +207,14 @@ export default function FindingServiceScreen() {
             >
               <Text style={styles.cancelButtonText}>Hủy dịch vụ</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.homeButton}
+              onPress={handleGoHome}
+            >
+              <MaterialIcons name="home" size={20} color="#0d7ff2" />
+              <Text style={styles.homeButtonText}>Về trang chủ</Text>
+            </TouchableOpacity>
           </>
         ) : (
           <>
@@ -246,6 +274,14 @@ export default function FindingServiceScreen() {
               onPress={handleCancel}
             >
               <Text style={styles.cancelButtonText}>Hủy dịch vụ</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.homeButton}
+              onPress={handleGoHome}
+            >
+              <MaterialIcons name="home" size={20} color="#0d7ff2" />
+              <Text style={styles.homeButtonText}>Về trang chủ</Text>
             </TouchableOpacity>
           </>
         )}
@@ -420,6 +456,24 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  homeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#0d7ff2',
+    backgroundColor: '#eff6ff',
+    marginTop: 12,
+  },
+  homeButtonText: {
+    color: '#0d7ff2',
     fontWeight: '700',
     fontSize: 14,
   },

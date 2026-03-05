@@ -31,7 +31,7 @@ export interface AuthState {
 // Booking Types
 export interface RideBooking {
   id: string
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'accepted' | 'arrived_at_pickup'
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'accepted' | 'arrived_at_pickup' | 'finding'
   pickupLocation: string
   dropoffLocation: string
   pickupDistrict?: string
@@ -40,7 +40,7 @@ export interface RideBooking {
   estimatedTime?: string
   estimatedFare: number
   actualFare?: number
-  rideType: 'standard' | 'comfort' | 'xl' | 'hire' | 'share'
+  rideType: 'standard' | 'comfort' | 'xl' | 'hire' | 'share' | 'delivery' | 'hourly'
   driverName?: string
   driverRating?: number
   carPlate?: string
@@ -48,6 +48,8 @@ export interface RideBooking {
   startTime?: string
   endTime?: string
   combinedTripId?: string
+  deliveryId?: string
+  hourlyServiceId?: string
 }
 
 // Notification Types
@@ -169,6 +171,8 @@ export type RootStackParamList = {
     combinedTripId?: string
   }
   HourlyService: undefined
+  BookRide: undefined
+  HireDriver: undefined
   FindingService: {
     serviceId: string
     serviceType: 'hourly' | 'delivery' | 'ride'

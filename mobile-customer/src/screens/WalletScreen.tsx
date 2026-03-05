@@ -127,7 +127,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
     try {
       setDepositLoading(true)
       const response = await walletService.deposit(amount, selectedPaymentMethod._id)
-      
+
       // Show QR code modal - không cần generate QR, dùng QR cố định
       setDepositRequest({
         _id: response._id,
@@ -135,7 +135,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
         amount: response.amount,
         status: response.status,
       })
-      
+
       setShowDepositModal(false)
       setShowQRModal(true)
     } catch (error: any) {
@@ -173,7 +173,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
             try {
               setWithdrawLoading(true)
               const response = await walletService.withdraw(amount, selectedBankAccount._id)
-              
+
               // Show withdrawal confirmation
               setWithdrawRequest({
                 _id: response._id,
@@ -181,7 +181,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
                 amount: response.amount,
                 status: response.status,
               })
-              
+
               setShowWithdrawModal(false)
               setShowQRModal(true)
             } catch (error: any) {
@@ -324,7 +324,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nạp tiền</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowDepositModal(false)}
                 style={{
                   width: 32,
@@ -444,7 +444,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Rút tiền</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowWithdrawModal(false)}
                 style={{
                   width: 32,
@@ -597,7 +597,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
                     <Text style={styles.qrCodeNote}>
                       Quét mã QR bằng app ngân hàng hoặc chuyển khoản thủ công với thông tin dưới đây
                     </Text>
-                    
+
                     {/* Bank Information - Easy to Copy */}
                     <View style={styles.bankInfo}>
                       <View style={styles.bankInfoRow}>
@@ -606,7 +606,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
                           <Text style={styles.bankInfoValue}>Quân Đội (MB)</Text>
                         </View>
                       </View>
-                      
+
                       <View style={styles.bankInfoRow}>
                         <View style={styles.bankInfoColumn}>
                           <Text style={styles.bankInfoLabel}>Số tài khoản</Text>
@@ -740,19 +740,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  
+
   // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.lg,
-    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    paddingTop: 48,
+    borderBottomWidth: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
   },

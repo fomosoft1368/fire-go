@@ -39,6 +39,7 @@ import DeliveryRequestsScreen from './src/screens/DeliveryRequestsScreen'
 import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
 import HourlyRequestsScreen from './src/screens/HourlyRequestsScreen'
 import HourlyRequestDetailScreen from './src/screens/HourlyRequestDetailScreen'
+import ActiveHourlyServiceScreen from './src/screens/ActiveHourlyServiceScreen'
 import ChatScreen from './src/screens/ChatScreen'
 import NotificationScreen from './src/screens/Notification'
 import NotificationDetailScreen from './src/screens/NotificationDetail'
@@ -203,6 +204,11 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="HourlyRequestDetail"
         component={HourlyRequestDetailScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="ActiveHourlyService"
+        component={ActiveHourlyServiceScreen}
         options={{ animationEnabled: true }}
       />
       <Stack.Screen

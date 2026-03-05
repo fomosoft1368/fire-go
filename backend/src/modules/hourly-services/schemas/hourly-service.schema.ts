@@ -8,7 +8,7 @@ export class HourlyService {
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
   customerId: Types.ObjectId
 
-  @Prop({ type: Types.ObjectId, ref: 'Worker', required: false })
+  @Prop({ type: Types.ObjectId, ref: 'Driver', required: false })
   workerId?: Types.ObjectId
 
   @Prop({ required: true })

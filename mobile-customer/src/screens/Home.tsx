@@ -150,7 +150,7 @@ const Home = () => {
                         {/* Đặt xe */}
                         <TouchableOpacity
                             style={styles.serviceCard}
-                            onPress={() => navigation.navigate('Delivery')}
+                            onPress={() => navigation.navigate('BookRide')}
                             activeOpacity={0.7}
                         >
                             <View style={[styles.serviceIcon, { backgroundColor: '#FFF3E0' }]}>
@@ -163,7 +163,7 @@ const Home = () => {
                         {/* Lái xe hộ */}
                         <TouchableOpacity
                             style={styles.serviceCard}
-                            onPress={() => navigation.navigate('Delivery')}
+                            onPress={() => navigation.navigate('HireDriver')}
                             activeOpacity={0.7}
                         >
                             <View style={[styles.serviceIcon, { backgroundColor: '#FFE0CC' }]}>

@@ -28,7 +28,7 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow app to access your location for ride tracking and history"
       },
       "config": {
-        "googleMapsApiKey": "AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY"
+        "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
       }
     },
     "android": {
@@ -41,7 +41,7 @@
       },
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY"
+          "apiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
         }
       }
     },
@@ -60,7 +60,7 @@
       ]
     ],
     "extra": {
-      "googleMapsApiKey": "AIzaSyCIcSzPA0jWhg0RvrN-kwxqxNcR4IJx3fY"
+      "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
     }
   }
 }

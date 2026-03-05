@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native'
+import { useState, useEffect } from 'react'
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
 import { useSelector } from 'react-redux'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { SPACING } from '../constants'
 import { driverService } from '../services/driverService'
+import { hourlyServiceService } from '../services/hourlyServiceService'
 import type { RootState } from '../redux/store'
 
 interface Trip {
@@ -23,7 +25,7 @@ interface Trip {
   customerName?: string
   createdAt?: string
   updatedAt?: string
-  sourceType?: 'ride' | 'combined_trip' | 'delivery' // Track which type of trip
+  sourceType?: 'ride' | 'combined_trip' | 'delivery' | 'hourly' // Track which type of trip
 }
 
 export default function TripsScreen() {
@@ -33,10 +35,35 @@ export default function TripsScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<'all' | 'completed' | 'upcoming'>('all')
+  const [deletedTripIds, setDeletedTripIds] = useState<string[]>([])
+
+  useEffect(() => {
+    loadDeletedTripIds()
+  }, [])
 
   useEffect(() => {
     fetchTrips()
   }, [activeFilter])
+
+  const loadDeletedTripIds = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(`deleted_trips_${user?.id}`)
+      if (stored) {
+        setDeletedTripIds(JSON.parse(stored))
+      }
+    } catch (err) {
+      console.error('Error loading deleted trips:', err)
+    }
+  }
+
+  const saveDeletedTripIds = async (ids: string[]) => {
+    try {
+      await AsyncStorage.setItem(`deleted_trips_${user?.id}`, JSON.stringify(ids))
+      setDeletedTripIds(ids)
+    } catch (err) {
+      console.error('Error saving deleted trips:', err)
+    }
+  }
 
   const fetchTrips = async () => {
     try {
@@ -52,10 +79,11 @@ export default function TripsScreen() {
       console.log('📱 Fetching trips with filter:', activeFilter, 'userId:', user.id)
       
       // Fetch trips from all sources - pass driverId for backend filtering
-      const [allRides, allCombinedTrips, allDeliveries] = await Promise.all([
+      const [allRides, allCombinedTrips, allDeliveries, allHourlyServices] = await Promise.all([
         driverService.getCompletedTrips(user.id),
         driverService.getCompletedCombinedTrips(user.id),
         driverService.getCompletedDeliveries(user.id),
+        hourlyServiceService.getCompletedServices(user.id),
       ])
 
       console.log('📊 All rides từ API:', allRides.length)
@@ -70,35 +98,45 @@ export default function TripsScreen() {
       if (allDeliveries.length > 0) {
         console.log('📊 Sample delivery:', JSON.stringify(allDeliveries[0], null, 2))
       }
-      console.log('👤 User ID hiện tại:', user.id)
+      console.log('� All hourly services từ API:', allHourlyServices.length)
+      if (allHourlyServices.length > 0) {
+        console.log('📊 Sample hourly:', JSON.stringify(allHourlyServices[0], null, 2))
+      }
+      console.log('�👤 User ID hiện tại:', user.id)
 
       // No need for client-side filtering now - backend already filtered by driverId
       const myRides = allRides
       const myCombinedTrips = allCombinedTrips
       const myDeliveries = allDeliveries
+      const myHourlyServices = allHourlyServices
 
       let allTripsData: any[] = [
         ...myRides.map((r: any) => ({ ...r, sourceType: 'ride' })),
         ...myCombinedTrips.map((c: any) => ({ ...c, sourceType: 'combined_trip' })),
         ...myDeliveries.map((d: any) => ({ ...d, sourceType: 'delivery' })),
+        ...myHourlyServices.map((h: any) => ({ ...h, sourceType: 'hourly' })),
       ]
 
       console.log('✅ My rides:', myRides.length)
       console.log('✅ My combined trips:', myCombinedTrips.length)
       console.log('✅ My deliveries:', myDeliveries.length)
+      console.log('✅ My hourly services:', myHourlyServices.length)
       console.log('✅ Total my trips:', allTripsData.length)
       
       // STRICT filter: ONLY trips where I am THE driver
       // For combined trips: customer creates trip -> driverId is NULL
       //                     driver accepts -> driverId is SET to driver's ID
       // So we ONLY see combined trips we've accepted (driverId === user.id)
+      // For hourly services: uses workerId instead of driverId
       const filteredTripsData = allTripsData.filter((trip: any) => {
-        const tripDriverId = typeof trip.driverId === 'string' ? trip.driverId : trip.driverId?._id
-        // MUST have driverId AND must match current user
+        // Hourly services use workerId, others use driverId
+        const driverField = trip.sourceType === 'hourly' ? trip.workerId : trip.driverId
+        const tripDriverId = typeof driverField === 'string' ? driverField : driverField?._id
+        // MUST have driverId/workerId AND must match current user
         const isMyTrip = tripDriverId && String(tripDriverId) === String(user.id)
         
         if (!isMyTrip) {
-          console.warn(`⚠️ Trip ${trip._id} filtered out - driverId: ${tripDriverId}, user: ${user.id}, sourceType: ${trip.sourceType}`)
+          console.warn(`⚠️ Trip ${trip._id} filtered out - driverId/workerId: ${tripDriverId}, user: ${user.id}, sourceType: ${trip.sourceType}`)
         }
         return isMyTrip
       })
@@ -108,7 +146,8 @@ export default function TripsScreen() {
         id: t._id, 
         sourceType: t.sourceType,
         status: t.status,
-        driverId: typeof t.driverId === 'string' ? t.driverId : t.driverId?._id
+        driverId: typeof t.driverId === 'string' ? t.driverId : t.driverId?._id,
+        workerId: typeof t.workerId === 'string' ? t.workerId : t.workerId?._id
       })))
       
       // Format dữ liệu từ API thành Trip interface
@@ -124,17 +163,21 @@ export default function TripsScreen() {
           }
         }
 
+        // For hourly services, pickup and dropoff are the same (work location)
+        const isHourly = ride.sourceType === 'hourly'
+        const workLocation = isHourly ? ride.address : null
+
         return {
           _id: ride._id,
           id: ride._id || ride.id,
           status: ride.status || 'completed',
-          pickupLocation: ride.pickupAddress || 'Điểm đón',
-          dropoffLocation: ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến',
-          pickupAddress: ride.pickupAddress,
-          dropoffAddress: ride.dropoffAddress || ride.dropoffLocationAddress,
-          distance: formattedDistance,
-          amount: ride.totalFare || ride.fare || 0,
-          totalFare: ride.totalFare || ride.fare,
+          pickupLocation: workLocation || ride.pickupAddress || 'Điểm đón',
+          dropoffLocation: workLocation || ride.dropoffAddress || ride.dropoffLocationAddress || 'Địa điểm đến',
+          pickupAddress: workLocation || ride.pickupAddress,
+          dropoffAddress: workLocation || ride.dropoffAddress || ride.dropoffLocationAddress,
+          distance: isHourly ? `${ride.hours || 0} giờ` : formattedDistance,
+          amount: ride.estimatedPrice || ride.totalFare || ride.fare || 0,
+          totalFare: ride.estimatedPrice || ride.totalFare || ride.fare,
           date: formatDate(ride.createdAt || ride.date),
           rating: ride.rating,
           customerName: ride.customerName,
@@ -177,6 +220,39 @@ export default function TripsScreen() {
       return 'N/A'
     }
   }
+
+  const handleDeleteTrip = (tripId: string, tripStatus: string) => {
+    // Only allow deleting completed or cancelled trips
+    if (tripStatus !== 'completed' && tripStatus !== 'cancelled') {
+      Alert.alert(
+        'Không thể xóa',
+        'Chỉ có thể xóa các chuyến đi đã hoàn thành hoặc đã hủy.',
+        [{ text: 'Đồng ý' }]
+      )
+      return
+    }
+
+    Alert.alert(
+      'Xóa lịch sử chuyến đi',
+      'Bạn có chắc muốn xóa chuyến đi này khỏi lịch sử?',
+      [
+        {
+          text: 'Hủy',
+          style: 'cancel',
+        },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: () => {
+            const newDeletedIds = [...deletedTripIds, tripId]
+            saveDeletedTripIds(newDeletedIds)
+          },
+        },
+      ],
+      { cancelable: true }
+    )
+  }
+
   const renderTripCard = (trip: Trip) => {
     const statusConfig: any = {
       completed: { label: 'Hoàn thành', color: '#10b981', icon: 'check-circle' },
@@ -191,6 +267,9 @@ export default function TripsScreen() {
     
     // Get sourceType with default fallback
     const tripSourceType = trip.sourceType || 'ride'
+
+    // Only show delete button for completed or cancelled trips
+    const canDelete = trip.status === 'completed' || trip.status === 'cancelled'
 
     const handleViewDetails = () => {
       console.log('📍 View trip details:', { 
@@ -216,6 +295,13 @@ export default function TripsScreen() {
           deliveryId: trip.id || trip._id,
           sourceType: 'delivery'
         })
+      } else if (tripSourceType === 'hourly') {
+        // Làm sạch theo giờ -> ActiveHourlyService
+        // @ts-ignore
+        navigation.navigate('ActiveHourlyService', { 
+          serviceId: trip.id || trip._id,
+          sourceType: 'hourly'
+        })
       } else {
         // Lái xe hộ -> ActiveDelivery (fix: screen name is "ActiveDelivery" not "ActiveDeliveryScreen")
         // @ts-ignore
@@ -233,51 +319,81 @@ export default function TripsScreen() {
         onPress={handleViewDetails}
         activeOpacity={0.7}
       >
+        {/* Delete Button - Top Left (Only for completed/cancelled) */}
+        {canDelete && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={(e) => {
+              e.stopPropagation()
+              handleDeleteTrip(trip.id || trip._id || '', trip.status)
+            }}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
+          </TouchableOpacity>
+        )}
+
         {/* Trip Type Badge - Top Right */}
         <View style={[
           styles.tripTypeBadge,
-          { backgroundColor: tripSourceType === 'combined_trip' ? '#10b981' : tripSourceType === 'delivery' ? '#f59e0b' : '#6366f1' }
+          { backgroundColor: tripSourceType === 'combined_trip' ? '#10b981' : tripSourceType === 'delivery' ? '#f59e0b' : tripSourceType === 'hourly' ? '#8b5cf6' : '#6366f1' }
         ]}>
           <MaterialIcons 
-            name={tripSourceType === 'combined_trip' ? 'group' : tripSourceType === 'delivery' ? 'local-shipping' : 'drive-eta'}
+            name={tripSourceType === 'combined_trip' ? 'group' : tripSourceType === 'delivery' ? 'local-shipping' : tripSourceType === 'hourly' ? 'cleaning-services' : 'drive-eta'}
             size={14}
             color="#fff"
           />
           <Text style={styles.tripTypeBadgeText}>
-            {tripSourceType === 'combined_trip' ? 'Ghép xe' : tripSourceType === 'delivery' ? 'Giao hàng' : 'Lái xe hộ'}
+            {tripSourceType === 'combined_trip' ? 'Ghép xe' : tripSourceType === 'delivery' ? 'Giao hàng' : tripSourceType === 'hourly' ? 'Làm sạch' : 'Lái xe hộ'}
           </Text>
         </View>
 
         {/* Location Section */}
         <View style={styles.locationSection}>
-          <View style={styles.locationRow}>
-            <View style={styles.locationIconWrapper}>
-              <View style={styles.pickupDot} />
+          {tripSourceType === 'hourly' ? (
+            // For hourly services, show single work location
+            <View style={styles.locationRow}>
+              <View style={styles.locationIconWrapper}>
+                <MaterialIcons name="home-work" size={20} color="#8b5cf6" />
+              </View>
+              <View style={styles.locationTextWrapper}>
+                <Text style={styles.locationLabel}>Địa chỉ làm việc</Text>
+                <Text style={styles.locationText} numberOfLines={2}>{trip.pickupLocation}</Text>
+              </View>
             </View>
-            <View style={styles.locationTextWrapper}>
-              <Text style={styles.locationLabel}>Điểm đón</Text>
-              <Text style={styles.locationText} numberOfLines={1}>{trip.pickupLocation}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.locationConnector} />
-          
-          <View style={styles.locationRow}>
-            <View style={styles.locationIconWrapper}>
-              <MaterialIcons name="location-on" size={20} color="#FF6B00" />
-            </View>
-            <View style={styles.locationTextWrapper}>
-              <Text style={styles.locationLabel}>Điểm đến</Text>
-              <Text style={styles.locationText} numberOfLines={1}>{trip.dropoffLocation}</Text>
-            </View>
-          </View>
+          ) : (
+            // For rides/deliveries, show pickup and dropoff
+            <>
+              <View style={styles.locationRow}>
+                <View style={styles.locationIconWrapper}>
+                  <View style={styles.pickupDot} />
+                </View>
+                <View style={styles.locationTextWrapper}>
+                  <Text style={styles.locationLabel}>Điểm đón</Text>
+                  <Text style={styles.locationText} numberOfLines={1}>{trip.pickupLocation}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.locationConnector} />
+              
+              <View style={styles.locationRow}>
+                <View style={styles.locationIconWrapper}>
+                  <MaterialIcons name="location-on" size={20} color="#FF6B00" />
+                </View>
+                <View style={styles.locationTextWrapper}>
+                  <Text style={styles.locationLabel}>Điểm đến</Text>
+                  <Text style={styles.locationText} numberOfLines={1}>{trip.dropoffLocation}</Text>
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Info Row */}
         <View style={styles.infoRow}>
           <View style={styles.infoItem}>
             <View style={styles.infoIconBox}>
-              <MaterialIcons name="route" size={18} color="#FF6B00" />
+              <MaterialIcons name={tripSourceType === 'hourly' ? 'access-time' : 'route'} size={18} color="#FF6B00" />
             </View>
             <Text style={styles.infoText}>{trip.distance}</Text>
           </View>
@@ -314,6 +430,13 @@ export default function TripsScreen() {
   }
 
   const filteredTrips = trips.filter((trip) => {
+    // Filter out deleted trips
+    const tripId = trip.id || trip._id || ''
+    if (deletedTripIds.includes(tripId)) {
+      return false
+    }
+
+    // Filter by status
     if (activeFilter === 'completed') {
       return trip.status === 'completed'
     } else if (activeFilter === 'upcoming') {
@@ -328,8 +451,7 @@ export default function TripsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Chuyến đi của tôi</Text>
-            <Text style={styles.subtitle}>{filteredTrips.length} chuyến đi</Text>
+            <Text style={styles.title}>Hoạt động</Text>
           </View>
           <TouchableOpacity style={styles.filterIconButton}>
             <MaterialIcons name="filter-list" size={24} color="#0f172a" />
@@ -622,6 +744,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#fff',
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: -8,
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
   },
   locationSection: {
     marginBottom: SPACING.lg,

@@ -13,24 +13,15 @@ import {
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation, useRoute } from '@react-navigation/native'
 import { hourlyServiceService } from '../services/hourlyServiceService'
-
-interface Worker {
-  id: string
-  name: string
-  avatar?: string
-  rating?: number
-  ratings?: number
-}
+import MapViewComponent from '@/components/MapView'
 
 export default function ServiceDetailScreen() {
   const navigation = useNavigation()
   const route = useRoute()
-  const { serviceId, serviceType } = route.params as any
+  const { serviceId } = route.params as any
 
   const [service, setService] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
   const [hasNavigatedToRating, setHasNavigatedToRating] = useState(false)
 
   useEffect(() => {
@@ -38,7 +29,7 @@ export default function ServiceDetailScreen() {
       try {
         if (isInitial) setLoading(true)
         const data = await hourlyServiceService.getServiceDetail(serviceId)
-        
+
         // Hardcode worker data for testing
         const mockData = {
           ...data,
@@ -50,13 +41,11 @@ export default function ServiceDetailScreen() {
             ratings: 128,
           },
         }
-        
+
         setService(mockData)
-        setError(null)
         console.log('[ServiceDetail] Service loaded:', mockData)
       } catch (err: any) {
         console.error('[ServiceDetail] Error fetching service:', err)
-        setError(err.message || 'Không thể lấy thông tin dịch vụ')
       } finally {
         if (isInitial) setLoading(false)
       }
@@ -65,7 +54,7 @@ export default function ServiceDetailScreen() {
     if (serviceId) {
       // Initial fetch
       fetchServiceDetail(true)
-      
+
       // Polling for updates every 5 seconds (but don't show loading)
       const interval = setInterval(() => fetchServiceDetail(false), 5000)
       return () => clearInterval(interval)
@@ -127,30 +116,6 @@ export default function ServiceDetailScreen() {
     )
   }
 
-  if (error || !service) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color="#0f172a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết dịch vụ</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={styles.errorContainer}>
-          <MaterialIcons name="error-outline" size={64} color="#ef4444" />
-          <Text style={styles.errorText}>{error || 'Không thể lấy thông tin'}</Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backButtonText}>Quay lại</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    )
-  }
-
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { color: string; label: string }> = {
       pending: { color: '#fbbf24', label: 'Chờ xác nhận' },
@@ -166,167 +131,232 @@ export default function ServiceDetailScreen() {
 
   // Always show tracking view (for pending and confirmed states)
   return (
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color="#0f172a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết dịch vụ</Text>
-          <TouchableOpacity>
-            <MaterialIcons name="more-horiz" size={24} color="#0f172a" />
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={StyleSheet.absoluteFillObject}>
+        <MapViewComponent
+          height="100%" />
+      </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => navigation.goBack()}>
+          <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
+        </TouchableOpacity>
+        <Text style={styles.logoText}>firego</Text>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.handleBarContainer}>
+          <View style={styles.handleBar} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Map Placeholder */}
-          <View style={styles.mapSection}>
-            <Image
-              source={{ uri: 'https://via.placeholder.com/400x300?text=Map+Location' }}
-              style={styles.mapImage}
-            />
-            {/* Status Badge on Map */}
-            <View style={styles.statusBadgeOnMap}>
-              <View style={styles.statusDotAnimated} />
-              <Text style={styles.statusBadgeText}>
-                {service.status === 'in_progress' ? 'Đang làm việc' : 'Đã xác nhận'}
+        <ScrollView
+          style={styles.contentOverlay}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Status Badge */}
+          <View style={[styles.statusBadgeInline, { backgroundColor: `${statusInfo.color}15` }]}>
+            <View style={[styles.statusDotInline, { backgroundColor: statusInfo.color }]} />
+            <Text style={[styles.statusTextInline, { color: statusInfo.color }]}>
+              {statusInfo.label}
+            </Text>
+          </View>
+
+          {/* ETA Section - Redesigned */}
+          <View style={styles.etaCard}>
+            <View style={styles.etaIconContainer}>
+              <MaterialIcons name="schedule" size={24} color="#FF6B00" />
+            </View>
+            <View style={styles.etaContent}>
+              <Text style={styles.etaLabel}>Thời gian làm việc</Text>
+              <Text style={styles.etaTime}>{service.selectedTime}</Text>
+              <Text style={styles.etaDate}>
+                {new Date(service.selectedDate).toLocaleDateString('vi-VN', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </Text>
+            </View>
+            <View style={styles.progressBadge}>
+              <View style={[styles.progressDotLarge, { backgroundColor: service.status === 'in_progress' ? '#10b981' : '#f59e0b' }]} />
+              <Text style={[styles.progressPercentLarge, { color: service.status === 'in_progress' ? '#10b981' : '#f59e0b' }]}>
+                {service.status === 'in_progress' ? '65%' : service.status === 'confirmed' ? '30%' : '0%'}
               </Text>
             </View>
           </View>
 
-          {/* Content Overlay */}
-          <View style={styles.contentOverlay}>
-            {/* ETA & Progress Section */}
-            <View style={styles.etaSection}>
-              <View style={styles.etaLeft}>
-                <Text style={styles.etaLabel}>Thời gian dự kiến hoàn thành</Text>
-                <Text style={styles.etaTime}>
-                  {service.selectedTime}
-                </Text>
-              </View>
-              <View style={styles.etaRight}>
-                <Text style={styles.progressLabel}>Tiến độ</Text>
-                <View style={styles.progressValue}>
-                  <View style={styles.progressDot} />
-                  <Text style={styles.progressPercent}>
-                    {service.status === 'in_progress' ? '65%' : '30%'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Progress Bar */}
+          {/* Progress Bar - Enhanced */}
+          <View style={styles.progressSection}>
             <View style={styles.progressBarContainer}>
               <View
                 style={[
                   styles.progressBar,
                   {
-                    width: service.status === 'in_progress' ? '65%' : '30%',
+                    width: service.status === 'in_progress' ? '65%' : service.status === 'confirmed' ? '30%' : '0%',
+                    backgroundColor: service.status === 'in_progress' ? '#10b981' : '#f59e0b',
                   },
                 ]}
               />
             </View>
+            <View style={styles.progressSteps}>
+              <View style={styles.progressStep}>
+                <View style={[styles.stepDot, service.status !== 'pending' && styles.stepDotActive]} />
+                <Text style={styles.stepLabel}>Đã xác nhận</Text>
+              </View>
+              <View style={styles.progressStep}>
+                <View style={[styles.stepDot, service.status === 'in_progress' && styles.stepDotActive]} />
+                <Text style={styles.stepLabel}>Đang làm</Text>
+              </View>
+              <View style={styles.progressStep}>
+                <View style={[styles.stepDot, service.status === 'completed' && styles.stepDotActive]} />
+                <Text style={styles.stepLabel}>Hoàn thành</Text>
+              </View>
+            </View>
+          </View>
 
-            {/* Worker Card */}
-            <View style={styles.workerCard}>
-              <View style={styles.workerInfo}>
-                <Image
-                  source={{ uri: service.worker?.avatar || 'https://via.placeholder.com/56x56?text=Avatar' }}
-                  style={styles.workerAvatar}
-                />
-                <View style={styles.workerDetails}>
-                  <Text style={styles.workerName}>
-                    {service.worker?.name || 'Chờ nhân viên...'}
-                  </Text>
-                  {service.worker && (
-                    <View style={styles.ratingContainer}>
-                      <MaterialIcons name="star" size={16} color="#fbbf24" />
-                      <Text style={styles.ratingText}>
-                        {service.worker.rating || 4.9}
-                      </Text>
-                      <Text style={styles.ratingCount}>
-                        ({service.worker.ratings || 128} đánh giá)
+          {/* Worker Card - Redesigned */}
+          <View style={styles.workerCardNew}>
+            <View style={styles.workerHeader}>
+              <MaterialIcons name="person-outline" size={16} color="#64748b" />
+              <Text style={styles.workerHeaderText}>Nhân viên phục vụ</Text>
+            </View>
+
+            {service.worker ? (
+              <>
+                <View style={styles.workerInfoNew}>
+                  <View style={styles.avatarWrapper}>
+                    <Image
+                      source={{ uri: service.worker.avatar || 'https://via.placeholder.com/64x64?text=Avatar' }}
+                      style={styles.workerAvatarNew}
+                    />
+                    <View style={styles.onlineBadge}>
+                      <View style={styles.onlineDot} />
+                    </View>
+                  </View>
+                  <View style={styles.workerDetailsNew}>
+                    <Text style={styles.workerNameNew}>{service.worker.name}</Text>
+                    <View style={styles.ratingContainerNew}>
+                      <MaterialIcons name="star" size={14} color="#fbbf24" />
+                      <Text style={styles.ratingTextNew}>{service.worker.rating || 4.9}</Text>
+                      <Text style={styles.ratingDivider}>•</Text>
+                      <Text style={styles.ratingCountNew}>{service.worker.ratings || 128} đánh giá</Text>
+                    </View>
+                    <View style={styles.badgeContainer}>
+                      <View style={styles.verifiedBadge}>
+                        <MaterialIcons name="verified" size={12} color="#10b981" />
+                        <Text style={styles.verifiedText}>Đã xác thực</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity style={styles.messageButton}>
+                    <View style={styles.buttonIcon}>
+                      <MaterialIcons name="chat-bubble-outline" size={20} color="#FF6B00" />
+                    </View>
+                    <Text style={styles.messageButtonText}>Nhắn tin</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.phoneButton}>
+                    <View style={styles.buttonIcon}>
+                      <MaterialIcons name="phone" size={20} color="#fff" />
+                    </View>
+                    <Text style={styles.phoneButtonText}>Gọi điện</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={styles.searchingWorker}>
+                <View style={styles.searchingAnimation}>
+                  <ActivityIndicator size="small" color="#FF6B00" />
+                </View>
+                <Text style={styles.searchingText}>Đang tìm nhân viên phù hợp...</Text>
+                <Text style={styles.searchingSubtext}>Vui lòng chờ trong giây lát</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Service Details - Redesigned */}
+          <View style={styles.serviceDetailsCard}>
+            <View style={styles.serviceHeader}>
+              <MaterialIcons name="receipt-long" size={16} color="#64748b" />
+              <Text style={styles.serviceHeaderText}>Chi tiết dịch vụ</Text>
+            </View>
+
+            {/* Main Service */}
+            <View style={styles.mainServiceItemNew}>
+              <View style={styles.serviceIconNew}>
+                <MaterialIcons name="home-work" size={24} color="#FF6B00" />
+              </View>
+              <View style={styles.serviceInfoNew}>
+                <Text style={styles.serviceNameNew}>Dọn dẹp căn hộ {service.hours}PN</Text>
+                <Text style={styles.serviceSubtextNew}>Gói tiêu chuẩn • {service.hours} giờ</Text>
+              </View>
+              <Text style={styles.servicePriceNew}>
+                {(service.hours * 250000).toLocaleString('vi-VN')}đ
+              </Text>
+            </View>
+
+            {/* Add-ons */}
+            {service.services && service.services.filter((s: any) => s.selected).length > 0 && (
+              <View style={styles.addonsSection}>
+                <Text style={styles.addonsSectionTitle}>Dịch vụ bổ sung</Text>
+                {service.services
+                  .filter((s: any) => s.selected)
+                  .map((addon: any, index: number) => (
+                    <View key={index} style={styles.addonRowNew}>
+                      <View style={styles.addonIconNew}>
+                        <MaterialIcons name="add-circle-outline" size={16} color="#64748b" />
+                      </View>
+                      <Text style={styles.addonLabelNew}>{addon.name}</Text>
+                      <Text style={styles.addonPriceNew}>
+                        +{addon.price.toLocaleString('vi-VN')}đ
                       </Text>
                     </View>
-                  )}
-                  {!service.worker && (
-                    <Text style={styles.pendingText}>Đang tìm kiếm nhân viên...</Text>
-                  )}
-                </View>
+                  ))}
               </View>
-              <View style={styles.workerActions}>
-                <TouchableOpacity style={[styles.chatButton, !service.worker && styles.disabledButton]}>
-                  <MaterialIcons name="chat" size={18} color={service.worker ? '#fff' : '#cbd5e1'} />
-                  <Text style={[styles.chatButtonText, !service.worker && styles.disabledButtonText]}>Chat</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.callButton, !service.worker && styles.disabledButton]}>
-                  <MaterialIcons name="call" size={18} color={service.worker ? '#0d7ff2' : '#cbd5e1'} />
-                  <Text style={[styles.callButtonText, !service.worker && styles.disabledButtonText]}>Gọi</Text>
-                </TouchableOpacity>
+            )}
+
+            {/* Location */}
+            <View style={styles.locationSection}>
+              <View style={styles.locationIconContainer}>
+                <MaterialIcons name="location-on" size={20} color="#ef4444" />
+              </View>
+              <View style={styles.locationInfo}>
+                <Text style={styles.locationLabel}>Địa chỉ làm việc</Text>
+                <Text style={styles.locationAddress}>{service.address}</Text>
               </View>
             </View>
 
-            {/* Service Details */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Chi tiết dịch vụ</Text>
-
-              {/* Main Service */}
-              <View style={styles.mainServiceItem}>
-                <View style={styles.serviceIcon}>
-                  <MaterialIcons name="home-work" size={20} color="#16a34a" />
-                </View>
-                <View style={styles.serviceInfo}>
-                  <Text style={styles.serviceName}>Dọn dẹp căn hộ {service.hours}PN</Text>
-                  <Text style={styles.serviceSubtext}>Gói tiêu chuẩn</Text>
-                </View>
-                <Text style={styles.servicePrice}>
-                  {(service.hours * 250000).toLocaleString('vi-VN')}đ
-                </Text>
+            {/* Total */}
+            <View style={styles.totalContainerNew}>
+              <View style={styles.totalLeft}>
+                <Text style={styles.totalLabelNew}>Tổng thanh toán</Text>
+                <Text style={styles.totalSubtext}>Đã bao gồm VAT</Text>
               </View>
-
-              {/* Add-ons */}
-              {service.services && service.services.filter((s: any) => s.selected).length > 0 && (
-                <View style={styles.addonsContainer}>
-                  {service.services
-                    .filter((s: any) => s.selected)
-                    .map((addon: any, index: number) => (
-                      <View key={index} style={styles.addonRow}>
-                        <View style={styles.addonLeft}>
-                          <MaterialIcons name="kitchen" size={16} color="#94a3b8" />
-                          <Text style={styles.addonLabel}>{addon.name}</Text>
-                        </View>
-                        <Text style={styles.addonPrice}>
-                          +{addon.price.toLocaleString('vi-VN')}đ
-                        </Text>
-                      </View>
-                    ))}
-                </View>
-              )}
-
-              {/* Total */}
-              <View style={styles.totalContainer}>
-                <Text style={styles.totalLabel}>Tổng cộng</Text>
-                <Text style={styles.totalPrice}>
-                  {service.estimatedPrice.toLocaleString('vi-VN')}đ
-                </Text>
-              </View>
+              <Text style={styles.totalPriceNew}>
+                {service.estimatedPrice.toLocaleString('vi-VN')}đ
+              </Text>
             </View>
-
-            <View style={{ height: 100 }} />
           </View>
+
+          <View style={{ height: 120 }} />
         </ScrollView>
 
         {/* Bottom Actions */}
-        <View style={styles.bottomActions}>
+        <View style={styles.actionBtn}>
           <TouchableOpacity
             style={styles.cancelActionButton}
             onPress={handleCancel}
           >
+            <MaterialIcons name="close" size={20} color="#ef4444" />
             <Text style={styles.cancelActionButtonText}>Hủy dịch vụ</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    )
+      </View>
+    </View>
+  )
 }
 
 const styles = StyleSheet.create({
@@ -335,496 +365,570 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 10,
+    zIndex: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  logoText: {
+    fontSize: 30,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    color: '#FF6B00',
+  },
+  card: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 0,
+    paddingTop: 8,
+    paddingBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 20,
+    maxHeight: '65%',
+  },
+  handleBarContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  handleBar: {
+    width: 36,
+    height: 4,
+    backgroundColor: '#cbd5e1',
+    borderRadius: 2,
+  },
+  contentOverlay: {
+    paddingHorizontal: 20,
+  },
+
+  // Status Badge Inline
+  statusBadgeInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 16,
+    gap: 6,
+  },
+  statusDotInline: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusTextInline: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // ETA Card - New Design
+  etaCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
   },
-  headerTitle: {
+  etaIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#fff7ed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  etaContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  etaLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  etaTime: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 2,
+  },
+  etaDate: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  progressBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 12,
+  },
+  progressDotLarge: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginBottom: 4,
+  },
+  progressPercentLarge: {
     fontSize: 18,
+    fontWeight: '800',
+  },
+
+  // Progress Section
+  progressSection: {
+    marginBottom: 20,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 6,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressSteps: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  progressStep: {
+    alignItems: 'center',
+  },
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#e2e8f0',
+    marginBottom: 4,
+  },
+  stepDotActive: {
+    backgroundColor: '#10b981',
+  },
+  stepLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+
+  // Worker Card - New Design
+  workerCardNew: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  workerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  workerHeaderText: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  workerInfoNew: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  avatarWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  workerAvatarNew: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: '#e2e8f0',
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  onlineBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  onlineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10b981',
+  },
+  workerDetailsNew: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  workerNameNew: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  ratingContainerNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  ratingTextNew: {
+    fontSize: 13,
     fontWeight: '700',
     color: '#0f172a',
   },
-  content: {
+  ratingDivider: {
+    fontSize: 12,
+    color: '#cbd5e1',
+    marginHorizontal: 2,
+  },
+  ratingCountNew: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 3,
+  },
+  verifiedText: {
+    fontSize: 10,
+    color: '#10b981',
+    fontWeight: '700',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  messageButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#FF6B00',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  messageButtonText: {
+    color: '#FF6B00',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  phoneButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF6B00',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  phoneButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  buttonIcon: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchingWorker: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  searchingAnimation: {
+    marginBottom: 12,
+  },
+  searchingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  searchingSubtext: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+
+  // Service Details Card
+  serviceDetailsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  serviceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  serviceHeaderText: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  mainServiceItemNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fafafa',
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  serviceIconNew: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#fff7ed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  serviceInfoNew: {
+    flex: 1,
+  },
+  serviceNameNew: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 3,
+  },
+  serviceSubtextNew: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  servicePriceNew: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FF6B00',
+  },
+  addonsSection: {
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  addonsSectionTitle: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '700',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  addonRowNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    gap: 8,
+  },
+  addonIconNew: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addonLabelNew: {
+    flex: 1,
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  addonPriceNew: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  locationSection: {
+    flexDirection: 'row',
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  locationIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationInfo: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  locationAddress: {
+    fontSize: 13,
+    color: '#0f172a',
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  totalContainerNew: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  totalLeft: {
+    flex: 1,
+  },
+  totalLabelNew: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '700',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  totalSubtext: {
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  totalPriceNew: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#10b981',
+  },
+
+  // Bottom Action Button
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#fca5a5',
+    marginTop: 12,
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cancelActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  cancelActionButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ef4444',
+    letterSpacing: 0.3,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
   },
   loadingText: {
-    fontSize: 16,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    gap: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ef4444',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  backButton: {
-    backgroundColor: '#0d7ff2',
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  statusSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  statusText: {
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  section: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 12,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  detailIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#f0f7ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  detailContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  detailLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#94a3b8',
-    marginBottom: 4,
-  },
-  detailValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#0f172a',
-  },
-  addonItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  addonInfo: {
-    flex: 1,
-  },
-  addonName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#0f172a',
-    marginBottom: 2,
-  },
-  addonDuration: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  addonPrice: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0d7ff2',
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  priceLabel: {
+    marginTop: 12,
     fontSize: 14,
     color: '#64748b',
-  },
-  priceValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0f172a',
-  },
-  totalPriceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    marginTop: 8,
-    borderTopWidth: 2,
-    borderTopColor: '#0d7ff2',
-  },
-  totalPriceLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  totalPriceValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0d7ff2',
-  },
-  bottomActions: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    elevation: 8,
-  },
-  cancelActionButton: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelActionButtonText: {
-    color: '#64748b',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  // Tracking View Styles
-  mapSection: {
-    position: 'relative',
-    width: '100%',
-    height: 280,
-    backgroundColor: '#cbd5e1',
-    overflow: 'hidden',
-  },
-  mapImage: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#e2e8f0',
-  },
-  statusBadgeOnMap: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-    elevation: 3,
-  },
-  statusDotAnimated: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#37b34a',
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#37b34a',
-  },
-  contentOverlay: {
-    marginTop: -24,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 100,
-  },
-  etaSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  etaLeft: {
-    flex: 1,
-  },
-  etaRight: {
-    alignItems: 'flex-end',
-  },
-  etaLabel: {
-    fontSize: 12,
-    color: '#94a3b8',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  etaTime: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  progressLabel: {
-    fontSize: 12,
-    color: '#94a3b8',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  progressValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  progressDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#25f46a',
-    marginRight: 4,
-  },
-  progressPercent: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#25f46a',
-  },
-  progressBarContainer: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#25f46a',
-    borderRadius: 4,
-  },
-  workerCard: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  workerInfo: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  workerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#cbd5e1',
-    borderWidth: 2,
-    borderColor: '#25f46a',
-  },
-  workerDetails: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  workerName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 4,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  ratingCount: {
-    fontSize: 12,
-    color: '#94a3b8',
-  },
-  workerActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  chatButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#25f46a',
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  chatButtonText: {
-    color: '#0f172a',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  callButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#0d7ff2',
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  callButtonText: {
-    color: '#0d7ff2',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-  disabledButton: {
-    opacity: 0.5,
-    backgroundColor: '#f1f5f9',
-  },
-  disabledButtonText: {
-    color: '#cbd5e1',
-  },
-  pendingText: {
-    fontSize: 12,
-    color: '#94a3b8',
-    fontStyle: 'italic',
-  },
-  mainServiceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 12,
-    gap: 12,
-  },
-  serviceIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#dcfce7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  serviceInfo: {
-    flex: 1,
-  },
-  serviceName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 2,
-  },
-  serviceSubtext: {
-    fontSize: 12,
-    color: '#94a3b8',
-  },
-  servicePrice: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  addonsContainer: {
-    paddingLeft: 12,
-    borderLeftWidth: 2,
-    borderLeftColor: '#e2e8f0',
-    gap: 12,
-    marginBottom: 12,
-  },
-  addonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  addonLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  addonLabel: {
-    fontSize: 13,
-    color: '#475569',
-  },
-  addonPrice: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0f172a',
-  },
-  totalContainer: {
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  totalLabel: {
-    fontSize: 13,
-    color: '#94a3b8',
-    fontWeight: '600',
-  },
-  totalPrice: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#25f46a',
-  },
-  // Dialog/Overlay specific
-  mapOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.1)',
   },
 })
 

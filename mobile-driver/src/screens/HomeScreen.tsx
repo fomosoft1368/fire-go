@@ -22,13 +22,14 @@ import { RideCard, BalanceCard } from '../components'
 import { driverService, type EarningsData } from '../services/driverService'
 import { locationTrackingService } from '../services/locationTrackingService'
 import { pricingService } from '../services/pricingService'
+import { deliveryService } from '../services/deliveryService'
+import { hourlyServiceService } from '../services/hourlyServiceService'
 import type { RootState } from '../redux/store'
 import type { RideItem } from '../types'
 import { updateUser } from '../redux/slices/authSlice'
 
 export default function HomeScreen() {
   const [isOnline, setIsOnline] = useState(false)
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pool' | 'assist'>('all')
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -45,6 +46,8 @@ export default function HomeScreen() {
   })
   const [walletBalance, setWalletBalance] = useState(0)
   const [walletWarning, setWalletWarning] = useState(false)
+  const [deliveryCount, setDeliveryCount] = useState(0)
+  const [hourlyServiceCount, setHourlyServiceCount] = useState(0)
 
   // Draggable map button state
   const mapButtonPan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
@@ -161,7 +164,22 @@ export default function HomeScreen() {
     }
 
     fetchDriverProfile()
+    fetchServiceCounts()
   }, [dispatch])
+
+  // Fetch service counts for badges
+  const fetchServiceCounts = useCallback(async () => {
+    try {
+      const [deliveries, hourlyServices] = await Promise.all([
+        deliveryService.findNearbyDeliveries(21.0285, 105.8542, 50000).catch(() => []),
+        hourlyServiceService.getPendingServices(100, 0).catch(() => []),
+      ])
+      setDeliveryCount(deliveries.length)
+      setHourlyServiceCount(hourlyServices.length)
+    } catch (error) {
+      console.error('[HomeScreen] Error fetching service counts:', error)
+    }
+  }, [])
 
   // Refresh wallet and earnings
   const refreshWalletAndEarnings = useCallback(async () => {
@@ -399,15 +417,8 @@ export default function HomeScreen() {
   }, [user?.id, navigation])
 
   const filteredRides = useMemo(() => {
-    return rides
-      .map(formatRideData)
-      .filter((ride) => {
-        if (activeFilter === 'all') return true
-        if (activeFilter === 'pool') return ride.type === 'POOL'
-        if (activeFilter === 'assist') return ride.type === 'ASSIST'
-        return false
-      })
-  }, [rides, activeFilter, formatRideData])
+    return rides.map(formatRideData)
+  }, [rides, formatRideData])
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -433,7 +444,7 @@ export default function HomeScreen() {
               )}
             </View>
             <View>
-              <Text style={styles.greeting}>Xin chào, Tài xế</Text>
+              <Text style={styles.greeting}>Xin chào</Text>
               <Text style={styles.driverName}>
                 {user?.firstName && user?.lastName
                   ? `${user.firstName} ${user.lastName}`
@@ -464,41 +475,31 @@ export default function HomeScreen() {
           averageRating={user?.averageRating || 0}
           onlineHours={user?.onlineHours || 0}
         />
-        {/* Filter Buttons */}
-        <FilterButtons activeFilter={activeFilter} onFilterChange={setActiveFilter} />
 
-        {/* Delivery Button */}
-        <TouchableOpacity
-          style={styles.deliveryButton}
-          onPress={() => navigation.navigate('DeliveryRequests')}
-        >
-          <View style={styles.deliveryButtonContent}>
-            <View style={styles.deliveryIconBox}>
-              <MaterialIcons name="local-shipping" size={28} color="#FF6B00" />
-            </View>
-            <View style={styles.deliveryInfo}>
-              <Text style={styles.deliveryTitle}>Giao hàng</Text>
-              <Text style={styles.deliverySubtitle}>Xem đơn giao hàng gần bạn</Text>
-            </View>
-            <MaterialIcons name="arrow-forward-ios" size={20} color="#666" />
+        {/* Services Section */}
+        <View style={styles.servicesSection}>
+          <Text style={styles.servicesSectionTitle}>Dịch vụ khác</Text>
+          <View style={styles.servicesGrid}>
+            <ServiceCard
+              icon="local-shipping"
+              iconColor="#10b981"
+              iconBg="#d1fae5"
+              title="Giao hàng"
+              subtitle="Đơn ship gần bạn"
+              count={deliveryCount}
+              onPress={() => navigation.navigate('DeliveryRequests')}
+            />
+            <ServiceCard
+              icon="cleaning-services"
+              iconColor="#8b5cf6"
+              iconBg="#ede9fe"
+              title="Dọn dẹp"
+              subtitle="Nhiệm vụ dọn dẹp"
+              count={hourlyServiceCount}
+              onPress={() => navigation.navigate('HourlyRequests')}
+            />
           </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.deliveryButton}
-          onPress={() => navigation.navigate('HourlyRequests')}
-        >
-          <View style={styles.deliveryButtonContent}>
-            <View style={styles.deliveryIconBox}>
-              <MaterialIcons name="assignment" size={28} color="#FF6B00" />
-            </View>
-            <View style={styles.deliveryInfo}>
-              <Text style={styles.deliveryTitle}>Nhiệm vụ</Text>
-              <Text style={styles.deliverySubtitle}>Xem đơn nhiệm vụ gần bạn</Text>
-            </View>
-            <MaterialIcons name="arrow-forward-ios" size={20} color="#666" />
-          </View>
-        </TouchableOpacity>
+        </View>
         {/* Rides List */}
         <View style={styles.ridesSection}>
           <View style={styles.sectionTitleContainer}>
@@ -575,56 +576,35 @@ export default function HomeScreen() {
   )
 }
 
-interface FilterButtonsProps {
-  activeFilter: 'all' | 'pool' | 'assist'
-  onFilterChange: (filter: 'all' | 'pool' | 'assist') => void
-}
-
-const FilterButtons: React.FC<FilterButtonsProps> = ({ activeFilter, onFilterChange }) => {
-  return (
-    <View style={styles.filterContainer}>
-      <FilterButton
-        label="Tất cả"
-        icon="apps"
-        active={activeFilter === 'all'}
-        onPress={() => onFilterChange('all')}
-      />
-      <FilterButton
-        label="Ghép xe"
-        icon="group"
-        active={activeFilter === 'pool'}
-        onPress={() => onFilterChange('pool')}
-      />
-      <FilterButton
-        label="Lái xe hộ"
-        icon="support-agent"
-        active={activeFilter === 'assist'}
-        onPress={() => onFilterChange('assist')}
-      />
-    </View>
-  )
-}
-
-interface FilterButtonProps {
-  label: string
+interface ServiceCardProps {
   icon: string
-  active: boolean
+  iconColor: string
+  iconBg: string
+  title: string
+  subtitle: string
+  count: number
   onPress: () => void
 }
 
-const FilterButton: React.FC<FilterButtonProps> = ({ label, icon, active, onPress }) => {
+const ServiceCard: React.FC<ServiceCardProps> = ({ icon, iconColor, iconBg, title, subtitle, count, onPress }) => {
   return (
-    <TouchableOpacity
-      style={[styles.filterButton, active && styles.filterButtonActive]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <MaterialIcons
-        name={icon as any}
-        size={20}
-        color={active ? '#fff' : '#64748b'}
-      />
-      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+    <TouchableOpacity style={styles.serviceCard} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.serviceCardHeader}>
+        <View style={[styles.serviceCardIcon, { backgroundColor: iconBg }]}>
+          <MaterialIcons name={icon as any} size={32} color={iconColor} />
+        </View>
+        {count > 0 && (
+          <View style={[styles.serviceCardBadge, { backgroundColor: iconColor }]}>
+            <Text style={styles.serviceCardBadgeText}>{count}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.serviceCardTitle}>{title}</Text>
+      <Text style={styles.serviceCardSubtitle}>{subtitle}</Text>
+      <View style={styles.serviceCardFooter}>
+        <Text style={[styles.serviceCardFooterText, { color: iconColor }]}>Xem ngay</Text>
+        <MaterialIcons name="arrow-forward" size={16} color={iconColor} />
+      </View>
     </TouchableOpacity>
   )
 }
@@ -757,42 +737,8 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     letterSpacing: -0.2,
   },
-  filterContainer: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    paddingHorizontal: SPACING.xl,
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.lg,
-  },
-  filterButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    paddingVertical: 12,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 24,
-    borderWidth: 0,
-  },
-  filterButtonActive: {
-    backgroundColor: '#FF6B00',
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748b',
-    letterSpacing: -0.2,
-  },
-  filterTextActive: {
-    color: '#fff',
-  },
   ridesSection: {
+    marginTop: SPACING.lg,
     marginBottom: SPACING.lg,
     paddingHorizontal: SPACING.xl,
   },
@@ -881,9 +827,23 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  deliveryButton: {
+  servicesSection: {
     marginHorizontal: SPACING.xl,
     marginBottom: SPACING.lg,
+  },
+  servicesSectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: SPACING.lg,
+    letterSpacing: -0.5,
+  },
+  servicesGrid: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  serviceCard: {
+    flex: 1,
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: SPACING.lg,
@@ -892,38 +852,60 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+    minHeight: 160,
   },
-  deliveryButtonContent: {
+  serviceCardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.lg,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.md,
   },
-  deliveryIconBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#fff5eb',
-    alignItems: 'center',
+  serviceCardIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
     justifyContent: 'center',
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    alignItems: 'center',
   },
-  deliveryInfo: {
-    flex: 1,
+  serviceCardBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    marginTop: -4,
+    marginRight: -4,
   },
-  deliveryTitle: {
+  serviceCardBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  serviceCardTitle: {
     fontSize: 17,
     fontWeight: '800',
     color: '#0f172a',
     marginBottom: 4,
     letterSpacing: -0.3,
   },
-  deliverySubtitle: {
-    fontSize: 14,
+  serviceCardSubtitle: {
+    fontSize: 13,
     color: '#64748b',
     fontWeight: '500',
+    marginBottom: SPACING.md,
+    lineHeight: 18,
+  },
+  serviceCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 'auto',
+  },
+  serviceCardFooterText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
 })

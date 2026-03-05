@@ -134,7 +134,7 @@ const MainNavigator = () => {
         name="Bookings"
         component={TripHistory}
         options={{
-          title: 'Các chuyến đi',
+          title: 'Hoạt động',
           headerShown: false,
         }}
       />
