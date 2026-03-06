@@ -503,7 +503,7 @@ export default function HomeScreen() {
         {/* Rides List */}
         <View style={styles.ridesSection}>
           <View style={styles.sectionTitleContainer}>
-            <Text style={styles.sectionTitle}>Chuyến đi có sẵn</Text>
+            <Text style={styles.sectionTitle}>Hoạt động có sẵn</Text>
             <View style={styles.buttonGroup}>
               <TouchableOpacity
                 style={styles.refreshButton}
