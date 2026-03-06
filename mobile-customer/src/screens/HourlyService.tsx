@@ -467,7 +467,7 @@ export default function HourlyService() {
                                 />
                             </View>
                         </View>
-                    </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Divider */}

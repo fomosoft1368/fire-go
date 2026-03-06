@@ -50,17 +50,17 @@ export default function LoginScreen({ navigation }: any) {
       const response = await loginAPI(phoneEmail, password)
       console.log('🔓 LoginScreen - Got response:', response)
       console.log('🔓 LoginScreen - Access token:', response.accessToken)
-      
+
       // Verify token was saved to AsyncStorage
       const AsyncStorage = require('@react-native-async-storage/async-storage').default
       const savedToken = await AsyncStorage.getItem('token')
       console.log('🔓 LoginScreen - Token saved to AsyncStorage:', !!savedToken)
       console.log('🔓 LoginScreen - Saved token value:', savedToken ? savedToken.substring(0, 30) + '...' : 'null')
-      
+
       if (!savedToken) {
         console.error('🔓 LoginScreen - WARNING: Token was not saved to AsyncStorage!')
       }
-      
+
       dispatch(loginSuccess({ token: response.accessToken, user: response.user }))
       console.log('🔓 LoginScreen - loginSuccess dispatched')
     } catch (err: any) {
@@ -84,14 +84,14 @@ export default function LoginScreen({ navigation }: any) {
             <View style={styles.logoBg}>
               <MaterialIcons name="directions-car" size={24} color={COLORS.primary} />
             </View>
-            <Text style={styles.appName}>Driver App</Text>
+            <Text style={styles.appName}>firego</Text>
           </View>
         </View>
 
         {/* Hero Banner */}
         <View style={styles.bannerContainer}>
           <ImageBackground
-          source={require('../assets/heritage.png')}
+            source={require('../assets/heritage.png')}
             style={styles.banner}
           >
             <View style={styles.bannerOverlay} />
@@ -286,10 +286,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   appName: {
-    fontSize: 20,
+    fontSize: 30,
     fontWeight: '700',
-    color: COLORS.text,
+    letterSpacing: -0.5,
+    color: '#FF6B00',
   },
+
   bannerContainer: {
     paddingHorizontal: 16,
     paddingTop: 20,
