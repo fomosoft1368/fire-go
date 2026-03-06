@@ -9,6 +9,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
@@ -164,9 +166,14 @@ export default function CancelTripScreen({ route }: CancelTripScreenProps) {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Illustration Section */}
-        <View style={styles.illustrationContainer}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+        style={{ flex: 1 }}
+      >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* Illustration Section */}
+          <View style={styles.illustrationContainer}>
           <View style={styles.iconContainer}>
             <MaterialIcons name="cancel" size={64} color="#FF6B00" />
           </View>
@@ -267,6 +274,7 @@ export default function CancelTripScreen({ route }: CancelTripScreenProps) {
         {/* Spacer */}
         <View style={{ height: 20 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Bottom Buttons */}
       <View style={styles.bottomContainer}>

@@ -10,6 +10,8 @@ import {
   SafeAreaView,
   TextInput,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
@@ -235,11 +237,17 @@ export default function PaymentMethodsScreen({ navigation }: PaymentMethodsScree
       </View>
 
       {/* Content */}
-      <ScrollView
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+        style={{ flex: 1 }}
       >
-        {paymentMethods.length === 0 ? (
+        <ScrollView
+          style={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          keyboardShouldPersistTaps="handled"
+        >
+          {paymentMethods.length === 0 ? (
           <View style={styles.emptyState}>
             <FontAwesome5 name="wallet" size={64} color={COLORS.textSecondary} />
             <Text style={styles.emptyText}>Chưa có phương thức thanh toán</Text>
@@ -257,6 +265,7 @@ export default function PaymentMethodsScreen({ navigation }: PaymentMethodsScree
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Add Payment Method Modal */}
       {showAddModal && (

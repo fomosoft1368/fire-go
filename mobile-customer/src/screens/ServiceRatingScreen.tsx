@@ -11,6 +11,8 @@ import {
   AlertIOS,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation, useRoute } from '@react-navigation/native'
@@ -113,9 +115,14 @@ export default function ServiceRatingScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Completion Badge */}
-        <View style={styles.completionSection}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+        style={{ flex: 1 }}
+      >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* Completion Badge */}
+          <View style={styles.completionSection}>
           <View style={styles.completionIcon}>
             <MaterialIcons name="check-circle" size={48} color="#34d399" />
           </View>
@@ -262,6 +269,7 @@ export default function ServiceRatingScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Bottom Button */}
       <View style={styles.bottomContainer}>

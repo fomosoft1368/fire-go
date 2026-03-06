@@ -9,6 +9,8 @@ import {
   TextInput,
   ActivityIndicator,
   SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector, useDispatch } from 'react-redux'
@@ -190,13 +192,19 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+        style={{ flex: 1 }}
       >
-        {/* Profile Section */}
-        <View style={styles.profileSection}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Profile Section */}
+          <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
             <MaterialIcons name="person" size={60} color={COLORS.primary} />
             <TouchableOpacity style={styles.editAvatarButton}>
@@ -322,6 +330,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Action Buttons */}
       <View style={styles.actionContainer}>

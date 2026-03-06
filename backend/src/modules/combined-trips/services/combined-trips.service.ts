@@ -874,28 +874,42 @@ export class CombinedTripsService implements OnModuleInit {
    */
   async acceptCombinedTrip(combinedTripId: string, driverId: string): Promise<CombinedTrip> {
     try {
-      console.log('[CombinedTripsService] Accepting combined trip:', { combinedTripId, driverId });
+      const timestamp = new Date().toISOString();
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('🚗 [CombinedTripsService] DRIVER ACCEPTING TRIP');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('⏰ Timestamp:', timestamp);
+      console.log('🆔 Trip ID:', combinedTripId);
+      console.log('👤 Driver ID:', driverId);
+      console.log('═══════════════════════════════════════════════════════════');
 
       const trip = await this.combinedTripModel.findById(combinedTripId);
       
       if (!trip) {
+        console.error('❌ Trip not found:', combinedTripId);
         throw new NotFoundException('Combined trip not found');
       }
 
-      console.log('[CombinedTripsService] Trip found:', {
+      console.log('📋 [BEFORE UPDATE] Trip current state:', {
         id: trip._id,
         status: trip.status,
         currentDriverId: trip.driverId,
+        customerId: trip.customerId,
+        pickupAddress: trip.pickupAddress,
+        createdBy: trip.createdBy,
       });
 
       if (trip.status !== CombinedTripStatus.PENDING) {
+        console.error('❌ Trip not available for acceptance. Status:', trip.status);
         throw new BadRequestException(`Combined trip is not available for acceptance. Current status: ${trip.status}`);
       }
 
       if (trip.driverId) {
+        console.error('❌ Trip already accepted by driver:', trip.driverId);
         throw new BadRequestException('Combined trip has already been accepted by another driver');
       }
 
+      console.log('✅ Trip is available - updating to ACCEPTED...');
       
       const updatedTrip = await this.combinedTripModel.findByIdAndUpdate(
         combinedTripId,
@@ -911,10 +925,22 @@ export class CombinedTripsService implements OnModuleInit {
         .exec();
 
       if (!updatedTrip) {
+        console.error('❌ Failed to update trip');
         throw new NotFoundException('Failed to update combined trip');
       }
 
-      console.log('[CombinedTripsService] Combined trip accepted successfully');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('✅✅✅ TRIP ACCEPTED SUCCESSFULLY ✅✅✅');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('🆔 Trip ID:', updatedTrip._id);
+      console.log('👤 Driver:', updatedTrip.driverId ? `${(updatedTrip.driverId as any).firstName} ${(updatedTrip.driverId as any).lastName}` : 'Unknown');
+      console.log('📍 Pickup:', updatedTrip.pickupAddress);
+      console.log('📍 Dropoff:', updatedTrip.dropoffAddress);
+      console.log('💰 Fare:', updatedTrip.baseFare);
+      console.log('⏰ Accepted at:', updatedTrip.acceptedAt);
+      console.log('🔔 Status changed from PENDING → ACCEPTED');
+      console.log('═══════════════════════════════════════════════════════════');
+      
       return updatedTrip;
     } catch (error) {
       console.error('[CombinedTripsService] Error accepting combined trip:', error);
