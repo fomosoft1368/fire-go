@@ -106,9 +106,9 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
   // Draggable Bottom Sheet
   const screenHeight = Dimensions.get('window').height
-  const minHeight = screenHeight * 0.1 // 10%
-  const maxHeight = screenHeight * 0.95 // 95%
-  const initialHeight = screenHeight * 0.5 // 50%
+  const minHeight = screenHeight * 0.42 // 42% - Enough to show button with all content
+  const maxHeight = screenHeight * 0.85 // 85%
+  const initialHeight = screenHeight * 0.42 // 42% - Start at collapsed
   const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
   const lastGestureDy = useRef(0)
 
@@ -140,9 +140,9 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         if (Math.abs(velocity) > 0.8) {
           snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
         } else if (currentY > midPoint) {
-          snapTo = screenHeight - minHeight
+          snapTo = screenHeight - minHeight // Snap to collapsed (65%)
         } else {
-          snapTo = screenHeight - maxHeight
+          snapTo = screenHeight - maxHeight // Snap to expanded (85%)
         }
 
         lastGestureDy.current = snapTo
@@ -648,13 +648,19 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       </View>
       <Animated.View 
         style={[
-          styles.card,
           {
-            transform: [{ translateY }],
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
             height: screenHeight,
+            backgroundColor: 'transparent',
+            transform: [{ translateY }],
           }
         ]}
+        pointerEvents="box-none"
       >
+        <View style={styles.card} pointerEvents="auto">
         <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
           <View style={styles.handleBar} />
         </View>
@@ -678,17 +684,16 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
           )}
         </View>
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
-          <ScrollView 
-            showsVerticalScrollIndicator={false} 
-            style={styles.scrollContent}
-            contentContainerStyle={{ paddingBottom: 100 }}
-            keyboardShouldPersistTaps="handled"
+        {/* Scrollable Content Area */}
+        <View style={{ flex: 1 }}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
           >
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
           <View style={styles.locationsContainer}>
             {/* Pickup Location */}
             <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
@@ -964,24 +969,36 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
               />
             </View>
           </View>
+          <View style={styles.bottomAction} pointerEvents="auto">
+          <TouchableOpacity
+            style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
+            onPress={handleCreateRide}
+            activeOpacity={0.8}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <ActivityIndicator color="#fff" size="small" />
+                <Text style={styles.confirmButtonText}>Đang xử lý...</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.confirmButtonText}>Tìm tài xế ngay</Text>
+                <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+          {/* Bottom spacing for fixed button */}
+          <View style={{ height: 100 }} />
         </ScrollView>
         </KeyboardAvoidingView>
-        {/* Confirm Button */}
-        <TouchableOpacity
-          style={styles.confirmButton}
-          onPress={handleCreateRide}
-          activeOpacity={0.8}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Text style={styles.confirmButtonText}>Tìm tài xế ngay</Text>
-              <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-            </>
-          )}
-        </TouchableOpacity>
+        </View>
+        </View>
+
+        {/* Sticky Bottom Action - Must be inside Animated.View */}
+        
       </Animated.View>
     </View>
   )
@@ -1020,16 +1037,14 @@ const styles = StyleSheet.create({
     color: '#FF6B00',
   },
   card: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    height: '85%',
+    position: 'relative',
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 0,
-    paddingBottom: 34,
+    paddingBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.2,
@@ -1071,15 +1086,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FF6B00',
   },
-  scrollContent: {
-    flex: 1,
-    marginBottom: 16,
-  },
   locationsContainer: {
     backgroundColor: '#F9FAFB',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#F3F4F6',
     overflow: 'visible',
@@ -1122,7 +1133,7 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB',
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 14,
   },
   sectionLabel: {
     fontSize: 15,
@@ -1131,21 +1142,41 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     letterSpacing: -0.2,
   },
+  bottomAction: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 24,
+    elevation: 8,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
   confirmButton: {
     backgroundColor: '#FF6B00',
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 12,
-    marginBottom: 8,
+    elevation: 4,
     shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowRadius: 4,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#94a3b8',
+    opacity: 0.7,
   },
   confirmButtonText: {
     fontSize: 16,

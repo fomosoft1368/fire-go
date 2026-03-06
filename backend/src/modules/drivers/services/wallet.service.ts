@@ -442,6 +442,33 @@ export class WalletService {
       throw new NotFoundException('Tài xế không tồn tại');
     }
 
+    // Auto-initialize walletBalance field if it doesn't exist
+    const driverObj = driver.toObject();
+    const hasWalletBalance = driverObj.hasOwnProperty('walletBalance') && 
+                             driver.walletBalance !== undefined && 
+                             driver.walletBalance !== null;
+    
+    if (!hasWalletBalance) {
+      console.log('[WalletService] 🔧 Auto-initializing walletBalance field for driver:', driverId);
+      console.log('[WalletService] Current driver fields:', Object.keys(driverObj));
+      console.log('[WalletService] walletBalance before:', driver.walletBalance);
+      
+      driver.walletBalance = 0;
+      driver.isWalletLocked = false;
+      driver.minimumBalance = driver.minimumBalance || 100000;
+      driver.pendingBalance = driver.pendingBalance || 0;
+      
+      await driver.save();
+      console.log('[WalletService] ✅ Wallet fields initialized:', {
+        walletBalance: driver.walletBalance,
+        isWalletLocked: driver.isWalletLocked,
+        minimumBalance: driver.minimumBalance,
+        pendingBalance: driver.pendingBalance
+      });
+    } else {
+      console.log('[WalletService] ℹ️ Wallet balance already exists:', driver.walletBalance);
+    }
+
     const balanceBefore = driver.walletBalance || 0;
     const balanceAfter = balanceBefore + amount;
 

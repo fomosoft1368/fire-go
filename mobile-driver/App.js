@@ -382,7 +382,7 @@ console.log('[App] Fetching user profile with token...')
       console.log('👤 User from Redux:', user?.id || 'NULL')
       
       try {
-        const API_URL = 'http://192.168.1.16:3000/api'
+        const API_URL = 'http://192.168.1.18:3000/api'
         const token = await AsyncStorage.getItem('token')
         if (!token) {
           console.warn('[App] ⚠️ No auth token, skipping poll')
@@ -591,6 +591,10 @@ export default function App() {
   const [timeoutSeconds, setTimeoutSeconds] = useState(45) // ✅ Dynamic timeout from backend (default 45s)
   const navigationRef = useRef(null)
   const lastRequestIdRef = useRef(null)  // ✅ Track last request ID to avoid reset countdown
+  
+  // 🔥 NEW: Request queue to prevent modal override
+  const [requestQueue, setRequestQueue] = useState([])
+  const requestQueueRef = useRef([])
 
   // ✅ Setup assignment request polling with store subscription
   useEffect(() => {
@@ -629,7 +633,29 @@ export default function App() {
         console.log('[App] 🔍 rideHasFullData:', rideHasFullData, 'rideId type:', typeof request.rideId)
         console.log('[App] 🔍 deliveryHasFullData:', deliveryHasFullData, 'deliveryId type:', typeof request.deliveryId)
 
-        // UPDATE STATE TO SHOW MODAL
+        // 🔥 NEW: Check if modal is already showing a request
+        // If yes, add to queue instead of overriding
+        if (showAssignmentModal && assignmentRequest) {
+          console.log('[App] 🚦 Modal already shown, adding request to queue:', {
+            currentRequestId: assignmentRequest._id,
+            newRequestId: request._id,
+            queueLength: requestQueueRef.current.length
+          })
+          
+          // Check if request is already in queue (avoid duplicates)
+          const alreadyInQueue = requestQueueRef.current.some(r => r._id === request._id)
+          if (!alreadyInQueue) {
+            requestQueueRef.current.push(request)
+            setRequestQueue([...requestQueueRef.current])
+            console.log('[App] ✅ Request added to queue, new queue length:', requestQueueRef.current.length)
+          } else {
+            console.log('[App] ⚠️ Request already in queue, skipping duplicate')
+          }
+          return
+        }
+
+        // 🔥 If modal not shown, show immediately
+        console.log('[App] 📬 Showing request immediately (modal not shown)')
         setAssignmentRequest(request)
         setShowAssignmentModal(true)
 
@@ -647,18 +673,30 @@ export default function App() {
             console.log('[App] ✅ Using populated ride data immediately:', {
               distance: request.rideId.distance,
               duration: request.rideId.duration,
-              fare: request.rideId.totalFare,
+              fare: request.totalFare || request.fare || request.rideId.totalFare,
+              pickupAddress: request.pickupAddress || request.rideId.pickupAddress,
+              dropoffAddress: request.dropoffAddress || request.rideId.dropoffAddress,
             })
-            setAssignmentRequest(prev => ({
+            const updatedRequest = {
               ...prev,
               distance: request.rideId.distance || 0,
               duration: request.rideId.duration || 0,
-              fare: request.rideId.totalFare || 0,
-              pickupAddress: request.rideId.pickupAddress || 'Địa điểm đón',
-              dropoffAddress: request.rideId.dropoffAddress || 'Địa điểm đến',
-              pickupCoordinates: request.rideId.pickupCoordinates || prev.pickupCoordinates,
-              dropoffCoordinates: request.rideId.dropoffCoordinates || prev.dropoffCoordinates,
-            }))
+              // ✅ Ưu tiên fare từ request (khách hàng), không phải từ rideId (tài xế)
+              fare: request.totalFare || request.fare || request.rideId.totalFare || 0,
+              totalFare: request.totalFare || request.fare || request.rideId.totalFare || 0,
+              // ✅ Ưu tiên địa chỉ từ request (khách hàng), không phải từ rideId (tài xế)
+              pickupAddress: request.pickupAddress || request.rideId.pickupAddress || 'Địa điểm đón',
+              dropoffAddress: request.dropoffAddress || request.rideId.dropoffAddress || 'Địa điểm đến',
+              pickupCoordinates: request.pickupCoordinates || request.rideId.pickupCoordinates || prev.pickupCoordinates,
+              dropoffCoordinates: request.dropoffCoordinates || request.rideId.dropoffCoordinates || prev.dropoffCoordinates,
+            }
+            console.log('[App] 📦 Initial request data (ride):', {
+              pickupAddress: updatedRequest.pickupAddress?.substring(0, 50),
+              dropoffAddress: updatedRequest.dropoffAddress?.substring(0, 50),
+              fare: updatedRequest.fare,
+              source: 'populated rideId'
+            })
+            setAssignmentRequest(updatedRequest)
             return
           }
 
@@ -687,20 +725,32 @@ export default function App() {
             console.log('[App] ✅ Using populated delivery data immediately:', {
               distance: request.deliveryId.distance,
               duration: request.deliveryId.duration,
-              fare: request.deliveryId.estimatedPrice,
+              fare: request.totalFare || request.deliveryId.estimatedPrice,
+              pickupAddress: request.pickupAddress || request.deliveryId.pickupAddress,
+              dropoffAddress: request.dropoffAddress || request.deliveryId.dropoffAddress,
               distanceParsed: parseDistance(request.deliveryId.distance),
               durationParsed: parseDuration(request.deliveryId.duration),
             })
-            setAssignmentRequest(prev => ({
+            const updatedRequest = {
               ...prev,
               distance: parseDistance(request.deliveryId.distance),
               duration: parseDuration(request.deliveryId.duration),
-              fare: request.deliveryId.estimatedPrice || 0,
-              pickupAddress: request.deliveryId.pickupAddress || 'Lấy hàng',
-              dropoffAddress: request.deliveryId.dropoffAddress || 'Giao hàng',
-              pickupCoordinates: request.deliveryId.pickupCoordinates || prev.pickupCoordinates,
-              dropoffCoordinates: request.deliveryId.dropoffCoordinates || prev.dropoffCoordinates,
-            }))
+              // ✅ Ưu tiên fare từ request (khách hàng), không phải từ deliveryId
+              fare: request.totalFare || request.fare || request.deliveryId.estimatedPrice || 0,
+              totalFare: request.totalFare || request.fare || request.deliveryId.estimatedPrice || 0,
+              // ✅ Ưu tiên địa chỉ từ request (khách hàng), không phải từ deliveryId
+              pickupAddress: request.pickupAddress || request.deliveryId.pickupAddress || 'Lấy hàng',
+              dropoffAddress: request.dropoffAddress || request.deliveryId.dropoffAddress || 'Giao hàng',
+              pickupCoordinates: request.pickupCoordinates || request.deliveryId.pickupCoordinates || prev.pickupCoordinates,
+              dropoffCoordinates: request.dropoffCoordinates || request.deliveryId.dropoffCoordinates || prev.dropoffCoordinates,
+            }
+            console.log('[App] 📦 Initial request data (delivery):', {
+              pickupAddress: updatedRequest.pickupAddress?.substring(0, 50),
+              dropoffAddress: updatedRequest.dropoffAddress?.substring(0, 50),
+              fare: updatedRequest.fare,
+              source: 'populated deliveryId'
+            })
+            setAssignmentRequest(updatedRequest)
             return
           }
 
@@ -758,13 +808,13 @@ export default function App() {
 
         let endpoint = ''
         if (dataType === 'combined_trip') {
-          endpoint = `http://192.168.1.16:3000/api/combined-trips/${dataId}`
+          endpoint = `http://192.168.1.18:3000/api/combined-trips/${dataId}`
           console.log('[App] 📡 Fetching full combined trip data for:', dataId)
         } else if (dataType === 'ride') {
-          endpoint = `http://192.168.1.16:3000/api/rides/${dataId}`
+          endpoint = `http://192.168.1.18:3000/api/rides/${dataId}`
           console.log('[App] 📡 Fetching full ride data for:', dataId)
         } else if (dataType === 'delivery') {
-          endpoint = `http://192.168.1.16:3000/api/deliveries/${dataId}`
+          endpoint = `http://192.168.1.18:3000/api/deliveries/${dataId}`
           console.log('[App] 📡 Fetching full delivery data for:', dataId)
         }
 
@@ -845,6 +895,7 @@ export default function App() {
           fare,
           pickupAddress: pickupAddress.substring(0, 30) + '...',
           dropoffAddress: dropoffAddress.substring(0, 30) + '...',
+          note: 'These are from trip object (driver created), will be overridden by request addresses (customer sent)'
         })
 
         // 🔥 DEBUG: Log raw values
@@ -865,14 +916,15 @@ export default function App() {
             ...prev,
             distance,
             duration,
-            pickupAddress,
-            dropoffAddress,
+            // ✅ GIỮ NGUYÊN địa chỉ từ request (khách hàng), KHÔNG ghi đè bằng địa chỉ từ trip (tài xế)
+            pickupAddress: prev.pickupAddress || pickupAddress,
+            dropoffAddress: prev.dropoffAddress || dropoffAddress,
             combinedTripId: dataType === 'combined_trip' ? dataId : prev.combinedTripId,
             rideId: dataType === 'ride' ? dataId : prev.rideId,
             deliveryId: dataType === 'delivery' ? dataId : prev.deliveryId,
-            // Also add coordinates for modal display
-            pickupCoordinates: data.pickupLocation?.coordinates || data.pickupCoordinates || prev.pickupCoordinates,
-            dropoffCoordinates: data.deliveryLocation?.coordinates || data.deliveryCoordinates || data.dropoffLocation?.coordinates || data.dropoffCoordinates || prev.dropoffCoordinates,
+            // Also add coordinates for modal display (ưu tiên từ prev nếu đã có)
+            pickupCoordinates: prev.pickupCoordinates || data.pickupLocation?.coordinates || data.pickupCoordinates,
+            dropoffCoordinates: prev.dropoffCoordinates || data.deliveryLocation?.coordinates || data.deliveryCoordinates || data.dropoffLocation?.coordinates || data.dropoffCoordinates,
           }
           
           // ONLY update fare for regular rides/delivery, NOT for combined trips
@@ -882,6 +934,15 @@ export default function App() {
           } else {
             console.log('[App] ⚠️ Preserved original request.fare for combined trip:', prev.fare)
           }
+          
+          console.log('[App] 📦 Final updated request data:', {
+            pickupAddress: updatedData.pickupAddress?.substring(0, 50),
+            dropoffAddress: updatedData.dropoffAddress?.substring(0, 50),
+            fare: updatedData.fare,
+            distance: updatedData.distance,
+            duration: updatedData.duration,
+            source: 'fetchFullRequestData'
+          })
           
           return updatedData
         })
@@ -914,6 +975,36 @@ export default function App() {
       assignmentRequestPollingService.stopPolling()
     }
   }, [])
+
+  // 🔥 Helper function to show next request from queue
+  const showNextRequest = () => {
+    if (requestQueueRef.current.length === 0) {
+      console.log('[App] 📭 Queue is empty, no more requests')
+      return
+    }
+
+    const nextRequest = requestQueueRef.current.shift() // Remove first item
+    setRequestQueue([...requestQueueRef.current]) // Update state
+    
+    console.log('[App] 📬 Showing next request from queue:', {
+      requestId: nextRequest._id,
+      queueLength: requestQueueRef.current.length,
+      type: nextRequest.type
+    })
+
+    // Show modal with next request
+    setAssignmentRequest(nextRequest)
+    setShowAssignmentModal(true)
+    
+    // Set countdown for this request
+    const timeoutMs = nextRequest.timeoutMs || 45000
+    const timeoutSec = Math.ceil(timeoutMs / 1000)
+    setCountdown(timeoutSec)
+    setTimeoutSeconds(timeoutSec)
+    
+    // Update last request ID
+    lastRequestIdRef.current = nextRequest._id
+  }
 
   // Countdown timer
   useEffect(() => {
@@ -957,6 +1048,7 @@ export default function App() {
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
+      showNextRequest() // 🔥 Show next request from queue
       return
     }
 
@@ -1007,6 +1099,7 @@ export default function App() {
                 setShowAssignmentModal(false)
                 setAssignmentRequest(null)
                 setCountdown(45)
+                showNextRequest() // 🔥 Show next request from queue
               },
             },
           ]
@@ -1062,6 +1155,7 @@ export default function App() {
         setShowAssignmentModal(false)
         setAssignmentRequest(null)
         setCountdown(45)
+        showNextRequest() // 🔥 Show next request from queue
         return
       }
 
@@ -1096,6 +1190,7 @@ export default function App() {
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
+      showNextRequest() // 🔥 Show next request from queue
 
       // Navigate based on type
       if (!navigationRef.current) {
@@ -1144,6 +1239,7 @@ export default function App() {
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
+      showNextRequest() // 🔥 Show next request from queue
       Alert.alert('Lỗi', error?.message || 'Không thể nhận yêu cầu')
     }
   }
@@ -1162,6 +1258,7 @@ export default function App() {
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
+      showNextRequest() // 🔥 Show next request from queue
       return
     }
 
@@ -1190,6 +1287,7 @@ export default function App() {
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
+      showNextRequest() // 🔥 Show next request from queue
       Alert.alert('Thành công', 'Bạn đã từ chối yêu cầu này')
     } catch (error) {
       console.error('[App] ❌ Error rejecting assignment:', error)
@@ -1200,6 +1298,7 @@ export default function App() {
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
+      showNextRequest() // 🔥 Show next request from queue
       Alert.alert('Lỗi', error?.message || 'Không thể từ chối yêu cầu')
     }
   }

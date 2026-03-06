@@ -11,6 +11,8 @@
 1. Vào **APIs & Services** > **Library**
 2. Enable các API sau:
    - **Geocoding API** (Chuyển địa chỉ thành tọa độ)
+   - **Directions API** ⭐ (Tính route và đường đi - BẮT BUỘC)
+   - **Places API** ⭐ (Tìm kiếm và autocomplete địa chỉ - BẮT BUỘC)
    - **Distance Matrix API** (Tính khoảng cách và thời gian)
 
 ### Bước 3: Tạo API Key
@@ -23,7 +25,7 @@
 2. **Application restrictions**: chọn **None** (hoặc thiết lập theo nhu cầu)
 3. **API restrictions**: 
    - Chọn "Restrict key"
-   - Chỉ chọn: Geocoding API, Distance Matrix API
+   - Chỉ chọn: Geocoding API, Directions API, Places API, Distance Matrix API
 4. Save
 
 ## 📝 Cấu hình trong project

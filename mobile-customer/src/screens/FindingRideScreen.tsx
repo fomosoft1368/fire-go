@@ -467,41 +467,27 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
 
       pollIntervalRef.current = setInterval(async () => {
         try {
-          console.log('[FindingRideScreen] Polling trip status for ID:', tripId)
+          const pollTimestamp = new Date().toISOString();
+          console.log('[FindingRideScreen] ==========================================');
+          console.log('[FindingRideScreen] 🔄 Polling at:', pollTimestamp);
+          console.log('[FindingRideScreen] Trip ID:', tripId);
           
-          const statusResponse = await fetch(`${API_BASE_URL}/combined-trips/${tripId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          })
-
-          if (!statusResponse.ok) {
-            const errorData = await statusResponse.json()
-            console.error('[FindingRideScreen] ❌ Status poll failed:', {
-              status: statusResponse.status,
-              error: errorData,
-              tripId: tripId,
-            })
-            
-            // If trip not found, stop polling
-            if (statusResponse.status === 404) {
-              console.error('[FindingRideScreen] Trip not found - stopping poll')
-              if (pollIntervalRef.current) {
-                clearInterval(pollIntervalRef.current)
-                pollIntervalRef.current = null
-              }
-              setCreatingNewTrip(false)
-              setNewTripId(null)
-              closeVehicleModal()
-              Alert.alert('Lỗi', 'Không tìm thấy chuyến đi. Vui lòng thử lại.')
-            }
-            return
-          }
-
-          const tripData = await statusResponse.json()
-          console.log('[FindingRideScreen] ✅ Trip status:', tripData.status)
+          // Use service method instead of direct fetch
+          const tripData = await combinedTripsService.getCombinedTripDetail(tripId)
+          
+          console.log('[FindingRideScreen] ✅ Full trip data:', JSON.stringify(tripData, null, 2));
+          console.log('[FindingRideScreen] Trip status:', tripData.status);
+          console.log('[FindingRideScreen] Has driverId:', !!tripData.driverId);
+          console.log('[FindingRideScreen] Driver info:', tripData.driverId);
+          console.log('[FindingRideScreen] ==========================================');
 
           if (tripData.status === 'accepted') {
+            console.log('[FindingRideScreen] ⚠️⚠️⚠️ TRIP ACCEPTED DETECTED ⚠️⚠️⚠️');
+            console.log('[FindingRideScreen] Trip ID:', tripId);
+            console.log('[FindingRideScreen] Driver ID:', tripData.driverId?._id || tripData.driverId);
+            console.log('[FindingRideScreen] Driver name:', tripData.driverId ? `${tripData.driverId.firstName} ${tripData.driverId.lastName}` : 'Unknown');
+            console.log('[FindingRideScreen] AcceptedAt:', tripData.acceptedAt);
+            
             if (pollIntervalRef.current) {
               clearInterval(pollIntervalRef.current)
               pollIntervalRef.current = null
@@ -1113,7 +1099,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.cancelModalButton, { backgroundColor: colors.bg, borderColor: '#ff4444' }]}
+                  style={[styles.cancelModalButton, { backgroundColor: colors.card, borderColor: '#ff4444' }]}
                   onPress={handleCancelTrip}
                   activeOpacity={0.8}
                 >

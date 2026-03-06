@@ -64,11 +64,23 @@ export const combinedTripsService = {
     try {
       console.log('[CombinedTripsService] Getting combined trip detail:', combinedTripId)
 
+      // Get auth token
+      const token = await AsyncStorage.getItem('authToken')
+      
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+        console.log('[CombinedTripsService] ✅ Auth token added to request')
+      } else {
+        console.warn('[CombinedTripsService] ⚠️ No auth token found')
+      }
+
       const response = await fetch(`${API_BASE_URL}/combined-trips/${combinedTripId}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       })
 
       const result = await response.json()

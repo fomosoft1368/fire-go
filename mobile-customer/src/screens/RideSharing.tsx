@@ -76,9 +76,9 @@ export default function RideSharing(props?: RideSharingProps) {
 
   // Draggable Bottom Sheet
   const screenHeight = Dimensions.get('window').height
-  const minHeight = screenHeight * 0.1 // 10%
-  const maxHeight = screenHeight * 0.95 // 95%
-  const initialHeight = screenHeight * 0.5 // 50%
+  const minHeight = screenHeight * 0.42 // 42%
+  const maxHeight = screenHeight * 0.85 // 85%
+  const initialHeight = screenHeight * 0.42 // 42% - Start collapsed
   const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
   const lastGestureDy = useRef(0)
 
@@ -126,7 +126,7 @@ export default function RideSharing(props?: RideSharingProps) {
         const currentY = lastGestureDy.current + gestureState.dy
         const velocity = gestureState.vy
 
-        // Snap to either min (10%) or max (95%) only
+        // Snap to either min (42%) or max (85%) only
         let snapTo: number
         const midPoint = screenHeight - (maxHeight + minHeight) / 2
         
@@ -136,9 +136,9 @@ export default function RideSharing(props?: RideSharingProps) {
         }
         // Position-based snapping
         else if (currentY > midPoint) {
-          snapTo = screenHeight - minHeight // Snap to collapsed (10%)
+          snapTo = screenHeight - minHeight // Snap to collapsed (42%)
         } else {
-          snapTo = screenHeight - maxHeight // Snap to expanded (95%)
+          snapTo = screenHeight - maxHeight // Snap to expanded (85%)
         }
 
         lastGestureDy.current = snapTo
@@ -889,7 +889,7 @@ export default function RideSharing(props?: RideSharingProps) {
         <ScrollView 
           showsVerticalScrollIndicator={false} 
           style={styles.scrollContent}
-          contentContainerStyle={{ paddingBottom: 80 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
         >
           {/* Locations Section */}
           <View style={styles.locationsContainer}>
@@ -1040,27 +1040,29 @@ export default function RideSharing(props?: RideSharingProps) {
           )}
         </ScrollView>
 
-        {/* Confirm Button */}
-        <TouchableOpacity
-          style={styles.confirmButton}
-          onPress={handleFindRide}
-          activeOpacity={0.8}
-          disabled={loading || isRecalculatingRoute}
-        >
-          {loading || isRecalculatingRoute ? (
-            <>
-              <ActivityIndicator color="#fff" />
-              <Text style={styles.confirmButtonText}>
-                {isRecalculatingRoute ? 'Cập nhật tuyến đường...' : 'Tìm chuyến xe...'}
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.confirmButtonText}>Tìm chuyến xe</Text>
-              <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Sticky Bottom Action */}
+        <View style={styles.bottomAction}>
+          <TouchableOpacity
+            style={[styles.confirmButton, (loading || isRecalculatingRoute) && styles.confirmButtonDisabled]}
+            onPress={handleFindRide}
+            activeOpacity={0.8}
+            disabled={loading || isRecalculatingRoute}
+          >
+            {loading || isRecalculatingRoute ? (
+              <>
+                <ActivityIndicator color="#fff" size="small" />
+                <Text style={styles.confirmButtonText}>
+                  {isRecalculatingRoute ? 'Cập nhật tuyến đường...' : 'Tìm chuyến xe...'}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.confirmButtonText}>Tìm chuyến xe</Text>
+                <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </View>
   )
@@ -1211,20 +1213,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D1D5DB',
   },
+  bottomAction: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 49,
+  },
   confirmButton: {
     backgroundColor: '#FF6B00',
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 16,
+    elevation: 4,
     shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowRadius: 4,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#94a3b8',
+    opacity: 0.7,
   },
   confirmButtonText: {
     fontSize: 16,
