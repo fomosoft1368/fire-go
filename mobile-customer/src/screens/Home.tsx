@@ -87,7 +87,6 @@ const Home = () => {
                     </View>
                 </TouchableOpacity>
             </View>
-
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
                 {/* Search Bar */}
                 <View style={styles.searchContainer}>

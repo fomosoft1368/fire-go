@@ -33,10 +33,10 @@ export default function HomeScreen() {
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [earnings, setEarnings] = useState<Omit<EarningsData, 'totalTrips' | 'driverShare'> & { 
-    breakdown: NonNullable<EarningsData['breakdown']> 
-  }>({ 
-    amount: 0, 
+  const [earnings, setEarnings] = useState<Omit<EarningsData, 'totalTrips' | 'driverShare'> & {
+    breakdown: NonNullable<EarningsData['breakdown']>
+  }>({
+    amount: 0,
     increase: 0,
     breakdown: {
       rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
@@ -101,8 +101,8 @@ export default function HomeScreen() {
 
       } catch (error) {
         console.error('[HomeScreen] ❌ Error fetching earnings/wallet:', error)
-        setEarnings({ 
-          amount: 0, 
+        setEarnings({
+          amount: 0,
           increase: 0,
           breakdown: {
             rides: { trips: 0, totalFare: 0, driverEarnings: 0 },
@@ -145,13 +145,13 @@ export default function HomeScreen() {
         }))
 
         setIsOnline(profile.isOnline || false)
-        
+
         // ✅ Check wallet warning on mount
         const balance = profile.walletBalance || 0
         setWalletBalance(balance)
         const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
         setWalletWarning(balance < minBalance)
-        
+
         console.log('[HomeScreen] Wallet check on mount:', {
           balance,
           minBalance,
@@ -199,7 +199,7 @@ export default function HomeScreen() {
       const profile = await driverService.getProfile()
       const balance = profile?.walletBalance || 0
       setWalletBalance(balance)
-      
+
       // Update Redux with latest profile data
       dispatch(updateUser({
         walletBalance: balance,
@@ -208,11 +208,11 @@ export default function HomeScreen() {
         averageRating: profile.averageRating,
         onlineHours: profile.onlineHours,
       }))
-      
+
       // ✅ Get dynamic minimum balance from config
       const minBalance = await pricingService.getMinWalletBalanceToGoOnline()
       setWalletWarning(balance < minBalance)
-      
+
       console.log('[HomeScreen] Wallet check:', {
         balance,
         minBalance,
@@ -421,46 +421,34 @@ export default function HomeScreen() {
   }, [rides, formatRideData])
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refreshWalletAndEarnings} />
-        }
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.avatarContainer}>
-              {user?.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
-                    {user?.firstName?.[0] || user?.name?.[0] || 'T'}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View>
-              <Text style={styles.greeting}>Xin chào</Text>
-              <Text style={styles.driverName}>
-                {user?.firstName && user?.lastName
-                  ? `${user.firstName} ${user.lastName}`
-                  : user?.name || 'Tài xế'}
-              </Text>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={28} color="#FFF" />
             </View>
           </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => navigation.navigate('Notifications' as never)}
-            >
-              <Ionicons name="notifications-outline" size={24} color="#333" />
-            </TouchableOpacity>
+          <View style={styles.userInfoContainer}>
+            <Text style={styles.greeting}>Xin chào 👋</Text>
+            <Text style={styles.userName}>
+              {user?.firstName && user?.lastName
+                ? `${user.firstName} ${user.lastName}`
+                : user?.name}
+            </Text>
           </View>
         </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate('Notifications' as never)}
+          >
+            <Ionicons name="notifications-outline" size={24} color="#333" />
+          </TouchableOpacity>
+        </View>
+      </View>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
 
         {/* Balance Card */}
         <BalanceCard
@@ -549,30 +537,30 @@ export default function HomeScreen() {
 
           )}
         </View>
-      </ScrollView>
 
-      {/* Floating Map Button - Draggable */}
-      <Animated.View
-        style={[
-          styles.mapButton,
-          {
-            transform: [
-              { translateX: mapButtonPan.x },
-              { translateY: mapButtonPan.y },
-            ],
-          },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <TouchableOpacity
-          style={styles.mapButtonInner}
-          onPress={() => navigation.navigate('MapScreen')}
-          activeOpacity={0.8}
+        {/* Floating Map Button - Draggable */}
+        <Animated.View
+          style={[
+            styles.mapButton,
+            {
+              transform: [
+                { translateX: mapButtonPan.x },
+                { translateY: mapButtonPan.y },
+              ],
+            },
+          ]}
+          {...panResponder.panHandlers}
         >
-          <MaterialIcons name="location-on" size={28} color="#fff" />
-        </TouchableOpacity>
-      </Animated.View>
-    </SafeAreaView>
+          <TouchableOpacity
+            style={styles.mapButtonInner}
+            onPress={() => navigation.navigate('MapScreen')}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="location-on" size={28} color="#fff" />
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
+    </View>
   )
 }
 
@@ -610,32 +598,56 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ icon, iconColor, iconBg, titl
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.xxl + SPACING.lg,
-    paddingBottom: SPACING.xl,
-    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    paddingTop: 48,
+    borderBottomWidth: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FF6B35',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#FFF',
+  },
+  userInfoContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: 4,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
     flex: 1,
   },
   headerRight: {
@@ -644,13 +656,7 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   notificationButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
+    padding: 4,
   },
   notificationBadge: {
     position: 'absolute',
@@ -671,47 +677,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#fff',
   },
-  avatarContainer: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  avatarPlaceholder: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#FF6B00',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#fff',
-    textTransform: 'uppercase',
-  },
   greeting: {
     fontSize: 13,
-    color: '#64748b',
-    marginBottom: 4,
-    fontWeight: '500',
+    color: '#9CA3AF',
+    fontWeight: '600',
+    marginBottom: 2,
+    letterSpacing: -0.2,
   },
-  driverName: {
-    fontSize: 22,
+  userName: {
+    fontSize: 20,
     fontWeight: '800',
-    color: '#0f172a',
-    letterSpacing: -0.5,
+    color: '#111827',
+    letterSpacing: -0.4,
   },
   statusBadge: {
     flexDirection: 'row',

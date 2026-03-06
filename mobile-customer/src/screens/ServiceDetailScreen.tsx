@@ -217,11 +217,6 @@ export default function ServiceDetailScreen() {
 
           {/* Worker Card - Redesigned */}
           <View style={styles.workerCardNew}>
-            <View style={styles.workerHeader}>
-              <MaterialIcons name="person-outline" size={16} color="#64748b" />
-              <Text style={styles.workerHeaderText}>Nhân viên phục vụ</Text>
-            </View>
-
             {service.worker ? (
               <>
                 <View style={styles.workerInfoNew}>

@@ -302,24 +302,29 @@ export default function ActiveHourlyServiceScreen({ navigation, route }: any) {
                 <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     {/* Customer Info */}
                     <View style={styles.infoCard}>
-                        <Text style={styles.cardTitle}>Thông tin khách hàng</Text>
-
-                        {/* Customer Details */}
-                        <View style={styles.customerDetails}>
-                            <View style={styles.customerInfo}>
-                                <View style={styles.customerRow}>
-                                    <MaterialIcons name="person" size={18} color={COLORS.primary} />
-                                    <Text style={styles.customerLabel}>Họ và tên:</Text>
-                                    <Text style={styles.customerValue}>
-                                        {service.customerId?.firstName} {service.customerId?.lastName}
-                                    </Text>
+                        <View style={styles.customerHeader}>
+                            {/* Avatar */}
+                            <View style={styles.avatarContainer}>
+                                <View style={styles.avatarCircle}>
+                                    <MaterialIcons name="person" size={32} color="#fff" />
                                 </View>
-                                <View style={styles.customerRow}>
-                                    <MaterialIcons name="phone" size={18} color={COLORS.primary} />
-                                    <Text style={styles.customerLabel}>Số điện thoại:</Text>
-                                    <Text style={styles.customerValue}>
-                                        {service.customerId?.phone || 'Chưa có'}
-                                    </Text>
+                                <View style={styles.onlineBadge} />
+                            </View>
+
+                            {/* Customer Info */}
+                            <View style={styles.customerInfoSection}>
+                                <Text style={styles.customerName}>
+                                    {service.customerId?.firstName} {service.customerId?.lastName}
+                                </Text>
+                                {service.customerId?.phone && (
+                                    <View style={styles.phoneRow}>
+                                        <MaterialIcons name="phone" size={14} color="#64748b" />
+                                        <Text style={styles.phoneText}>{service.customerId.phone}</Text>
+                                    </View>
+                                )}
+                                <View style={styles.ratingRow}>
+                                    <MaterialIcons name="star" size={14} color="#fbbf24" />
+                                    <Text style={styles.ratingText}>Khách hàng</Text>
                                 </View>
                             </View>
                         </View>
@@ -333,7 +338,7 @@ export default function ActiveHourlyServiceScreen({ navigation, route }: any) {
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.chatButton} onPress={handleChat}>
                                 <MaterialIcons name="chat" size={20} color={COLORS.primary} />
-                                <Text style={styles.chatButtonText}>Chat</Text>
+                                <Text style={styles.chatButtonText}>Nhắn tin</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -351,48 +356,91 @@ export default function ActiveHourlyServiceScreen({ navigation, route }: any) {
                     <View style={styles.infoCard}>
                         <Text style={styles.cardTitle}>Chi tiết dịch vụ</Text>
 
-                        <View style={styles.scheduleRow}>
-                            <MaterialIcons name="event" size={18} color={COLORS.primary} />
-                            <Text style={styles.scheduleText}>
-                                {new Date(service.selectedDate).toLocaleDateString('vi-VN')}
-                            </Text>
-                        </View>
-                        <View style={styles.scheduleRow}>
-                            <MaterialIcons name="access-time" size={18} color={COLORS.primary} />
-                            <Text style={styles.scheduleText}>{service.selectedTime}</Text>
-                        </View>
-                        <View style={styles.scheduleRow}>
-                            <MaterialIcons name="timer" size={18} color={COLORS.primary} />
-                            <Text style={styles.scheduleText}>{service.hours} giờ</Text>
+                        {/* Schedule Section */}
+                        <View style={styles.scheduleSection}>
+                            <View style={styles.scheduleItem}>
+                                <View style={styles.scheduleIconContainer}>
+                                    <MaterialIcons name="event" size={20} color={COLORS.primary} />
+                                </View>
+                                <View style={styles.scheduleInfo}>
+                                    <Text style={styles.scheduleLabel}>Ngày làm việc</Text>
+                                    <Text style={styles.scheduleValue}>
+                                        {new Date(service.selectedDate).toLocaleDateString('vi-VN', {
+                                            weekday: 'long',
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.scheduleItem}>
+                                <View style={styles.scheduleIconContainer}>
+                                    <MaterialIcons name="access-time" size={20} color={COLORS.primary} />
+                                </View>
+                                <View style={styles.scheduleInfo}>
+                                    <Text style={styles.scheduleLabel}>Thời gian</Text>
+                                    <Text style={styles.scheduleValue}>{service.selectedTime}</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.scheduleItem}>
+                                <View style={styles.scheduleIconContainer}>
+                                    <MaterialIcons name="timer" size={20} color={COLORS.primary} />
+                                </View>
+                                <View style={styles.scheduleInfo}>
+                                    <Text style={styles.scheduleLabel}>Thời lượng</Text>
+                                    <Text style={styles.scheduleValue}>{service.hours} giờ</Text>
+                                </View>
+                            </View>
                         </View>
 
                         <View style={styles.divider} />
 
-                        {selectedServices.map((item, index) => (
-                            <View key={index} style={styles.serviceRow}>
-                                <View style={styles.serviceIcon}>
-                                    <MaterialIcons name="cleaning-services" size={16} color={COLORS.primary} />
+                        {/* Services Section */}
+                        <Text style={styles.sectionTitle}>Dịch vụ đã chọn</Text>
+                        <View style={styles.servicesContainer}>
+                            {selectedServices.map((item, index) => (
+                                <View key={index} style={styles.serviceItem}>
+                                    <View style={styles.serviceIconBox}>
+                                        <MaterialIcons name="cleaning-services" size={18} color={COLORS.primary} />
+                                    </View>
+                                    <View style={styles.serviceDetails}>
+                                        <Text style={styles.serviceName}>{item.name}</Text>
+                                        <Text style={styles.servicePrice}>+{(item.price / 1000).toFixed(0)}k VNĐ</Text>
+                                    </View>
+                                    <View style={styles.checkBadge}>
+                                        <MaterialIcons name="check" size={14} color="#10b981" />
+                                    </View>
                                 </View>
-                                <Text style={styles.serviceName}>{item.name}</Text>
-                                <Text style={styles.servicePrice}>+{(item.price / 1000).toFixed(0)}k</Text>
-                            </View>
-                        ))}
+                            ))}
+                        </View>
+
                         {service.notes && (
                             <>
                                 <View style={styles.divider} />
-                                <Text style={styles.notesLabel}>Ghi chú:</Text>
-                                <Text style={styles.notesText}>{service.notes}</Text>
+                                <View style={styles.notesSection}>
+                                    <View style={styles.notesHeader}>
+                                        <MaterialIcons name="sticky-note-2" size={16} color="#f59e0b" />
+                                        <Text style={styles.notesLabel}>Ghi chú</Text>
+                                    </View>
+                                    <Text style={styles.notesText}>{service.notes}</Text>
+                                </View>
                             </>
                         )}
 
                         <View style={styles.divider} />
 
-                        <View style={styles.pricingRow}>
-                            <Text style={styles.pricingLabel}>Tổng chi phí</Text>
-                            <Text style={styles.pricingValue}>{(service.estimatedPrice / 1000).toFixed(0)}k</Text>
+                        {/* Total Price */}
+                        <View style={styles.totalPriceContainer}>
+                            <View style={styles.totalPriceRow}>
+                                <Text style={styles.totalLabel}>Tổng chi phí</Text>
+                                <Text style={styles.totalValue}>{(service.estimatedPrice / 1000).toFixed(0)}k</Text>
+                            </View>
+                            <Text style={styles.totalSubtext}>Đã bao gồm phí dịch vụ</Text>
                         </View>
                     </View>
-
                     <View style={{ height: 120 }} />
                 </ScrollView>
             </View>
@@ -554,10 +602,15 @@ const styles = StyleSheet.create({
         paddingBottom: 120,
     },
     infoCard: {
-        backgroundColor: '#f8fafc',
-        borderRadius: 12,
+        backgroundColor: '#fff',
+        borderRadius: 16,
         padding: 16,
         marginBottom: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
     },
     cardTitle: {
         fontSize: 14,
@@ -565,28 +618,69 @@ const styles = StyleSheet.create({
         color: '#0f172a',
         marginBottom: 12,
     },
-    customerDetails: {
-        marginBottom: 12,
-    },
-    customerInfo: {
-        gap: 12,
-    },
-    customerRow: {
+    customerHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 16,
+        marginBottom: 16,
     },
-    customerLabel: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#64748b',
-        minWidth: 100,
+    avatarContainer: {
+        position: 'relative',
     },
-    customerValue: {
-        fontSize: 13,
+    avatarCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: COLORS.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 3,
+        borderColor: '#fff',
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    onlineBadge: {
+        position: 'absolute',
+        bottom: 2,
+        right: 2,
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#10b981',
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
+    customerInfoSection: {
+        flex: 1,
+        gap: 6,
+    },
+    customerName: {
+        fontSize: 18,
         fontWeight: '700',
         color: '#0f172a',
-        flex: 1,
+    },
+    phoneRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    phoneText: {
+        fontSize: 13,
+        color: '#64748b',
+        fontWeight: '500',
+    },
+    ratingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    ratingText: {
+        fontSize: 12,
+        color: '#64748b',
+        fontWeight: '500',
     },
     contactActions: {
         flexDirection: 'row',
@@ -625,8 +719,14 @@ const styles = StyleSheet.create({
         color: COLORS.primary,
     },
     locationSection: {
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        padding: 12,
+        backgroundColor: '#fef3f2',
+        borderRadius: 12,
+        padding: 12,
         flexDirection: 'row',
-        gap: 8,
+        gap: 10,
         marginBottom: 12,
         alignItems: 'flex-start',
     },
@@ -652,70 +752,164 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: COLORS.primary,
     },
-    scheduleRow: {
+    scheduleSection: {
+        gap: 12,
+    },
+    scheduleItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
-        marginBottom: 8,
+        gap: 14,
+        backgroundColor: '#f8fafc',
+        padding: 12,
+        borderRadius: 12,
     },
-    scheduleText: {
-        fontSize: 13,
-        color: '#0f172a',
-    },
-    serviceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        marginBottom: 8,
-    },
-    serviceIcon: {
-        width: 32,
-        height: 32,
-        borderRadius: 8,
+    scheduleIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: '#fff',
         justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    scheduleInfo: {
+        flex: 1,
+    },
+    scheduleLabel: {
+        fontSize: 11,
+        color: '#64748b',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 4,
+    },
+    scheduleValue: {
+        fontSize: 14,
+        color: '#0f172a',
+        fontWeight: '600',
+    },
+    sectionTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0f172a',
+        marginBottom: 12,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    servicesContainer: {
+        gap: 10,
+    },
+    serviceItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        backgroundColor: '#f8fafc',
+        padding: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    serviceIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    serviceDetails: {
+        flex: 1,
     },
     serviceName: {
-        flex: 1,
-        fontSize: 13,
+        fontSize: 14,
         color: '#0f172a',
+        fontWeight: '600',
+        marginBottom: 4,
     },
     servicePrice: {
         fontSize: 13,
-        fontWeight: '600',
+        fontWeight: '700',
         color: COLORS.primary,
+    },
+    checkBadge: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#d1fae5',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     divider: {
         height: 1,
         backgroundColor: '#e2e8f0',
         marginVertical: 12,
     },
+    notesSection: {
+        backgroundColor: '#fffbeb',
+        padding: 12,
+        borderRadius: 12,
+        borderLeftWidth: 3,
+        borderLeftColor: '#f59e0b',
+    },
+    notesHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
+    },
     notesLabel: {
         fontSize: 12,
-        fontWeight: '600',
-        color: '#64748b',
-        marginBottom: 6,
+        fontWeight: '700',
+        color: '#92400e',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     notesText: {
-        fontSize: 12,
-        color: '#64748b',
-        lineHeight: 18,
+        fontSize: 13,
+        color: '#78350f',
+        lineHeight: 20,
+        fontWeight: '500',
     },
-    pricingRow: {
+    totalPriceContainer: {
+        backgroundColor: '#fff7ed',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: COLORS.primary,
+        borderStyle: 'dashed',
+    },
+    totalPriceRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        marginBottom: 6,
     },
-    pricingLabel: {
+    totalLabel: {
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '700',
         color: '#0f172a',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
-    pricingValue: {
-        fontSize: 20,
+    totalValue: {
+        fontSize: 24,
         fontWeight: '800',
         color: COLORS.primary,
+    },
+    totalSubtext: {
+        fontSize: 11,
+        color: '#64748b',
+        fontWeight: '500',
+        textAlign: 'right',
     },
     bottomActions: {
         position: 'absolute',
