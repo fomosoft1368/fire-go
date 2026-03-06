@@ -75,7 +75,7 @@ export default function LoginScreen() {
       // Logout first to clear old token/user data
       await authService.logout()
       console.log('[LoginScreen] Logged out, cleared old token')
-      
+
       // Pass identifier (email or phone) to login
       const response = await authService.login(loginIdentifier, loginPassword)
       console.log('[LoginScreen] Login success, dispatching loginSuccess')
@@ -125,7 +125,7 @@ export default function LoginScreen() {
     try {
       // Logout first to clear old token/user data
       await authService.logout()
-      
+
       const response = await authService.register(
         regName,
         regEmail,
@@ -165,7 +165,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}

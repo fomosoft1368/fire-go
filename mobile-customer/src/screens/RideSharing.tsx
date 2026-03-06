@@ -16,6 +16,9 @@ import {
   Modal,
   Animated,
   PanResponder,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
 } from 'react-native'
 import * as Location from 'expo-location'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
@@ -129,7 +132,7 @@ export default function RideSharing(props?: RideSharingProps) {
         // Snap to either min (42%) or max (85%) only
         let snapTo: number
         const midPoint = screenHeight - (maxHeight + minHeight) / 2
-        
+
         // Strong velocity influence
         if (Math.abs(velocity) > 0.8) {
           snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
@@ -142,7 +145,7 @@ export default function RideSharing(props?: RideSharingProps) {
         }
 
         lastGestureDy.current = snapTo
-        
+
         Animated.spring(translateY, {
           toValue: snapTo,
           velocity: velocity * -1,
@@ -173,6 +176,48 @@ export default function RideSharing(props?: RideSharingProps) {
     lastGestureDy.current = screenHeight - initialHeight
   }, [])
 
+  // Helper refs: snap bottom sheet to max/min height (useRef to avoid stale closure)
+  const snapToMaxRef = useRef(() => {
+    const snapTo = screenHeight - maxHeight
+    lastGestureDy.current = snapTo
+    Animated.spring(translateY, {
+      toValue: snapTo,
+      tension: 65,
+      friction: 12,
+      useNativeDriver: true,
+    }).start()
+  })
+
+  const snapToMinRef = useRef(() => {
+    const snapTo = screenHeight - minHeight
+    lastGestureDy.current = snapTo
+    Animated.spring(translateY, {
+      toValue: snapTo,
+      tension: 65,
+      friction: 12,
+      useNativeDriver: true,
+    }).start()
+  })
+
+  const snapToMax = () => snapToMaxRef.current()
+  const snapToMin = () => snapToMinRef.current()
+
+  // Auto-snap bottom sheet when keyboard appears/disappears
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => snapToMaxRef.current()
+    )
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => snapToMinRef.current()
+    )
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
+  }, [])
+
   /**
    * Calculate distance between two coordinates using Haversine formula (km)
    */
@@ -189,9 +234,9 @@ export default function RideSharing(props?: RideSharingProps) {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
@@ -302,7 +347,7 @@ export default function RideSharing(props?: RideSharingProps) {
       try {
         console.log('[RideSharing] 📍 Requesting location permission...')
         const { status } = await Location.requestForegroundPermissionsAsync()
-        
+
         if (status !== 'granted') {
           console.log('[RideSharing] ⚠️ Location permission denied')
           return
@@ -321,7 +366,7 @@ export default function RideSharing(props?: RideSharingProps) {
         // Reverse geocode to get address
         const address = await mapsService.reverseGeocode(latitude, longitude)
         console.log('[RideSharing] 🏠 Address from coordinates:', address)
-        
+
         setPickupLocation(address)
       } catch (error) {
         console.error('[RideSharing] ❌ Error getting location:', error)
@@ -434,7 +479,7 @@ export default function RideSharing(props?: RideSharingProps) {
         const coordinates = directions.features[0].geometry.coordinates;
         console.log('[RideSharing] Found coordinates in features[0].geometry.coordinates, count:', coordinates.length);
         console.log('[RideSharing] Sample coordinates:', coordinates.slice(0, 3));
-        
+
         // Convert [lng, lat] to { latitude, longitude }
         routeCoordinates = coordinates.map((coord: any) => {
           if (Array.isArray(coord)) {
@@ -448,12 +493,12 @@ export default function RideSharing(props?: RideSharingProps) {
         console.log('[RideSharing] Converted to routeCoordinates, count:', routeCoordinates.length);
       }
 
-      console.log('[RideSharing] Extracted:', { 
-        distance, 
-        duration, 
+      console.log('[RideSharing] Extracted:', {
+        distance,
+        duration,
         distanceText,
         durationText,
-        routeCoordinatesCount: routeCoordinates.length 
+        routeCoordinatesCount: routeCoordinates.length
       });
 
       if (!distance || !duration || distance === 0 || duration === 0) {
@@ -496,11 +541,11 @@ export default function RideSharing(props?: RideSharingProps) {
         setFareEstimate(fareEstimate);
       }
 
-      console.log('[RideSharing] ✅ Route info updated successfully', { 
-        distance, 
-        duration, 
+      console.log('[RideSharing] ✅ Route info updated successfully', {
+        distance,
+        duration,
         routeCount: routeCoordinates.length,
-        fare: fareEstimate?.totalFare 
+        fare: fareEstimate?.totalFare
       });
     } catch (error: any) {
       console.error('[RideSharing] Route calculation error:', error);
@@ -617,7 +662,7 @@ export default function RideSharing(props?: RideSharingProps) {
     setPickupLocation(suggestion.fullText)
     setShowPickupSuggestions(false)
     setPickupSuggestions([])
-    
+
     // Gọi geocode API để lấy tọa độ thực tế
     try {
       console.log('[RideSharing] Geocoding pickup location:', suggestion.fullText)
@@ -676,7 +721,7 @@ export default function RideSharing(props?: RideSharingProps) {
     setDropoffLocation(suggestion.fullText)
     setShowDropoffSuggestions(false)
     setDropoffSuggestions([])
-    
+
     // Gọi geocode API để lấy tọa độ thực tế
     try {
       console.log('[RideSharing] Geocoding dropoff location:', suggestion.fullText)
@@ -851,7 +896,7 @@ export default function RideSharing(props?: RideSharingProps) {
           </View>
         </View>
       </Modal>
-      <Animated.View 
+      <Animated.View
         style={[
           styles.card,
           {
@@ -886,159 +931,172 @@ export default function RideSharing(props?: RideSharingProps) {
           ) : null} */}
         </View>
 
-        <ScrollView 
-          showsVerticalScrollIndicator={false} 
-          style={styles.scrollContent}
-          contentContainerStyle={{ paddingBottom: 20 }}
+        <KeyboardAvoidingView
+          behavior="padding"
+          keyboardVerticalOffset={0}
+          style={{ flex: 1 }}
         >
-          {/* Locations Section */}
-          <View style={styles.locationsContainer}>
-            <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
-              <View style={styles.inputRow}>
-                <View style={styles.iconWrapper}>
-                  <MaterialIcons name="radio-button-checked" size={20} color="#FF6B00" />
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            style={styles.scrollContent}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Locations Section */}
+            <View style={styles.locationsContainer}>
+              <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
+                <View style={styles.inputRow}>
+                  <View style={styles.iconWrapper}>
+                    <MaterialIcons name="radio-button-checked" size={20} color="#FF6B00" />
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nhập điểm đón..."
+                    placeholderTextColor="#9CA3AF"
+                    value={pickupLocation}
+                    onChangeText={handlePickupLocationChange}
+                    onFocus={() => {
+                      setShowPickupSuggestions(true)
+                      snapToMax()
+                    }}
+                  />
                 </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Nhập điểm đón..."
-                  placeholderTextColor="#9CA3AF"
-                  value={pickupLocation}
-                  onChangeText={handlePickupLocationChange}
-                  onFocus={() => setShowPickupSuggestions(true)}
+                {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                  <ScrollView
+                    style={styles.suggestionsDropdown}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled={true}
+                  >
+                    {pickupSuggestions.map((item, index) => (
+                      <TouchableOpacity
+                        key={`pickup-${index}`}
+                        style={styles.suggestionItem}
+                        onPress={() => handlePickupSuggestionSelect(item)}
+                      >
+                        <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                        <View style={styles.suggestionContent}>
+                          <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                          <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+
+              <View style={styles.locationDivider}>
+                <View style={styles.dashedLine} />
+              </View>
+
+              <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
+                <View style={styles.inputRow}>
+                  <View style={styles.iconWrapper}>
+                    <MaterialIcons name="flag" size={20} color="#ef4444" />
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Nhập điểm đến..."
+                    placeholderTextColor="#9CA3AF"
+                    value={dropoffLocation}
+                    onChangeText={handleDropoffLocationChange}
+                    onFocus={() => {
+                      setShowDropoffSuggestions(true)
+                      snapToMax()
+                    }}
+                  />
+                </View>
+                {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+                  <ScrollView
+                    style={styles.suggestionsDropdown}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled={true}
+                  >
+                    {dropoffSuggestions.map((item, index) => (
+                      <TouchableOpacity
+                        key={`dropoff-${index}`}
+                        style={styles.suggestionItem}
+                        onPress={() => handleDropoffSuggestionSelect(item)}
+                      >
+                        <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                        <View style={styles.suggestionContent}>
+                          <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                          <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+
+            {/* Time & Passenger Section */}
+            <View style={styles.timePassengerSection}>
+              <View style={[styles.timeWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+                <View>
+                  <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Thời gian</Text>
+                  <View style={styles.immediateBox}>
+                    <Text style={[styles.immediateText, { color: colors.text }]}>{selectedTime}</Text>
+                    <TouchableOpacity onPress={() => setIsTimeModalVisible(true)}>
+                      <Text style={styles.immediateSubtext}>(Thay đổi)</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Switch
+                  value={isImmediately}
+                  onValueChange={setIsImmediately}
+                  trackColor={{ false: colors.border, true: `${colors.primary}50` }}
+                  thumbColor={colors.primary}
+                  style={styles.switch}
                 />
               </View>
-              {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                <ScrollView
-                  style={styles.suggestionsDropdown}
-                  keyboardShouldPersistTaps="handled"
-                  nestedScrollEnabled={true}
-                >
-                  {pickupSuggestions.map((item, index) => (
-                    <TouchableOpacity
-                      key={`pickup-${index}`}
-                      style={styles.suggestionItem}
-                      onPress={() => handlePickupSuggestionSelect(item)}
-                    >
-                      <MaterialIcons name="location-on" size={20} color="#6B7280" />
-                      <View style={styles.suggestionContent}>
-                        <Text style={styles.suggestionMainText}>{item.mainText}</Text>
-                        <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
-            </View>
 
-            <View style={styles.locationDivider}>
-              <View style={styles.dashedLine} />
-            </View>
-
-            <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
-              <View style={styles.inputRow}>
-                <View style={styles.iconWrapper}>
-                  <MaterialIcons name="flag" size={20} color="#ef4444" />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Nhập điểm đến..."
-                  placeholderTextColor="#9CA3AF"
-                  value={dropoffLocation}
-                  onChangeText={handleDropoffLocationChange}
-                  onFocus={() => setShowDropoffSuggestions(true)}
-                />
-              </View>
-              {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
-                <ScrollView
-                  style={styles.suggestionsDropdown}
-                  keyboardShouldPersistTaps="handled"
-                  nestedScrollEnabled={true}
-                >
-                  {dropoffSuggestions.map((item, index) => (
-                    <TouchableOpacity
-                      key={`dropoff-${index}`}
-                      style={styles.suggestionItem}
-                      onPress={() => handleDropoffSuggestionSelect(item)}
-                    >
-                      <MaterialIcons name="location-on" size={20} color="#6B7280" />
-                      <View style={styles.suggestionContent}>
-                        <Text style={styles.suggestionMainText}>{item.mainText}</Text>
-                        <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
-            </View>
-          </View>
-
-          {/* Time & Passenger Section */}
-          <View style={styles.timePassengerSection}>
-            <View style={[styles.timeWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
-              <View>
-                <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Thời gian</Text>
-                <View style={styles.immediateBox}>
-                  <Text style={[styles.immediateText, { color: colors.text }]}>{selectedTime}</Text>
-                  <TouchableOpacity onPress={() => setIsTimeModalVisible(true)}>
-                    <Text style={styles.immediateSubtext}>(Thay đổi)</Text>
+              <View style={[styles.passengerWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+                <Text style={[styles.passengerLabel, { color: colors.textSecondary }]}>Số khách</Text>
+                <View style={styles.passengerControls}>
+                  <TouchableOpacity
+                    style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.warning }]}
+                    onPress={() => {
+                      if (passengerCount > 1) setPassengerCount(passengerCount - 1)
+                    }}
+                  >
+                    <Text style={[styles.passengerButtonText, { color: colors.textSecondary }]}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.passengerCount, { color: colors.text }]}>{passengerCount}</Text>
+                  <TouchableOpacity
+                    style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.warning }]}
+                    onPress={() => {
+                      if (passengerCount < 6) setPassengerCount(passengerCount + 1)
+                    }}
+                  >
+                    <Text style={[styles.passengerButtonText, { color: colors.textSecondary }]}>+</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-              <Switch
-                value={isImmediately}
-                onValueChange={setIsImmediately}
-                trackColor={{ false: colors.border, true: `${colors.primary}50` }}
-                thumbColor={colors.primary}
-                style={styles.switch}
-              />
             </View>
 
-            <View style={[styles.passengerWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
-              <Text style={[styles.passengerLabel, { color: colors.textSecondary }]}>Số khách</Text>
-              <View style={styles.passengerControls}>
-                <TouchableOpacity
-                  style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.warning }]}
-                  onPress={() => {
-                    if (passengerCount > 1) setPassengerCount(passengerCount - 1)
-                  }}
-                >
-                  <Text style={[styles.passengerButtonText, { color: colors.textSecondary }]}>−</Text>
-                </TouchableOpacity>
-                <Text style={[styles.passengerCount, { color: colors.text }]}>{passengerCount}</Text>
-                <TouchableOpacity
-                  style={[styles.passengerButton, { backgroundColor: colors.border, borderColor: colors.warning }]}
-                  onPress={() => {
-                    if (passengerCount < 6) setPassengerCount(passengerCount + 1)
-                  }}
-                >
-                  <Text style={[styles.passengerButtonText, { color: colors.textSecondary }]}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-
-          {/* Route Map & Info */}
-          {routeInfo && (
-            <View style={[styles.routeSection, { backgroundColor: colors.card }]}>
-              {/* Route Info */}
-              <View style={[styles.routeInfo, { borderTopColor: colors.warning }]}>
-                <View style={styles.routeInfoItem}>
-                  <MaterialIcons name="straighten" size={18} color="#FF6B00" />
-                  <Text style={[styles.routeText, { color: colors.text }]}>
-                    {routeInfo.distanceText}
-                  </Text>
-                </View>
-                <View style={styles.routeInfoDivider} />
-                <View style={styles.routeInfoItem}>
-                  <MaterialIcons name="schedule" size={18} color="#FF6B00" />
-                  <Text style={[styles.routeText, { color: colors.text }]}>
-                    {routeInfo.durationText}
-                  </Text>
+            {/* Route Map & Info */}
+            {routeInfo && (
+              <View style={[styles.routeSection, { backgroundColor: colors.card }]}>
+                {/* Route Info */}
+                <View style={[styles.routeInfo, { borderTopColor: colors.warning }]}>
+                  <View style={styles.routeInfoItem}>
+                    <MaterialIcons name="straighten" size={18} color="#FF6B00" />
+                    <Text style={[styles.routeText, { color: colors.text }]}>
+                      {routeInfo.distanceText}
+                    </Text>
+                  </View>
+                  <View style={styles.routeInfoDivider} />
+                  <View style={styles.routeInfoItem}>
+                    <MaterialIcons name="schedule" size={18} color="#FF6B00" />
+                    <Text style={[styles.routeText, { color: colors.text }]}>
+                      {routeInfo.durationText}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
-        </ScrollView>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* Sticky Bottom Action */}
         <View style={styles.bottomAction}>

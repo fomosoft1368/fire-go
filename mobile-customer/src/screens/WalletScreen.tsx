@@ -13,6 +13,8 @@ import {
   Modal,
   Image,
   Clipboard,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
@@ -246,12 +248,18 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
         <Text style={styles.headerTitle}>Ví của tôi</Text>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+        style={{ flex: 1 }}
       >
-        {/* Wallet Card */}
-        <View style={styles.walletCard}>
+        <ScrollView
+          style={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Wallet Card */}
+          <View style={styles.walletCard}>
           <View style={styles.walletHeader}>
             <View>
               <Text style={styles.walletLabel}>Số dư ví</Text>
@@ -317,6 +325,7 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Deposit Modal */}
       {showDepositModal && (

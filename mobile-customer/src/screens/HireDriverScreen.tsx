@@ -24,6 +24,7 @@ import {
   PanResponder,
   Dimensions,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
 } from 'react-native'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
@@ -136,7 +137,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
         let snapTo: number
         const midPoint = screenHeight - (maxHeight + minHeight) / 2
-        
+
         if (Math.abs(velocity) > 0.8) {
           snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
         } else if (currentY > midPoint) {
@@ -146,7 +147,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         }
 
         lastGestureDy.current = snapTo
-        
+
         Animated.spring(translateY, {
           toValue: snapTo,
           velocity: velocity * -1,
@@ -161,6 +162,47 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   // Initialize bottom sheet position
   useEffect(() => {
     lastGestureDy.current = screenHeight - initialHeight
+  }, [])
+
+  // Helper refs: snap bottom sheet to max/min height
+  const snapToMaxRef = useRef(() => {
+    const snapTo = screenHeight - maxHeight
+    lastGestureDy.current = snapTo
+    Animated.spring(translateY, {
+      toValue: snapTo,
+      tension: 65,
+      friction: 12,
+      useNativeDriver: true,
+    }).start()
+  })
+
+  const snapToMinRef = useRef(() => {
+    const snapTo = screenHeight - minHeight
+    lastGestureDy.current = snapTo
+    Animated.spring(translateY, {
+      toValue: snapTo,
+      tension: 65,
+      friction: 12,
+      useNativeDriver: true,
+    }).start()
+  })
+
+  const snapToMax = () => snapToMaxRef.current()
+
+  // Auto-snap bottom sheet when keyboard appears/disappears
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => snapToMaxRef.current()
+    )
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => snapToMinRef.current()
+    )
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
   }, [])
 
   // Reset ride state khi cancel
@@ -266,7 +308,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       try {
         console.log('[HireDriverScreen] 📍 Requesting location permission...')
         const { status } = await Location.requestForegroundPermissionsAsync()
-        
+
         if (status !== 'granted') {
           console.log('[HireDriverScreen] ⚠️ Location permission denied')
           return
@@ -283,7 +325,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         // Reverse geocode to get address
         const address = await mapsService.reverseGeocode(latitude, longitude)
         console.log('[HireDriverScreen] 🏠 Address from coordinates:', address)
-        
+
         setPickupLocation(address)
       } catch (error) {
         console.error('[HireDriverScreen] ❌ Error getting location:', error)
@@ -408,7 +450,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         dropoff: dropoffLocation,
         carType,
       })
-      
+
       const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
       console.log('[HireDriverScreen] 🗺️ Route info:', {
         distance: route.distance + ' km',
@@ -423,9 +465,9 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         distance: route.distance,
         carType,
       })
-      
+
       const fare = await calculateHireDriverFare(route.distance, carType)
-      
+
       console.log('[HireDriverScreen] ✅ Hire Driver Fare calculated:', {
         total: fare.total + 'đ',
         openingFee: fare.openingFee + 'đ',
@@ -435,13 +477,13 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         pricePerExtraKm: fare.pricePerExtraKm + 'đ/km',
         breakdown: `${fare.openingFee}đ + ${fare.extraKm}km × ${fare.pricePerExtraKm}đ = ${fare.total}đ`,
       })
-      
+
       setFareEstimate(fare)
 
-      console.log('[HireDriverScreen] 🎯 TỔNG KẾT:', { 
+      console.log('[HireDriverScreen] 🎯 TỔNG KẾT:', {
         distance: route.distance + ' km',
         finalPrice: fare.total + 'đ',
-        formula: route.distance <= fare.freeKm 
+        formula: route.distance <= fare.freeKm
           ? `Trong ${fare.freeKm}km miễn phí → Chỉ tính phí mở cửa ${fare.openingFee}đ`
           : `${fare.openingFee}đ + (${route.distance} - ${fare.freeKm})km × ${fare.pricePerExtraKm}đ/km = ${fare.total}đ`,
       })
@@ -646,7 +688,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         </TouchableOpacity>
         <Text style={styles.logoText}>firego</Text>
       </View>
-      <Animated.View 
+      <Animated.View
         style={[
           {
             position: 'absolute',
@@ -661,344 +703,352 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         pointerEvents="box-none"
       >
         <View style={styles.card} pointerEvents="auto">
-        <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-          <View style={styles.handleBar} />
-        </View>
-        {/* Title Section */}
-        <View style={styles.cardHeader}>
-          <MaterialCommunityIcons name="truck-delivery" size={28} color="#FF6B00" />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.cardTitle}>Lái xe hộ</Text>
-            <Text style={styles.cardSubtitle}>Giúp bạn di chuyển an toàn và tiện lợi</Text>
+          <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+            <View style={styles.handleBar} />
           </View>
-          {!calculating && (
-            <TouchableOpacity
-              style={styles.calculateButton}
-              onPress={calculateEstimate}
-              disabled={!pickupLocation || !dropoffLocation}
-            >
-              <Text style={styles.priceTagText}>
-                {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Scrollable Content Area */}
-        <View style={{ flex: 1 }}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-          >
-            <ScrollView 
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-          <View style={styles.locationsContainer}>
-            {/* Pickup Location */}
-            <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
-              <View style={styles.inputRow}>
-                <View style={styles.iconWrapper}>
-                  <MaterialIcons name="radio-button-checked" size={24} color="#FF6B00" />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={pickupLocation}
-                  onChangeText={handlePickupLocationChange}
-                  onFocus={() => setShowPickupSuggestions(true)}
-                  placeholder="Nhập điểm đón"
-                  placeholderTextColor={colors.textSecondary}
-                  editable={!isSearching && !driverFound}
-                />
-              </View>
-
-              {/* Pickup Suggestions */}
-              {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
-                  <FlatList
-                    data={pickupSuggestions}
-                    keyExtractor={(item) => item.placeId}
-                    scrollEnabled={false}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[styles.suggestionItem, { borderBottomColor: colors.border }]}
-                        onPress={() => handlePickupSuggestionSelect(item)}
-                      >
-                        <MaterialIcons name="location-on" size={18} color={colors.textSecondary} />
-                        <View style={styles.suggestionContent}>
-                          <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
-                          {item.secondaryText && (
-                            <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    )}
-                  />
-                </View>
-              )}
+          {/* Title Section */}
+          <View style={styles.cardHeader}>
+            <MaterialCommunityIcons name="truck-delivery" size={28} color="#FF6B00" />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.cardTitle}>Lái xe hộ</Text>
+              <Text style={styles.cardSubtitle}>Giúp bạn di chuyển an toàn và tiện lợi</Text>
             </View>
-
-            <View style={styles.locationDivider}>
-              <View style={styles.dashedLine} />
-            </View>
-
-            {/* Dropoff Location */}
-            <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
-              <View style={styles.inputRow}>
-                <View style={styles.iconWrapper}>
-                  <MaterialIcons name="flag" size={24} color="#ef4444" />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={dropoffLocation}
-                  onChangeText={handleDropoffLocationChange}
-                  onFocus={() => setShowDropoffSuggestions(true)}
-                  placeholder="Bạn muốn đến đâu?"
-                  placeholderTextColor={colors.textSecondary}
-                  editable={!isSearching && !driverFound}
-                />
-              </View>
-
-              {/* Dropoff Suggestions */}
-              {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
-                <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
-                  <FlatList
-                    data={dropoffSuggestions}
-                    keyExtractor={(item) => item.placeId}
-                    scrollEnabled={false}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[styles.suggestionItem, { borderBottomColor: colors.border }]}
-                        onPress={() => handleDropoffSuggestionSelect(item)}
-                      >
-                        <MaterialIcons name="location-on" size={18} color={colors.textSecondary} />
-                        <View style={styles.suggestionContent}>
-                          <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
-                          {item.secondaryText && (
-                            <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    )}
-                  />
-                </View>
-              )}
-            </View>
-          </View>
-          {/* Time Toggle */}
-          <View style={[styles.timeToggleContainer, { backgroundColor: "#ff6b00" }]}>
-            <TouchableOpacity
-              style={[
-                styles.timeButton,
-                !isScheduled && { backgroundColor: colors.border },
-              ]}
-              onPress={() => setIsScheduled(false)}
-            >
-              <MaterialIcons
-                name="bolt"
-                size={18}
-                color={!isScheduled ? '#FF6B00' : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.timeButtonText,
-                  { color: !isScheduled ? colors.text : colors.textSecondary },
-                ]}
+            {!calculating && (
+              <TouchableOpacity
+                style={styles.calculateButton}
+                onPress={calculateEstimate}
+                disabled={!pickupLocation || !dropoffLocation}
               >
-                Đi ngay
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.timeButton,
-                isScheduled && { backgroundColor: colors.border },
-              ]}
-              onPress={() => {
-                setIsScheduled(true)
-                setShowScheduleModal(true)
-              }}
-            >
-              <MaterialIcons
-                name="schedule"
-                size={18}
-                color={isScheduled ? '#FF6B00' : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.timeButtonText,
-                  { color: isScheduled ? colors.text : colors.textSecondary },
-                ]}
-              >
-                Hẹn giờ
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Vehicle Info Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Thông tin xe</Text>
-
-            {/* Car Type Selection */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.carTypeScroll}
-            >
-              {[
-                { id: 'sedan', label: '4 chỗ (Sedan)', icon: 'directions-car' },
-                { id: 'suv', label: '7 chỗ (SUV)', icon: 'airport-shuttle' },
-                { id: 'truck', label: 'Bán tải', icon: 'local-shipping' },
-              ].map((car: any) => (
-                <TouchableOpacity
-                  key={car.id}
-                  style={[
-                    styles.carTypeButton,
-                    {
-                      backgroundColor: carType === car.id ? 'rgba(255, 107, 0, 0.1)' : colors.card,
-                      borderColor: carType === car.id ? '#FF6B00' : colors.warning,
-                    },
-                    carType === car.id && styles.carTypeButtonActive,
-                  ]}
-                  onPress={() => setCarType(car.id as any)}
-                >
-                  <MaterialIcons
-                    name={car.icon as any}
-                    size={32}
-                    color={carType === car.id ? '#FF6B00' : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.carTypeLabel,
-                      { color: carType === car.id ? '#FF6B00' : colors.textSecondary },
-                    ]}
-                  >
-                    {car.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* License Plate Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.sectionLabel}>Biển số xe</Text>
-              <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.warning }]}>
-                <MaterialIcons name="pin" size={20} color={colors.textSecondary} />
-                <TextInput
-                  style={[styles.textInput, { color: colors.text }]}
-                  placeholder="Ví dụ: 30A-123.45"
-                  placeholderTextColor={colors.textSecondary}
-                  value={licensePlate}
-                  onChangeText={setLicensePlate}
-                />
-              </View>
-            </View>
-
-            {/* Transmission Selection */}
-            <View style={styles.transmissionGroup}>
-              <Text style={styles.sectionLabel}>Loại hộp số (Bắt buộc)</Text>
-              <View style={styles.transmissionContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.transmissionButton,
-                    {
-                      backgroundColor: transmission === 'auto' ? 'rgba(255, 107, 0, 0.1)' : colors.card,
-                      borderColor: transmission === 'auto' ? '#FF6B00' : colors.warning,
-                    },
-                  ]}
-                  onPress={() => setTransmission('auto')}
-                >
-                  <Text
-                    style={[
-                      styles.transmissionText,
-                      { color: transmission === 'auto' ? '#FF6B00' : colors.textSecondary },
-                    ]}
-                  >
-                    Số tự động
-                  </Text>
-                  {transmission === 'auto' && (
-                    <MaterialIcons
-                      name="check-circle"
-                      size={16}
-                      color="#FF6B00"
-                      style={styles.checkIcon}
-                    />
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.transmissionButton,
-                    {
-                      backgroundColor: transmission === 'manual' ? 'rgba(255, 107, 0, 0.1)' : colors.card,
-                      borderColor: transmission === 'manual' ? '#FF6B00' : colors.warning,
-                    },
-                  ]}
-                  onPress={() => setTransmission('manual')}
-                >
-                  <Text
-                    style={[
-                      styles.transmissionText,
-                      { color: transmission === 'manual' ? '#FF6B00' : colors.textSecondary },
-                    ]}
-                  >
-                    Số sàn
-                  </Text>
-                  {transmission === 'manual' && (
-                    <MaterialIcons
-                      name="check-circle"
-                      size={16}
-                      color="#FF6B00"
-                      style={styles.checkIcon}
-                    />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-
-          {/* Driver Note */}
-          <View style={styles.noteSection}>
-            <Text style={styles.sectionLabel}>Ghi chú cho tài xế</Text>
-            <View style={[styles.noteContainer, { backgroundColor: colors.card, borderColor: colors.warning }]}>
-              <TextInput
-                style={[styles.noteInput, { color: colors.text }]}
-                placeholder="Xe đỗ ở hầm B1, cột A05..."
-                placeholderTextColor={colors.textSecondary}
-                value={driverNote}
-                onChangeText={setDriverNote}
-                multiline
-              />
-            </View>
-          </View>
-          <View style={styles.bottomAction} pointerEvents="auto">
-          <TouchableOpacity
-            style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
-            onPress={handleCreateRide}
-            activeOpacity={0.8}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <ActivityIndicator color="#fff" size="small" />
-                <Text style={styles.confirmButtonText}>Đang xử lý...</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.confirmButtonText}>Tìm tài xế ngay</Text>
-                <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-              </>
+                <Text style={styles.priceTagText}>
+                  {fareEstimate ? formatCurrency(fareEstimate.total) : '---'}
+                </Text>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
-        </View>
+          </View>
 
-          {/* Bottom spacing for fixed button */}
-          <View style={{ height: 100 }} />
-        </ScrollView>
-        </KeyboardAvoidingView>
-        </View>
+          {/* Scrollable Content Area */}
+          <View style={{ flex: 1 }}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.locationsContainer}>
+                  {/* Pickup Location */}
+                  <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
+                    <View style={styles.inputRow}>
+                      <View style={styles.iconWrapper}>
+                        <MaterialIcons name="radio-button-checked" size={24} color="#FF6B00" />
+                      </View>
+                      <TextInput
+                        style={styles.input}
+                        value={pickupLocation}
+                        onChangeText={handlePickupLocationChange}
+                        onFocus={() => {
+                          setShowPickupSuggestions(true)
+                          snapToMax()
+                        }}
+                        placeholder="Nhập điểm đón"
+                        placeholderTextColor={colors.textSecondary}
+                        editable={!isSearching && !driverFound}
+                      />
+                    </View>
+
+                    {/* Pickup Suggestions */}
+                    {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                      <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+                        <FlatList
+                          data={pickupSuggestions}
+                          keyExtractor={(item) => item.placeId}
+                          scrollEnabled={false}
+                          renderItem={({ item }) => (
+                            <TouchableOpacity
+                              style={[styles.suggestionItem, { borderBottomColor: colors.border }]}
+                              onPress={() => handlePickupSuggestionSelect(item)}
+                            >
+                              <MaterialIcons name="location-on" size={18} color={colors.textSecondary} />
+                              <View style={styles.suggestionContent}>
+                                <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
+                                {item.secondaryText && (
+                                  <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
+                                )}
+                              </View>
+                            </TouchableOpacity>
+                          )}
+                        />
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.locationDivider}>
+                    <View style={styles.dashedLine} />
+                  </View>
+
+                  {/* Dropoff Location */}
+                  <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
+                    <View style={styles.inputRow}>
+                      <View style={styles.iconWrapper}>
+                        <MaterialIcons name="flag" size={24} color="#ef4444" />
+                      </View>
+                      <TextInput
+                        style={styles.input}
+                        value={dropoffLocation}
+                        onChangeText={handleDropoffLocationChange}
+                        onFocus={() => {
+                          setShowDropoffSuggestions(true)
+                          snapToMax()
+                        }}
+                        placeholder="Bạn muốn đến đâu?"
+                        placeholderTextColor={colors.textSecondary}
+                        editable={!isSearching && !driverFound}
+                      />
+                    </View>
+
+                    {/* Dropoff Suggestions */}
+                    {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+                      <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+                        <FlatList
+                          data={dropoffSuggestions}
+                          keyExtractor={(item) => item.placeId}
+                          scrollEnabled={false}
+                          renderItem={({ item }) => (
+                            <TouchableOpacity
+                              style={[styles.suggestionItem, { borderBottomColor: colors.border }]}
+                              onPress={() => handleDropoffSuggestionSelect(item)}
+                            >
+                              <MaterialIcons name="location-on" size={18} color={colors.textSecondary} />
+                              <View style={styles.suggestionContent}>
+                                <Text style={[styles.suggestionMainText, { color: colors.text }]}>{item.mainText}</Text>
+                                {item.secondaryText && (
+                                  <Text style={[styles.suggestionSecondaryText, { color: colors.textSecondary }]}>{item.secondaryText}</Text>
+                                )}
+                              </View>
+                            </TouchableOpacity>
+                          )}
+                        />
+                      </View>
+                    )}
+                  </View>
+                </View>
+                {/* Time Toggle */}
+                <View style={[styles.timeToggleContainer, { backgroundColor: "#ff6b00" }]}>
+                  <TouchableOpacity
+                    style={[
+                      styles.timeButton,
+                      !isScheduled && { backgroundColor: colors.border },
+                    ]}
+                    onPress={() => setIsScheduled(false)}
+                  >
+                    <MaterialIcons
+                      name="bolt"
+                      size={18}
+                      color={!isScheduled ? '#FF6B00' : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.timeButtonText,
+                        { color: !isScheduled ? colors.text : colors.textSecondary },
+                      ]}
+                    >
+                      Đi ngay
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.timeButton,
+                      isScheduled && { backgroundColor: colors.border },
+                    ]}
+                    onPress={() => {
+                      setIsScheduled(true)
+                      setShowScheduleModal(true)
+                    }}
+                  >
+                    <MaterialIcons
+                      name="schedule"
+                      size={18}
+                      color={isScheduled ? '#FF6B00' : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.timeButtonText,
+                        { color: isScheduled ? colors.text : colors.textSecondary },
+                      ]}
+                    >
+                      Hẹn giờ
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Vehicle Info Section */}
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Thông tin xe</Text>
+
+                  {/* Car Type Selection */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.carTypeScroll}
+                  >
+                    {[
+                      { id: 'sedan', label: '4 chỗ (Sedan)', icon: 'directions-car' },
+                      { id: 'suv', label: '7 chỗ (SUV)', icon: 'airport-shuttle' },
+                      { id: 'truck', label: 'Bán tải', icon: 'local-shipping' },
+                    ].map((car: any) => (
+                      <TouchableOpacity
+                        key={car.id}
+                        style={[
+                          styles.carTypeButton,
+                          {
+                            backgroundColor: carType === car.id ? 'rgba(255, 107, 0, 0.1)' : colors.card,
+                            borderColor: carType === car.id ? '#FF6B00' : colors.warning,
+                          },
+                          carType === car.id && styles.carTypeButtonActive,
+                        ]}
+                        onPress={() => setCarType(car.id as any)}
+                      >
+                        <MaterialIcons
+                          name={car.icon as any}
+                          size={32}
+                          color={carType === car.id ? '#FF6B00' : colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            styles.carTypeLabel,
+                            { color: carType === car.id ? '#FF6B00' : colors.textSecondary },
+                          ]}
+                        >
+                          {car.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  {/* License Plate Input */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.sectionLabel}>Biển số xe</Text>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+                      <MaterialIcons name="pin" size={20} color={colors.textSecondary} />
+                      <TextInput
+                        style={[styles.textInput, { color: colors.text }]}
+                        placeholder="Ví dụ: 30A-123.45"
+                        placeholderTextColor={colors.textSecondary}
+                        value={licensePlate}
+                        onChangeText={setLicensePlate}
+                        onFocus={snapToMax}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Transmission Selection */}
+                  <View style={styles.transmissionGroup}>
+                    <Text style={styles.sectionLabel}>Loại hộp số (Bắt buộc)</Text>
+                    <View style={styles.transmissionContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.transmissionButton,
+                          {
+                            backgroundColor: transmission === 'auto' ? 'rgba(255, 107, 0, 0.1)' : colors.card,
+                            borderColor: transmission === 'auto' ? '#FF6B00' : colors.warning,
+                          },
+                        ]}
+                        onPress={() => setTransmission('auto')}
+                      >
+                        <Text
+                          style={[
+                            styles.transmissionText,
+                            { color: transmission === 'auto' ? '#FF6B00' : colors.textSecondary },
+                          ]}
+                        >
+                          Số tự động
+                        </Text>
+                        {transmission === 'auto' && (
+                          <MaterialIcons
+                            name="check-circle"
+                            size={16}
+                            color="#FF6B00"
+                            style={styles.checkIcon}
+                          />
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.transmissionButton,
+                          {
+                            backgroundColor: transmission === 'manual' ? 'rgba(255, 107, 0, 0.1)' : colors.card,
+                            borderColor: transmission === 'manual' ? '#FF6B00' : colors.warning,
+                          },
+                        ]}
+                        onPress={() => setTransmission('manual')}
+                      >
+                        <Text
+                          style={[
+                            styles.transmissionText,
+                            { color: transmission === 'manual' ? '#FF6B00' : colors.textSecondary },
+                          ]}
+                        >
+                          Số sàn
+                        </Text>
+                        {transmission === 'manual' && (
+                          <MaterialIcons
+                            name="check-circle"
+                            size={16}
+                            color="#FF6B00"
+                            style={styles.checkIcon}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Driver Note */}
+                <View style={styles.noteSection}>
+                  <Text style={styles.sectionLabel}>Ghi chú cho tài xế</Text>
+                  <View style={[styles.noteContainer, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+                    <TextInput
+                      style={[styles.noteInput, { color: colors.text }]}
+                      placeholder="Xe đỗ ở hầm B1, cột A05..."
+                      placeholderTextColor={colors.textSecondary}
+                      value={driverNote}
+                      onChangeText={setDriverNote}
+                      onFocus={snapToMax}
+                      multiline
+                    />
+                  </View>
+                </View>
+                <View style={styles.bottomAction} pointerEvents="auto">
+                  <TouchableOpacity
+                    style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
+                    onPress={handleCreateRide}
+                    activeOpacity={0.8}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <ActivityIndicator color="#fff" size="small" />
+                        <Text style={styles.confirmButtonText}>Đang xử lý...</Text>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.confirmButtonText}>Tìm tài xế ngay</Text>
+                        <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {/* Bottom spacing for fixed button */}
+                <View style={{ height: 100 }} />
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </View>
         </View>
 
         {/* Sticky Bottom Action - Must be inside Animated.View */}
-        
+
       </Animated.View>
     </View>
   )

@@ -11,6 +11,7 @@ import {
     PanResponder,
     Dimensions,
     KeyboardAvoidingView,
+    Keyboard,
     Platform,
 } from 'react-native'
 import * as Location from 'expo-location'
@@ -98,7 +99,7 @@ export default function Delivery(props?: DeliveryProps) {
     const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [drivers, setDrivers] = useState<any[]>([])
-    
+
     // Draggable Bottom Sheet
     const screenHeight = Dimensions.get('window').height
     const minHeight = screenHeight * 0.42 // 42%
@@ -106,14 +107,14 @@ export default function Delivery(props?: DeliveryProps) {
     const initialHeight = screenHeight * 0.42 // 42% - Start collapsed
     const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
     const lastGestureDy = useRef(0)
-    
+
     // Initialize pickup location with current user location
     useEffect(() => {
         const initializePickupLocation = async () => {
             try {
                 console.log('[Delivery] 📍 Requesting location permission...')
                 const { status } = await Location.requestForegroundPermissionsAsync()
-                
+
                 if (status !== 'granted') {
                     console.log('[Delivery] ⚠️ Location permission denied')
                     return
@@ -130,7 +131,7 @@ export default function Delivery(props?: DeliveryProps) {
                 // Reverse geocode to get address
                 const address = await mapsService.reverseGeocode(latitude, longitude)
                 console.log('[Delivery] 🏠 Address from coordinates:', address)
-                
+
                 setPickup(address)
                 setPickupCoordinates([longitude, latitude])
                 setIsPickupSelected(true)
@@ -146,7 +147,7 @@ export default function Delivery(props?: DeliveryProps) {
 
         initializePickupLocation()
     }, [])
-    
+
     // Fetch available drivers on app startup
     useEffect(() => {
         const fetchAvailableDrivers = async () => {
@@ -211,13 +212,13 @@ export default function Delivery(props?: DeliveryProps) {
         }
         fetchAvailableDrivers()
     }, [])
-    
+
     // ============ GIAO HÀNG - Dynamic Config ============
     const [goodsTypes, setGoodsTypes] = useState<DeliveryGoodsType[]>(GOODS_TYPES.map(g => ({ ...g, surcharge: 0 })))
     const [weightRanges, setWeightRanges] = useState<DeliveryWeightRange[]>(WEIGHTS.map(w => ({ ...w, surcharge: 0 })))
     const [vehicles, setVehicles] = useState<DeliveryVehicleType[]>(VEHICLES.map(v => ({ ...v, vehicleTypeMapping: v.key === 'truck' ? 'truck' : 'sedan' })))
     // ============ END GIAO HÀNG ============
-    
+
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
     const setRideMode = props?.setRideMode
 
@@ -245,7 +246,7 @@ export default function Delivery(props?: DeliveryProps) {
 
                 let snapTo: number
                 const midPoint = screenHeight - (maxHeight + minHeight) / 2
-                
+
                 if (Math.abs(velocity) > 0.8) {
                     snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
                 } else if (currentY > midPoint) {
@@ -255,7 +256,7 @@ export default function Delivery(props?: DeliveryProps) {
                 }
 
                 lastGestureDy.current = snapTo
-                
+
                 Animated.spring(translateY, {
                     toValue: snapTo,
                     velocity: velocity * -1,
@@ -272,23 +273,64 @@ export default function Delivery(props?: DeliveryProps) {
         lastGestureDy.current = screenHeight - initialHeight
     }, [])
 
+    // Helper refs: snap bottom sheet to max/min height
+    const snapToMaxRef = useRef(() => {
+        const snapTo = screenHeight - maxHeight
+        lastGestureDy.current = snapTo
+        Animated.spring(translateY, {
+            toValue: snapTo,
+            tension: 65,
+            friction: 12,
+            useNativeDriver: true,
+        }).start()
+    })
+
+    const snapToMinRef = useRef(() => {
+        const snapTo = screenHeight - minHeight
+        lastGestureDy.current = snapTo
+        Animated.spring(translateY, {
+            toValue: snapTo,
+            tension: 65,
+            friction: 12,
+            useNativeDriver: true,
+        }).start()
+    })
+
+    const snapToMax = () => snapToMaxRef.current()
+
+    // Auto-snap bottom sheet when keyboard appears/disappears
+    useEffect(() => {
+        const showSub = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            () => snapToMaxRef.current()
+        )
+        const hideSub = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => snapToMinRef.current()
+        )
+        return () => {
+            showSub.remove()
+            hideSub.remove()
+        }
+    }, [])
+
     // ============ GIAO HÀNG - Load Config from Backend ============
     useEffect(() => {
         const loadDeliveryConfig = async () => {
             try {
                 console.log('[Delivery] Loading config from backend...')
                 const config = await getPricingConfig()
-                
+
                 if (config.deliveryGoodsTypes && config.deliveryGoodsTypes.length > 0) {
                     setGoodsTypes(config.deliveryGoodsTypes)
                     console.log('[Delivery] Loaded goods types:', config.deliveryGoodsTypes.length)
                 }
-                
+
                 if (config.deliveryWeightRanges && config.deliveryWeightRanges.length > 0) {
                     setWeightRanges(config.deliveryWeightRanges)
                     console.log('[Delivery] Loaded weight ranges:', config.deliveryWeightRanges.length)
                 }
-                
+
                 if (config.deliveryVehicleTypes && config.deliveryVehicleTypes.length > 0) {
                     setVehicles(config.deliveryVehicleTypes)
                     console.log('[Delivery] Loaded vehicle types:', config.deliveryVehicleTypes.length)
@@ -298,7 +340,7 @@ export default function Delivery(props?: DeliveryProps) {
                 // Keep using fallback constants if API fails
             }
         }
-        
+
         loadDeliveryConfig()
     }, [])
     // ============ END GIAO HÀNG ============
@@ -314,7 +356,7 @@ export default function Delivery(props?: DeliveryProps) {
             // Check if coordinates are not at default values
             const isPickupDefault = pickupCoordinates[0] === 105.8342 && pickupCoordinates[1] === 21.0278
             const isDropoffDefault = dropoffCoordinates[0] === 105.8542 && dropoffCoordinates[1] === 21.0378
-            
+
             if (isPickupDefault || isDropoffDefault) {
                 console.log('[Delivery] ⚠️ Using default coordinates, not calculating')
                 return
@@ -614,7 +656,7 @@ export default function Delivery(props?: DeliveryProps) {
                 console.log('[Delivery] 📤 Calling calculateFare with:', { distanceKm, carType })
                 const fareBreakdown = await calculateFare(distanceKm, carType, 1, true)
                 console.log('[Delivery] ✅ Fare breakdown received:', fareBreakdown)
-                
+
                 // ============ GIAO HÀNG - Weight surcharge from config ============
                 const weightConfig = weightRanges.find(w => w.key === weight)
                 const weightSurcharge = weightConfig?.surcharge || 0
@@ -706,7 +748,7 @@ export default function Delivery(props?: DeliveryProps) {
                 <Text style={styles.logoText}>firego</Text>
             </View>
 
-            <Animated.View 
+            <Animated.View
                 style={[
                     {
                         position: 'absolute',
@@ -721,233 +763,239 @@ export default function Delivery(props?: DeliveryProps) {
                 pointerEvents="box-none"
             >
                 <View style={styles.card} pointerEvents="auto">
-                <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-                    <View style={styles.handleBar} />
-                </View>
-
-                {/* Title Section */}
-                <View style={styles.cardHeader}>
-                    <MaterialCommunityIcons name="truck-delivery" size={28} color="#FF6B00" />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={styles.cardTitle}>Giao hàng nhanh</Text>
-                        <Text style={styles.cardSubtitle}>Vận chuyển hàng hóa an toàn</Text>
+                    <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+                        <View style={styles.handleBar} />
                     </View>
-                    {estimatedPrice > 0 && (
-                        <View style={styles.priceTag}>
-                            <Text style={styles.priceTagText}>~{estimatedPrice.toLocaleString('vi-VN')}đ</Text>
-                        </View>
-                    )}
-                </View>
 
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-                >
-                    <ScrollView 
-                        showsVerticalScrollIndicator={false} 
-                        style={styles.scrollContent}
-                        contentContainerStyle={{ paddingBottom: 20 }}
-                        keyboardShouldPersistTaps="handled"
+                    {/* Title Section */}
+                    <View style={styles.cardHeader}>
+                        <MaterialCommunityIcons name="truck-delivery" size={28} color="#FF6B00" />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={styles.cardTitle}>Giao hàng nhanh</Text>
+                            <Text style={styles.cardSubtitle}>Vận chuyển hàng hóa an toàn</Text>
+                        </View>
+                        {estimatedPrice > 0 && (
+                            <View style={styles.priceTag}>
+                                <Text style={styles.priceTagText}>~{estimatedPrice.toLocaleString('vi-VN')}đ</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                     >
-                    {/* Location Inputs */}
-                    <View style={styles.locationsContainer}>
-                        <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
-                            <View style={styles.inputRow}>
-                                <View style={styles.iconWrapper}>
-                                    <MaterialIcons name="radio-button-checked" size={20} color="#22C55E" />
+                        <ScrollView
+                            showsVerticalScrollIndicator={false}
+                            style={styles.scrollContent}
+                            contentContainerStyle={{ paddingBottom: 20 }}
+                            keyboardShouldPersistTaps="handled"
+                        >
+                            {/* Location Inputs */}
+                            <View style={styles.locationsContainer}>
+                                <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
+                                    <View style={styles.inputRow}>
+                                        <View style={styles.iconWrapper}>
+                                            <MaterialIcons name="radio-button-checked" size={20} color="#22C55E" />
+                                        </View>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Điểm lấy hàng"
+                                            placeholderTextColor="#9CA3AF"
+                                            value={pickup}
+                                            onChangeText={handlePickupLocationChange}
+                                            onFocus={() => {
+                                                setShowPickupSuggestions(true)
+                                                snapToMax()
+                                            }}
+                                        />
+                                    </View>
+
+                                    {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                                        <View style={styles.suggestionsDropdown}>
+                                            <ScrollView
+                                                keyboardShouldPersistTaps="handled"
+                                                nestedScrollEnabled={true}
+                                            >
+                                                {pickupSuggestions.map((item, index) => (
+                                                    <TouchableOpacity
+                                                        key={`pickup-${index}`}
+                                                        style={styles.suggestionItem}
+                                                        onPress={() => handlePickupSuggestionSelect(item)}
+                                                    >
+                                                        <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                                                        <View style={styles.suggestionContent}>
+                                                            <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                                                            <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </ScrollView>
+                                        </View>
+                                    )}
                                 </View>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Điểm lấy hàng"
-                                    placeholderTextColor="#9CA3AF"
-                                    value={pickup}
-                                    onChangeText={handlePickupLocationChange}
-                                    onFocus={() => setShowPickupSuggestions(true)}
-                                />
+
+                                <View style={styles.locationDivider}>
+                                    <View style={styles.dashedLine} />
+                                </View>
+
+                                <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
+                                    <View style={styles.inputRow}>
+                                        <View style={styles.iconWrapper}>
+                                            <MaterialIcons name="flag" size={20} color="#EF4444" />
+                                        </View>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Điểm giao hàng"
+                                            placeholderTextColor="#9CA3AF"
+                                            value={dropoff}
+                                            onChangeText={handleDropoffLocationChange}
+                                            onFocus={() => {
+                                                setShowDropoffSuggestions(true)
+                                                snapToMax()
+                                            }}
+                                        />
+                                    </View>
+
+                                    {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+                                        <View style={styles.suggestionsDropdown}>
+                                            <ScrollView
+                                                keyboardShouldPersistTaps="handled"
+                                                nestedScrollEnabled={true}
+                                            >
+                                                {dropoffSuggestions.map((item, index) => (
+                                                    <TouchableOpacity
+                                                        key={`dropoff-${index}`}
+                                                        style={styles.suggestionItem}
+                                                        onPress={() => handleDropoffSuggestionSelect(item)}
+                                                    >
+                                                        <MaterialIcons name="location-on" size={20} color="#6B7280" />
+                                                        <View style={styles.suggestionContent}>
+                                                            <Text style={styles.suggestionMainText}>{item.mainText}</Text>
+                                                            <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
+                                                        </View>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </ScrollView>
+                                        </View>
+                                    )}
+                                </View>
                             </View>
 
-                            {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                                <View style={styles.suggestionsDropdown}>
-                                    <ScrollView
-                                        keyboardShouldPersistTaps="handled"
-                                        nestedScrollEnabled={true}
-                                    >
-                                        {pickupSuggestions.map((item, index) => (
-                                            <TouchableOpacity
-                                                key={`pickup-${index}`}
-                                                style={styles.suggestionItem}
-                                                onPress={() => handlePickupSuggestionSelect(item)}
-                                            >
-                                                <MaterialIcons name="location-on" size={20} color="#6B7280" />
-                                                <View style={styles.suggestionContent}>
-                                                    <Text style={styles.suggestionMainText}>{item.mainText}</Text>
-                                                    <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
-                                                </View>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
+                            {/* Goods Type */}
+                            <View style={styles.section}>
+                                <Text style={styles.sectionLabel}>Loại hàng hóa</Text>
+                                <View style={styles.optionsRow}>
+                                    {/* ============ GIAO HÀNG - Dynamic goods types ============ */}
+                                    {goodsTypes.map(type => (
+                                        <TouchableOpacity
+                                            key={type.key}
+                                            style={[
+                                                styles.optionBtn,
+                                                goodsType === type.key && styles.optionBtnActive
+                                            ]}
+                                            onPress={() => setGoodsType(type.key)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <MaterialCommunityIcons
+                                                name={type.icon as any}
+                                                size={18}
+                                                color={goodsType === type.key ? '#FF6B00' : '#6B7280'}
+                                            />
+                                            <Text style={[
+                                                styles.optionBtnText,
+                                                goodsType === type.key && styles.optionBtnTextActive
+                                            ]}>
+                                                {type.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                    {/* ============ END GIAO HÀNG ============ */}
                                 </View>
-                            )}
-                        </View>
-
-                        <View style={styles.locationDivider}>
-                            <View style={styles.dashedLine} />
-                        </View>
-
-                        <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
-                            <View style={styles.inputRow}>
-                                <View style={styles.iconWrapper}>
-                                    <MaterialIcons name="flag" size={20} color="#EF4444" />
-                                </View>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Điểm giao hàng"
-                                    placeholderTextColor="#9CA3AF"
-                                    value={dropoff}
-                                    onChangeText={handleDropoffLocationChange}
-                                    onFocus={() => setShowDropoffSuggestions(true)}
-                                />
                             </View>
 
-                            {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
-                                <View style={styles.suggestionsDropdown}>
-                                    <ScrollView
-                                        keyboardShouldPersistTaps="handled"
-                                        nestedScrollEnabled={true}
-                                    >
-                                        {dropoffSuggestions.map((item, index) => (
-                                            <TouchableOpacity
-                                                key={`dropoff-${index}`}
-                                                style={styles.suggestionItem}
-                                                onPress={() => handleDropoffSuggestionSelect(item)}
-                                            >
-                                                <MaterialIcons name="location-on" size={20} color="#6B7280" />
-                                                <View style={styles.suggestionContent}>
-                                                    <Text style={styles.suggestionMainText}>{item.mainText}</Text>
-                                                    <Text style={styles.suggestionSecondaryText}>{item.secondaryText}</Text>
-                                                </View>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
+                            {/* Weight */}
+                            <View style={styles.section}>
+                                <Text style={styles.sectionLabel}>Trọng lượng ước tính</Text>
+                                <View style={styles.optionsRow}>
+                                    {/* ============ GIAO HÀNG - Dynamic weight ranges ============ */}
+                                    {weightRanges.map(w => (
+                                        <TouchableOpacity
+                                            key={w.key}
+                                            style={[
+                                                styles.weightBtn,
+                                                weight === w.key && styles.weightBtnActive
+                                            ]}
+                                            onPress={() => setWeight(w.key)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={[
+                                                styles.weightBtnText,
+                                                weight === w.key && styles.weightBtnTextActive
+                                            ]}>
+                                                {w.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                    {/* ============ END GIAO HÀNG ============ */}
                                 </View>
-                            )}
-                        </View>
-                    </View>
+                            </View>
 
-                    {/* Goods Type */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionLabel}>Loại hàng hóa</Text>
-                        <View style={styles.optionsRow}>
-                            {/* ============ GIAO HÀNG - Dynamic goods types ============ */}
-                            {goodsTypes.map(type => (
+                            {/* Vehicle Selection */}
+                            <View style={styles.section}>
+                                <Text style={styles.sectionLabel}>Phương tiện vận chuyển</Text>
+                                <View style={styles.vehicleRow}>
+                                    {/* ============ GIAO HÀNG - Dynamic vehicle types ============ */}
+                                    {vehicles.map(v => (
+                                        <TouchableOpacity
+                                            key={v.key}
+                                            style={[
+                                                styles.vehicleCard,
+                                                vehicle === v.key && styles.vehicleCardActive
+                                            ]}
+                                            onPress={() => setVehicle(v.key)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <MaterialCommunityIcons
+                                                name={v.icon as any}
+                                                size={32}
+                                                color={vehicle === v.key ? '#FF6B00' : '#6B7280'}
+                                            />
+                                            <Text style={[
+                                                styles.vehicleLabel,
+                                                vehicle === v.key && styles.vehicleLabelActive
+                                            ]}>
+                                                {v.label}
+                                            </Text>
+                                            <Text style={styles.vehicleDesc}>{v.description}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                    {/* ============ END GIAO HÀNG ============ */}
+                                </View>
+                            </View>
+                            <View style={styles.bottomAction}>
+                                {estimatedPrice > 0 && (
+                                    <View style={styles.priceContainer}>
+                                        <Text style={styles.priceLabel}>Tổng cộng</Text>
+                                        <Text style={styles.totalPrice}>
+                                            {estimatedPrice.toLocaleString('vi-VN')}đ
+                                        </Text>
+                                    </View>
+                                )}
                                 <TouchableOpacity
-                                    key={type.key}
-                                    style={[
-                                        styles.optionBtn,
-                                        goodsType === type.key && styles.optionBtnActive
-                                    ]}
-                                    onPress={() => setGoodsType(type.key)}
-                                    activeOpacity={0.7}
+                                    style={styles.confirmButton}
+                                    onPress={handleConfirm}
+                                    activeOpacity={0.8}
                                 >
-                                    <MaterialCommunityIcons
-                                        name={type.icon as any}
-                                        size={18}
-                                        color={goodsType === type.key ? '#FF6B00' : '#6B7280'}
-                                    />
-                                    <Text style={[
-                                        styles.optionBtnText,
-                                        goodsType === type.key && styles.optionBtnTextActive
-                                    ]}>
-                                        {type.label}
-                                    </Text>
+                                    <Text style={styles.confirmButtonText}>Xác nhận đặt hàng</Text>
+                                    <MaterialIcons name="arrow-forward" size={20} color="#fff" />
                                 </TouchableOpacity>
-                            ))}
-                            {/* ============ END GIAO HÀNG ============ */}
-                        </View>
-                    </View>
+                            </View>
+                        </ScrollView>
+                    </KeyboardAvoidingView>
 
-                    {/* Weight */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionLabel}>Trọng lượng ước tính</Text>
-                        <View style={styles.optionsRow}>
-                            {/* ============ GIAO HÀNG - Dynamic weight ranges ============ */}
-                            {weightRanges.map(w => (
-                                <TouchableOpacity
-                                    key={w.key}
-                                    style={[
-                                        styles.weightBtn,
-                                        weight === w.key && styles.weightBtnActive
-                                    ]}
-                                    onPress={() => setWeight(w.key)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={[
-                                        styles.weightBtnText,
-                                        weight === w.key && styles.weightBtnTextActive
-                                    ]}>
-                                        {w.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                            {/* ============ END GIAO HÀNG ============ */}
-                        </View>
-                    </View>
+                    {/* Sticky Bottom Action */}
 
-                    {/* Vehicle Selection */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionLabel}>Phương tiện vận chuyển</Text>
-                        <View style={styles.vehicleRow}>
-                            {/* ============ GIAO HÀNG - Dynamic vehicle types ============ */}
-                            {vehicles.map(v => (
-                                <TouchableOpacity
-                                    key={v.key}
-                                    style={[
-                                        styles.vehicleCard,
-                                        vehicle === v.key && styles.vehicleCardActive
-                                    ]}
-                                    onPress={() => setVehicle(v.key)}
-                                    activeOpacity={0.7}
-                                >
-                                    <MaterialCommunityIcons
-                                        name={v.icon as any}
-                                        size={32}
-                                        color={vehicle === v.key ? '#FF6B00' : '#6B7280'}
-                                    />
-                                    <Text style={[
-                                        styles.vehicleLabel,
-                                        vehicle === v.key && styles.vehicleLabelActive
-                                    ]}>
-                                        {v.label}
-                                    </Text>
-                                    <Text style={styles.vehicleDesc}>{v.description}</Text>
-                                </TouchableOpacity>
-                            ))}
-                            {/* ============ END GIAO HÀNG ============ */}
-                        </View>
-                    </View>
-                    <View style={styles.bottomAction}>
-                    {estimatedPrice > 0 && (
-                        <View style={styles.priceContainer}>
-                            <Text style={styles.priceLabel}>Tổng cộng</Text>
-                            <Text style={styles.totalPrice}>
-                                {estimatedPrice.toLocaleString('vi-VN')}đ
-                            </Text>
-                        </View>
-                    )}
-                    <TouchableOpacity
-                        style={styles.confirmButton}
-                        onPress={handleConfirm}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={styles.confirmButtonText}>Xác nhận đặt hàng</Text>
-                        <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-                    </TouchableOpacity>
-                </View>
-                </ScrollView>
-                </KeyboardAvoidingView>
-
-                {/* Sticky Bottom Action */}
-                
                 </View>
             </Animated.View>
         </View>

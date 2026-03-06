@@ -10,6 +10,8 @@ import {
     TextInput,
     Image,
     ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
@@ -248,12 +250,18 @@ export default function HourlyService() {
                 <Text style={styles.headerTitle}>Đặt dịch vụ Vệ sinh</Text>
             </View>
 
-            <ScrollView
-                style={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+                style={{ flex: 1 }}
             >
-                {/* Duration & Time Section */}
-                <View style={styles.section}>
+                <ScrollView
+                    style={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    {/* Duration & Time Section */}
+                    <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Thời lượng & Thời gian</Text>
                     <View style={styles.durationCard}>
                         <View style={styles.durationLeft}>
@@ -574,7 +582,8 @@ export default function HourlyService() {
 
                 {/* Bottom spacing for fixed button */}
                 <View style={{ height: 150 }} />
-            </ScrollView>
+                </ScrollView>
+            </KeyboardAvoidingView>
 
             {/* Sticky Bottom Action */}
             <View style={styles.bottomAction}>

@@ -6,6 +6,8 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -88,9 +90,14 @@ const Home = () => {
                 </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {/* Search Bar */}
-                <View style={styles.searchContainer}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+                style={{ flex: 1 }}
+            >
+                <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                    {/* Search Bar */}
+                    <View style={styles.searchContainer}>
                     <View style={styles.searchBar}>
                         <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
                         <TextInput
@@ -260,6 +267,7 @@ const Home = () => {
                     )}
                 </View>
             </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 };

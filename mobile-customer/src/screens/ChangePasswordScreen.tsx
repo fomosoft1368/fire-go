@@ -9,6 +9,8 @@ import {
   TextInput,
   ActivityIndicator,
   SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
@@ -180,13 +182,19 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+        style={{ flex: 1 }}
       >
-        {/* Info Section */}
-        <View style={styles.infoSection}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Info Section */}
+          <View style={styles.infoSection}>
           <MaterialIcons name="info" size={20} color={COLORS.primary} />
           <Text style={styles.infoText}>
             Để bảo mật tài khoản, hãy sử dụng mật khẩu mạnh gồm chữ cái, số và ký tự đặc biệt
@@ -268,10 +276,10 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={styles.saveButtonText}>Lưu mật khẩu mới</Text>
-            )}
-          </TouchableOpacity>
+            )}          </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }

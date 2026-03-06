@@ -9,6 +9,9 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { SPACING } from '../constants'
@@ -122,9 +125,15 @@ export default function RatingDriverScreen({ navigation, route }: RatingDriverSc
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.content}>
-        {/* Success Icon */}
-        <View style={styles.successIcon}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          <View style={styles.content}>
+            {/* Success Icon */}
+            <View style={styles.successIcon}>
           <MaterialIcons name="check-circle" size={80} color="#22C55E" />
         </View>
 
@@ -224,6 +233,8 @@ export default function RatingDriverScreen({ navigation, route }: RatingDriverSc
           </>
         )}
       </View>
+      </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Submit Button */}
       <View style={styles.footer}>

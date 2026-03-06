@@ -36,7 +36,7 @@ export default function TripHistoryScreen() {
   const [bookings, setBookings] = useState<RideBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [deletedTripIds, setDeletedTripIds] = useState<string[]>([])
-  
+
   // Rating modal state
   const [isRatingModalVisible, setIsRatingModalVisible] = useState(false)
   const [selectedRide, setSelectedRide] = useState<RideBooking | null>(null)
@@ -55,13 +55,13 @@ export default function TripHistoryScreen() {
   // Fetch ride history on component mount and when user changes
   useEffect(() => {
     console.log('[BookingsScreen] useEffect triggered, user:', user)
-    
+
     if (!user) {
       console.log('[BookingsScreen] User not yet loaded, waiting...')
       setLoading(false)
       return
     }
-    
+
     loadDeletedTripIds()
     fetchRideHistory()
   }, [user])
@@ -100,7 +100,7 @@ export default function TripHistoryScreen() {
     const userId = user._id || user.id
     console.log('[BookingsScreen] fetchRideHistory called with userId:', userId)
     console.log('[BookingsScreen] Full user object:', user)
-    
+
     if (!userId) {
       console.warn('[BookingsScreen] User ID not available')
       console.warn('[BookingsScreen] Available user keys:', Object.keys(user || {}))
@@ -111,7 +111,7 @@ export default function TripHistoryScreen() {
     setLoading(true)
     try {
       console.log('[BookingsScreen] Starting fetch for user:', userId)
-      
+
       // Fetch HIRE rides, SHARE combined trips, DELIVERIES, và HOURLY services
       const [rideHistory, combinedTrips, deliveries, hourlyServices] = await Promise.all([
         rideService.getRideHistory(userId).catch((err) => {
@@ -148,7 +148,7 @@ export default function TripHistoryScreen() {
         .filter((trip: any) => {
           const status = trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase()
           const isRejectedOrTimeout = status === 'rejected' || status === 'timeout'
-          
+
           if (isRejectedOrTimeout) {
             console.log('[BookingsScreen] ⚠️ Filtering out rejected/timeout trip:', {
               tripId: trip._id,
@@ -156,39 +156,39 @@ export default function TripHistoryScreen() {
               reason: 'Driver rejected or did not respond',
             })
           }
-          
+
           return !isRejectedOrTimeout
         })
         .map((trip: any) => {
-        const formatted = {
-          id: trip._id || trip.id,
-          rideType: 'share',
-          estimatedFare: trip.customerFare || trip.totalFare || 0,
-          createdAtTimestamp: trip.createdAt ? new Date(trip.createdAt).getTime() : 0,
-          bookingTime: trip.createdAt 
-            ? new Date(trip.createdAt).toLocaleString('vi-VN')
-            : 'N/A',
-          // Use CUSTOMER's pickup/dropoff, not driver's route
-          pickupLocation: trip.customerPickupAddress || trip.pickupLocationAddress || trip.pickupAddress || 'Điểm đón',
-          dropoffLocation: trip.customerDropoffAddress || trip.dropoffLocationAddress || trip.dropoffAddress || 'Điểm đến',
-          pickupDistrict: 'Hà Nội',
-          dropoffDistrict: 'Hà Nội',
-          status: trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase() || 'pending',
-          driverName: trip.driverId?.firstName + ' ' + trip.driverId?.lastName || 'N/A',
-          carPlate: trip.driverId?.vehiclePlate || 'N/A',
-          // Thêm trường để track combined trip ID
-          combinedTripId: trip._id || trip.id,
-        }
-        console.log('[BookingsScreen] Formatted trip:', {
-          pickupLocation: formatted.pickupLocation,
-          dropoffLocation: formatted.dropoffLocation,
-          customerPickupAddress: trip.customerPickupAddress,
-          customerDropoffAddress: trip.customerDropoffAddress,
-          pickupAddress: trip.pickupAddress,
-          dropoffAddress: trip.dropoffAddress,
+          const formatted = {
+            id: trip._id || trip.id,
+            rideType: 'share',
+            estimatedFare: trip.customerFare || trip.totalFare || 0,
+            createdAtTimestamp: trip.createdAt ? new Date(trip.createdAt).getTime() : 0,
+            bookingTime: trip.createdAt
+              ? new Date(trip.createdAt).toLocaleString('vi-VN')
+              : 'N/A',
+            // Use CUSTOMER's pickup/dropoff, not driver's route
+            pickupLocation: trip.customerPickupAddress || trip.pickupLocationAddress || trip.pickupAddress || 'Điểm đón',
+            dropoffLocation: trip.customerDropoffAddress || trip.dropoffLocationAddress || trip.dropoffAddress || 'Điểm đến',
+            pickupDistrict: 'Hà Nội',
+            dropoffDistrict: 'Hà Nội',
+            status: trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase() || 'pending',
+            driverName: trip.driverId?.firstName + ' ' + trip.driverId?.lastName || 'N/A',
+            carPlate: trip.driverId?.vehiclePlate || 'N/A',
+            // Thêm trường để track combined trip ID
+            combinedTripId: trip._id || trip.id,
+          }
+          console.log('[BookingsScreen] Formatted trip:', {
+            pickupLocation: formatted.pickupLocation,
+            dropoffLocation: formatted.dropoffLocation,
+            customerPickupAddress: trip.customerPickupAddress,
+            customerDropoffAddress: trip.customerDropoffAddress,
+            pickupAddress: trip.pickupAddress,
+            dropoffAddress: trip.dropoffAddress,
+          })
+          return formatted
         })
-        return formatted
-      })
 
       // Format deliveries thành RideBooking structure
       const formattedDeliveries = (deliveries || []).map((delivery: any) => ({
@@ -196,7 +196,7 @@ export default function TripHistoryScreen() {
         rideType: 'delivery',
         estimatedFare: delivery.estimatedPrice || delivery.totalPrice || 0,
         createdAtTimestamp: delivery.createdAt ? new Date(delivery.createdAt).getTime() : 0,
-        bookingTime: delivery.createdAt 
+        bookingTime: delivery.createdAt
           ? new Date(delivery.createdAt).toLocaleString('vi-VN')
           : 'N/A',
         pickupLocation: delivery.pickupAddress || 'Điểm lấy hàng',
@@ -217,7 +217,7 @@ export default function TripHistoryScreen() {
         rideType: 'hourly',
         estimatedFare: service.estimatedPrice || service.actualPrice || 0,
         createdAtTimestamp: service.createdAt ? new Date(service.createdAt).getTime() : 0,
-        bookingTime: service.createdAt 
+        bookingTime: service.createdAt
           ? new Date(service.createdAt).toLocaleString('vi-VN')
           : 'N/A',
         pickupLocation: service.address || 'Địa chỉ làm việc',
@@ -235,28 +235,28 @@ export default function TripHistoryScreen() {
       // Format hire rides to ensure createdAtTimestamp exists
       const formattedRideHistory = (rideHistory || []).map((ride: any) => ({
         ...ride,
-        createdAtTimestamp: ride.createdAt 
-          ? new Date(ride.createdAt).getTime() 
-          : ride.bookingTime 
-            ? new Date(ride.bookingTime).getTime() 
+        createdAtTimestamp: ride.createdAt
+          ? new Date(ride.createdAt).getTime()
+          : ride.bookingTime
+            ? new Date(ride.bookingTime).getTime()
             : 0,
       }))
 
       // Merge rides + combined trips + deliveries + hourly services
       const allBookings = [...formattedRideHistory, ...formattedCombinedTrips, ...formattedDeliveries, ...formattedHourlyServices]
-      
+
       // ✅ Remove duplicates based on unique combination of id + rideType
       const uniqueBookings = allBookings.filter((booking, index, self) => {
         const uniqueKey = `${booking.id}_${booking.rideType}`
         return index === self.findIndex((b) => `${b.id}_${b.rideType}` === uniqueKey)
       })
-      
+
       console.log('[BookingsScreen] Duplicate check:', {
         total: allBookings.length,
         unique: uniqueBookings.length,
         removed: allBookings.length - uniqueBookings.length,
       })
-      
+
       // Sort by booking time (newest first - mới nhất trước)
       uniqueBookings.sort((a, b) => {
         const timeA = (a as any).createdAtTimestamp || 0
@@ -265,9 +265,9 @@ export default function TripHistoryScreen() {
       })
 
       console.log('[BookingsScreen] Total bookings:', uniqueBookings.length)
-      
+
       setBookings(uniqueBookings)
-      
+
       if (uniqueBookings.length === 0) {
         console.log('[BookingsScreen] No bookings found')
       } else {
@@ -312,7 +312,7 @@ export default function TripHistoryScreen() {
 
       // TODO: Call API to submit rating
       // await rideService.submitRating(selectedRide.id, { rating, review: reviewText })
-      
+
       Alert.alert('Thành công', 'Cảm ơn bạn đã đánh giá!')
       closeRatingModal()
     } catch (error: any) {
@@ -430,7 +430,22 @@ export default function TripHistoryScreen() {
       })
     } else {
       // Nếu là hire ride
-      Alert.alert('Chi tiết', `Chuyến đi ${booking.id}`)
+      const statusMap: Record<string, string> = {
+        completed: 'Hoàn thành',
+        cancelled: 'Đã hủy',
+        in_progress: 'Đang chạy',
+        pending: 'Đang tìm tài xế',
+        accepted: 'Đã có tài xế',
+      }
+      const statusLabel = statusMap[booking.status] || booking.status
+      const fareText = booking.estimatedFare > 0
+        ? booking.estimatedFare.toLocaleString('vi-VN') + 'đ'
+        : 'Chưa xác định'
+      Alert.alert(
+        'Chi tiết chuyến đi',
+        `📍 Điểm đón: ${booking.pickupLocation}\n🏁 Điểm đến: ${booking.dropoffLocation}\n\n🕐 Thời gian: ${booking.bookingTime}\n📊 Trạng thái: ${statusLabel}\n💰 Giá: ${fareText}\n\n👤 Tài xế: ${booking.driverName || 'Chưa có'}\n🚗 Biển số: ${booking.carPlate || 'N/A'}`,
+        [{ text: 'Đóng' }]
+      )
     }
   }
 
@@ -533,13 +548,13 @@ export default function TripHistoryScreen() {
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="history" size={48} color="#64748b" />
                 <Text style={styles.emptyText}>
-                  {bookings.length === 0 
-                    ? 'Không có chuyến đi nào' 
+                  {bookings.length === 0
+                    ? 'Không có chuyến đi nào'
                     : `Không có chuyến đi loại "${filterOptions.find(f => f.key === activeFilter)?.label}"`
                   }
                 </Text>
                 {bookings.length > 0 && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.resetFilterButton}
                     onPress={() => setActiveFilter('all')}
                   >
@@ -551,143 +566,143 @@ export default function TripHistoryScreen() {
               <>
                 {/* Bookings List */}
                 {filteredBookings.map((booking) => {
-          const badge = getStatusBadge(booking.status, booking.rideType)
-          const isCompleted = booking.status === 'completed'
-          const isCancelled = booking.status === 'cancelled'
-          const isPending = ['pending', 'finding'].includes(booking.status)
-          const canDelete = isCompleted || isCancelled
+                  const badge = getStatusBadge(booking.status, booking.rideType)
+                  const isCompleted = booking.status === 'completed'
+                  const isCancelled = booking.status === 'cancelled'
+                  const isPending = ['pending', 'finding'].includes(booking.status)
+                  const canDelete = isCompleted || isCancelled
 
-          return (
-            <View
-              key={`${booking.id}_${booking.rideType}`}
-              style={[styles.bookingCard, isCancelled && styles.bookingCardCancelled]}
-            >
-              {/* Delete Button - Only for completed/cancelled */}
-              {canDelete && (
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => handleDeleteTrip(booking.id, booking.status, booking.rideType)}
-                  activeOpacity={0.7}
-                >
-                  <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
-                </TouchableOpacity>
-              )}
-
-              {/* Card Header */}
-              <View style={styles.cardHeader}>
-                <View style={styles.headerLeft}>
-                  <View
-                    style={[
-                      styles.iconContainer,
-                      booking.rideType === 'hire' && styles.iconContainerHire,
-                      booking.rideType === 'share' && styles.iconContainerShare,
-                      booking.rideType === 'delivery' && styles.iconContainerDelivery,
-                      booking.rideType === 'hourly' && styles.iconContainerHourly,
-                    ]}
-                  >
-                    <MaterialIcons name={getRideTypeIcon(booking.rideType) as any} size={20} color="#FF6B00" />
-                  </View>
-                  <View style={styles.headerInfo}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.rideTypeText}>{getRideTypeLabel(booking.rideType)}</Text>
-                      {badge && (
-                        <View
-                          style={[
-                            styles.statusBadge,
-                            { backgroundColor: badge.bgColor },
-                          ]}
+                  return (
+                    <View
+                      key={`${booking.id}_${booking.rideType}`}
+                      style={[styles.bookingCard, isCancelled && styles.bookingCardCancelled]}
+                    >
+                      {/* Delete Button - Only for completed/cancelled */}
+                      {canDelete && (
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={() => handleDeleteTrip(booking.id, booking.status, booking.rideType)}
+                          activeOpacity={0.7}
                         >
-                          <Text
-                            style={[styles.statusBadgeText, { color: badge.color }]}
+                          <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
+                        </TouchableOpacity>
+                      )}
+
+                      {/* Card Header */}
+                      <View style={styles.cardHeader}>
+                        <View style={styles.headerLeft}>
+                          <View
+                            style={[
+                              styles.iconContainer,
+                              booking.rideType === 'hire' && styles.iconContainerHire,
+                              booking.rideType === 'share' && styles.iconContainerShare,
+                              booking.rideType === 'delivery' && styles.iconContainerDelivery,
+                              booking.rideType === 'hourly' && styles.iconContainerHourly,
+                            ]}
                           >
-                            {badge.label}
-                          </Text>
+                            <MaterialIcons name={getRideTypeIcon(booking.rideType) as any} size={20} color="#FF6B00" />
+                          </View>
+                          <View style={styles.headerInfo}>
+                            <View style={styles.titleRow}>
+                              <Text style={styles.rideTypeText}>{getRideTypeLabel(booking.rideType)}</Text>
+                              {badge && (
+                                <View
+                                  style={[
+                                    styles.statusBadge,
+                                    { backgroundColor: badge.bgColor },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[styles.statusBadgeText, { color: badge.color }]}
+                                  >
+                                    {badge.label}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.bookingTime}>{booking.bookingTime}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.fareText}>
+                          {isCancelled ? (
+                            <Text style={styles.fareTextCancelled}>0đ</Text>
+                          ) : (
+                            booking.estimatedFare.toLocaleString('vi-VN') + 'đ'
+                          )}
+                        </Text>
+                      </View>
+
+                      <View style={styles.routeSection}>
+                        <View style={styles.routeTimeline}>
+                          <View style={[styles.dot, { backgroundColor: isCancelled ? '#9ca3af' : '#10b981' }, isCancelled && styles.dotCancelled]} />
+                          <View style={[styles.connectorLine, isCancelled && styles.connectorLineCancelled]} />
+                          <View style={[styles.dot, { backgroundColor: isCancelled ? '#9ca3af' : '#ef4444' }, isCancelled && styles.dotCancelled]} />
+                        </View>
+
+                        <View style={styles.routeInfo}>
+                          <View style={styles.locationItem}>
+                            <Text style={styles.locationName}>{booking.pickupLocation}</Text>
+                            {booking.pickupDistrict && <Text style={styles.locationSubtitle}>{booking.pickupDistrict}</Text>}
+                          </View>
+                          <View style={styles.locationItem}>
+                            <Text style={styles.locationName}>{booking.dropoffLocation}</Text>
+                            {booking.dropoffDistrict && <Text style={styles.locationSubtitle}>{booking.dropoffDistrict}</Text>}
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Card Footer */}
+                      {booking.rideType === 'hire' && isCompleted ? (
+                        <TouchableOpacity
+                          style={styles.rateButton}
+                          onPress={() => openRatingModal(booking)}
+                        >
+                          <MaterialIcons name="star-rate" size={18} color="#fff" style={{ marginRight: SPACING.sm }} />
+                          <Text style={styles.rateButtonText}>Đánh giá tài xế</Text>
+                        </TouchableOpacity>
+                      ) : isPending ? (
+                        <View style={styles.cardFooter}>
+                          <TouchableOpacity style={styles.detailButton} onPress={() => handleViewDetail(booking)}>
+                            <MaterialIcons name="info" size={14} color="#53d22d" />
+                            <Text style={styles.detailButtonText}>Chi tiết</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.cardCancelButton}
+                            onPress={() => handleCancelBooking(booking)}
+                          >
+                            <MaterialIcons name="close" size={16} color="#ef4444" />
+                            <Text style={styles.cardCancelButtonText}>Hủy</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <View style={styles.cardFooter}>
+                          {isCompleted && booking.rideType === 'share' && (
+                            <View style={styles.starsContainer}>
+                              {[0, 1, 2, 3, 4].map((i) => (
+                                <MaterialIcons key={i} name="star" size={20} color="#fbbf24" style={{ marginRight: 2 }} />
+                              ))}
+                            </View>
+                          )}
+                          <View style={styles.footerButtonGroup}>
+                            <TouchableOpacity style={styles.detailButton} onPress={() => handleViewDetail(booking)}>
+                              <MaterialIcons name="info" size={14} color="#53d22d" />
+                              <Text style={styles.detailButtonText}>Chi tiết</Text>
+                            </TouchableOpacity>
+                            {isCompleted && (booking.rideType === 'share' || booking.rideType === 'hourly' || booking.rideType === 'delivery') && (
+                              <TouchableOpacity
+                                style={styles.rebookButton}
+                                onPress={() => handleRebookService(booking)}
+                              >
+                                <MaterialIcons name="replay" size={16} color="#94a3b8" />
+                                <Text style={styles.rebookText}>Đặt lại</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
                         </View>
                       )}
                     </View>
-                    <Text style={styles.bookingTime}>{booking.bookingTime}</Text>
-                  </View>
-                </View>
-                <Text style={styles.fareText}>
-                  {isCancelled ? (
-                    <Text style={styles.fareTextCancelled}>0đ</Text>
-                  ) : (
-                    booking.estimatedFare.toLocaleString('vi-VN') + 'đ'
-                  )}
-                </Text>
-              </View>
-
-              <View style={styles.routeSection}>
-                <View style={styles.routeTimeline}>
-                  <View style={[styles.dot, { backgroundColor: isCancelled ? '#9ca3af' : '#10b981' }, isCancelled && styles.dotCancelled]} />
-                  <View style={[styles.connectorLine, isCancelled && styles.connectorLineCancelled]} />
-                  <View style={[styles.dot, { backgroundColor: isCancelled ? '#9ca3af' : '#ef4444' }, isCancelled && styles.dotCancelled]} />
-                </View>
-
-                <View style={styles.routeInfo}>
-                  <View style={styles.locationItem}>
-                    <Text style={styles.locationName}>{booking.pickupLocation}</Text>
-                    {booking.pickupDistrict && <Text style={styles.locationSubtitle}>{booking.pickupDistrict}</Text>}
-                  </View>
-                  <View style={styles.locationItem}>
-                    <Text style={styles.locationName}>{booking.dropoffLocation}</Text>
-                    {booking.dropoffDistrict && <Text style={styles.locationSubtitle}>{booking.dropoffDistrict}</Text>}
-                  </View>
-                </View>
-              </View>
-
-              {/* Card Footer */}
-              {booking.rideType === 'hire' && isCompleted ? (
-                <TouchableOpacity 
-                  style={styles.rateButton}
-                  onPress={() => openRatingModal(booking)}
-                >
-                  <MaterialIcons name="star-rate" size={18} color="#fff" style={{ marginRight: SPACING.sm }} />
-                  <Text style={styles.rateButtonText}>Đánh giá tài xế</Text>
-                </TouchableOpacity>
-              ) : isPending ? (
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity style={styles.detailButton} onPress={() => handleViewDetail(booking)}>
-                    <MaterialIcons name="info" size={14} color="#53d22d" />
-                    <Text style={styles.detailButtonText}>Chi tiết</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.cardCancelButton} 
-                    onPress={() => handleCancelBooking(booking)}
-                  >
-                    <MaterialIcons name="close" size={16} color="#ef4444" />
-                    <Text style={styles.cardCancelButtonText}>Hủy</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={styles.cardFooter}>
-                  {isCompleted && booking.rideType === 'share' && (
-                    <View style={styles.starsContainer}>
-                      {[0, 1, 2, 3, 4].map((i) => (
-                        <MaterialIcons key={i} name="star" size={20} color="#fbbf24" style={{ marginRight: 2 }} />
-                      ))}
-                    </View>
-                  )}
-                  <View style={styles.footerButtonGroup}>
-                    <TouchableOpacity style={styles.detailButton} onPress={() => handleViewDetail(booking)}>
-                      <MaterialIcons name="info" size={14} color="#53d22d" />
-                      <Text style={styles.detailButtonText}>Chi tiết</Text>
-                    </TouchableOpacity>
-                    {isCompleted && (booking.rideType === 'share' || booking.rideType === 'hourly' || booking.rideType === 'delivery') && (
-                      <TouchableOpacity 
-                        style={styles.rebookButton} 
-                        onPress={() => handleRebookService(booking)}
-                      >
-                        <MaterialIcons name="replay" size={16} color="#94a3b8" />
-                        <Text style={styles.rebookText}>Đặt lại</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              )}
-            </View>
-          )
-        })}
+                  )
+                })}
               </>
             )}
           </>
@@ -710,7 +725,7 @@ export default function TripHistoryScreen() {
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Đánh giá tài xế</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={closeRatingModal}
                   style={{
                     width: 32,

@@ -38,8 +38,8 @@ export default function FindingRideScreen({ navigation }: any) {
   const endLat = params?.endLat ?? 21.0285  // Customer's dropoff latitude
   const totalFare = params?.totalFare ?? 0
   const seats = params?.seats ?? 1
-const [selectedSeats, setSelectedSeats] = useState<number[]>([])
-const [tripData, setTripData] = useState(ride)
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([])
+  const [tripData, setTripData] = useState(ride)
   // 🔍 Debug params
   console.log('[FindingRideScreen] 🔍 PARAMS RECEIVED:', {
     pickupAddress,
@@ -55,9 +55,9 @@ const [tripData, setTripData] = useState(ride)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
   const user = useSelector((state: RootState) => state.auth.user)
-const totalSeats = tripData?.totalSeats || 4
-const bookedSeatsCount = tripData?.bookedSeats ?? (totalSeats - (tripData?.availableSeats ?? totalSeats))
-const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
+  const totalSeats = tripData?.totalSeats || 4
+  const bookedSeatsCount = tripData?.bookedSeats ?? (totalSeats - (tripData?.availableSeats ?? totalSeats))
+  const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
   // State
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,7 +74,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
     comfort: Math.round(totalFare * 1.3),
     premium: Math.round(totalFare * 1.6),
   })
-  
+
   // Animation
   const scanAnim = useRef(new Animated.Value(0)).current
   const modalSlideAnim = useRef(new Animated.Value(0)).current
@@ -85,13 +85,13 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
   // Fetch SHARE rides on mount
   useEffect(() => {
     isMountedRef.current = true
-    
+
     // Get current GPS location first
     getCurrentLocation()
-    
+
     // Scanning animation
     startScanAnimation()
-    
+
     return () => {
       isMountedRef.current = false
       if (refreshIntervalRef.current) {
@@ -144,7 +144,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
             premium: truckFare.finalPrice,
           })
         } catch (error) {
-         
+
           // Fallback prices
           setVehiclePrices({
             basic: 50000,
@@ -162,7 +162,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
   useEffect(() => {
     if (currentLocation) {
       fetchShareRides()
-      
+
       // ✅ Poll for ride updates every 3 seconds (to get real-time seat availability)
       const pollInterval = setInterval(() => {
         if (isMountedRef.current) {
@@ -205,7 +205,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
   const getCurrentLocation = async () => {
     try {
       console.log('[FindingRideScreen] Getting current GPS location...')
-      
+
       // Request permission
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status !== 'granted') {
@@ -216,18 +216,18 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
         }
         return
       }
-      
+
       // Get current location
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       })
-      
+
       const { longitude, latitude } = location.coords
       console.log('[FindingRideScreen] ✅ Current location:', {
         lng: longitude,
         lat: latitude,
       })
-      
+
       if (isMountedRef.current) {
         setCurrentLocation({ lng: longitude, lat: latitude })
       }
@@ -364,7 +364,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
       console.log('[FindingRideScreen] ⚠️ Already creating trip, ignoring duplicate call');
       return;
     }
-    
+
     try {
       setCreatingNewTrip(true)
       const requestId = Date.now(); // Unique ID for this request
@@ -381,11 +381,11 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
 
       // 🔍 Debug: Check fare calculation
       const basePricePerPerson = vehiclePrices[selectedVehicleType]
-      
+
       // Tính discount theo số ghế
       const discountRate = seats === 1 ? 0 : seats === 2 ? 0.15 : seats === 3 ? 0.25 : 0.30
       const fareToSend = Math.round(basePricePerPerson * (1 - discountRate))
-      
+
       console.log('[FindingRideScreen] 🆔', requestId, '🔍 FARE DEBUG:', {
         totalFareFromParams: totalFare,
         selectedVehicleType,
@@ -454,11 +454,11 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
         tripId: data.trip?._id,
         fullResponse: data,
       })
-      
+
       if (!data.trip?._id) {
         throw new Error('Trip ID not found in response')
       }
-      
+
       setNewTripId(data.trip._id)
 
       // Poll trip status to check if driver accepted - no timeout, poll forever
@@ -471,10 +471,10 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
           console.log('[FindingRideScreen] ==========================================');
           console.log('[FindingRideScreen] 🔄 Polling at:', pollTimestamp);
           console.log('[FindingRideScreen] Trip ID:', tripId);
-          
+
           // Use service method instead of direct fetch
           const tripData = await combinedTripsService.getCombinedTripDetail(tripId)
-          
+
           console.log('[FindingRideScreen] ✅ Full trip data:', JSON.stringify(tripData, null, 2));
           console.log('[FindingRideScreen] Trip status:', tripData.status);
           console.log('[FindingRideScreen] Has driverId:', !!tripData.driverId);
@@ -487,7 +487,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
             console.log('[FindingRideScreen] Driver ID:', tripData.driverId?._id || tripData.driverId);
             console.log('[FindingRideScreen] Driver name:', tripData.driverId ? `${tripData.driverId.firstName} ${tripData.driverId.lastName}` : 'Unknown');
             console.log('[FindingRideScreen] AcceptedAt:', tripData.acceptedAt);
-            
+
             if (pollIntervalRef.current) {
               clearInterval(pollIntervalRef.current)
               pollIntervalRef.current = null
@@ -495,7 +495,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
             setCreatingNewTrip(false)
             setNewTripId(null)
             closeVehicleModal()
-            
+
             // Navigate to DriverFoundScreen
             navigation.navigate('DriverFound', {
               combinedTripId: tripId,
@@ -522,7 +522,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
 
   const handleCancelTrip = async () => {
     console.log('[FindingRideScreen] 🚫 Cancel trip requested, tripId:', newTripId)
-    
+
     if (!newTripId) {
       console.warn('[FindingRideScreen] ⚠️ No trip ID to cancel')
       Alert.alert('Lỗi', 'Không tìm thấy chuyến đi để hủy')
@@ -540,7 +540,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
           onPress: async () => {
             try {
               console.log('[FindingRideScreen] User confirmed cancellation')
-              
+
               const token = await AsyncStorage.getItem('authToken')
               if (!token) {
                 console.error('[FindingRideScreen] ❌ No auth token found')
@@ -561,14 +561,14 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
 
               if (response.ok) {
                 console.log('[FindingRideScreen] ✅ Trip cancelled successfully')
-                
+
                 // Clear polling interval
                 if (pollIntervalRef.current) {
                   clearInterval(pollIntervalRef.current)
                   pollIntervalRef.current = null
                   console.log('[FindingRideScreen] Polling stopped')
                 }
-                
+
                 setCreatingNewTrip(false)
                 setNewTripId(null)
                 closeVehicleModal()
@@ -797,7 +797,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
           { id: 'cheap', label: 'Giá rẻ nhất', icon: null },
           { id: 'female', label: 'Tài xế nữ', icon: 'female' },
           { id: '5star', label: '5.0 Sao', icon: 'star' },
-          { id: 'van', label: 'Xe 7 chỗ', icon: 'airport_shuttle' },
+          { id: 'van', label: 'Xe 7 chỗ', icon: 'airport-shuttle' },
         ].map((filter) => (
           <TouchableOpacity
             key={filter.id}
@@ -1038,7 +1038,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                 </View>
 
                 <Text style={[styles.scanningTitle, { color: colors.text }]}>
-                   Đang quét tài xế gần bạn
+                  Đang quét tài xế gần bạn
                 </Text>
                 <Text style={[styles.scanningSubtitle, { color: colors.textSecondary }]}>
                   Quét mỗi 30 giây cho đến khi tìm thấy tài xế
@@ -1128,7 +1128,7 @@ const availableSeats = totalSeats - bookedSeatsCount - selectedSeats.length
                         name="directions-car"
                         size={32}
                         color={selectedVehicleType === 'basic' ? '#FF6B00' : colors.textSecondary}
-                       
+
                       />
                     </View>
                     <View style={styles.vehicleDetails}>
