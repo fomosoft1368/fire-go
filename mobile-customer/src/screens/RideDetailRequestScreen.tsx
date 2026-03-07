@@ -403,7 +403,17 @@ export default function RideDetailRequestScreen() {
           clearInterval(statusCheckInterval.current!)
           Alert.alert(
             'Yêu cầu bị từ chối',
-            'Tài xế đã từ chối yêu cầu của bạn. Vui lòng thử tìm chuyến khác.'
+            'Tài xế đã từ chối yêu cầu của bạn. Vui lòng thử tìm chuyến khác.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          )
+        } else if (status.status === 'timeout') {
+          setRequestStatus('rejected')
+          setRequesting(false)
+          clearInterval(statusCheckInterval.current!)
+          Alert.alert(
+            'Yêu cầu hết hạn',
+            'Tài xế không phản hồi trong thời gian quy định. Vui lòng thử tìm chuyến khác.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
           )
         }
       } catch (error) {
