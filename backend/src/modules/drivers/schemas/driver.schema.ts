@@ -7,6 +7,7 @@ export type DriverDocument = Driver & Document & {
 };
 
 export enum DocumentStatus {
+  NOT_SUBMITTED = 'not_submitted',
   PENDING = 'pending',
   APPROVED = 'approved',
   REJECTED = 'rejected',
@@ -279,6 +280,52 @@ export class Driver {
 
   @Prop({ type: [String] })
   rejectedDocuments?: string[];
+
+  // Uploaded documents
+  @Prop({
+    type: Object,
+    default: {},
+  })
+  documents?: {
+    idCardFront?: {
+      url: string;
+      uploadedAt: Date;
+    };
+    idCardBack?: {
+      url: string;
+      uploadedAt: Date;
+    };
+    driverLicense?: {
+      url: string;
+      uploadedAt: Date;
+    };
+    vehicleRegistration?: {
+      url: string;
+      uploadedAt: Date;
+    };
+    vehiclePlate?: {
+      url: string;
+      uploadedAt: Date;
+    };
+    insurance?: {
+      url: string;
+      uploadedAt: Date;
+    };
+    facePhoto?: {
+      url: string;
+      uploadedAt: Date;
+    };
+  };
+
+  @Prop()
+  documentsSubmittedAt?: Date;
+
+  @Prop({
+    type: String,
+    enum: DocumentStatus,
+    default: DocumentStatus.NOT_SUBMITTED,
+  })
+  verificationStatus?: DocumentStatus;
 }
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);

@@ -8,6 +8,7 @@ import { walletService } from '../services/walletService'
 import { driverService } from '../services/driverService'
 import { pricingService } from '../services/pricingService'
 import { earningsService } from '../services/earningsService'
+import { withTimeout } from '../utils/api'
 
 interface DailyData {
   day: string
@@ -75,17 +76,29 @@ export default function EarningsScreen({ navigation }: any) {
   }
 
   const fetchWalletData = async () => {
+    const startTime = Date.now()
+    console.log('🚀 [Earnings] Bắt đầu tải dữ liệu...')
+    
     try {
       setLoading(true)
       // First update wallet balance
+      const updateStartTime = Date.now()
       await updateWalletBalance()
+      console.log(`⚡ [Earnings] updateWalletBalance() trong ${Date.now() - updateStartTime}ms`)
       
-      const [balanceData, statsData, transactionsData, earnings] = await Promise.all([
-        walletService.getBalance(),
-        walletService.getStats(),
-        walletService.getTransactions(10), // Just for recent transactions display
-        earningsService.getEarningsByTimeRange(timeFilter), // Real earnings data
-      ])
+      const apiStartTime = Date.now()
+      const [balanceData, statsData, transactionsData, earnings] = await withTimeout(
+        Promise.all([
+          walletService.getBalance(),
+          walletService.getStats(),
+          walletService.getTransactions(10),
+          earningsService.getEarningsByTimeRange(timeFilter),
+        ]),
+        20000, // 20 second timeout for multiple APIs
+        'Tải dữ liệu thu nhập hết thời gian. Vui lòng thử lại.'
+      )
+      const apiDuration = Date.now() - apiStartTime
+      console.log(`⚡ [Earnings] 4 API song song phản hồi trong ${apiDuration}ms (${(apiDuration/1000).toFixed(2)}s)`)
 
       console.log('[EarningsScreen] 💰 Earnings data:', {
         totalEarnings: earnings.totalEarnings,
@@ -107,8 +120,12 @@ export default function EarningsScreen({ navigation }: any) {
       // ✅ Calculate week-over-week trend from earnings
       const trend = calculateWeekTrend(earnings)
       setWeekTrend(trend)
+      
+      const totalDuration = Date.now() - startTime
+      console.log(`✅ [Earnings] Hoàn tất trong ${totalDuration}ms (${(totalDuration/1000).toFixed(2)}s)`)
     } catch (error: any) {
-      console.error('[EarningsScreen] Error:', error)
+      const errorDuration = Date.now() - startTime
+      console.error(`❌ [Earnings] Lỗi sau ${errorDuration}ms:`, error)
       Alert.alert('Lỗi', error.message || 'Không thể tải dữ liệu ví')
     } finally {
       setLoading(false)

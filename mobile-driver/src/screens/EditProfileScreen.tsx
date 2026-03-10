@@ -310,7 +310,11 @@ export default function EditProfileScreen() {
 
         {/* Additional Info Section */}
         <View style={styles.infoSection}>
-          <TouchableOpacity style={styles.infoItem} activeOpacity={0.7}>
+          <TouchableOpacity 
+            style={styles.infoItem} 
+            activeOpacity={0.7}
+            onPress={() => (navigation as any).navigate('VehicleInfo')}
+          >
             <View style={styles.infoLeft}>
               <View style={styles.infoIconContainer}>
                 <MaterialIcons
@@ -328,7 +332,11 @@ export default function EditProfileScreen() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.infoItem} activeOpacity={0.7}>
+          <TouchableOpacity 
+            style={styles.infoItem} 
+            activeOpacity={0.7}
+            onPress={() => (navigation as any).navigate('DocumentVerification')}
+          >
             <View style={styles.infoLeft}>
               <View style={styles.infoIconContainer}>
                 <MaterialIcons

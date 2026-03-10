@@ -56,6 +56,41 @@ interface Driver {
   suspensionReason?: string;
   createdAt?: string;
   updatedAt?: string;
+  // Document verification fields
+  verificationStatus?: 'not_submitted' | 'pending' | 'approved' | 'rejected';
+  approvalStatus?: 'not_submitted' | 'pending' | 'approved' | 'rejected';
+  documentsSubmittedAt?: string;
+  rejectedDocuments?: string[];
+  documents?: {
+    idCardFront?: {
+      url: string;
+      uploadedAt: string;
+    };
+    idCardBack?: {
+      url: string;
+      uploadedAt: string;
+    };
+    driverLicense?: {
+      url: string;
+      uploadedAt: string;
+    };
+    vehicleRegistration?: {
+      url: string;
+      uploadedAt: string;
+    };
+    vehiclePlate?: {
+      url: string;
+      uploadedAt: string;
+    };
+    insurance?: {
+      url: string;
+      uploadedAt: string;
+    };
+    facePhoto?: {
+      url: string;
+      uploadedAt: string;
+    };
+  };
 }
 
 class ApiService {
@@ -170,6 +205,24 @@ class ApiService {
       method: 'PATCH',
       headers: this.getHeaders(),
       body: JSON.stringify(rejectionData),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  async approveDriverDocuments(id: string, notes?: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/drivers/${id}/documents/approve`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ notes }),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  async rejectDriverDocuments(id: string, reason: string, rejectedDocuments?: string[]): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/drivers/${id}/documents/reject`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ reason, rejectedDocuments }),
     });
     return this.handleResponse<any>(response);
   }

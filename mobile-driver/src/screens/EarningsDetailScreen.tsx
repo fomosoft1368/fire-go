@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { COLORS, SPACING } from '../constants'
 import { earningsService } from '../services/earningsService'
+import { withTimeout } from '../utils/api'
 
 interface EarningsDetailScreenProps {
   navigation: any
@@ -31,6 +32,9 @@ export default function EarningsDetailScreen({ navigation }: EarningsDetailScree
   }, [startDate, endDate])
 
   const fetchEarningsData = async () => {
+    const startTime = Date.now()
+    console.log('🚀 [EarningsDetail] Bắt đầu tải dữ liệu...')
+    
     try {
       setLoading(true)
       console.log('[EarningsDetail] Fetching earnings from:', startDate, 'to:', endDate)
@@ -42,7 +46,14 @@ export default function EarningsDetailScreen({ navigation }: EarningsDetailScree
       end.setHours(23, 59, 59, 999)
       
       // Fetch real earnings from completed trips
-      const earningsData = await earningsService.getEarningsByDateRange(start, end)
+      const apiStartTime = Date.now()
+      const earningsData = await withTimeout(
+        earningsService.getEarningsByDateRange(start, end),
+        15000, // 15 second timeout
+        'Tải chi tiết thu nhập hết thời gian. Vui lòng thử lại.'
+      )
+      const apiDuration = Date.now() - apiStartTime
+      console.log(`⚡ [EarningsDetail] API phản hồi trong ${apiDuration}ms (${(apiDuration/1000).toFixed(2)}s)`)
       
       console.log('[EarningsDetail] Earnings data:', {
         totalEarnings: earningsData.totalEarnings,
@@ -52,8 +63,12 @@ export default function EarningsDetailScreen({ navigation }: EarningsDetailScree
       
       setTransactions(earningsData.transactions)
       setTotalRevenue(earningsData.totalEarnings)
+      
+      const totalDuration = Date.now() - startTime
+      console.log(`✅ [EarningsDetail] Hoàn tất trong ${totalDuration}ms (${(totalDuration/1000).toFixed(2)}s)`)
     } catch (error) {
-      console.error('[EarningsDetail] Error fetching data:', error)
+      const errorDuration = Date.now() - startTime
+      console.error(`❌ [EarningsDetail] Lỗi sau ${errorDuration}ms:`, error)
     } finally {
       setLoading(false)
     }

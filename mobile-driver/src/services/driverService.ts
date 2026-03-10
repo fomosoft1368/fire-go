@@ -893,6 +893,44 @@ export class DriverService {
       throw error;
     }
   }
+
+  /**
+   * Upload driver documents for verification (base64 format)
+   */
+  async uploadDocuments(
+    driverId: string,
+    documents: {
+      idCardFront?: string;
+      idCardBack?: string;
+      driverLicense?: string;
+      vehicleRegistration?: string;
+      vehiclePlate?: string;
+      insurance?: string;
+      facePhoto?: string;
+    }
+  ): Promise<any> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('[DriverService] Uploading documents for driver:', driverId);
+      
+      const response = await axios.post(
+        `${this.baseURL}/drivers/${driverId}/documents`,
+        documents,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log('[DriverService] ✅ Documents uploaded successfully:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[DriverService] ❌ Error uploading documents:', error.message);
+      throw error;
+    }
+  }
 }
 
 export const driverService = new DriverService()

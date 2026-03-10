@@ -293,6 +293,56 @@ export class DriversController {
   }
 
   /**
+   * POST /api/drivers/:id/documents
+   * Upload driver documents for verification (base64)
+   */
+  @Post(':id/documents')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async uploadDocuments(
+    @Param('id') id: string,
+    @Body() documents: {
+      idCardFront?: string;
+      idCardBack?: string;
+      driverLicense?: string;
+      vehicleRegistration?: string;
+      vehiclePlate?: string;
+      insurance?: string;
+      facePhoto?: string;
+    },
+  ) {
+    return this.driversService.uploadDocuments(id, documents);
+  }
+
+  /**
+   * PATCH /api/drivers/:id/documents/approve
+   * Approve driver documents (Admin action)
+   */
+  @Patch(':id/documents/approve')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async approveDocuments(
+    @Param('id') id: string,
+    @Body() data?: { notes?: string },
+  ) {
+    return this.driversService.approveDocuments(id, data?.notes);
+  }
+
+  /**
+   * PATCH /api/drivers/:id/documents/reject
+   * Reject driver documents (Admin action)
+   */
+  @Patch(':id/documents/reject')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async rejectDocuments(
+    @Param('id') id: string,
+    @Body() data: { reason: string; rejectedDocuments?: string[] },
+  ) {
+    return this.driversService.rejectDocuments(id, data.reason, data.rejectedDocuments);
+  }
+
+  /**
    * PATCH /api/drivers/:id
    * Cập nhật thông tin tài xế
    */

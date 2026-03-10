@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { apiService, type Driver } from '../services/api';
@@ -302,117 +302,256 @@ export default function DriverDetail() {
 
           {activeTab === 'documents' && (
             <div className="space-y-6">
-              {/* License */}
-              {driver.licenseImage && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between mb-6">
+              {/* Verification Status Banner */}
+              {driver.documents && Object.keys(driver.documents).length > 0 && (
+                <div className={`rounded-xl p-6 border-2 ${
+                  driver.verificationStatus === 'approved' 
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                    : driver.verificationStatus === 'rejected'
+                    ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800'
+                    : 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
+                }`}>
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">card_membership</span>
-                      </div>
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">Bằng lái xe</h3>
-                    </div>
-                    <span className={`px-3 py-1 rounded-lg text-sm font-semibold ${getStatusBadgeColor(driver.licenseStatus || 'pending')}`}>
-                      {getStatusText(driver.licenseStatus || 'pending')}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2">
-                      <img src={driver.licenseImage} alt="License" className="w-full h-auto rounded-lg border border-slate-200 dark:border-slate-700 object-cover" />
-                    </div>
-                    <div className="space-y-4">
+                      <span className={`material-symbols-outlined text-3xl ${
+                        driver.verificationStatus === 'approved' ? 'text-emerald-600 dark:text-emerald-400'
+                        : driver.verificationStatus === 'rejected' ? 'text-red-600 dark:text-red-400'
+                        : 'text-blue-600 dark:text-blue-400'
+                      }`}>
+                        {driver.verificationStatus === 'approved' ? 'verified' : driver.verificationStatus === 'rejected' ? 'cancel' : 'pending'}
+                      </span>
                       <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Số bằng</p>
-                        <p className="text-base font-mono text-slate-900 dark:text-white">{driver.licenseNumber || 'N/A'}</p>
+                        <h3 className={`text-xl font-bold ${
+                          driver.verificationStatus === 'approved' ? 'text-emerald-900 dark:text-emerald-300'
+                          : driver.verificationStatus === 'rejected' ? 'text-red-900 dark:text-red-300'
+                          : 'text-blue-900 dark:text-blue-300'
+                        }`}>
+                          {driver.verificationStatus === 'approved' ? 'Giấy tờ đã được duyệt'
+                          : driver.verificationStatus === 'rejected' ? 'Giấy tờ bị từ chối'
+                          : 'Đang chờ duyệt giấy tờ'}
+                        </h3>
+                        {driver.documentsSubmittedAt && (
+                          <p className={`text-sm mt-1 ${
+                            driver.verificationStatus === 'approved' ? 'text-emerald-700 dark:text-emerald-400'
+                            : driver.verificationStatus === 'rejected' ? 'text-red-700 dark:text-red-400'
+                            : 'text-blue-700 dark:text-blue-400'
+                          }`}>
+                            Đã gửi lúc: {new Date(driver.documentsSubmittedAt).toLocaleString('vi-VN')}
+                          </p>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Hết hạn</p>
-                        <p className="text-base text-slate-900 dark:text-white">{driver.licenseExpiry ? new Date(driver.licenseExpiry).toLocaleDateString('vi-VN') : 'N/A'}</p>
+                    </div>
+                    {driver.verificationStatus === 'pending' && (
+                      <div className="flex gap-3">
+                        <button
+                          onClick={async () => {
+                            try {
+                              await apiService.rejectDriverDocuments((driver._id || driver.id)!, 'Giấy tờ không hợp lệ');
+                              addNotification({
+                                id: `success-${Date.now()}`,
+                                type: 'other',
+                                title: 'Đã từ chối',
+                                message: 'Giấy tờ tài xế đã bị từ chối',
+                                timestamp: new Date().toISOString(),
+                                read: false,
+                                priority: 'normal',
+                              });
+                              // Reload driver data
+                              const data = await apiService.getDriverById(id!);
+                              setDriver(data);
+                            } catch (err) {
+                              addNotification({
+                                id: `error-${Date.now()}`,
+                                type: 'other',
+                                title: 'Lỗi',
+                                message: 'Không thể từ chối giấy tờ',
+                                timestamp: new Date().toISOString(),
+                                read: false,
+                                priority: 'high',
+                              });
+                            }
+                          }}
+                          className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-all flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">cancel</span>
+                          Từ chối
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await apiService.approveDriverDocuments((driver._id || driver.id)!);
+                              addNotification({
+                                id: `success-${Date.now()}`,
+                                type: 'other',
+                                title: 'Đã duyệt',
+                                message: 'Giấy tờ tài xế đã được phê duyệt',
+                                timestamp: new Date().toISOString(),
+                                read: false,
+                                priority: 'normal',
+                              });
+                              // Reload driver data
+                              const data = await apiService.getDriverById(id!);
+                              setDriver(data);
+                            } catch (err) {
+                              addNotification({
+                                id: `error-${Date.now()}`,
+                                type: 'other',
+                                title: 'Lỗi',
+                                message: 'Không thể duyệt giấy tờ',
+                                timestamp: new Date().toISOString(),
+                                read: false,
+                                priority: 'high',
+                              });
+                            }
+                          }}
+                          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-all flex items-center gap-2"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                          Phê duyệt
+                        </button>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* CCCD - 2 mặt */}
-              {driver.idImage && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                        <span className="material-symbols-outlined text-purple-600 dark:text-purple-400">badge</span>
+              {/* No Documents Message */}
+              {(!driver.documents || Object.keys(driver.documents).length === 0) && (
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-12 border-2 border-dashed border-slate-300 dark:border-slate-600 text-center">
+                  <span className="material-symbols-outlined text-6xl text-slate-400 mb-4">description</span>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Chưa có giấy tờ</h3>
+                  <p className="text-slate-500 dark:text-slate-400">Tài xế chưa tải lên giấy tờ xác thực</p>
+                </div>
+              )}
+
+              {/* Documents Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* ID Card Front */}
+                {driver.documents?.idCardFront && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-400">badge</span>
                       </div>
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">CCCD / Hộ chiếu</h3>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">CCCD - Mặt trước</h3>
                     </div>
-                    <span className={`px-3 py-1 rounded-lg text-sm font-semibold ${getStatusBadgeColor(driver.idStatus || 'pending')}`}>
-                      {getStatusText(driver.idStatus || 'pending')}
-                    </span>
+                    <img src={driver.documents.idCardFront.url} alt="ID Card Front" className="w-full h-48 object-cover rounded-lg border border-slate-200 dark:border-slate-700 mb-3" />
+                    {driver.documents.idCardFront.uploadedAt && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(driver.documents.idCardFront.uploadedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    )}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Mặt trước</p>
-                      <img src={driver.idImage} alt="ID Front" className="w-full h-auto rounded-lg border border-slate-200 dark:border-slate-700 object-cover" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Mặt sau</p>
-                      {driver.idImage ? (
-                        <img src={driver.idImage} alt="ID Back" className="w-full h-auto rounded-lg border border-slate-200 dark:border-slate-700 object-cover" />
-                      ) : (
-                        <div className="w-full aspect-video rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center bg-slate-50 dark:bg-slate-700">
-                          <p className="text-slate-500 dark:text-slate-400 text-sm">Chưa có ảnh</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Số ID</p>
-                    <p className="text-base font-mono text-slate-900 dark:text-white">{driver.idNumber || 'N/A'}</p>
-                  </div>
-                </div>
-              )}
+                )}
 
-              {/* Vehicle Document */}
-              {driver.vehicleImage && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                      <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400">folder_open</span>
+                {/* ID Card Back */}
+                {driver.documents?.idCardBack && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-400">badge</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">CCCD - Mặt sau</h3>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Giấy tờ phương tiện</h3>
+                    <img src={driver.documents.idCardBack.url} alt="ID Card Back" className="w-full h-48 object-cover rounded-lg border border-slate-200 dark:border-slate-700 mb-3" />
+                    {driver.documents.idCardBack.uploadedAt && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(driver.documents.idCardBack.uploadedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    )}
                   </div>
-                  <img src={driver.vehicleImage} alt="Vehicle" className="w-full max-w-2xl h-auto rounded-lg border border-slate-200 dark:border-slate-700" />
-                </div>
-              )}
+                )}
 
-              {/* Vehicle Registration */}
-              {driver.vehicleRegistration && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg">
-                      <span className="material-symbols-outlined text-cyan-600 dark:text-cyan-400">document_scanner</span>
+                {/* Driver License */}
+                {driver.documents?.driverLicense && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-1.5 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <span className="material-symbols-outlined text-[18px] text-green-600 dark:text-green-400">card_membership</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Bằng lái xe</h3>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Giấy đăng kí xe</h3>
+                    <img src={driver.documents.driverLicense.url} alt="Driver License" className="w-full h-48 object-cover rounded-lg border border-slate-200 dark:border-slate-700 mb-3" />
+                    {driver.documents.driverLicense.uploadedAt && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(driver.documents.driverLicense.uploadedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    )}
                   </div>
-                  <img src={driver.vehicleRegistration} alt="Vehicle Registration" className="w-full max-w-2xl h-auto rounded-lg border border-slate-200 dark:border-slate-700" />
-                </div>
-              )}
+                )}
 
-              {/* Insurance */}
-              {driver.insuranceCertificate && (
-                <div className="bg-white dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 bg-rose-50 dark:bg-rose-900/20 rounded-lg">
-                      <span className="material-symbols-outlined text-rose-600 dark:text-rose-400">verified</span>
+                {/* Vehicle Registration */}
+                {driver.documents?.vehicleRegistration && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-1.5 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg">
+                        <span className="material-symbols-outlined text-[18px] text-cyan-600 dark:text-cyan-400">document_scanner</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Giấy đăng ký xe</h3>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Bảo hiểm</h3>
+                    <img src={driver.documents.vehicleRegistration.url} alt="Vehicle Registration" className="w-full h-48 object-cover rounded-lg border border-slate-200 dark:border-slate-700 mb-3" />
+                    {driver.documents.vehicleRegistration.uploadedAt && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(driver.documents.vehicleRegistration.uploadedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    )}
                   </div>
-                  <img src={driver.insuranceCertificate} alt="Insurance" className="w-full max-w-2xl h-auto rounded-lg border border-slate-200 dark:border-slate-700 mb-4" />
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Nhà cung cấp</p>
-                    <p className="text-base text-slate-900 dark:text-white">{driver.insuranceProvider || 'N/A'}</p>
+                )}
+
+                {/* Vehicle Plate */}
+                {driver.documents?.vehiclePlate && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-1.5 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                        <span className="material-symbols-outlined text-[18px] text-purple-600 dark:text-purple-400">local_taxi</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Biển số xe</h3>
+                    </div>
+                    <img src={driver.documents.vehiclePlate.url} alt="Vehicle Plate" className="w-full h-48 object-cover rounded-lg border border-slate-200 dark:border-slate-700 mb-3" />
+                    {driver.documents.vehiclePlate.uploadedAt && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(driver.documents.vehiclePlate.uploadedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Insurance */}
+                {driver.documents?.insurance && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-1.5 bg-rose-50 dark:bg-rose-900/20 rounded-lg">
+                        <span className="material-symbols-outlined text-[18px] text-rose-600 dark:text-rose-400">verified_user</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Bảo hiểm xe</h3>
+                    </div>
+                    <img src={driver.documents.insurance.url} alt="Insurance" className="w-full h-48 object-cover rounded-lg border border-slate-200 dark:border-slate-700 mb-3" />
+                    {driver.documents.insurance.uploadedAt && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(driver.documents.insurance.uploadedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Face Photo */}
+                {driver.documents?.facePhoto && (
+                  <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-1.5 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
+                        <span className="material-symbols-outlined text-[18px] text-pink-600 dark:text-pink-400">face</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">Ảnh khuôn mặt</h3>
+                    </div>
+                    <img src={driver.documents.facePhoto.url} alt="Face Photo" className="w-full h-48 object-cover rounded-lg border border-slate-200 dark:border-slate-700 mb-3" />
+                    {driver.documents.facePhoto.uploadedAt && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(driver.documents.facePhoto.uploadedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

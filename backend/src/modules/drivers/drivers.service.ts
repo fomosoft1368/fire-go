@@ -781,4 +781,169 @@ export class DriversService {
 
     return driver;
   }
+
+  /**
+   * Upload driver documents for verification (base64)
+   */
+  async uploadDocuments(
+    driverId: string,
+    documents: {
+      idCardFront?: string;
+      idCardBack?: string;
+      driverLicense?: string;
+      vehicleRegistration?: string;
+      vehiclePlate?: string;
+      insurance?: string;
+      facePhoto?: string;
+    },
+  ) {
+    console.log(`[DriversService] Uploading documents for driver: ${driverId}`);
+
+    const driver = await this.driverModel.findById(driverId);
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    // Create documents object with base64 data
+    const documentsData: any = {};
+    const now = new Date();
+
+    // Process each document type
+    const documentTypes = [
+      'idCardFront',
+      'idCardBack',
+      'driverLicense',
+      'vehicleRegistration',
+      'vehiclePlate',
+      'insurance',
+      'facePhoto',
+    ];
+
+    for (const docType of documentTypes) {
+      if (documents[docType]) {
+        documentsData[docType] = {
+          url: documents[docType], // Store base64 string directly
+          uploadedAt: now,
+        };
+      }
+    }
+
+    // Update driver with documents
+    driver.documents = documentsData;
+    driver.documentsSubmittedAt = now;
+    driver.verificationStatus = DocumentStatus.PENDING;
+
+    await driver.save();
+
+    console.log(`[DriversService] ✅ Documents uploaded successfully for driver: ${driverId}`);
+
+    // Emit event for notifications (optional)
+    this.eventEmitter.emit('driver.documents.submitted', {
+      driverId: driver._id.toString(),
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+    });
+
+    return {
+      success: true,
+      message: 'Documents uploaded successfully',
+      verificationStatus: driver.verificationStatus,
+      documentsSubmittedAt: driver.documentsSubmittedAt,
+    };
+  }
+
+  /**
+   * Approve driver documents (Admin action)
+   */
+  async approveDocuments(driverId: string, notes?: string) {
+    console.log(`[DriversService] Approving documents for driver: ${driverId}`);
+
+    const driver = await this.driverModel.findById(driverId);
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    if (!driver.documents || Object.keys(driver.documents).length === 0) {
+      throw new BadRequestException('No documents found for this driver');
+    }
+
+    // Update verification status
+    driver.verificationStatus = DocumentStatus.APPROVED;
+    driver.approvalStatus = DocumentStatus.APPROVED;
+    driver.isVerified = true;
+
+    // Clear rejected documents list if any
+    driver.rejectedDocuments = [];
+
+    await driver.save();
+
+    console.log(`[DriversService] ✅ Documents approved for driver: ${driverId}`);
+
+    // Emit event for notifications
+    this.eventEmitter.emit('driver.documents.approved', {
+      driverId: driver._id.toString(),
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+      notes,
+    });
+
+    return {
+      success: true,
+      message: 'Documents approved successfully',
+      verificationStatus: driver.verificationStatus,
+      approvalStatus: driver.approvalStatus,
+    };
+  }
+
+  /**
+   * Reject driver documents (Admin action)
+   */
+  async rejectDocuments(driverId: string, reason: string, rejectedDocuments?: string[]) {
+    console.log(`[DriversService] Rejecting documents for driver: ${driverId}`);
+
+    const driver = await this.driverModel.findById(driverId);
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    if (!driver.documents || Object.keys(driver.documents).length === 0) {
+      throw new BadRequestException('No documents found for this driver');
+    }
+
+    // Update verification status
+    driver.verificationStatus = DocumentStatus.REJECTED;
+    driver.approvalStatus = DocumentStatus.REJECTED;
+    driver.isVerified = false;
+
+    // Store rejected documents list
+    driver.rejectedDocuments = rejectedDocuments || [];
+
+    await driver.save();
+
+    console.log(`[DriversService] ❌ Documents rejected for driver: ${driverId}`);
+
+    // Emit event for notifications
+    this.eventEmitter.emit('driver.documents.rejected', {
+      driverId: driver._id.toString(),
+      firstName: driver.firstName,
+      lastName: driver.lastName,
+      email: driver.email,
+      phone: driver.phone,
+      reason,
+      rejectedDocuments: driver.rejectedDocuments,
+    });
+
+    return {
+      success: true,
+      message: 'Documents rejected',
+      verificationStatus: driver.verificationStatus,
+      approvalStatus: driver.approvalStatus,
+      rejectedDocuments: driver.rejectedDocuments,
+      reason,
+    };
+  }
 }
