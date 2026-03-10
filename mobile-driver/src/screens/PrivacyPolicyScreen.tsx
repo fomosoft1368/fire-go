@@ -1,17 +1,14 @@
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { useNavigation } from '@react-navigation/native'
-import { useSelector } from 'react-redux'
-import { RootState } from '../redux/store'
-import { SPACING, COLORS_DARK, COLORS_LIGHT } from '../constants'
+import { SPACING } from '../constants'
 import { useEffect, useState } from 'react'
 import { legalDocsService, LegalDocument } from '../services/legalDocsService'
 
-export default function PrivacyPolicyScreen() {
-  const navigation = useNavigation()
-  const themeMode = useSelector((state: RootState) => state.theme.mode)
-  const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
+interface PrivacyPolicyScreenProps {
+  navigation: any
+}
 
+export default function PrivacyPolicyScreen({ navigation }: PrivacyPolicyScreenProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [document, setDocument] = useState<LegalDocument | null>(null)
@@ -48,7 +45,7 @@ export default function PrivacyPolicyScreen() {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#10b981" />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+          <Text style={styles.loadingText}>
             Đang tải chính sách bảo mật...
           </Text>
         </View>
@@ -59,7 +56,7 @@ export default function PrivacyPolicyScreen() {
       return (
         <View style={styles.centerContainer}>
           <MaterialIcons name="error-outline" size={48} color="#dc2626" />
-          <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
+          <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity 
             style={styles.retryButton}
             onPress={loadDocument}
@@ -84,10 +81,10 @@ export default function PrivacyPolicyScreen() {
           {/* Introduction Box */}
           <View style={styles.introBox}>
             <MaterialIcons name="privacy-tip" size={48} color="#10b981" />
-            <Text style={[styles.introTitle, { color: colors.text }]}>
+            <Text style={styles.introTitle}>
               {document.title}
             </Text>
-            <Text style={[styles.introDate, { color: colors.textSecondary }]}>
+            <Text style={styles.introDate}>
               Cập nhật lần cuối: {formatDate(document.updatedAt)}
             </Text>
             <View style={styles.versionBadge}>
@@ -97,7 +94,7 @@ export default function PrivacyPolicyScreen() {
 
           {/* Introduction */}
           {document.content.introduction && (
-            <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            <Text style={styles.paragraph}>
               {document.content.introduction}
             </Text>
           )}
@@ -105,12 +102,12 @@ export default function PrivacyPolicyScreen() {
           {/* Sections */}
           {document.content.sections.map((section, index) => (
             <View key={index} style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              <Text style={styles.sectionTitle}>
                 {index + 1}. {section.title}
               </Text>
               
               {section.content && (
-                <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+                <Text style={styles.paragraph}>
                   {section.content}
                 </Text>
               )}
@@ -119,8 +116,8 @@ export default function PrivacyPolicyScreen() {
                 <View style={styles.bulletList}>
                   {section.bulletPoints.map((bullet, bulletIndex) => (
                     <View key={bulletIndex} style={styles.listItem}>
-                      <View style={[styles.bullet, { backgroundColor: '#10b981' }]} />
-                      <Text style={[styles.listText, { color: colors.textSecondary }]}>{bullet}</Text>
+                      <View style={styles.bullet} />
+                      <Text style={styles.listText}>{bullet}</Text>
                     </View>
                   ))}
                 </View>
@@ -128,18 +125,15 @@ export default function PrivacyPolicyScreen() {
 
               {section.subsections && section.subsections.map((subsection, subIndex) => (
                 <View key={subIndex} style={styles.subsection}>
-                  <View style={[styles.infoBox, { 
-                    backgroundColor: themeMode === 'dark' ? '#1e293b' : '#f8fafc', 
-                    borderColor: themeMode === 'dark' ? '#334155' : '#e2e8f0' 
-                  }]}>
+                  <View style={styles.infoBox}>
                     <View style={styles.infoHeader}>
                       <MaterialIcons name="info" size={24} color="#10b981" />
-                      <Text style={[styles.infoTitle, { color: colors.text }]}>
+                      <Text style={styles.infoTitle}>
                         {subsection.title}
                       </Text>
                     </View>
                     {subsection.content && (
-                      <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+                      <Text style={styles.paragraph}>
                         {subsection.content}
                       </Text>
                     )}
@@ -147,8 +141,8 @@ export default function PrivacyPolicyScreen() {
                       <View style={styles.bulletList}>
                         {subsection.bulletPoints.map((bullet, bulletIndex) => (
                           <View key={bulletIndex} style={styles.listItem}>
-                            <View style={[styles.bullet, { backgroundColor: '#10b981' }]} />
-                            <Text style={[styles.listText, { color: colors.textSecondary }]}>{bullet}</Text>
+                            <View style={styles.bullet} />
+                            <Text style={styles.listText}>{bullet}</Text>
                           </View>
                         ))}
                       </View>
@@ -161,42 +155,39 @@ export default function PrivacyPolicyScreen() {
 
           {/* Contact Section */}
           {document.content.contactInfo && (
-            <View style={[styles.contactBox, { 
-              backgroundColor: themeMode === 'dark' ? '#1e293b' : '#f8fafc', 
-              borderColor: themeMode === 'dark' ? '#334155' : '#e2e8f0' 
-            }]}>
+            <View style={styles.contactBox}>
               <View style={styles.contactHeader}>
                 <MaterialIcons name="contact-support" size={24} color="#10b981" />
-                <Text style={[styles.contactTitle, { color: colors.text }]}>Liên hệ</Text>
+                <Text style={styles.contactTitle}>Liên hệ</Text>
               </View>
               {document.content.contactInfo.email && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="email" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-                  <Text style={[styles.contactText, { color: colors.textSecondary }]}>
+                  <MaterialIcons name="email" size={18} color="#64748b" />
+                  <Text style={styles.contactText}>
                     Email: {document.content.contactInfo.email}
                   </Text>
                 </View>
               )}
               {document.content.contactInfo.phone && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="phone" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-                  <Text style={[styles.contactText, { color: colors.textSecondary }]}>
+                  <MaterialIcons name="phone" size={18} color="#64748b" />
+                  <Text style={styles.contactText}>
                     Hotline: {document.content.contactInfo.phone}
                   </Text>
                 </View>
               )}
               {document.content.contactInfo.address && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="location-on" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-                  <Text style={[styles.contactText, { color: colors.textSecondary }]}>
-                    {document.content.contactInfo.address}
+                  <MaterialIcons name="location-on" size={18} color="#64748b" />
+                  <Text style={styles.contactText}>
+                    {document. content.contactInfo.address}
                   </Text>
                 </View>
               )}
               {document.content.contactInfo.dataProtectionOfficer && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="security" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-                  <Text style={[styles.contactText, { color: colors.textSecondary }]}>
+                  <MaterialIcons name="security" size={18} color="#64748b" />
+                  <Text style={styles.contactText}>
                     DPO: {document.content.contactInfo.dataProtectionOfficer}
                   </Text>
                 </View>
@@ -206,12 +197,9 @@ export default function PrivacyPolicyScreen() {
 
           {/* Compliance */}
           {document.content.compliance && (
-            <View style={[styles.complianceBox, { 
-              backgroundColor: themeMode === 'dark' ? '#064e3b' : '#f0fdf4',
-              borderColor: themeMode === 'dark' ? '#059669' : '#86efac'
-            }]}>
-              <MaterialIcons name="verified-user" size={20} color={themeMode === 'dark' ? '#34d399' : '#10b981'} />
-              <Text style={[styles.complianceText, { color: themeMode === 'dark' ? '#d1fae5' : '#166534' }]}>
+            <View style={styles.complianceBox}>
+              <MaterialIcons name="verified-user" size={20} color="#10b981" />
+              <Text style={styles.complianceText}>
                 {document.content.compliance}
               </Text>
             </View>
@@ -222,9 +210,9 @@ export default function PrivacyPolicyScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: '#10b981', borderBottomColor: colors.border }]}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
@@ -241,6 +229,7 @@ export default function PrivacyPolicyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   centerContainer: {
     flex: 1,
@@ -253,12 +242,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginTop: SPACING.md,
+    color: '#64748b',
   },
   errorText: {
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
     marginTop: SPACING.md,
+    color: '#0f172a',
   },
   retryButton: {
     flexDirection: 'row',
@@ -281,7 +272,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
+    backgroundColor: '#10b981',
     borderBottomWidth: 1,
+    borderBottomColor: '#059669',
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -319,11 +312,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
     textAlign: 'center',
     letterSpacing: -0.5,
+    color: '#0f172a',
   },
   introDate: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: SPACING.sm,
+    color: '#64748b',
   },
   versionBadge: {
     backgroundColor: '#10b981',
@@ -346,12 +341,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: SPACING.md,
     letterSpacing: -0.3,
+    color: '#0f172a',
   },
   paragraph: {
     fontSize: 15,
     lineHeight: 24,
     marginBottom: SPACING.md,
     fontWeight: '500',
+    color: '#64748b',
   },
   subsection: {
     marginTop: SPACING.md,
@@ -368,6 +365,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
+    backgroundColor: '#10b981',
     marginTop: 9,
     marginRight: SPACING.md,
   },
@@ -376,12 +374,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     fontWeight: '500',
+    color: '#64748b',
   },
   infoBox: {
     padding: SPACING.lg,
     borderRadius: 12,
     borderWidth: 1,
     marginTop: SPACING.sm,
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
   },
   infoHeader: {
     flexDirection: 'row',
@@ -393,12 +394,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     flex: 1,
+    color: '#0f172a',
   },
   contactBox: {
     padding: SPACING.lg,
     borderRadius: 12,
     borderWidth: 1,
     marginTop: SPACING.md,
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
   },
   contactHeader: {
     flexDirection: 'row',
@@ -409,6 +413,7 @@ const styles = StyleSheet.create({
   contactTitle: {
     fontSize: 17,
     fontWeight: '800',
+    color: '#0f172a',
   },
   contactItem: {
     flexDirection: 'row',
@@ -419,6 +424,7 @@ const styles = StyleSheet.create({
   contactText: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#64748b',
   },
   complianceBox: {
     flexDirection: 'row',
@@ -429,11 +435,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     marginTop: SPACING.lg,
     gap: SPACING.md,
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
   },
   complianceText: {
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
     lineHeight: 20,
+    color: '#166534',
   },
 })

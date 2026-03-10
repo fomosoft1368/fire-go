@@ -7,23 +7,7 @@ import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { walletService } from '../services/walletService'
 import { driverService } from '../services/driverService'
 import { pricingService } from '../services/pricingService'
-
-interface EarningsData {
-  balance: number
-  pending: number
-  thisWeek: number
-  thisMonth: number
-  total: number
-}
-
-interface Transaction {
-  id: string
-  type: 'completed' | 'withdrawal' | 'bonus'
-  title: string
-  time: string
-  amount: number
-  icon: string
-}
+import { earningsService } from '../services/earningsService'
 
 interface DailyData {
   day: string
@@ -33,7 +17,7 @@ interface DailyData {
 // Removed mock data - using real API data
 
 export default function EarningsScreen({ navigation }: any) {
-  const [timeFilter, setTimeFilter] = useState<'day' | 'week' | 'month'>('week')
+  const [timeFilter, setTimeFilter] = useState<'day' | 'week' | 'month' | 'year'>('week')
   const [loading, setLoading] = useState(true)
   const [balance, setBalance] = useState(0)
   const [pending, setPending] = useState(0)
@@ -50,6 +34,7 @@ export default function EarningsScreen({ navigation }: any) {
   const [weekTrend, setWeekTrend] = useState(0)
   const [walletBalance, setWalletBalance] = useState(0)
   const [showLowBalanceWarning, setShowLowBalanceWarning] = useState(false)
+  const [earningsData, setEarningsData] = useState<any>(null)
 
   useEffect(() => {
     // Initial load
@@ -69,7 +54,7 @@ export default function EarningsScreen({ navigation }: any) {
     React.useCallback(() => {
       console.log('[EarningsScreen] 👁️ Screen focused - refreshing balance')
       fetchWalletData()
-    }, []),
+    }, [timeFilter]),
   )
 
   // Update wallet balance and check for warning
@@ -94,80 +79,151 @@ export default function EarningsScreen({ navigation }: any) {
       setLoading(true)
       // First update wallet balance
       await updateWalletBalance()
-      const [balanceData, statsData, transactionsData] = await Promise.all([
+      
+      const [balanceData, statsData, transactionsData, earnings] = await Promise.all([
         walletService.getBalance(),
         walletService.getStats(),
-        walletService.getTransactions(10),
+        walletService.getTransactions(10), // Just for recent transactions display
+        earningsService.getEarningsByTimeRange(timeFilter), // Real earnings data
       ])
+
+      console.log('[EarningsScreen] 💰 Earnings data:', {
+        totalEarnings: earnings.totalEarnings,
+        totalTrips: earnings.totalTrips,
+        transactions: earnings.transactions.length,
+      })
 
       setBalance(balanceData.balance)
       setPending(balanceData.pending)
       setStats(statsData)
-      setTransactions(transactionsData)
+      setTransactions(transactionsData) // Recent wallet transactions for display
+      setEarningsData(earnings)
 
-      // ✅ Generate daily data for last 7 days from transactions
-      const dailyEarnings = generateDailyData(transactionsData)
-      setDailyData(dailyEarnings)
+      // ✅ Generate chart data from real earnings transactions
+      const chartData = generateChartData(earnings.transactions, timeFilter)
+      console.log('[EarningsScreen] 📈 Chart data points:', chartData.length)
+      setDailyData(chartData)
 
-      // ✅ Calculate week-over-week trend
-      const trend = calculateWeekTrend(statsData)
+      // ✅ Calculate week-over-week trend from earnings
+      const trend = calculateWeekTrend(earnings)
       setWeekTrend(trend)
     } catch (error: any) {
+      console.error('[EarningsScreen] Error:', error)
       Alert.alert('Lỗi', error.message || 'Không thể tải dữ liệu ví')
     } finally {
       setLoading(false)
     }
   }
 
-  // ✅ Generate daily earnings data for chart from transactions
-  const generateDailyData = (transactions: any[]): DailyData[] => {
-    const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+  // ✅ Generate chart data based on time filter from real transactions
+  const generateChartData = (transactions: any[], filter: 'day' | 'week' | 'month' | 'year'): DailyData[] => {
+    console.log('[generateChartData] Input:', transactions.length, 'transactions, filter:', filter)
+    
     const today = new Date()
-    const dailyMap = new Map<string, number>()
+    const dataMap = new Map<string, number>()
+    let labels: string[] = []
+    let keys: string[] = []
 
-    // Initialize last 7 days with 0
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const key = date.toISOString().split('T')[0]
-      dailyMap.set(key, 0)
+    if (filter === 'day') {
+      // Last 24 hours - hourly breakdown
+      for (let i = 23; i >= 0; i--) {
+        const hour = new Date(today)
+        hour.setHours(today.getHours() - i, 0, 0, 0)
+        const key = `${hour.getHours()}h`
+        keys.push(hour.toISOString())
+        labels.push(i % 4 === 0 ? key : '') // Show every 4 hours
+        dataMap.set(hour.toISOString(), 0)
+      }
+    } else if (filter === 'week') {
+      // Last 7 days
+      const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today)
+        date.setDate(date.getDate() - i)
+        date.setHours(0, 0, 0, 0)
+        const key = date.toISOString().split('T')[0]
+        keys.push(key)
+        labels.push(days[date.getDay()])
+        dataMap.set(key, 0)
+      }
+    } else if (filter === 'month') {
+      // Last 30 days - by week
+      for (let i = 4; i >= 0; i--) {
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - (i * 7 + 6))
+        weekStart.setHours(0, 0, 0, 0)
+        const key = weekStart.toISOString().split('T')[0]
+        keys.push(key)
+        labels.push(`T${5 - i}`)
+        dataMap.set(key, 0)
+      }
+    } else {
+      // Last 12 months
+      const months = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12']
+      for (let i = 11; i >= 0; i--) {
+        const month = new Date(today.getFullYear(), today.getMonth() - i, 1)
+        const key = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`
+        keys.push(key)
+        labels.push(months[month.getMonth()])
+        dataMap.set(key, 0)
+      }
     }
 
-    // Sum up earnings from commission transactions
-    transactions
-      .filter(t => t.type === 'commission' && t.status === 'completed')
-      .forEach(t => {
-        const date = new Date(t.createdAt).toISOString().split('T')[0]
-        if (dailyMap.has(date)) {
-          dailyMap.set(date, dailyMap.get(date)! + Math.abs(t.amount))
+    // Sum up earnings from ride/combined_trip/delivery transactions
+    console.log('[generateChartData] Processing transactions:', transactions.length)
+    
+    transactions.forEach(t => {
+        const date = new Date(t.completedAt)
+        const earnings = t.driverEarnings || 0
+        
+        if (filter === 'day') {
+          // Group by hour
+          const hourKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).toISOString()
+          if (dataMap.has(hourKey)) {
+            dataMap.set(hourKey, dataMap.get(hourKey)! + earnings)
+          }
+        } else if (filter === 'week') {
+          // Group by day
+          const dayKey = date.toISOString().split('T')[0]
+          if (dataMap.has(dayKey)) {
+            dataMap.set(dayKey, dataMap.get(dayKey)! + earnings)
+          }
+        } else if (filter === 'month') {
+          // Group by week
+          const weekIndex = Math.floor((today.getTime() - date.getTime()) / (7 * 24 * 60 * 60 * 1000))
+          if (weekIndex >= 0 && weekIndex < 5) {
+            const weekKey = keys[4 - weekIndex]
+            if (dataMap.has(weekKey)) {
+              dataMap.set(weekKey, dataMap.get(weekKey)! + earnings)
+            }
+          }
+        } else {
+          // Group by month
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+          if (dataMap.has(monthKey)) {
+            dataMap.set(monthKey, dataMap.get(monthKey)! + earnings)
+          }
         }
       })
 
     // Convert to array format for chart
     const result: DailyData[] = []
-    let index = 0
-    dailyMap.forEach((amount, date) => {
-      const dateObj = new Date(date)
-      const dayIndex = dateObj.getDay()
+    keys.forEach((key, index) => {
       result.push({
-        day: days[dayIndex],
-        amount: amount,
+        day: labels[index],
+        amount: dataMap.get(key) || 0,
       })
-      index++
     })
 
+    console.log('[generateChartData] Result:', result.length, 'data points, total amount:', result.reduce((sum, d) => sum + d.amount, 0))
+    
     return result
   }
 
-  // ✅ Calculate week-over-week growth percentage
-  const calculateWeekTrend = (stats: any): number => {
-    const thisWeek = stats.thisWeek || 0
-    const lastWeek = stats.lastWeek || 0
-    
-    if (lastWeek === 0) return 0
-    
-    const growth = ((thisWeek - lastWeek) / lastWeek) * 100
-    return Math.round(growth)
+  // ✅ Calculate week-over-week growth percentage from earnings
+  const calculateWeekTrend = (_earnings: any): number => {
+    // Simple return 0 for now as we don't have last week earnings yet
+    return 0
   }
 
   const maxAmount = dailyData.length > 0 
@@ -296,7 +352,16 @@ export default function EarningsScreen({ navigation }: any) {
 
         {/* Time Filter */}
         <View style={styles.filterSection}>
-          <Text style={styles.sectionTitle}>Thống kê</Text>
+          <View style={styles.filterHeader}>
+            <Text style={styles.sectionTitle}>Thống kê</Text>
+            <TouchableOpacity 
+              onPress={() => navigation?.navigate('EarningsDetail', { filter: timeFilter })}
+              style={styles.detailButton}
+            >
+              <Text style={styles.detailButtonText}>Chi tiết</Text>
+              <MaterialIcons name="arrow-forward" size={16} color="#FF6B00" />
+            </TouchableOpacity>
+          </View>
           <View style={styles.timeFilter}>
             <FilterButton
               label="Ngày"
@@ -313,15 +378,30 @@ export default function EarningsScreen({ navigation }: any) {
               active={timeFilter === 'month'}
               onPress={() => setTimeFilter('month')}
             />
+            <FilterButton
+              label="Năm"
+              active={timeFilter === 'year'}
+              onPress={() => setTimeFilter('year')}
+            />
           </View>
         </View>
 
         {/* Chart */}
         <View style={styles.chartSection}>
           <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Biểu đồ thu nhập tuần</Text>
+            <Text style={styles.chartTitle}>
+              {timeFilter === 'day' ? 'Thu nhập hôm nay' :
+               timeFilter === 'week' ? 'Thu nhập tuần này' :
+               timeFilter === 'month' ? 'Thu nhập tháng này' :
+               'Thu nhập năm nay'}
+            </Text>
             <View style={styles.chartTotal}>
-              <Text style={styles.chartTotalLabel}>Tổng tuần</Text>
+              <Text style={styles.chartTotalLabel}>
+                {timeFilter === 'day' ? 'Tổng ngày' :
+                 timeFilter === 'week' ? 'Tổng tuần' :
+                 timeFilter === 'month' ? 'Tổng tháng' :
+                 'Tổng năm'}
+              </Text>
               <Text style={styles.chartTotalValue}>
                 {dailyData.length > 0 
                   ? (dailyData.reduce((sum, d) => sum + d.amount, 0) / 1000000).toFixed(1)
@@ -333,25 +413,43 @@ export default function EarningsScreen({ navigation }: any) {
           <View style={styles.chart}>
             {dailyData.length > 0 ? (
               dailyData.map((item, index) => {
-                const height = maxAmount > 0 ? (item.amount / maxAmount) * 160 : 20
+                // Better height calculation with min/max bounds
+                const normalizedHeight = maxAmount > 0 ? (item.amount / maxAmount) : 0
+                const minHeight = item.amount > 0 ? 35 : 8 // Min height for non-zero values
+                const maxHeight = 160
+                const calculatedHeight = normalizedHeight * maxHeight
+                const height = Math.max(minHeight, Math.min(calculatedHeight, maxHeight))
+                
                 const isHighest = item.amount === maxAmount && maxAmount > 0
+                // Only show value if bar is tall enough and amount > 0
+                const shouldShowValue = item.amount > 0 && height > 50
+                
                 return (
                   <View key={index} style={styles.barContainer}>
                     <View style={styles.barWrapper}>
-                      {isHighest && item.amount > 0 && (
-                        <Text style={styles.barValue}>
-                          {(item.amount / 1000000).toFixed(1)}tr
+                      {shouldShowValue && (
+                        <Text style={[styles.barValue, isHighest && styles.barValueHighest]}>
+                          {item.amount >= 1000000 
+                            ? `${(item.amount / 1000000).toFixed(1)}tr`
+                            : item.amount >= 1000
+                            ? `${Math.round(item.amount / 1000)}k`
+                            : `${item.amount}đ`}
                         </Text>
                       )}
                       <LinearGradient
-                        colors={isHighest ? ['#FF8A3D', '#FF6B00'] : ['#e2e8f0', '#cbd5e1']}
+                        colors={item.amount > 0 
+                          ? (isHighest ? ['#FFB84D', '#FF8A3D', '#FF6B00'] : ['#FF9F5A', '#FF7A2F'])
+                          : ['#f1f5f9', '#e2e8f0']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 0, y: 1 }}
                         style={[
                           styles.bar,
-                          { height: Math.max(height, 20) },
+                          { height },
+                          item.amount > 0 && styles.barActive,
                         ]}
                       />
                     </View>
-                    <Text style={[styles.barLabel, isHighest && styles.barLabelActive]}>
+                    <Text style={[styles.barLabel, item.amount > 0 && styles.barLabelActive]}>
                       {item.day}
                     </Text>
                   </View>
@@ -463,49 +561,6 @@ const StatCard: React.FC<StatCardProps> = ({ icon, iconColor, iconBg, value, lab
     </View>
   </View>
 )
-
-interface TransactionItemProps {
-  transaction: Transaction
-}
-
-const TransactionItem: React.FC<TransactionItemProps> = ({ transaction }) => {
-  const getIconColor = () => {
-    if (transaction.type === 'completed') return '#FF6B00'
-    if (transaction.type === 'withdrawal') return '#ef4444'
-    return '#10b981'
-  }
-
-  const getIconBg = () => {
-    if (transaction.type === 'completed') return '#fff5eb'
-    if (transaction.type === 'withdrawal') return '#fee2e2'
-    return '#d1fae5'
-  }
-
-  return (
-    <View style={styles.transactionItem}>
-      <View style={[styles.transactionIcon, { backgroundColor: getIconBg() }]}>
-        <MaterialIcons
-          name={transaction.icon as any}
-          size={20}
-          color={getIconColor()}
-        />
-      </View>
-      <View style={styles.transactionInfo}>
-        <Text style={styles.transactionTitle}>{transaction.title}</Text>
-        <Text style={styles.transactionTime}>{transaction.time}</Text>
-      </View>
-      <Text
-        style={[
-          styles.transactionAmount,
-          { color: transaction.amount > 0 ? '#10b981' : '#64748b' },
-        ]}
-      >
-        {transaction.amount > 0 ? '+' : ''}
-        {transaction.amount.toLocaleString('vi-VN')}đ
-      </Text>
-    </View>
-  )
-}
 
 // Component cho real transactions từ API
 const RealTransactionItem: React.FC<{ transaction: any }> = ({ transaction }) => {
@@ -781,16 +836,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     marginBottom: SPACING.lg,
   },
+  filterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
     color: '#0f172a',
     letterSpacing: -0.5,
-    marginBottom: SPACING.md,
+  },
+  detailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+  },
+  detailButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FF6B00',
   },
   timeFilter: {
     flexDirection: 'row',
-    gap: SPACING.md,
+    gap: SPACING.sm,
   },
   filterBtn: {
     flex: 1,
@@ -865,20 +939,40 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
+    marginHorizontal: 2,
   },
   barWrapper: {
     alignItems: 'center',
     marginBottom: SPACING.sm,
+    width: '100%',
   },
   barValue: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748b',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  barValueHighest: {
     color: '#FF6B00',
-    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: '900',
   },
   bar: {
-    width: 32,
+    width: '85%',
+    minWidth: 24,
+    maxWidth: 36,
     borderRadius: 8,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  barActive: {
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 4,
   },
   barLabel: {
     fontSize: 12,

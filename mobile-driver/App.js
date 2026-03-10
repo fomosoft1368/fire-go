@@ -34,6 +34,7 @@ import TransactionHistoryScreen from './src/screens/TransactionHistoryScreen'
 import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 import MapScreen from './src/screens/MapScreen'
 import CreateRideScreen from './src/screens/CreateRideScreen'
+import EarningsDetailScreen from './src/screens/EarningsDetailScreen'
 import TripActivities from './src/screens/TripActivities'
 import DeliveryRequestsScreen from './src/screens/DeliveryRequestsScreen'
 import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
@@ -43,6 +44,8 @@ import ActiveHourlyServiceScreen from './src/screens/ActiveHourlyServiceScreen'
 import ChatScreen from './src/screens/ChatScreen'
 import NotificationScreen from './src/screens/Notification'
 import NotificationDetailScreen from './src/screens/NotificationDetail'
+import TermsOfServiceScreen from './src/screens/TermsOfServiceScreen'
+import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen'
 //
 
 
@@ -177,6 +180,11 @@ const HomeStackNavigator = () => {
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
+        name="EarningsDetail"
+        component={EarningsDetailScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
         name="PaymentWebView"
         component={PaymentWebViewScreen}
         options={{ animationEnabled: true }}
@@ -239,6 +247,16 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="NotificationDetail"
         component={NotificationDetailScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="TermsOfService"
+        component={TermsOfServiceScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
         options={{ animationEnabled: true }}
       />
     </Stack.Navigator>
@@ -595,6 +613,7 @@ export default function App() {
   // 🔥 NEW: Request queue to prevent modal override
   const [requestQueue, setRequestQueue] = useState([])
   const requestQueueRef = useRef([])
+  const currentRequestIdRef = useRef(null) // ✅ Ref-based modal lock (avoids stale closure bug)
 
   // ✅ Setup assignment request polling with store subscription
   useEffect(() => {
@@ -633,29 +652,37 @@ export default function App() {
         console.log('[App] 🔍 rideHasFullData:', rideHasFullData, 'rideId type:', typeof request.rideId)
         console.log('[App] 🔍 deliveryHasFullData:', deliveryHasFullData, 'deliveryId type:', typeof request.deliveryId)
 
-        // 🔥 NEW: Check if modal is already showing a request
-        // If yes, add to queue instead of overriding
-        if (showAssignmentModal && assignmentRequest) {
-          console.log('[App] 🚦 Modal already shown, adding request to queue:', {
-            currentRequestId: assignmentRequest._id,
+        // 🔥 CRITICAL: Use ref (not state) to check if modal is busy.
+        // State variables inside this closure are stale (captured at registration time).
+        // currentRequestIdRef.current is always up-to-date.
+        if (currentRequestIdRef.current !== null) {
+          // Same request is already showing — skip (happens when polling fires again)
+          if (currentRequestIdRef.current === request._id) {
+            console.log('[App] ℹ️ Same request already showing, skipping:', request._id)
+            return
+          }
+
+          console.log('[App] 🚦 Modal busy, queuing request:', {
+            currentRequestId: currentRequestIdRef.current,
             newRequestId: request._id,
-            queueLength: requestQueueRef.current.length
+            queueLength: requestQueueRef.current.length,
           })
-          
-          // Check if request is already in queue (avoid duplicates)
+
+          // Avoid duplicates in queue
           const alreadyInQueue = requestQueueRef.current.some(r => r._id === request._id)
           if (!alreadyInQueue) {
             requestQueueRef.current.push(request)
             setRequestQueue([...requestQueueRef.current])
-            console.log('[App] ✅ Request added to queue, new queue length:', requestQueueRef.current.length)
+            console.log('[App] ✅ Queued. Queue length:', requestQueueRef.current.length)
           } else {
-            console.log('[App] ⚠️ Request already in queue, skipping duplicate')
+            console.log('[App] ⚠️ Already in queue, skipping duplicate')
           }
           return
         }
 
-        // 🔥 If modal not shown, show immediately
-        console.log('[App] 📬 Showing request immediately (modal not shown)')
+        // Modal free — show immediately and lock with ref
+        console.log('[App] 📬 Showing request immediately (modal free)')
+        currentRequestIdRef.current = request._id
         setAssignmentRequest(request)
         setShowAssignmentModal(true)
 
@@ -996,12 +1023,19 @@ export default function App() {
     setAssignmentRequest(nextRequest)
     setShowAssignmentModal(true)
     
+    // Lock modal with next request ref
+    currentRequestIdRef.current = nextRequest._id
+
     // Set countdown for this request
-    const timeoutMs = nextRequest.timeoutMs || 45000
+    const timeoutMs = nextRequest.timeoutMs || (
+      nextRequest.expiresAt
+        ? Math.max(1000, new Date(nextRequest.expiresAt).getTime() - Date.now())
+        : 45000
+    )
     const timeoutSec = Math.ceil(timeoutMs / 1000)
     setCountdown(timeoutSec)
     setTimeoutSeconds(timeoutSec)
-    
+
     // Update last request ID
     lastRequestIdRef.current = nextRequest._id
   }
@@ -1013,9 +1047,16 @@ export default function App() {
     const timer = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
-          // Auto reject when timeout
-          handleRejectAssignment()
-          return timeoutSeconds // ✅ Reset to dynamic timeout instead of hardcoded 45
+          // ✅ Countdown reached 0: close modal only. DO NOT call reject API.
+          // The backend timeout checker owns the status transition to 'timeout'.
+          // Calling reject here would overwrite 'accepted' → 'rejected' in a race.
+          console.log('[App] ⏰ Countdown 0 – closing modal (backend owns timeout status)')
+          currentRequestIdRef.current = null
+          setShowAssignmentModal(false)
+          setAssignmentRequest(null)
+          setCountdown(45)
+          showNextRequest()
+          return 45
         }
         return prev - 1
       })
@@ -1045,6 +1086,7 @@ export default function App() {
       console.warn('[App] ⚠️ Request already expired or rejected, skipping accept')
       console.warn('[App] Request status:', assignmentRequest.status)
       Alert.alert('Yêu cầu hết hạn', 'Yêu cầu này đã hết hạn, vui lòng chờ yêu cầu tiếp theo')
+      currentRequestIdRef.current = null
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
@@ -1096,6 +1138,7 @@ export default function App() {
             {
               text: 'Để sau',
               onPress: () => {
+                currentRequestIdRef.current = null
                 setShowAssignmentModal(false)
                 setAssignmentRequest(null)
                 setCountdown(45)
@@ -1152,6 +1195,7 @@ export default function App() {
           statusCheck.message || 'Chuyến đi không khả dụng. Vui lòng thử lại.',
           [{ text: 'Đóng' }]
         )
+        currentRequestIdRef.current = null
         setShowAssignmentModal(false)
         setAssignmentRequest(null)
         setCountdown(45)
@@ -1187,6 +1231,7 @@ export default function App() {
       }
       
       // NOW close modal and reset state
+      currentRequestIdRef.current = null
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
@@ -1236,6 +1281,7 @@ export default function App() {
       }
       
       // ✅ Close modal anyway on error
+      currentRequestIdRef.current = null
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
@@ -1255,6 +1301,7 @@ export default function App() {
       console.warn('[App] ⚠️ Request already expired or rejected, skipping reject')
       console.warn('[App] Request status:', assignmentRequest.status)
       Alert.alert('Yêu cầu hết hạn', 'Yêu cầu này đã hết hạn')
+      currentRequestIdRef.current = null
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
@@ -1284,6 +1331,7 @@ export default function App() {
       console.log('[App] ✅ Request rejected successfully')
 
       // Close modal and reset state
+      currentRequestIdRef.current = null
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
@@ -1295,6 +1343,7 @@ export default function App() {
       console.error('[App] ❌ Error stack:', error?.stack?.substring(0, 300))
       
       // ✅ Close modal anyway on error
+      currentRequestIdRef.current = null
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)

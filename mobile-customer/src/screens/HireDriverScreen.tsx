@@ -759,7 +759,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
                     {/* Pickup Suggestions */}
                     {showPickupSuggestions && pickupSuggestions.length > 0 && (
-                      <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+                      <View style={[styles.suggestionsDropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <FlatList
                           data={pickupSuggestions}
                           keyExtractor={(item) => item.placeId}
@@ -809,7 +809,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
                     {/* Dropoff Suggestions */}
                     {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
-                      <View style={[styles.suggestionsDropdown, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
+                      <View style={[styles.suggestionsDropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <FlatList
                           data={dropoffSuggestions}
                           keyExtractor={(item) => item.placeId}

@@ -365,6 +365,18 @@ export default function Layout({ children }: LayoutProps) {
             <span className="font-semibold whitespace-nowrap">Dịch vụ Bổ sung</span>
           </button>
 
+          <button
+            onClick={() => navigate('/legal-documents')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/legal-documents')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/legal-documents') ? 'filled' : ''}`}>gavel</span>
+            <span className="font-semibold whitespace-nowrap">Tài liệu pháp lý</span>
+          </button>
+
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 mt-4">
             <button
               onClick={() => navigate('/settings')}

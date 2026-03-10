@@ -100,6 +100,20 @@ export class CombinedTripsService implements OnModuleInit {
     }));
     
     console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${requests.length} ACTIVE requests in trip ${combinedTripId}`);
+    
+    // ✅ CRITICAL: Update combinedTrip totalFare = sum of all request fares
+    const updatedRequests = await this.rideRequestModel.find({
+      combinedTripId: new Types.ObjectId(combinedTripId),
+      status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] },
+    });
+    
+    const tripTotalFare = updatedRequests.reduce((sum, req) => sum + (req.fare || 0), 0);
+    
+    await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
+      totalFare: tripTotalFare,
+    });
+    
+    console.log(`[recalculateFaresForCombinedTrip] 💰 Updated trip totalFare: ${tripTotalFare.toLocaleString()}đ (from ${updatedRequests.length} requests)`);
   }
 
   /**
@@ -502,10 +516,22 @@ export class CombinedTripsService implements OnModuleInit {
               this.processingTrips.add(combinedTripId);
               console.log('🔒 [Timeout Checker] Locked trip', combinedTripId, 'for processing');
               
-              // ✅ MARK AS TIMEOUT instead of deleting - need to keep history to exclude this driver
-              await this.rideRequestModel.findByIdAndUpdate(expiredReq._id, {
-                status: 'timeout',
-              });
+              // ✅ MARK AS TIMEOUT with status guard to prevent race condition:
+              // Driver may have just accepted while this checker was finding expired requests.
+              // Using findOneAndUpdate with status:'pending' ensures we never overwrite 'accepted'→'timeout'.
+              const timeoutUpdateResult = await this.rideRequestModel.findOneAndUpdate(
+                { _id: expiredReq._id, status: 'pending' },
+                { status: 'timeout', updatedAt: new Date() },
+                { new: true },
+              );
+              
+              if (!timeoutUpdateResult) {
+                // Request was already accepted/rejected by the driver — do NOT override
+                this.processingTrips.delete(combinedTripId);
+                console.log('⚠️ [Timeout Checker] Request already handled (accepted/rejected), skipping:', expiredReq._id);
+                continue;
+              }
+              
               console.log('⏰ [Timeout Checker] Marked request as TIMEOUT (not deleted):', expiredReq._id);
               console.log('📝 [Timeout Checker] This driver will be EXCLUDED from next search');
               
@@ -1159,8 +1185,9 @@ export class CombinedTripsService implements OnModuleInit {
       });
 
       // Create ride request for this driver with complete trip details
-      // Get timeout from config (RIDESHARE service)
-      const timeoutMs = await this.configService.getRequestTimeout(ServiceType.RIDESHARE);
+      // Get timeout from config (RIDESHARE service) — fallback to 45s if config missing/zero
+      const timeoutMsRaw = await this.configService.getRequestTimeout(ServiceType.RIDESHARE);
+      const timeoutMs = Math.max(10000, timeoutMsRaw || 45000);
 
       const rideRequest = new this.rideRequestModel({
         combinedTripId: new Types.ObjectId(combinedTripId),

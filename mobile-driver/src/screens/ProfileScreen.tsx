@@ -208,10 +208,12 @@ export default function ProfileScreen() {
     {
       icon: 'description',
       label: 'Điều khoản dịch vụ',
+      onPress: () => navigation.navigate('TermsOfService' as never),
     },
     {
       icon: 'privacy-tip',
       label: 'Chính sách bảo mật',
+      onPress: () => navigation.navigate('PrivacyPolicy' as never),
     },
     {
       icon: 'info-outline',

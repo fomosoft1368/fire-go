@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { RolesGuard } from './guards/roles.guard';
 import { jwtConfig } from '../../config/app.config';
 
 @Module({
@@ -22,7 +23,7 @@ import { jwtConfig } from '../../config/app.config';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService, JwtStrategy, JwtModule],
+  providers: [AuthService, JwtStrategy, RolesGuard],
+  exports: [AuthService, JwtStrategy, JwtModule, RolesGuard],
 })
 export class AuthModule {}

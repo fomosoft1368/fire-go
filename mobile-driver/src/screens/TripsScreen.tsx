@@ -303,10 +303,10 @@ export default function TripsScreen() {
           sourceType: 'hourly'
         })
       } else {
-        // Lái xe hộ -> ActiveDelivery (fix: screen name is "ActiveDelivery" not "ActiveDeliveryScreen")
+        // Lái xe hộ -> TripActivities
         // @ts-ignore
-        navigation.navigate('ActiveDelivery', { 
-          tripId: trip.id || trip._id,
+        navigation.navigate('TripActivities', { 
+          rideId: trip.id || trip._id,
           sourceType: 'ride'
         })
       }

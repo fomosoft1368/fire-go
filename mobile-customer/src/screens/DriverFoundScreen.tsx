@@ -28,10 +28,9 @@ import MapViewComponent from '../components/MapView'
 
 const { height } = Dimensions.get('window')
 
-// Bottom Sheet Constants
-const COLLAPSED_HEIGHT = height * 0.30 // 30% of screen
+// Bottom Sheet Constants - 2 states only
+const COLLAPSED_HEIGHT = height * 0.42 // 42% of screen
 const EXPANDED_HEIGHT = height * 0.85 // 85% of screen
-const MINIMIZED_HEIGHT = 60 // Just handle bar
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>
 
@@ -88,31 +87,27 @@ export default function DriverFoundScreen() {
   // translateY will push it up or down to show different amounts
   // translateY = 0: Show all EXPANDED_HEIGHT (fully expanded)
   // translateY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT: Show only COLLAPSED_HEIGHT (collapsed)
-  // translateY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT: Show only MINIMIZED_HEIGHT (minimized)
   const initialTranslateY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
   const translateY = useRef(new Animated.Value(initialTranslateY)).current
   const lastGestureY = useRef(initialTranslateY)
   const scrollViewRef = useRef<ScrollView>(null)
-  const isScrollEnabled = useRef(true)
 
-  // Pan Responder for drag gesture
+  // Pan Responder for drag gesture - 2 states only
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         // Only respond if dragging vertically with sufficient movement
-        return Math.abs(gestureState.dy) > 5
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
       },
       onPanResponderGrant: () => {
         translateY.setOffset(lastGestureY.current)
         translateY.setValue(0)
       },
       onPanResponderMove: (_, gestureState) => {
-        // Dragging down (positive dy) = increase translateY = show less
-        // Dragging up (negative dy) = decrease translateY = show more
         const newY = gestureState.dy
         const minTranslate = 0 // Fully expanded
-        const maxTranslate = EXPANDED_HEIGHT - MINIMIZED_HEIGHT // Minimized
+        const maxTranslate = EXPANDED_HEIGHT - COLLAPSED_HEIGHT // Collapsed
         const calculatedY = lastGestureY.current + newY
         
         // Clamp the value
@@ -128,78 +123,37 @@ export default function DriverFoundScreen() {
         translateY.flattenOffset()
         const currentY = lastGestureY.current + gestureState.dy
         
-        // Snap logic
+        // 2 states: expanded (0) and collapsed (EXPANDED_HEIGHT - COLLAPSED_HEIGHT)
         const expandedY = 0
         const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
-        const minimizedY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT
+        const threshold = collapsedY / 2
         
-        let targetY = collapsedY
-        
-        if (gestureState.dy < -50) {
-          // Dragging up - snap to expanded
-          targetY = expandedY
-          isScrollEnabled.current = true
-        } else if (gestureState.dy > 50) {
-          // Dragging down - snap to minimized or collapsed
-          if (currentY > (collapsedY + minimizedY) / 2) {
-            targetY = minimizedY
-            isScrollEnabled.current = false
-          } else {
-            targetY = collapsedY
-            isScrollEnabled.current = true
-          }
-        } else {
-          // Small movement - snap to nearest state
-          const distToExpanded = Math.abs(currentY - expandedY)
-          const distToCollapsed = Math.abs(currentY - collapsedY)
-          const distToMinimized = Math.abs(currentY - minimizedY)
-          
-          if (distToExpanded < distToCollapsed && distToExpanded < distToMinimized) {
-            targetY = expandedY
-            isScrollEnabled.current = true
-          } else if (distToMinimized < distToCollapsed) {
-            targetY = minimizedY
-            isScrollEnabled.current = false
-          } else {
-            targetY = collapsedY
-            isScrollEnabled.current = true
-          }
-        }
+        // Simple snap logic: snap to nearest state
+        const targetY = currentY < threshold ? expandedY : collapsedY
         
         lastGestureY.current = targetY
         
         Animated.spring(translateY, {
           toValue: targetY,
           useNativeDriver: true,
-          damping: 20,
-          stiffness: 90,
+          damping: 25,
+          stiffness: 120,
         }).start()
       },
     })
   ).current
 
-  // Helper function to snap to specific state
-  const snapToState = (state: 'expanded' | 'collapsed' | 'minimized') => {
-    let targetY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT // collapsed by default
-    
-    if (state === 'expanded') {
-      targetY = 0
-      isScrollEnabled.current = true
-    } else if (state === 'minimized') {
-      targetY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT
-      isScrollEnabled.current = false
-    } else {
-      targetY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
-      isScrollEnabled.current = true
-    }
+  // Helper function to snap to specific state - 2 states only
+  const snapToState = (state: 'expanded' | 'collapsed') => {
+    const targetY = state === 'expanded' ? 0 : EXPANDED_HEIGHT - COLLAPSED_HEIGHT
     
     lastGestureY.current = targetY
     
     Animated.spring(translateY, {
       toValue: targetY,
       useNativeDriver: true,
-      damping: 20,
-      stiffness: 90,
+      damping: 25,
+      stiffness: 120,
     }).start()
   }
 
@@ -1429,7 +1383,6 @@ export default function DriverFoundScreen() {
             ref={scrollViewRef}
             style={styles.bottomSheetContent}
             showsVerticalScrollIndicator={false}
-            scrollEnabled={isScrollEnabled.current}
             bounces={false}
           >
           {/* Status Header - DYNAMIC */}
@@ -1471,55 +1424,95 @@ export default function DriverFoundScreen() {
             </View>
           </View>
 
-          {/* Driver & Vehicle Profile */}
-          <View style={[styles.driverCard, { backgroundColor: colors.card, borderColor: colors.warning }]}>
-            <View style={styles.driverCardContent}>
-              <View style={styles.driverAvatar}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
-                  <MaterialIcons name="person" size={28} color={colors.text} />
+          {/* Driver & Vehicle Profile - Premium Design */}
+          <View style={styles.driverCardWrapper}>
+            <LinearGradient
+              colors={['#FF6B00', '#FF8534']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.driverCard}
+            >
+              <View style={styles.driverCardContent}>
+                <View style={styles.driverAvatar}>
+                  <LinearGradient
+                    colors={['#FFFFFF', '#F8F9FA']}
+                    style={styles.avatarPlaceholder}
+                  >
+                    <MaterialIcons name="person" size={32} color="#FF6B00" />
+                  </LinearGradient>
+                  <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.ratingBadge}
+                  >
+                    <MaterialIcons name="star" size={12} color="white" />
+                    <Text style={styles.ratingText}>
+                      {(driver.averageRating || driver.rating || 5).toFixed(1)}
+                    </Text>
+                  </LinearGradient>
                 </View>
-                <View style={styles.ratingBadge}>
-                  <Text style={styles.ratingText}>
-                    {(driver.averageRating || driver.rating || 5).toFixed(1)}
-                  </Text>
-                  <MaterialIcons name="star" size={10} color="black" />
-                </View>
-              </View>
 
-              <View style={styles.driverInfo}>
-                <View style={styles.driverNameRow}>
-                  <Text style={[styles.driverName, { color: colors.text }]}>
-                    {driver.firstName} {driver.lastName}
-                  </Text>
-                  <View style={styles.firegoBadge}>
-                    <Text style={styles.firegoBadgeText}>FireGo Car</Text>
+                <View style={styles.driverInfo}>
+                  <View style={styles.driverNameRow}>
+                    <Text style={styles.driverName}>
+                      {driver.firstName} {driver.lastName}
+                    </Text>
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.15)']}
+                      style={styles.firegoBadge}
+                    >
+                      <MaterialIcons name="verified" size={12} color="white" />
+                      <Text style={styles.firegoBadgeText}>Pro</Text>
+                    </LinearGradient>
+                  </View>
+                  <View style={styles.vehicleInfoRow}>
+                    <MaterialIcons name="directions-car" size={14} color="rgba(255,255,255,0.9)" />
+                    <Text style={styles.vehicleInfo}>
+                      {driver.vehicleModel || 'Xe'} • {driver.vehicleColor || 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={styles.plateContainer}>
+                    <MaterialIcons name="confirmation-number" size={14} color="rgba(255,255,255,0.9)" />
+                    <Text style={styles.plateNumber}>{driver.vehiclePlate || 'N/A'}</Text>
                   </View>
                 </View>
-                <Text style={[styles.vehicleInfo, { color: colors.textSecondary }]}>
-                  {driver.vehicleModel || 'Xe'} • {driver.vehicleColor || 'N/A'}
-                </Text>
-                <Text style={[styles.plateNumber, { color: colors.text }]}>{driver.vehiclePlate || 'N/A'}</Text>
               </View>
-            </View>
+            </LinearGradient>
           </View>
 
-          {/* Action Buttons */}
+          {/* Action Buttons - Premium Design */}
           <View style={styles.actionButtonsGrid}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.warning }]}
+              style={styles.actionButtonWrapper}
               onPress={handleChat}
+              activeOpacity={0.8}
             >
-              <MaterialIcons name="chat-bubble" size={20} color="#FF6B00" />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>Nhắn tin</Text>
-              <View style={styles.notificationDot} />
+              <LinearGradient
+                colors={['#FF6B00', '#FF8534']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionButton}
+              >
+                <View style={styles.iconCircle}>
+                  <MaterialIcons name="chat-bubble" size={22} color="white" />
+                </View>
+                <Text style={styles.actionButtonText}>Nhắn tin</Text>
+                <View style={styles.notificationDot} />
+              </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.warning }]}
+              style={styles.actionButtonWrapper}
               onPress={handleCall}
+              activeOpacity={0.8}
             >
-              <MaterialIcons name="call" size={20} color="#FF6B00" />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>Gọi điện</Text>
+              <View style={[styles.actionButton, styles.actionButtonOutline]}>
+                <View style={[styles.iconCircle, styles.iconCircleOutline]}>
+                  <MaterialIcons name="call" size={22} color="#FF6B00" />
+                </View>
+                <Text style={[styles.actionButtonText, { color: '#FF6B00' }]}>Gọi điện</Text>
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -1527,11 +1520,14 @@ export default function DriverFoundScreen() {
           {/* ✅ Hiển thị nút hủy khi status = 'pending' hoặc 'accepted' */}
           {(rideRequest?.status === 'pending' || rideRequest?.status === 'accepted') && (
             <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: colors.card, borderColor: colors.warning }]}
+              style={styles.cancelButtonWrapper}
               onPress={handleCancelTrip}
+              activeOpacity={0.7}
             >
-              <MaterialIcons name="cancel" size={20} color="#ef4444" />
-              <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
+              <View style={[styles.cancelButton, { backgroundColor: colors.card }]}>
+                <MaterialIcons name="cancel" size={20} color="#EF4444" />
+                <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
+              </View>
             </TouchableOpacity>
           )}
           
@@ -1545,24 +1541,53 @@ export default function DriverFoundScreen() {
             </View>
           )}
 
-          {/* Trip Details - Optional */}
-          <View style={[styles.tripDetailsCard, { backgroundColor: colors.card, borderColor: colors.warning }]}>
-            <Text style={[styles.tripDetailsTitle, { color: colors.text }]}>Chi tiết chuyến đi</Text>
-            <View style={styles.tripDetailRow}>
-              <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Loại xe</Text>
-              <Text style={[styles.tripDetailValue, { color: colors.text }]}>Ghép xe</Text>
+          {/* Trip Details - Premium Design */}
+          <View style={[styles.tripDetailsCard, { backgroundColor: colors.card }]}>
+            <View style={styles.tripDetailsHeader}>
+              <MaterialIcons name="receipt-long" size={20} color="#FF6B00" />
+              <Text style={[styles.tripDetailsTitle, { color: colors.text }]}>Chi tiết chuyến đi</Text>
             </View>
-            <View style={styles.tripDetailRow}>
-              <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Giá cước</Text>
-              <Text style={[styles.tripDetailValue, { color: colors.text }]}>
-                ₫{(rideRequest?.fare || 0).toLocaleString()}
-              </Text>
-            </View>
-            <View style={styles.tripDetailRow}>
-              <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Quãng đường</Text>
-              <Text style={[styles.tripDetailValue, { color: colors.text }]}>
-                {(tripData?.distance || 0).toFixed(1)} km
-              </Text>
+            <View style={styles.tripDetailsContent}>
+              <View style={styles.tripDetailRow}>
+                <View style={styles.tripDetailLeft}>
+                  <View style={styles.iconBadge}>
+                    <MaterialIcons name="group" size={16} color="#FF6B00" />
+                  </View>
+                  <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Loại xe</Text>
+                </View>
+                <Text style={[styles.tripDetailValue, { color: colors.text }]}>Ghép xe</Text>
+              </View>
+              <View style={[styles.divider, { backgroundColor: '#FF6B00' }]} />
+              <View style={styles.tripDetailRow}>
+                <View style={styles.tripDetailLeft}>
+                  <View style={styles.iconBadge}>
+                    <MaterialIcons name="payments" size={16} color="#FF6B00" />
+                  </View>
+                  <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Giá cước</Text>
+                </View>
+                <LinearGradient
+                  colors={['#FF6B00', '#FF8534']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.fareTag}
+                >
+                  <Text style={styles.fareText}>
+                    ₫{(rideRequest?.fare || 0).toLocaleString()}
+                  </Text>
+                </LinearGradient>
+              </View>
+              <View style={[styles.divider, { backgroundColor: '#FF6B00' }]} />
+              <View style={styles.tripDetailRow}>
+                <View style={styles.tripDetailLeft}>
+                  <View style={styles.iconBadge}>
+                    <MaterialIcons name="straighten" size={16} color="#FF6B00" />
+                  </View>
+                  <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Quãng đường</Text>
+                </View>
+                <Text style={[styles.tripDetailValue, { color: colors.text, fontWeight: '700' }]}>
+                  {(tripData?.distance || 0).toFixed(1)} km
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -1761,42 +1786,68 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'black',
   },
-  driverCard: {
-    borderWidth: 1,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+  // ===== PREMIUM DRIVER CARD STYLES =====
+  driverCardWrapper: {
     marginBottom: SPACING.lg,
+    shadowColor: '#FF6B00',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  driverCard: {
+    borderRadius: 20,
+    padding: SPACING.lg,
+    overflow: 'hidden',
   },
   driverCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
+    gap: SPACING.lg,
   },
   driverAvatar: {
     position: 'relative',
   },
   avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.5)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 6,
   },
   ratingBadge: {
     position: 'absolute',
-    bottom: -4,
-    right: -4,
-    backgroundColor: '#eab308',
-    paddingHorizontal: SPACING.xs,
-    paddingVertical: 2,
-    borderRadius: 8,
+    bottom: -6,
+    right: -6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    gap: 3,
+    borderWidth: 2,
+    borderColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   handleBarContainer: {
     paddingVertical: 5,
@@ -1810,9 +1861,9 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   ratingText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'black',
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'white',
   },
   driverInfo: {
     flex: 1,
@@ -1821,57 +1872,119 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACING.xs,
+    marginBottom: 8,
   },
   driverName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
+    color: 'white',
+    letterSpacing: 0.3,
   },
   firegoBadge: {
-    backgroundColor: 'rgba(83,210,45,0.2)',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   firegoBadgeText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#FF6B00',
+    fontWeight: '700',
+    color: 'white',
+    letterSpacing: 0.5,
+  },
+  vehicleInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
   },
   vehicleInfo: {
-    fontSize: 13,
-    marginBottom: SPACING.xs,
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  plateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
   plateNumber: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
+    color: 'white',
+    letterSpacing: 1.5,
     fontFamily: 'monospace',
   },
+  // ===== PREMIUM ACTION BUTTONS =====
   actionButtonsGrid: {
     flexDirection: 'row',
     gap: SPACING.md,
     marginBottom: SPACING.lg,
   },
-  actionButton: {
+  actionButtonWrapper: {
     flex: 1,
-    flexDirection: 'row',
+    shadowColor: '#FF6B00',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  actionButton: {
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderRadius: BORDER_RADIUS.lg,
+    gap: 8,
+    borderRadius: 16,
     paddingVertical: SPACING.lg,
   },
+  actionButtonOutline: {
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconCircleOutline: {
+    backgroundColor: 'rgba(255,107,0,0.1)',
+  },
   actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'white',
+    letterSpacing: 0.3,
   },
   notificationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ef4444',
-    marginLeft: SPACING.xs,
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#EF4444',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  // ===== CANCEL BUTTON =====
+  cancelButtonWrapper: {
+    marginBottom: SPACING.md,
   },
   cancelButton: {
     flexDirection: 'row',
@@ -1879,11 +1992,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.sm,
     paddingVertical: SPACING.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)',
   },
   cancelButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ef4444',
+    color: '#EF4444',
   },
   cannotCancelNotice: {
     flexDirection: 'row',
@@ -1896,31 +2012,88 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
   },
+  // ===== PREMIUM TRIP DETAILS =====
   tripDetailsCard: {
-    borderWidth: 1,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: 20,
     padding: SPACING.lg,
     marginTop: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,0,0.1)',
+  },
+  tripDetailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(255,107,0,0.2)',
   },
   tripDetailsTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: SPACING.md,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  tripDetailsContent: {
+    gap: SPACING.xs,
   },
   tripDetailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    paddingVertical: SPACING.md,
+  },
+  tripDetailLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  iconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,107,0,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tripDetailLabel: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '500',
   },
   tripDetailValue: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    opacity: 0.2,
+  },
+  fareTag: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 12,
+    shadowColor: '#FF6B00',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  fareText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: 'white',
+    letterSpacing: 0.5,
   },
   loadingContainer: {
     flex: 1,

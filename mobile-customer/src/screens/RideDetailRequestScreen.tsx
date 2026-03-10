@@ -403,7 +403,17 @@ export default function RideDetailRequestScreen() {
           clearInterval(statusCheckInterval.current!)
           Alert.alert(
             'Yêu cầu bị từ chối',
-            'Tài xế đã từ chối yêu cầu của bạn. Vui lòng thử tìm chuyến khác.'
+            'Tài xế đã từ chối yêu cầu của bạn. Vui lòng thử tìm chuyến khác.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          )
+        } else if (status.status === 'timeout') {
+          setRequestStatus('rejected')
+          setRequesting(false)
+          clearInterval(statusCheckInterval.current!)
+          Alert.alert(
+            'Yêu cầu hết hạn',
+            'Tài xế không phản hồi trong thời gian quy định. Vui lòng thử tìm chuyến khác.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
           )
         }
       } catch (error) {
@@ -477,50 +487,85 @@ export default function RideDetailRequestScreen() {
 
             {/* Content Below Map */}
             <View style={[styles.contentWrapper, { backgroundColor: colors.card }]}>
-              {/* Driver Section - Simple Layout */}
-              <View style={[styles.driverSection, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+              {/* Driver Section - Premium Gradient */}
+              <LinearGradient
+                colors={['#FFFFFF', '#FFF5F0']}
+                style={styles.driverSection}
+              >
                 <View style={styles.driverRow}>
                   <View style={styles.driverAvatarContainer}>
-                    <View style={[styles.driverAvatar, { backgroundColor: '#FF6B00' }]}>
-                      <MaterialIcons name="person" size={28} color="black" />
-                    </View>
-                    <View style={styles.verifiedBadge}>
-                      <MaterialIcons name="verified" size={10} color="black" />
-                    </View>
+                    <LinearGradient
+                      colors={['#FF6B00', '#FF8534']}
+                      style={styles.driverAvatar}
+                    >
+                      <MaterialIcons name="person" size={32} color="#FFFFFF" />
+                    </LinearGradient>
+                    <LinearGradient
+                      colors={['#4CAF50', '#66BB6A']}
+                      style={styles.verifiedBadge}
+                    >
+                      <MaterialIcons name="verified" size={12} color="#FFFFFF" />
+                    </LinearGradient>
                   </View>
                   <View style={styles.driverDetails}>
                     <View style={styles.driverHeaderRow}>
                       <Text style={[styles.driverName, { color: colors.text }]}>
                         {tripData.driverId?.firstName || 'Tài'} {tripData.driverId?.lastName || 'xế'}
                       </Text>
+                      <View style={styles.proBadge}>
+                        <Text style={styles.proBadgeText}>PRO</Text>
+                      </View>
                     </View>
                     <View style={styles.ratingRow}>
-                      <MaterialIcons name="star" size={14} color="#FFB800" />
+                      <View style={styles.starIconBadge}>
+                        <MaterialIcons name="star" size={14} color="#FFD700" />
+                      </View>
                       <Text style={[styles.ratingValue, { color: colors.text }]}>
                         {(tripData.driverId?.averageRating || tripData.driverId?.rating || 5).toFixed(1)}
                       </Text>
                       <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>
-                        ({tripData.driverId?.totalReviews || 0})
+                        ({tripData.driverId?.totalReviews || 0} đánh giá)
                       </Text>
                     </View>
-                    <Text style={[styles.vehicleText, { color: colors.textSecondary }]}>
-                      {tripData.driverId?.vehicleModel || 'Xe'} • {tripData.driverId?.vehiclePlate || 'N/A'}
-                    </Text>
+                    <View style={styles.vehicleRow}>
+                      <View style={styles.vehicleIconBadge}>
+                        <MaterialIcons name="directions-car" size={12} color="#FF6B00" />
+                      </View>
+                      <Text style={[styles.vehicleText, { color: colors.textSecondary }]}>
+                        {tripData.driverId?.vehicleModel || 'Xe'} • {tripData.driverId?.vehiclePlate || 'N/A'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              </LinearGradient>
 
-              {/* Timeline Section */}
-              <View style={[styles.timelineSection, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+              {/* Timeline Section - Premium Gradient */}
+              <LinearGradient
+                colors={['#FFFFFF', '#FFF5F0']}
+                style={styles.timelineSection}
+              >
                 <View style={styles.timelineContainer}>
                   {/* Pickup Point */}
                   <View style={styles.timelineRow}>
                     <View style={styles.timelineLeft}>
-                      <View style={[styles.timelineDot, { backgroundColor: '#53d22d' }]} />
-                      <View style={[styles.timelineLine, { backgroundColor: '#53d22d' }]} />
+                      <LinearGradient
+                        colors={['#4CAF50', '#66BB6A']}
+                        style={styles.timelineDot}
+                      >
+                        <MaterialIcons name="my-location" size={10} color="#FFFFFF" />
+                      </LinearGradient>
+                      <LinearGradient
+                        colors={['#4CAF50', '#66BB6A']}
+                        style={styles.timelineLine}
+                      />
                     </View>
                     <View style={styles.timelineContent}>
-                      <Text style={[styles.timelineTime, { color: '#53d22d' }]}>08:00 • Đón khách</Text>
+                      <View style={styles.timelineHeader}>
+                        <View style={styles.timeIconBadge}>
+                          <MaterialIcons name="access-time" size={12} color="#4CAF50" />
+                        </View>
+                        <Text style={[styles.timelineTime, { color: '#4CAF50' }]}>08:00 • ĐÓN KHÁCH</Text>
+                      </View>
                       <Text style={[styles.timelineAddress, { color: colors.text }]} numberOfLines={2}>
                         {pickupAddress}
                       </Text>
@@ -530,32 +575,61 @@ export default function RideDetailRequestScreen() {
                   {/* Dropoff Point */}
                   <View style={styles.timelineRow}>
                     <View style={styles.timelineLeft}>
-                      <MaterialIcons name="location-on" size={24} color={colors.success} />
+                      <LinearGradient
+                        colors={['#FF6B00', '#FF8534']}
+                        style={styles.timelineDotLarge}
+                      >
+                        <MaterialIcons name="location-on" size={16} color="#FFFFFF" />
+                      </LinearGradient>
                     </View>
                     <View style={styles.timelineContent}>
-                      <Text style={[styles.timelineTime, { color: colors.success }]}>10:30 • Trả khách</Text>
+                      <View style={styles.timelineHeader}>
+                        <View style={styles.timeIconBadge}>
+                          <MaterialIcons name="access-time" size={12} color="#FF6B00" />
+                        </View>
+                        <Text style={[styles.timelineTime, { color: '#FF6B00' }]}>10:30 • TRẢ KHÁCH</Text>
+                      </View>
                       <Text style={[styles.timelineAddress, { color: colors.text }]} numberOfLines={2}>
                         {dropoffAddress}
                       </Text>
                     </View>
                   </View>
                 </View>
-              </View>
+              </LinearGradient>
 
-            {/* Seat Selection - Car Layout */}
-              <View style={[styles.seatSection, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+            {/* Seat Selection - Car Layout Premium */}
+              <LinearGradient
+                colors={['#FFFFFF', '#FFF5F0']}
+                style={styles.seatSection}
+              >
                 <View style={styles.seatHeaderSimple}>
-                  <Text style={[styles.seatTitleSimple, { color: colors.text }]}>Chọn ghế ngồi</Text>
-                  <View style={styles.seatsAvailableBadge}>
-                    <Text style={styles.seatsAvailableText}>{availableSeats} ghế trống</Text>
+                  <View style={styles.seatTitleRow}>
+                    <View style={styles.seatIconBadge}>
+                      <MaterialIcons name="event-seat" size={18} color="#FF6B00" />
+                    </View>
+                    <Text style={[styles.seatTitleSimple, { color: colors.text }]}>CHỌN GHẾ NGỒI</Text>
                   </View>
+                  <LinearGradient
+                    colors={['#4CAF50', '#66BB6A']}
+                    style={styles.seatsAvailableBadge}
+                  >
+                    <Text style={styles.seatsAvailableText}>{availableSeats} GHẾ TRỐNG</Text>
+                  </LinearGradient>
                 </View>
 
                 {/* Car Layout Visualization */}
-                <View style={[styles.carLayout, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+                <LinearGradient
+                  colors={['rgba(255, 245, 240, 0.5)', 'rgba(255, 255, 255, 0.8)']}
+                  style={styles.carLayout}
+                >
                   {/* Steering Wheel */}
                   <View style={styles.steeringWheel}>
-                    <MaterialIcons name="directions-car" size={28} color={colors.textSecondary + '4D'} />
+                    <LinearGradient
+                      colors={['#FF6B00', '#FF8534']}
+                      style={styles.steeringIconBadge}
+                    >
+                      <MaterialIcons name="directions-car" size={24} color="#FFFFFF" />
+                    </LinearGradient>
                   </View>
 
                   {/* Seats Grid - Dynamic rendering */}
@@ -584,29 +658,38 @@ export default function RideDetailRequestScreen() {
                                         setSelectedSeats([...selectedSeats, index])
                                       }
                                     }}
-                                    style={[
-                                      styles.seatButtonCar,
-                                      {
-                                        backgroundColor:
-                                          seatsState[index] === 'occupied'
-                                            ? colors.border
-                                            : selectedSeats.includes(index)
-                                              ? '#FF6B00'
-                                              : 'transparent',
-                                        borderColor:
-                                          seatsState[index] === 'occupied'
-                                            ? colors.border
-                                            : selectedSeats.includes(index)
-                                              ? '#FF6B00'
-                                              : colors.border,
-                                      },
-                                    ]}
+                                    style={styles.seatButtonContainer}
                                   >
-                                    <MaterialIcons
-                                      name={seatsState[index] === 'occupied' ? 'person' : selectedSeats.includes(index) ? 'check' : 'chair'}
-                                      size={20}
-                                      color={seatsState[index] === 'occupied' ? colors.textSecondary : selectedSeats.includes(index) ? 'black' : colors.textSecondary}
-                                    />
+                                    {selectedSeats.includes(index) ? (
+                                      <LinearGradient
+                                        colors={['#FF6B00', '#FF8534']}
+                                        style={styles.seatButtonCar}
+                                      >
+                                        <MaterialIcons name="check" size={24} color="#FFFFFF" />
+                                      </LinearGradient>
+                                    ) : (
+                                      <View
+                                        style={[
+                                          styles.seatButtonCar,
+                                          {
+                                            backgroundColor:
+                                              seatsState[index] === 'occupied'
+                                                ? colors.border
+                                                : 'transparent',
+                                            borderColor:
+                                              seatsState[index] === 'occupied'
+                                                ? colors.border
+                                                : 'rgba(255, 107, 0, 0.3)',
+                                          },
+                                        ]}
+                                      >
+                                        <MaterialIcons
+                                          name={seatsState[index] === 'occupied' ? 'person' : 'chair'}
+                                          size={24}
+                                          color={seatsState[index] === 'occupied' ? colors.textSecondary : '#FF6B00'}
+                                        />
+                                      </View>
+                                    )}
                                   </TouchableOpacity>
                                 </>
                               ) : (
@@ -624,29 +707,38 @@ export default function RideDetailRequestScreen() {
                                           setSelectedSeats([...selectedSeats, seatIndex])
                                         }
                                       }}
-                                      style={[
-                                        styles.seatButtonCar,
-                                        {
-                                          backgroundColor:
-                                            seatsState[seatIndex] === 'occupied'
-                                              ? colors.border
-                                              : selectedSeats.includes(seatIndex)
-                                                ? '#FF6B00'
-                                                : 'transparent',
-                                          borderColor:
-                                            seatsState[seatIndex] === 'occupied'
-                                              ? colors.border
-                                              : selectedSeats.includes(seatIndex)
-                                                ? '#FF6B00'
-                                                : colors.border,
-                                        },
-                                      ]}
+                                      style={styles.seatButtonContainer}
                                     >
-                                      <MaterialIcons
-                                        name={seatsState[seatIndex] === 'occupied' ? 'person' : selectedSeats.includes(seatIndex) ? 'check' : 'chair'}
-                                        size={20}
-                                        color={seatsState[seatIndex] === 'occupied' ? colors.textSecondary : selectedSeats.includes(seatIndex) ? 'black' : colors.textSecondary}
-                                      />
+                                      {selectedSeats.includes(seatIndex) ? (
+                                        <LinearGradient
+                                          colors={['#FF6B00', '#FF8534']}
+                                          style={styles.seatButtonCar}
+                                        >
+                                          <MaterialIcons name="check" size={24} color="#FFFFFF" />
+                                        </LinearGradient>
+                                      ) : (
+                                        <View
+                                          style={[
+                                            styles.seatButtonCar,
+                                            {
+                                              backgroundColor:
+                                                seatsState[seatIndex] === 'occupied'
+                                                  ? colors.border
+                                                  : 'transparent',
+                                              borderColor:
+                                                seatsState[seatIndex] === 'occupied'
+                                                  ? colors.border
+                                                  : 'rgba(255, 107, 0, 0.3)',
+                                            },
+                                          ]}
+                                        >
+                                          <MaterialIcons
+                                            name={seatsState[seatIndex] === 'occupied' ? 'person' : 'chair'}
+                                            size={24}
+                                            color={seatsState[seatIndex] === 'occupied' ? colors.textSecondary : '#FF6B00'}
+                                          />
+                                        </View>
+                                      )}
                                     </TouchableOpacity>
                                   )
                                 })
@@ -657,35 +749,46 @@ export default function RideDetailRequestScreen() {
                       )
                     })}
                   </View>
-                </View>
+                </LinearGradient>
 
                 {/* Legend */}
                 <View style={styles.seatLegend}>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { borderColor: colors.border }]} />
+                    <View style={[styles.legendDot, { borderColor: 'rgba(255, 107, 0, 0.5)', borderWidth: 2 }]} />
                     <Text style={[styles.legendText, { color: colors.textSecondary }]}>Trống</Text>
                   </View>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: '#FF6B00' }]} />
+                    <LinearGradient
+                      colors={['#FF6B00', '#FF8534']}
+                      style={[styles.legendDot, { borderWidth: 0 }]}
+                    />
                     <Text style={[styles.legendText, { color: colors.text }]}>Đang chọn</Text>
                   </View>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: colors.border }]} />
+                    <View style={[styles.legendDot, { backgroundColor: colors.border, borderWidth: 0 }]} />
                     <Text style={[styles.legendText, { color: colors.textSecondary }]}>Đã đặt</Text>
                   </View>
                 </View>
-              </View>
+              </LinearGradient>
 
-              {/* Insurance / Policy Card */}
-              <View style={[styles.policyCard, { backgroundColor: '#FF6B00' + '15', borderColor: '#FF6B00' + '30' }]}>
-                <MaterialIcons name="shield" size={24} color="#53d22d" style={{ marginTop: 2 }} />
+              {/* Insurance / Policy Card - Premium Gradient */}
+              <LinearGradient
+                colors={['rgba(76, 175, 80, 0.1)', 'rgba(102, 187, 106, 0.15)']}
+                style={styles.policyCard}
+              >
+                <LinearGradient
+                  colors={['#4CAF50', '#66BB6A']}
+                  style={styles.policyIconBadge}
+                >
+                  <MaterialIcons name="shield" size={28} color="#FFFFFF" />
+                </LinearGradient>
                 <View style={styles.policyContent}>
-                  <Text style={[styles.policyTitle, { color: colors.text }]}>Bảo hiểm chuyến đi</Text>
+                  <Text style={[styles.policyTitle, { color: colors.text }]}>BẢO HIỂM CHUYẾN ĐI</Text>
                   <Text style={[styles.policyText, { color: colors.textSecondary }]}>
                     Chuyến đi của bạn được bảo hiểm trọn gói bởi FireGo Care. An tâm trên mọi nẻo đường.
                   </Text>
                 </View>
-              </View>
+              </LinearGradient>
 
               {/* Spacer for footer */}
               <View style={{ height: SPACING.xl }} />
@@ -707,23 +810,32 @@ export default function RideDetailRequestScreen() {
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.bookButton, { backgroundColor: '#FF6B00' }]}
+              style={styles.bookButtonContainer}
               onPress={handleRequestRide}
               disabled={requesting || checkingPendingRequests || availableSeats < 0 || calculatingFare || selectedSeats.length === 0}
+              activeOpacity={0.8}
             >
-              {requesting || checkingPendingRequests ? (
-                <>
-                  <ActivityIndicator color="black" size={20} />
-                  <Text style={[styles.bookButtonText, { marginLeft: 8 }]}>
-                    {checkingPendingRequests ? 'Đang kiểm tra...' : 'Đang gửi...'}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.bookButtonText}>Đặt chỗ ngay</Text>
-                  <MaterialIcons name="arrow-forward" size={20} color="black" />
-                </>
-              )}
+              <LinearGradient
+                colors={['#FF6B00', '#FF8534']}
+                style={styles.bookButton}
+              >
+                {requesting || checkingPendingRequests ? (
+                  <>
+                    <ActivityIndicator color="#FFFFFF" size={24} />
+                    <Text style={[styles.bookButtonText, { marginLeft: 8 }]}>
+                      {checkingPendingRequests ? 'ĐANG KIỂM TRA...' : 'ĐANG GỬI...'}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.bookBtnIconCircle}>
+                      <MaterialIcons name="flash-on" size={22} color="#FFD700" />
+                    </View>
+                    <Text style={styles.bookButtonText}>ĐẶT CHỖ NGAY</Text>
+                    <MaterialIcons name="arrow-forward" size={22} color="#FFFFFF" />
+                  </>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </>
@@ -819,10 +931,16 @@ const styles = StyleSheet.create({
     marginTop: -16,
   },
   driverSection: {
-    borderWidth: 1,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
   driverRow: {
     flexDirection: 'row',
@@ -833,24 +951,35 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   driverAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#53d22d',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   verifiedBadge: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#53d22d',
+    bottom: 0,
+    right: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   driverDetails: {
     flex: 1,
@@ -858,34 +987,78 @@ const styles = StyleSheet.create({
   driverHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
     gap: SPACING.sm,
   },
   driverName: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+  },
+  proBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FFA500',
+  },
+  proBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#FF6B00',
+    letterSpacing: 0.5,
   },
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
+    gap: 6,
+    marginBottom: 6,
+  },
+  starIconBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   ratingValue: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  ratingCount: {
     fontSize: 12,
     fontWeight: '600',
   },
-  ratingCount: {
-    fontSize: 11,
+  vehicleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vehicleIconBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   vehicleText: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '600',
   },
   timelineSection: {
-    borderWidth: 1,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 6,
   },
   timelineContainer: {
     gap: 0,
@@ -900,29 +1073,69 @@ const styles = StyleSheet.create({
     paddingRight: SPACING.md,
   },
   timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     marginTop: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  timelineDotLarge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
   },
   timelineLine: {
-    width: 2,
+    width: 3,
     minHeight: 40,
     marginVertical: 4,
+    borderRadius: 2,
   },
   timelineContent: {
     flex: 1,
     paddingTop: 2,
   },
+  timelineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  timeIconBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
   timelineTime: {
     fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 4,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   timelineAddress: {
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
   },
   locationSection: {
     borderWidth: 1,
@@ -962,10 +1175,16 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACING.lg,
   },
   seatSection: {
-    borderWidth: 1,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
   },
   seatHeaderSimple: {
     flexDirection: 'row',
@@ -973,31 +1192,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
+  seatTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  seatIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   seatTitleSimple: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   seatsAvailableBadge: {
-    backgroundColor: '#53d22d' + '20',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: 6,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   seatsAvailableText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#FF6B00',
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   carLayout: {
-    borderRadius: 32,
+    borderRadius: 24,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.xl,
     marginBottom: SPACING.lg,
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
   },
   steeringWheel: {
-    opacity: 0.3,
     marginBottom: SPACING.lg,
+  },
+  steeringIconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   seatsContainer: {
     width: '100%',
@@ -1009,13 +1264,22 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
     gap: SPACING.md,
   },
+  seatButtonContainer: {
+    width: 56,
+    height: 56,
+  },
   seatButtonCar: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
+    borderWidth: 2,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   seatLegend: {
     flexDirection: 'row',
@@ -1023,7 +1287,7 @@ const styles = StyleSheet.create({
     gap: SPACING.xl,
     paddingTop: SPACING.lg,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    borderTopColor: 'rgba(255, 107, 0, 0.15)',
   },
   legendItem: {
     flexDirection: 'row',
@@ -1031,35 +1295,51 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   legendDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    borderWidth: 1,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   legendText: {
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '700',
   },
   policyCard: {
     flexDirection: 'row',
-    borderWidth: 1,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
     marginBottom: SPACING.xl,
     gap: SPACING.md,
     alignItems: 'flex-start',
+    borderWidth: 2,
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+  },
+  policyIconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   policyContent: {
     flex: 1,
   },
   policyTitle: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '900',
     marginBottom: SPACING.xs,
+    letterSpacing: 0.5,
   },
   policyText: {
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: '600',
   },
   seatGridSimple: {
     flexDirection: 'row',
@@ -1097,22 +1377,41 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   price: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  bookButtonContainer: {
+    flex: 1,
   },
   bookButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 24,
+    height: 54,
+    borderRadius: 27,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
     gap: SPACING.sm,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  bookBtnIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   bookButtonText: {
     fontSize: 15,
-    fontWeight: '700',
-    color: 'black',
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
   },
   modalOverlay: {
     flex: 1,

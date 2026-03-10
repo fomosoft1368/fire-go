@@ -13,6 +13,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useRoute } from '@react-navigation/native'
 import { MaterialIcons } from '@expo/vector-icons'
@@ -610,123 +611,190 @@ export default function FindingRideScreen({ navigation }: any) {
     const isFirstCard = index === 0
     return (
       <TouchableOpacity
-        style={[
-          styles.rideCard,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-          },
-          isFirstCard && styles.bestMatchCard,
-        ]}
+        style={styles.rideCardContainer}
         activeOpacity={0.7}
         onPress={() => handleSelectRide(item)}
       >
-        {/* Best Match Badge */}
-        {isFirstCard && (
-          <View style={styles.bestMatchBadge}>
-            <Text style={styles.badgeText}>PHÙ HỢP NHẤT</Text>
-          </View>
-        )}
+        <LinearGradient
+          colors={isFirstCard ? ['#FFFFFF', '#FFF5F0'] : ['#FFFFFF', '#FAFAFA']}
+          style={[
+            styles.rideCard,
+            isFirstCard && styles.bestMatchCard,
+          ]}
+        >
+          {/* Best Match Badge */}
+          {isFirstCard && (
+            <LinearGradient
+              colors={['#FF6B00', '#FF8534']}
+              style={styles.bestMatchBadge}
+            >
+              <View style={styles.badgeIconCircle}>
+                <MaterialIcons name="star" size={14} color="#FFD700" />
+              </View>
+              <Text style={styles.badgeText}>PHÙ HỢP NHẤT</Text>
+            </LinearGradient>
+          )}
 
-        {/* Card Header */}
-        <View style={styles.cardHeader}>
-          {/* Driver Info */}
-          <View style={styles.driverSection}>
-            <View style={[styles.driverAvatar, { borderColor: isFirstCard ? '#FF6B00' : colors.border }]}>
-              <MaterialIcons name="person" size={32} color={colors.textSecondary} />
-            </View>
-            <View style={styles.driverInfo}>
-              <Text style={[styles.driverName, { color: colors.text }]}>
-                {item.driverId?.firstName || 'Tài'} {item.driverId?.lastName || 'xế'}
-              </Text>
-              <View style={styles.driverMeta}>
-                <View style={styles.ratingBadge}>
-                  <Text style={styles.ratingBadgeText}>
-                    {item.driverId?.rating?.toFixed(1) || '5.0'}
+          {/* Card Header */}
+          <View style={styles.cardHeader}>
+            {/* Driver Info */}
+            <View style={styles.driverSection}>
+              <LinearGradient
+                colors={isFirstCard ? ['#FF6B00', '#FF8534'] : ['#FFFFFF', '#F5F5F5']}
+                style={[styles.driverAvatar, isFirstCard && { borderColor: '#FFFFFF' }]}
+              >
+                <MaterialIcons name="person" size={32} color={isFirstCard ? '#FFFFFF' : colors.textSecondary} />
+              </LinearGradient>
+              <View style={styles.driverInfo}>
+                <Text style={[styles.driverName, { color: colors.text }]}>
+                  {item.driverId?.firstName || 'Tài'} {item.driverId?.lastName || 'xế'}
+                </Text>
+                <View style={styles.driverMeta}>
+                  <View style={styles.ratingBadgeContainer}>
+                    <View style={styles.starIconBadge}>
+                      <MaterialIcons name="star" size={12} color="#FFD700" />
+                    </View>
+                    <Text style={styles.ratingBadgeText}>
+                      {item.driverId?.rating?.toFixed(1) || '5.0'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.metaText, { color: colors.textSecondary }]}>
+                    • {item.driverId?.vehicleModel || 'Xe'} • {isFirstCard ? 'Đang online' : 'Chờ 10 phút'}
                   </Text>
                 </View>
-                <Text style={[styles.metaText, { color: colors.textSecondary }]}>
-                  • {item.driverId?.vehicleModel || 'Xe'} • {isFirstCard ? 'Đang online' : 'Chờ 10 phút'}
-                </Text>
               </View>
             </View>
+
+            {/* Price */}
+            <LinearGradient
+              colors={['#FF6B00', '#FF8534']}
+              style={styles.priceSection}
+            >
+              <View style={styles.priceIconBadge}>
+                <MaterialIcons name="attach-money" size={18} color="#FF6B00" />
+              </View>
+              <View>
+                <Text style={styles.price}>₫{(item.baseFare || 0).toLocaleString('vi-VN')}</Text>
+                {isFirstCard && (
+                  <Text style={styles.oldPrice}>₫{Math.round((item.baseFare || 0) * 1.2).toLocaleString('vi-VN')}</Text>
+                )}
+              </View>
+            </LinearGradient>
           </View>
 
-          {/* Price */}
-          <View style={styles.priceSection}>
-            <Text style={styles.price}>₫{(item.baseFare || 0).toLocaleString('vi-VN')}</Text>
-            {isFirstCard && (
-              <Text style={styles.oldPrice}>₫{Math.round((item.baseFare || 0) * 1.2).toLocaleString('vi-VN')}</Text>
-            )}
-          </View>
-        </View>
-
-        {/* Match & Metrics Bar */}
-        {isFirstCard && (
-          <View style={[styles.metricsBar, { backgroundColor: colors.bg + '40', borderColor: colors.border }]}>
-            <View style={styles.matchSection}>
-              <View style={styles.progressBarContainer}>
-                <Text style={styles.matchPercent}>98% Trùng khớp</Text>
-                <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { backgroundColor: '#FF6B00', width: '98%' },
-                    ]}
-                  />
+          {/* Match & Metrics Bar */}
+          {isFirstCard && (
+            <LinearGradient
+              colors={['rgba(255, 107, 0, 0.1)', 'rgba(255, 245, 240, 0.8)']}
+              style={styles.metricsBar}
+            >
+              <View style={styles.matchSection}>
+                <View style={styles.matchIconBadge}>
+                  <MaterialIcons name="trending-up" size={16} color="#FF6B00" />
+                </View>
+                <View style={styles.progressBarContainer}>
+                  <Text style={styles.matchPercent}>98% TRÙNG KHỚP</Text>
+                  <View style={styles.progressBar}>
+                    <LinearGradient
+                      colors={['#FF6B00', '#FF8534']}
+                      style={[styles.progressFill, { width: '98%' }]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    />
+                  </View>
                 </View>
               </View>
-            </View>
-            <View style={[styles.metricsDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.seatsSection}>
-              <Text style={[styles.seatsNumber, { color: colors.text }]}>
-                {item.availableSeats || 0}
-              </Text>
-              <Text style={[styles.seatsLabel, { color: colors.textSecondary }]}>Ghế trống</Text>
-            </View>
-          </View>
-        )}
+              <View style={styles.metricsDivider} />
+              <View style={styles.seatsSection}>
+                <View style={styles.seatIconBadge}>
+                  <MaterialIcons name="event-seat" size={18} color="#FF6B00" />
+                </View>
+                <View>
+                  <Text style={[styles.seatsNumber, { color: colors.text }]}>
+                    {item.availableSeats || 0}
+                  </Text>
+                  <Text style={[styles.seatsLabel, { color: colors.textSecondary }]}>GHẾ TRỐNG</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          )}
 
-        {/* Info Tags */}
-        {!isFirstCard && (
-          <View style={styles.infoTags}>
-            <View style={[styles.tag, { backgroundColor: colors.bg }]}>
-              <Text style={[styles.tagText, { color: colors.textSecondary }]}>85% Trùng đường</Text>
+          {/* Info Tags */}
+          {!isFirstCard && (
+            <View style={styles.infoTags}>
+              <LinearGradient
+                colors={['rgba(255, 245, 240, 0.8)', 'rgba(255, 255, 255, 0.6)']}
+                style={styles.tag}
+              >
+                <MaterialIcons name="route" size={12} color="#FF6B00" />
+                <Text style={[styles.tagText, { color: colors.text }]}>85% Trùng đường</Text>
+              </LinearGradient>
+              <LinearGradient
+                colors={['rgba(255, 245, 240, 0.8)', 'rgba(255, 255, 255, 0.6)']}
+                style={styles.tag}
+              >
+                <MaterialIcons name="access-time" size={12} color="#FF6B00" />
+                <Text style={[styles.tagText, { color: colors.text }]}>Chờ 15p</Text>
+              </LinearGradient>
+              <LinearGradient
+                colors={['rgba(255, 245, 240, 0.8)', 'rgba(255, 255, 255, 0.6)']}
+                style={styles.tag}
+              >
+                <MaterialIcons name="event-seat" size={12} color="#FF6B00" />
+                <Text style={[styles.tagText, { color: colors.text }]}>{item.availableSeats || 1} Ghế</Text>
+              </LinearGradient>
             </View>
-            <View style={[styles.tag, { backgroundColor: colors.bg }]}>
-              <Text style={[styles.tagText, { color: colors.textSecondary }]}>Chờ 15p</Text>
-            </View>
-            <View style={[styles.tag, { backgroundColor: colors.bg }]}>
-              <Text style={[styles.tagText, { color: colors.textSecondary }]}>{item.availableSeats || 1} Ghế</Text>
-            </View>
-          </View>
-        )}
+          )}
 
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          {isFirstCard ? (
-            <>
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            {isFirstCard ? (
+              <>
+                <TouchableOpacity
+                  style={styles.primaryButtonContainer}
+                  onPress={() => handleSelectRide(item)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#FF6B00', '#FF8534']}
+                    style={styles.primaryButton}
+                  >
+                    <View style={styles.primaryBtnIconCircle}>
+                      <MaterialIcons name="flash-on" size={20} color="#FF6B00" />
+                    </View>
+                    <Text style={styles.primaryButtonText}>GHÉP NGAY</Text>
+                    <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.secondaryButtonContainer}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#FFFFFF', '#FFF5F0']}
+                    style={styles.secondaryButton}
+                  >
+                    <MaterialIcons name="chat" size={20} color="#FF6B00" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            ) : (
               <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: '#FF6B00' }]}
+                style={styles.secondaryFullButtonContainer}
                 onPress={() => handleSelectRide(item)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.primaryButtonText}>Ghép ngay</Text>
-                <MaterialIcons name="arrow-forward" size={18} color="#000" />
+                <LinearGradient
+                  colors={['#FFFFFF', '#FFF5F0']}
+                  style={styles.secondaryFullButton}
+                >
+                  <Text style={[styles.secondaryButtonText, { color: '#FF6B00' }]}>Xem chi tiết</Text>
+                  <MaterialIcons name="arrow-forward" size={18} color="#FF6B00" />
+                </LinearGradient>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.secondaryButton, { borderColor: colors.border }]}>
-                <MaterialIcons name="chat" size={20} color={colors.text} />
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity
-              style={[styles.secondaryFullButton, { backgroundColor: colors.bg, borderColor: colors.border }]}
-              onPress={() => handleSelectRide(item)}
-            >
-              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Xem chi tiết</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+            )}
+          </View>
+        </LinearGradient>
       </TouchableOpacity>
     )
   }
@@ -865,14 +933,20 @@ export default function FindingRideScreen({ navigation }: any) {
           ListHeaderComponent={
             <View>
               {/* Create New Trip Card - Grab-like flow */}
-              <View style={[styles.createTripCard, { backgroundColor: colors.card, borderColor: '#FF6B00' }]}>
+              <LinearGradient
+                colors={['#FFFFFF', '#FFF5F0']}
+                style={styles.createTripCard}
+              >
                 <View style={styles.createTripHeader}>
-                  <View style={styles.createTripIcon}>
-                    <MaterialIcons name="add-circle" size={28} color="#FF6B00" />
-                  </View>
+                  <LinearGradient
+                    colors={['#FF6B00', '#FF8534']}
+                    style={styles.createTripIcon}
+                  >
+                    <MaterialIcons name="add-circle" size={32} color="#FFFFFF" />
+                  </LinearGradient>
                   <View style={styles.createTripInfo}>
                     <Text style={[styles.createTripTitle, { color: colors.text }]}>
-                      Tạo chuyến mới
+                      TẠO CHUYẾN MỚI
                     </Text>
                     <Text style={[styles.createTripSubtitle, { color: colors.textSecondary }]}>
                       Quét liên tục cho đến khi tìm thấy tài xế
@@ -918,21 +992,34 @@ export default function FindingRideScreen({ navigation }: any) {
                   </View>
                 ) : (
                   <TouchableOpacity
-                    style={[styles.createTripButton, { backgroundColor: '#FF6B00' }]}
+                    style={styles.createTripButtonContainer}
                     onPress={openVehicleModal}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.createTripButtonText}>Tạo chuyến & Chờ tài xế</Text>
-                    <MaterialIcons name="flash-on" size={20} color="#f7d309" />
+                    <LinearGradient
+                      colors={['#FF6B00', '#FF8534']}
+                      style={styles.createTripButton}
+                    >
+                      <View style={styles.createBtnIconCircle}>
+                        <MaterialIcons name="flash-on" size={22} color="#FFD700" />
+                      </View>
+                      <Text style={styles.createTripButtonText}>TẠO CHUYẾN & CHỜ TÀI XẾ</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
                 )}
-              </View>
-
+              </LinearGradient>
               {/* Divider */}
-              <View style={[styles.divider, { backgroundColor: colors.border }]}>
-                <Text style={[styles.dividerText, { color: colors.textSecondary }]}>
-                  HOẶC THAM GIA CHUYẾN CÓ SẴN
-                </Text>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <LinearGradient
+                  colors={['#FFFFFF', '#FFF5F0']}
+                  style={styles.dividerTextContainer}
+                >
+                  <Text style={[styles.dividerText, { color: '#FF6B00' }]}>
+                    HOẶC THAM GIA CHUYẾN CÓ SẴN
+                  </Text>
+                </LinearGradient>
+                <View style={styles.dividerLine} />
               </View>
             </View>
           }
@@ -1113,125 +1200,148 @@ export default function FindingRideScreen({ navigation }: any) {
                 <View style={styles.vehicleOptions}>
                   {/* Basic */}
                   <TouchableOpacity
-                    style={[
-                      styles.vehicleOption,
-                      {
-                        backgroundColor: selectedVehicleType === 'basic' ? '#FF6B0020' : colors.card,
-                        borderColor: selectedVehicleType === 'basic' ? '#FF6B00' : colors.warning,
-                      },
-                    ]}
+                    style={styles.vehicleOptionContainer}
                     onPress={() => setSelectedVehicleType('basic')}
                     activeOpacity={0.7}
                   >
-                    <View style={styles.vehicleIconContainer}>
-                      <MaterialIcons
-                        name="directions-car"
-                        size={32}
-                        color={selectedVehicleType === 'basic' ? '#FF6B00' : colors.textSecondary}
+                    <LinearGradient
+                      colors={selectedVehicleType === 'basic' ? ['#FFF5F0', '#FFFFFF'] : ['#FFFFFF', '#FAFAFA']}
+                      style={[
+                        styles.vehicleOption,
+                        selectedVehicleType === 'basic' && styles.vehicleOptionSelected,
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={selectedVehicleType === 'basic' ? ['#FF6B00', '#FF8534'] : ['#FFFFFF', '#F5F5F5']}
+                        style={styles.vehicleIconContainer}
+                      >
+                        <MaterialIcons
+                          name="directions-car"
+                          size={32}
+                          color={selectedVehicleType === 'basic' ? '#FFFFFF' : colors.textSecondary}
 
-                      />
-                    </View>
-                    <View style={styles.vehicleDetails}>
-                      <Text style={[styles.vehicleName, { color: colors.text }]}>Tiêu chuẩn</Text>
-                      <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
-                        Xe 4-5 chỗ • Tiết kiệm
-                      </Text>
-                    </View>
-                    <View style={styles.vehiclePriceContainer}>
-                      <Text style={[styles.vehiclePrice, { color: colors.text }]}>
-                        ₫{vehiclePrices.basic.toLocaleString('vi-VN')}
-                      </Text>
-                      {selectedVehicleType === 'basic' && (
-                        <View style={styles.selectedBadge}>
-                          <MaterialIcons name="check-circle" size={20} color="#FF6B00" />
-                        </View>
-                      )}
-                    </View>
+                        />
+                      </LinearGradient>
+                      <View style={styles.vehicleDetails}>
+                        <Text style={[styles.vehicleName, { color: colors.text }]}>TIÊU CHUẢN</Text>
+                        <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
+                          Xe 4-5 chỗ • Tiết kiệm
+                        </Text>
+                      </View>
+                      <View style={styles.vehiclePriceContainer}>
+                        <Text style={[styles.vehiclePrice, { color: colors.text }]}>
+                          ₫{vehiclePrices.basic.toLocaleString('vi-VN')}
+                        </Text>
+                        {selectedVehicleType === 'basic' && (
+                          <View style={styles.selectedBadge}>
+                            <MaterialIcons name="check-circle" size={24} color="#FF6B00" />
+                          </View>
+                        )}
+                      </View>
+                    </LinearGradient>
                   </TouchableOpacity>
 
                   {/* Comfort */}
                   <TouchableOpacity
-                    style={[
-                      styles.vehicleOption,
-                      {
-                        backgroundColor: selectedVehicleType === 'comfort' ? '#FF6B0020' : colors.card,
-                        borderColor: selectedVehicleType === 'comfort' ? '#FF6B00' : colors.warning,
-                      },
-                    ]}
+                    style={styles.vehicleOptionContainer}
                     onPress={() => setSelectedVehicleType('comfort')}
                     activeOpacity={0.7}
                   >
-                    <View style={styles.vehicleIconContainer}>
-                      <MaterialIcons
-                        name="airport-shuttle"
-                        size={32}
-                        color={selectedVehicleType === 'comfort' ? '#FF6B00' : colors.textSecondary}
-                      />
-                    </View>
-                    <View style={styles.vehicleDetails}>
-                      <Text style={[styles.vehicleName, { color: colors.text }]}>Thoải mái</Text>
-                      <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
-                        Xe 5-7 chỗ • Rộng rãi
-                      </Text>
-                    </View>
-                    <View style={styles.vehiclePriceContainer}>
-                      <Text style={[styles.vehiclePrice, { color: colors.text }]}>
-                        ₫{vehiclePrices.comfort.toLocaleString('vi-VN')}
-                      </Text>
-                      {selectedVehicleType === 'comfort' && (
-                        <View style={styles.selectedBadge}>
-                          <MaterialIcons name="check-circle" size={20} color="#FF6B00" />
-                        </View>
-                      )}
-                    </View>
+                    <LinearGradient
+                      colors={selectedVehicleType === 'comfort' ? ['#FFF5F0', '#FFFFFF'] : ['#FFFFFF', '#FAFAFA']}
+                      style={[
+                        styles.vehicleOption,
+                        selectedVehicleType === 'comfort' && styles.vehicleOptionSelected,
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={selectedVehicleType === 'comfort' ? ['#FF6B00', '#FF8534'] : ['#FFFFFF', '#F5F5F5']}
+                        style={styles.vehicleIconContainer}
+                      >
+                        <MaterialIcons
+                          name="airport-shuttle"
+                          size={32}
+                          color={selectedVehicleType === 'comfort' ? '#FFFFFF' : colors.textSecondary}
+                        />
+                      </LinearGradient>
+                      <View style={styles.vehicleDetails}>
+                        <Text style={[styles.vehicleName, { color: colors.text }]}>THOẢI MÁI</Text>
+                        <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
+                          Xe 5-7 chỗ • Rộng rãi
+                        </Text>
+                      </View>
+                      <View style={styles.vehiclePriceContainer}>
+                        <Text style={[styles.vehiclePrice, { color: colors.text }]}>
+                          ₫{vehiclePrices.comfort.toLocaleString('vi-VN')}
+                        </Text>
+                        {selectedVehicleType === 'comfort' && (
+                          <View style={styles.selectedBadge}>
+                            <MaterialIcons name="check-circle" size={24} color="#FF6B00" />
+                          </View>
+                        )}
+                      </View>
+                    </LinearGradient>
                   </TouchableOpacity>
 
                   {/* Premium */}
                   <TouchableOpacity
-                    style={[
-                      styles.vehicleOption,
-                      {
-                        backgroundColor: selectedVehicleType === 'premium' ? '#FF6B0020' : colors.card,
-                        borderColor: selectedVehicleType === 'premium' ? '#FF6B00' : colors.warning,
-                      },
-                    ]}
+                    style={styles.vehicleOptionContainer}
                     onPress={() => setSelectedVehicleType('premium')}
                     activeOpacity={0.7}
                   >
-                    <View style={styles.vehicleIconContainer}>
-                      <MaterialIcons
-                        name="car-rental"
-                        size={32}
-                        color={selectedVehicleType === 'premium' ? '#FF6B00' : colors.textSecondary}
-                      />
-                    </View>
-                    <View style={styles.vehicleDetails}>
-                      <Text style={[styles.vehicleName, { color: colors.text }]}>Cao cấp</Text>
-                      <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
-                        Xe sang • Dịch vụ VIP
-                      </Text>
-                    </View>
-                    <View style={styles.vehiclePriceContainer}>
-                      <Text style={[styles.vehiclePrice, { color: colors.text }]}>
-                        ₫{vehiclePrices.premium.toLocaleString('vi-VN')}
-                      </Text>
-                      {selectedVehicleType === 'premium' && (
-                        <View style={styles.selectedBadge}>
-                          <MaterialIcons name="check-circle" size={20} color="#FF6B00" />
-                        </View>
-                      )}
-                    </View>
+                    <LinearGradient
+                      colors={selectedVehicleType === 'premium' ? ['#FFF5F0', '#FFFFFF'] : ['#FFFFFF', '#FAFAFA']}
+                      style={[
+                        styles.vehicleOption,
+                        selectedVehicleType === 'premium' && styles.vehicleOptionSelected,
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={selectedVehicleType === 'premium' ? ['#FF6B00', '#FF8534'] : ['#FFFFFF', '#F5F5F5']}
+                        style={styles.vehicleIconContainer}
+                      >
+                        <MaterialIcons
+                          name="car-rental"
+                          size={32}
+                          color={selectedVehicleType === 'premium' ? '#FFFFFF' : colors.textSecondary}
+                        />
+                      </LinearGradient>
+                      <View style={styles.vehicleDetails}>
+                        <Text style={[styles.vehicleName, { color: colors.text }]}>CAO CẤP</Text>
+                        <Text style={[styles.vehicleDesc, { color: colors.textSecondary }]}>
+                          Xe sang • Dịch vụ VIP
+                        </Text>
+                      </View>
+                      <View style={styles.vehiclePriceContainer}>
+                        <Text style={[styles.vehiclePrice, { color: colors.text }]}>
+                          ₫{vehiclePrices.premium.toLocaleString('vi-VN')}
+                        </Text>
+                        {selectedVehicleType === 'premium' && (
+                          <View style={styles.selectedBadge}>
+                            <MaterialIcons name="check-circle" size={24} color="#FF6B00" />
+                          </View>
+                        )}
+                      </View>
+                    </LinearGradient>
                   </TouchableOpacity>
                 </View>
 
                 {/* Confirm Button */}
                 <TouchableOpacity
-                  style={[styles.confirmButton, { backgroundColor: '#FF6B00' }]}
+                  style={styles.confirmButtonContainer}
                   onPress={handleCreateNewTrip}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.confirmButtonText}>Xác nhận tạo chuyến</Text>
-                  <MaterialIcons name="arrow-forward" size={20} color="#f7f3f3" />
+                  <LinearGradient
+                    colors={['#FF6B00', '#FF8534']}
+                    style={styles.confirmButton}
+                  >
+                    <View style={styles.confirmBtnIconCircle}>
+                      <MaterialIcons name="check" size={22} color="#FF6B00" />
+                    </View>
+                    <Text style={styles.confirmButtonText}>XÁC NHẬN TẠO CHUYẾN</Text>
+                    <MaterialIcons name="arrow-forward" size={22} color="#FFFFFF" />
+                  </LinearGradient>
                 </TouchableOpacity>
               </>
             )}
@@ -1364,32 +1474,60 @@ const styles = StyleSheet.create({
   },
 
   /* Ride Card */
+  rideCardContainer: {
+    marginBottom: SPACING.md,
+  },
   rideCard: {
     borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
-    borderWidth: 1,
-    marginBottom: SPACING.md,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   bestMatchCard: {
-    borderWidth: 2, // Thicker border
-    position: 'relative',
-    overflow: 'visible',
-    borderColor: '#FF6B00', // Orange border for best match
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
   },
   bestMatchBadge: {
     position: 'absolute',
-    top: -10,
+    top: -12,
     left: SPACING.lg,
-    backgroundColor: '#FF6B00',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: 4,
     zIndex: 10,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  badgeIconCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#fff', // White text on orange
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1404,53 +1542,93 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   driverAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa', // Light gray
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
   },
   driverInfo: {
     flex: 1,
   },
   driverName: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '800',
     marginBottom: SPACING.xs,
+    letterSpacing: -0.3,
   },
   driverMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
   },
-  ratingBadge: {
-    backgroundColor: '#FFF5F0', // Light orange
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  ratingBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 245, 240, 0.9)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
+  },
+  starIconBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 215, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   ratingBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FF6B00', // Orange text
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FF6B00',
   },
   metaText: {
     fontSize: 12,
   },
   priceSection: {
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: SPACING.sm,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  priceIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   price: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a', // Dark text
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
   oldPrice: {
     fontSize: 11,
-    fontWeight: '400',
-    color: '#999', // Light gray
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
     textDecorationLine: 'line-through',
   },
 
@@ -1461,49 +1639,72 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
     marginBottom: SPACING.lg,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
   },
   matchSection: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  matchIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   progressBarContainer: {
+    flex: 1,
     gap: 6,
   },
   matchPercent: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '900',
     color: '#FF6B00',
+    letterSpacing: 0.5,
   },
   progressBar: {
-    height: 6,
-    borderRadius: 3,
+    height: 8,
+    borderRadius: 4,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
   },
   progressFill: {
-    width: '100%',
     height: '100%',
-    borderRadius: 3,
-    transformOrigin: 'left',
+    borderRadius: 4,
   },
   metricsDivider: {
-    width: 1,
-    height: 40,
+    width: 2,
+    height: 44,
     marginHorizontal: SPACING.md,
-    opacity: 0.2,
+    backgroundColor: 'rgba(255, 107, 0, 0.2)',
   },
   seatsSection: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: SPACING.sm,
+  },
+  seatIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   seatsNumber: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '900',
   },
   seatsLabel: {
-    fontSize: 10,
-    fontWeight: '500',
+    fontSize: 9,
+    fontWeight: '700',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 
   /* Info Tags */
@@ -1513,13 +1714,18 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: 8,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
   },
   tagText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '700',
   },
 
   /* Action Buttons */
@@ -1528,39 +1734,80 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     marginTop: SPACING.md,
   },
-  primaryButton: {
+  primaryButtonContainer: {
     flex: 1,
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: BORDER_RADIUS.xl,
+    gap: SPACING.sm,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  primaryBtnIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
+  },
+  secondaryButtonContainer: {
+    width: 52,
+    height: 52,
+  },
+  secondaryButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 3,
+    borderColor: '#FF6B00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  secondaryFullButtonContainer: {
+    width: '100%',
+  },
+  secondaryFullButton: {
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.xl,
-    gap: SPACING.sm,
-  },
-  primaryButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff', // White text on orange button
-  },
-  secondaryButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  secondaryFullButton: {
-    width: '100%',
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.xl,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+    gap: SPACING.xs,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   secondaryButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 
   loadingContainer: {
@@ -1689,7 +1936,13 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
-    borderWidth: 2,
+    borderWidth: 3,
+    borderColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 10,
   },
   createTripHeader: {
     flexDirection: 'row',
@@ -1698,23 +1951,33 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   createTripIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFF5F0', // Light orange
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   createTripInfo: {
     flex: 1,
   },
   createTripTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '900',
     marginBottom: 4,
+    letterSpacing: 0.8,
   },
   createTripSubtitle: {
     fontSize: 12,
+  },
+  createTripButtonContainer: {
+    width: '100%',
   },
   createTripButton: {
     flexDirection: 'row',
@@ -1722,12 +1985,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.sm,
     paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: BORDER_RADIUS.xl,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  createBtnIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   createTripButtonText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#fff', // White text
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
   },
   searchingContainer: {
     gap: SPACING.md,
@@ -1757,18 +2036,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   divider: {
-    height: 1,
-    marginVertical: SPACING.xl,
-    position: 'relative',
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    marginVertical: SPACING.xl,
+    gap: SPACING.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: 'rgba(255, 107, 0, 0.2)',
+  },
+  dividerTextContainer: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.3)',
   },
   dividerText: {
     fontSize: 11,
-    fontWeight: '700',
-    backgroundColor: '#fff', // Changed from dark
-    paddingHorizontal: SPACING.md,
-    letterSpacing: 0.5,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
 
   /* Vehicle Selection Modal */
@@ -1824,59 +2112,102 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     gap: SPACING.md,
   },
+  vehicleOptionContainer: {
+    width: '100%',
+  },
   vehicleOption: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.lg,
     borderRadius: BORDER_RADIUS.xl,
     borderWidth: 2,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
     gap: SPACING.md,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  vehicleOptionSelected: {
+    borderWidth: 3,
+    borderColor: '#FF6B00',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
   },
   vehicleIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#f8f9fa', // Light gray
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   vehicleDetails: {
     flex: 1,
   },
   vehicleName: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '900',
     marginBottom: 4,
+    letterSpacing: 0.5,
   },
   vehicleDesc: {
     fontSize: 12,
+    fontWeight: '600',
   },
   vehiclePriceContainer: {
     alignItems: 'flex-end',
-    gap: 4,
+    gap: 6,
   },
   vehiclePrice: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
   selectedBadge: {
     marginTop: 2,
   },
 
   /* Confirm Button */
+  confirmButtonContainer: {
+    marginHorizontal: SPACING.lg,
+  },
   confirmButton: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: SPACING.sm,
-    marginHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
     borderRadius: BORDER_RADIUS.xl,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  confirmBtnIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   confirmButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff', // White text
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
   },
 
   /* Creating Trip State */
