@@ -100,6 +100,20 @@ export class CombinedTripsService implements OnModuleInit {
     }));
     
     console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${requests.length} ACTIVE requests in trip ${combinedTripId}`);
+    
+    // ✅ CRITICAL: Update combinedTrip totalFare = sum of all request fares
+    const updatedRequests = await this.rideRequestModel.find({
+      combinedTripId: new Types.ObjectId(combinedTripId),
+      status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] },
+    });
+    
+    const tripTotalFare = updatedRequests.reduce((sum, req) => sum + (req.fare || 0), 0);
+    
+    await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
+      totalFare: tripTotalFare,
+    });
+    
+    console.log(`[recalculateFaresForCombinedTrip] 💰 Updated trip totalFare: ${tripTotalFare.toLocaleString()}đ (from ${updatedRequests.length} requests)`);
   }
 
   /**

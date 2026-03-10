@@ -1,17 +1,14 @@
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { useNavigation } from '@react-navigation/native'
-import { useSelector } from 'react-redux'
-import { RootState } from '../redux/store'
-import { SPACING, COLORS_DARK, COLORS_LIGHT } from '../constants'
+import { SPACING } from '../constants'
 import { useEffect, useState } from 'react'
 import { legalDocsService, LegalDocument } from '../services/legalDocsService'
 
-export default function TermsOfServiceScreen() {
-  const navigation = useNavigation()
-  const themeMode = useSelector((state: RootState) => state.theme.mode)
-  const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
+interface TermsOfServiceScreenProps {
+  navigation: any
+}
 
+export default function TermsOfServiceScreen({ navigation }: TermsOfServiceScreenProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [document, setDocument] = useState<LegalDocument | null>(null)
@@ -48,7 +45,7 @@ export default function TermsOfServiceScreen() {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#FF6B00" />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+          <Text style={styles.loadingText}>
             Đang tải điều khoản dịch vụ...
           </Text>
         </View>
@@ -59,7 +56,7 @@ export default function TermsOfServiceScreen() {
       return (
         <View style={styles.centerContainer}>
           <MaterialIcons name="error-outline" size={48} color="#dc2626" />
-          <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
+          <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity 
             style={styles.retryButton}
             onPress={loadDocument}
@@ -82,9 +79,9 @@ export default function TermsOfServiceScreen() {
         contentContainerStyle={styles.contentContainer}
       >
         {/* Last Updated */}
-        <View style={[styles.updateBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <MaterialIcons name="update" size={16} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-          <Text style={[styles.updateText, { color: themeMode === 'dark' ? '#94a3b8' : '#64748b' }]}>
+        <View style={styles.updateBox}>
+          <MaterialIcons name="update" size={16} color="#64748b" />
+          <Text style={styles.updateText}>
             Cập nhật lần cuối: {formatDate(document.updatedAt)}
           </Text>
           <View style={styles.versionBadge}>
@@ -95,8 +92,8 @@ export default function TermsOfServiceScreen() {
         {/* Introduction */}
         {document.content.introduction && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{document.title}</Text>
-            <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            <Text style={styles.sectionTitle}>{document.title}</Text>
+            <Text style={styles.paragraph}>
               {document.content.introduction}
             </Text>
           </View>
@@ -109,11 +106,11 @@ export default function TermsOfServiceScreen() {
               <View style={styles.numberBadge}>
                 <Text style={styles.numberBadgeText}>{index + 1}</Text>
               </View>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
             </View>
             
             {section.content && (
-              <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+              <Text style={styles.paragraph}>
                 {section.content}
               </Text>
             )}
@@ -123,7 +120,7 @@ export default function TermsOfServiceScreen() {
                 {section.bulletPoints.map((bullet, bulletIndex) => (
                   <View key={bulletIndex} style={styles.bulletItem}>
                     <View style={styles.bulletDot} />
-                    <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{bullet}</Text>
+                    <Text style={styles.bulletText}>{bullet}</Text>
                   </View>
                 ))}
               </View>
@@ -131,11 +128,11 @@ export default function TermsOfServiceScreen() {
 
             {section.subsections && section.subsections.map((subsection, subIndex) => (
               <View key={subIndex} style={styles.subsection}>
-                <Text style={[styles.subHeading, { color: colors.text }]}>
+                <Text style={styles.subHeading}>
                   {index + 1}.{subIndex + 1}. {subsection.title}
                 </Text>
                 {subsection.content && (
-                  <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+                  <Text style={styles.paragraph}>
                     {subsection.content}
                   </Text>
                 )}
@@ -144,7 +141,7 @@ export default function TermsOfServiceScreen() {
                     {subsection.bulletPoints.map((bullet, bulletIndex) => (
                       <View key={bulletIndex} style={styles.bulletItem}>
                         <View style={styles.bulletDot} />
-                        <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{bullet}</Text>
+                        <Text style={styles.bulletText}>{bullet}</Text>
                       </View>
                     ))}
                   </View>
@@ -156,35 +153,35 @@ export default function TermsOfServiceScreen() {
 
         {/* Contact Section */}
         {document.content.contactInfo && (
-          <View style={[styles.section, styles.contactSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.section, styles.contactSection]}>
             <View style={styles.contactHeader}>
               <MaterialIcons name="support-agent" size={24} color="#FF6B00" />
-              <Text style={[styles.contactTitle, { color: colors.text }]}>Liên hệ hỗ trợ</Text>
+              <Text style={styles.contactTitle}>Liên hệ hỗ trợ</Text>
             </View>
-            <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            <Text style={styles.paragraph}>
               Nếu bạn có bất kỳ câu hỏi nào về điều khoản dịch vụ, vui lòng liên hệ với chúng tôi:
             </Text>
             <View style={styles.contactList}>
               {document.content.contactInfo.email && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="email" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-                  <Text style={[styles.contactText, { color: colors.textSecondary }]}>
+                  <MaterialIcons name="email" size={18} color="#64748b" />
+                  <Text style={styles.contactText}>
                     {document.content.contactInfo.email}
                   </Text>
                 </View>
               )}
               {document.content.contactInfo.phone && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="phone" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-                  <Text style={[styles.contactText, { color: colors.textSecondary }]}>
+                  <MaterialIcons name="phone" size={18} color="#64748b" />
+                  <Text style={styles.contactText}>
                     {document.content.contactInfo.phone}
                   </Text>
                 </View>
               )}
               {document.content.contactInfo.address && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="location-on" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-                  <Text style={[styles.contactText, { color: colors.textSecondary }]}>
+                  <MaterialIcons name="location-on" size={18} color="#64748b" />
+                  <Text style={styles.contactText}>
                     {document.content.contactInfo.address}
                   </Text>
                 </View>
@@ -194,9 +191,9 @@ export default function TermsOfServiceScreen() {
         )}
 
         {/* Footer */}
-        <View style={[styles.footer, { backgroundColor: themeMode === 'dark' ? '#064e3b' : '#f0fdf4', borderColor: themeMode === 'dark' ? '#059669' : '#86efac' }]}>
-          <MaterialIcons name="verified-user" size={20} color={themeMode === 'dark' ? '#34d399' : '#10b981'} />
-          <Text style={[styles.footerText, { color: themeMode === 'dark' ? '#d1fae5' : '#166534' }]}>
+        <View style={styles.footer}>
+          <MaterialIcons name="verified-user" size={20} color="#10b981" />
+          <Text style={styles.footerText}>
             Bằng việc sử dụng dịch vụ, bạn xác nhận đã đọc và đồng ý với các điều khoản trên.
           </Text>
         </View>
@@ -205,15 +202,15 @@ export default function TermsOfServiceScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-          <TouchableOpacity style={[styles.backButton, { backgroundColor: themeMode === 'dark' ? '#1e293b' : '#f1f5f9' }]} onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <MaterialIcons name="arrow-back" size={24} color="#0f172a" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Điều khoản dịch vụ</Text>
+            <Text style={styles.headerTitle}>Điều khoản dịch vụ</Text>
           </View>
           <View style={{ width: 44 }} />
         </View>
@@ -228,6 +225,7 @@ export default function TermsOfServiceScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: '#fff',
   },
   container: {
     flex: 1,
@@ -243,12 +241,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginTop: SPACING.md,
+    color: '#64748b',
   },
   errorText: {
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
     marginTop: SPACING.md,
+    color: '#0f172a',
   },
   retryButton: {
     flexDirection: 'row',
@@ -272,6 +272,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 3,
@@ -284,6 +286,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f1f5f9',
   },
   headerCenter: {
     flex: 1,
@@ -293,6 +296,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: -0.5,
+    color: '#0f172a',
   },
   content: {
     flex: 1,
@@ -310,11 +314,14 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: 12,
     borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
     marginBottom: SPACING.lg,
   },
   updateText: {
     fontSize: 13,
     fontWeight: '600',
+    color: '#64748b',
     flex: 1,
   },
   versionBadge: {
@@ -356,12 +363,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.3,
     flex: 1,
+    color: '#0f172a',
   },
   paragraph: {
     fontSize: 15,
     lineHeight: 24,
     marginBottom: SPACING.md,
     fontWeight: '500',
+    color: '#64748b',
   },
   subsection: {
     marginTop: SPACING.md,
@@ -371,6 +380,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: SPACING.sm,
+    color: '#0f172a',
   },
   bulletList: {
     marginTop: SPACING.sm,
@@ -395,20 +405,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     fontWeight: '500',
-  },
-  warningText: {
-    fontSize: 14,
-    fontWeight: '600',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 8,
-    marginTop: SPACING.md,
-    lineHeight: 20,
+    color: '#64748b',
   },
   contactSection: {
     borderRadius: 16,
     padding: SPACING.lg,
     borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
   },
   contactHeader: {
     flexDirection: 'row',
@@ -419,6 +423,7 @@ const styles = StyleSheet.create({
   contactTitle: {
     fontSize: 17,
     fontWeight: '800',
+    color: '#0f172a',
   },
   contactList: {
     marginTop: SPACING.sm,
@@ -432,6 +437,7 @@ const styles = StyleSheet.create({
   contactText: {
     fontSize: 15,
     fontWeight: '600',
+    color: '#64748b',
   },
   footer: {
     alignItems: 'center',
@@ -439,6 +445,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     borderRadius: 16,
     borderWidth: 2,
+    borderColor: '#86efac',
+    backgroundColor: '#f0fdf4',
     marginTop: SPACING.lg,
   },
   footerText: {
@@ -447,5 +455,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
     fontWeight: '600',
     lineHeight: 20,
+    color: '#166534',
   },
 })

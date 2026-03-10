@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Alert,
@@ -13,12 +12,14 @@ import {
   Animated,
   Dimensions,
   PanResponder,
+  StatusBar,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import MapView, { Marker, Polyline } from 'react-native-maps'
 import * as Location from 'expo-location'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { LinearGradient } from 'expo-linear-gradient'
 import { COLORS } from '../constants'
+import MapViewComponent from '../components/MapView'
 import { API_BASE_URL } from '../constants/config'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
@@ -32,10 +33,9 @@ const GOOGLE_MAPS_API_KEY = 'AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo'
 
 const { height } = Dimensions.get('window')
 
-// Bottom Sheet Constants
-const COLLAPSED_HEIGHT = height * 0.30 // 30% of screen
+// Bottom Sheet Constants - 2 states only
+const COLLAPSED_HEIGHT = height * 0.20 // 20% of screen
 const EXPANDED_HEIGHT = height * 0.85 // 85% of screen
-const MINIMIZED_HEIGHT = 60 // Just handle bar
 
 interface RideDetailScreenProps {
   navigation: any
@@ -76,12 +76,11 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
   const isMountedRef = useRef(true)
   const mapRef = useRef<any>(null)
 
-  // Bottom Sheet Animation
+  // Bottom Sheet Animation - 2 states only
   const initialTranslateY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
   const translateY = useRef(new Animated.Value(initialTranslateY)).current
   const lastGestureY = useRef(initialTranslateY)
   const scrollViewRef = useRef<ScrollView>(null)
-  const isScrollEnabled = useRef(true)
 
   // Lấy ride ID từ route params
   const rideId = route?.params?.rideId
@@ -94,24 +93,22 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
   // Current passenger
   const currentPassenger = ride?.customerId?.[currentPassengerIndex]
 
-  // PanResponder for bottom sheet gestures
+  // PanResponder for bottom sheet gestures - 2 states only
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         // Only respond to vertical swipes
-        return Math.abs(gestureState.dy) > 5
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
       },
       onPanResponderGrant: () => {
         translateY.setOffset(lastGestureY.current)
         translateY.setValue(0)
       },
       onPanResponderMove: (_, gestureState) => {
-        // Dragging down (positive dy) = increase translateY = show less
-        // Dragging up (negative dy) = decrease translateY = show more
         const newY = gestureState.dy
         const minTranslate = 0 // Fully expanded
-        const maxTranslate = EXPANDED_HEIGHT - MINIMIZED_HEIGHT // Minimized
+        const maxTranslate = EXPANDED_HEIGHT - COLLAPSED_HEIGHT // Collapsed
         const calculatedY = lastGestureY.current + newY
         
         // Clamp the value
@@ -127,78 +124,37 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         translateY.flattenOffset()
         const currentY = lastGestureY.current + gestureState.dy
         
-        // Snap logic
+        // 2 states: expanded (0) and collapsed (EXPANDED_HEIGHT - COLLAPSED_HEIGHT)
         const expandedY = 0
         const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
-        const minimizedY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT
+        const threshold = collapsedY / 2
         
-        let targetY = collapsedY
-        
-        if (gestureState.dy < -50) {
-          // Dragging up - snap to expanded
-          targetY = expandedY
-          isScrollEnabled.current = true
-        } else if (gestureState.dy > 50) {
-          // Dragging down - snap to minimized or collapsed
-          if (currentY > (collapsedY + minimizedY) / 2) {
-            targetY = minimizedY
-            isScrollEnabled.current = false
-          } else {
-            targetY = collapsedY
-            isScrollEnabled.current = true
-          }
-        } else {
-          // Small movement - snap to nearest state
-          const distToExpanded = Math.abs(currentY - expandedY)
-          const distToCollapsed = Math.abs(currentY - collapsedY)
-          const distToMinimized = Math.abs(currentY - minimizedY)
-          
-          if (distToExpanded < distToCollapsed && distToExpanded < distToMinimized) {
-            targetY = expandedY
-            isScrollEnabled.current = true
-          } else if (distToMinimized < distToCollapsed) {
-            targetY = minimizedY
-            isScrollEnabled.current = false
-          } else {
-            targetY = collapsedY
-            isScrollEnabled.current = true
-          }
-        }
+        // Simple snap logic: snap to nearest state
+        const targetY = currentY < threshold ? expandedY : collapsedY
         
         lastGestureY.current = targetY
         
         Animated.spring(translateY, {
           toValue: targetY,
           useNativeDriver: true,
-          damping: 20,
-          stiffness: 90,
+          damping: 25,
+          stiffness: 120,
         }).start()
       },
     })
   ).current
 
-  // Helper function to snap to specific state
-  const snapToState = (state: 'expanded' | 'collapsed' | 'minimized') => {
-    let targetY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT // collapsed by default
-    
-    if (state === 'expanded') {
-      targetY = 0
-      isScrollEnabled.current = true
-    } else if (state === 'minimized') {
-      targetY = EXPANDED_HEIGHT - MINIMIZED_HEIGHT
-      isScrollEnabled.current = false
-    } else {
-      targetY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
-      isScrollEnabled.current = true
-    }
+  // Helper function to snap to specific state - 2 states only
+  const snapToState = (state: 'expanded' | 'collapsed') => {
+    const targetY = state === 'expanded' ? 0 : EXPANDED_HEIGHT - COLLAPSED_HEIGHT
     
     lastGestureY.current = targetY
     
     Animated.spring(translateY, {
       toValue: targetY,
       useNativeDriver: true,
-      damping: 20,
-      stiffness: 90,
+      damping: 25,
+      stiffness: 120,
     }).start()
   }
 
@@ -244,6 +200,27 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
         console.log('✅ [ActiveRideScreen] Location permission granted, getting real location...')
 
+        // ✅ TRY LAST KNOWN LOCATION FIRST (instant)
+        try {
+          console.log('📍 [ActiveRideScreen] Trying last known location first...')
+          const lastLocation = await Location.getLastKnownPositionAsync({
+            maxAge: 60000, // Accept locations up to 1 minute old
+            requiredAccuracy: 100, // Accept accuracy up to 100 meters
+          })
+          
+          if (lastLocation?.coords) {
+            const { longitude, latitude } = lastLocation.coords
+            console.log('✅ [ActiveRideScreen] Last known location obtained:', { latitude, longitude })
+            if (typeof latitude === 'number' && typeof longitude === 'number' && 
+                !isNaN(latitude) && !isNaN(longitude)) {
+              setCurrentLocation([longitude, latitude])
+              console.log('✅ [ActiveRideScreen] Using last known location as initial position')
+            }
+          }
+        } catch (lastLocError) {
+          console.warn('⚠️ [ActiveRideScreen] Could not get last known location:', lastLocError)
+        }
+
         // ✅ AGGRESSIVE GPS FETCHING: Try multiple times to get real location
         let realLocationObtained = false
         const maxRetries = 3
@@ -251,10 +228,10 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         for (let attempt = 1; attempt <= maxRetries && !realLocationObtained; attempt++) {
           try {
             console.log(`🔍 [ActiveRideScreen] GPS attempt ${attempt}/${maxRetries}...`)
-            const timeoutMs = attempt === 1 ? 2000 : 5000
+            const timeoutMs = 15000 // 15 seconds - enough time for GPS cold start
             const location = await Promise.race([
               Location.getCurrentPositionAsync({ 
-                accuracy: Location.Accuracy.High,
+                accuracy: Location.Accuracy.Balanced, // Balanced is faster than High
               }),
               new Promise((_, reject) => 
                 setTimeout(() => reject(new Error('Location timeout')), timeoutMs)
@@ -305,7 +282,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         
         locationWatchId = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.High,
+            accuracy: Location.Accuracy.Balanced, // Balanced is faster and sufficient
             timeInterval: realLocationObtained ? 5000 : 2000, // More frequent if still using fallback
             distanceInterval: realLocationObtained ? 20 : 5, // More sensitive if still using fallback
           },
@@ -1339,6 +1316,8 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
     return points
   }
 
+  // Các hàm zoom đã được di chuyển vào MapViewComponent
+  /*
   const handleZoomIn = () => {
     if (!mapRef.current || !currentLocation) return
     mapRef.current.animateToRegion({
@@ -1359,6 +1338,31 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
     }, 300)
   }
 
+  const fitToCoordinates = () => {
+    if (!currentLocation || !currentPassenger?.pickupCoordinates) return
+
+    const coords = [
+      { latitude: currentLocation[1], longitude: currentLocation[0] },
+      { latitude: currentPassenger.pickupCoordinates[1], longitude: currentPassenger.pickupCoordinates[0] },
+    ]
+
+    // Add dropoff if journey started
+    if (currentPassenger?.dropoffCoordinates && currentPassenger?.status === 'in_progress') {
+      coords.push({
+        latitude: currentPassenger.dropoffCoordinates[1],
+        longitude: currentPassenger.dropoffCoordinates[0],
+      })
+    }
+
+    if (mapRef.current) {
+      mapRef.current.fitToCoordinates(coords, {
+        edgePadding: { top: 100, right: 50, bottom: 200, left: 50 },
+        animated: true,
+      })
+    }
+  }
+  */
+
   // Helper to validate coordinates
   const isValidCoordinates = (coords: any): boolean => {
     return (
@@ -1373,6 +1377,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
     );
   }
 
+  /*
   // Helper to fit both driver and customer on map
   const fitToCoordinates = () => {
     if (!currentLocation || !currentPassenger?.pickupCoordinates) return
@@ -1397,6 +1402,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
       })
     }
   }
+  */
 
   useEffect(() => {
     Animated.timing(statusFadeAnim, {
@@ -1407,7 +1413,8 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
   }, [ride?.status])
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -1459,213 +1466,66 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         </View>
       ) : (
         <>
-          {/* Debug Info */}
-          {/* <View style={{ backgroundColor: '#f5f5f5', padding: 8, marginBottom: 4 }}>
-            <Text style={{ fontSize: 10, color: '#666' }}>
-              💡 Debug: Khách {currentPassengerIndex + 1}/{ride.customerId?.length}, Status: {currentPassenger?.status || 'N/A'}, Route points: {routeCoordinates.length}
-            </Text>
-            <Text style={{ fontSize: 10, color: '#666' }}>
-              📍 Driver: {currentLocation ? 
-                `[${currentLocation[0].toFixed(4)}, ${currentLocation[1].toFixed(4)}] ${
-                  Math.abs(currentLocation[0] - 105.8542) > 0.01 || Math.abs(currentLocation[1] - 21.0285) > 0.01 
-                    ? '✅ GPS thật' : '🔄 Fallback'
-                }` : 
-                'No location'
-              }
-            </Text>
-            <Text style={{ fontSize: 10, color: '#666' }}>
-              Pickup: [{currentPassenger?.pickupCoordinates?.[0]?.toFixed(4)}, {currentPassenger?.pickupCoordinates?.[1]?.toFixed(4)}]
-            </Text>
-            <Text style={{ fontSize: 10, color: '#666' }}>
-              Dropoff: [{currentPassenger?.dropoffCoordinates?.[0]?.toFixed(4)}, {currentPassenger?.dropoffCoordinates?.[1]?.toFixed(4)}]
-            </Text>
-            <Text style={{ fontSize: 10, color: '#666' }}>
-              Marker: {currentPassenger?.status === 'in_progress' ? '📍 Dropoff' : currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted' ? '🟢 Pickup' : '🟡 Arrived'}
-            </Text>
-            <Text style={{ fontSize: 10, color: '#666' }}>
-              Coords valid: Pickup {isValidCoordinates(currentPassenger?.pickupCoordinates) ? '✅' : '❌'}, Dropoff {isValidCoordinates(currentPassenger?.dropoffCoordinates) ? '✅' : '❌'}
-            </Text>
-          </View> */}
-          {/* Map Section */}
-          <View style={styles.mapContainer}>
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              initialRegion={{
-                latitude: currentPassenger?.pickupCoordinates?.[1] ?? 21.0285,
-                longitude: currentPassenger?.pickupCoordinates?.[0] ?? 105.8542,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
-              }}
-            >
-              {/* Driver location (current location) - ✅ ALWAYS show driver marker */}
-              {/* Use currentLocation if available, otherwise use fallback location */}
-              {(() => {
-                const driverCoords = currentLocation || [105.8542, 21.0285] // Hanoi fallback
-                const isRealGPS = currentLocation && (
-                  Math.abs(currentLocation[0] - 105.8542) > 0.01 || 
-                  Math.abs(currentLocation[1] - 21.0285) > 0.01
-                ) // Check if significantly different from fallback
-                
-                console.log('🔵 [ActiveRideScreen] Rendering driver marker:', {
-                  coords: driverCoords,
-                  isRealGPS: isRealGPS,
-                  currentLocation: currentLocation,
-                })
-                
-                return (
-                  <Marker
-                    coordinate={{
-                      latitude: driverCoords[1],
-                      longitude: driverCoords[0],
-                    }}
-                    title={isRealGPS ? "📍 Vị trí tài xế (GPS thật)" : "📍 Vị trí tài xế (đang tìm GPS...)"}
-                    description={isRealGPS ? "Vị trí chính xác từ GPS" : "Đang lấy vị trí chính xác..."}
-                    pinColor={isRealGPS ? "blue" : "orange"} // Orange for fallback, blue for real GPS
-                    identifier="driver-marker"
-                  />
-                )
-              })()}
+          {/* Map - Full Screen like CreateRideScreen */}
+          <MapViewComponent
+            ref={mapRef}
+            height={height}
+            initialRegion={{
+              latitude: currentPassenger?.pickupCoordinates?.[1] ?? 21.0285,
+              longitude: currentPassenger?.pickupCoordinates?.[0] ?? 105.8542,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            }}
+            pickupCoords={currentPassenger?.pickupCoordinates && isValidCoordinates(currentPassenger.pickupCoordinates) ? {
+              latitude: currentPassenger.pickupCoordinates[1],
+              longitude: currentPassenger.pickupCoordinates[0]
+            } : undefined}
+            dropoffCoords={currentPassenger?.dropoffCoordinates && isValidCoordinates(currentPassenger.dropoffCoordinates) && currentPassenger?.status === 'in_progress' ? {
+              latitude: currentPassenger.dropoffCoordinates[1],
+              longitude: currentPassenger.dropoffCoordinates[0]
+            } : undefined}
+            driverCoords={currentLocation ? {
+              latitude: currentLocation[1],
+              longitude: currentLocation[0]
+            } : undefined}
+            routeCoordinates={routeCoordinates}
+          />
 
-              {/* PENDING/ACCEPTED state: Show only pickup marker */}
-              {(currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted') && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
-                <>
-                  <Marker
-                    key={`pickup-${currentPassengerIndex}`}
-                    coordinate={{
-                      latitude: currentPassenger.pickupCoordinates[1],
-                      longitude: currentPassenger.pickupCoordinates[0],
-                    }}
-                    title={`Đón ${currentPassenger.name}`}
-                    description={currentPassenger.pickupAddress}
-                    pinColor="green"
-                  />
-                  {/* ✅ CRITICAL: Show polyline if route exists OR if we have any location */}
-                  {/* This ensures 2nd driver onwards get polyline even with fallback location */}
-                  {(routeCoordinates.length > 0 || currentLocation) && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
-                    <Polyline
-                      key={`polyline-pending-${routeCoordinates.length}-${currentLocation?.[0]?.toFixed(4) || 'no-loc'}`}
-                      coordinates={routeCoordinates.length > 0 ? routeCoordinates : [
-                        { 
-                          latitude: currentLocation ? currentLocation[1] : 21.0285, 
-                          longitude: currentLocation ? currentLocation[0] : 105.8542 
-                        },
-                        { 
-                          latitude: currentPassenger.pickupCoordinates[1], 
-                          longitude: currentPassenger.pickupCoordinates[0] 
-                        },
-                      ]}
-                      strokeColor={currentLocation ? COLORS.primary : `${COLORS.primary}80`}
-                      strokeWidth={3}
-                    />
-                  )}
-                </>
-              )}
+          {/* Home Button */}
+          <TouchableOpacity 
+            style={styles.homeButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
 
-              {/* IN_PROGRESS state: Show only dropoff marker (already picked up) */}
-              {currentPassenger?.status === 'in_progress' && isValidCoordinates(currentPassenger?.dropoffCoordinates) && (
-                <>
-                  {console.log('✅ Rendering dropoff marker:', {
-                    status: currentPassenger?.status,
-                    dropoffCoords: currentPassenger?.dropoffCoordinates,
-                    isValid: isValidCoordinates(currentPassenger?.dropoffCoordinates),
-                    markerCoord: {
-                      latitude: currentPassenger.dropoffCoordinates[1],
-                      longitude: currentPassenger.dropoffCoordinates[0],
-                    }
-                  })}
-                  <Marker
-                    key={`dropoff-${currentPassengerIndex}`}
-                    coordinate={{
-                      latitude: currentPassenger.dropoffCoordinates[1],
-                      longitude: currentPassenger.dropoffCoordinates[0],
-                    }}
-                    title={`Thả ${currentPassenger.name}`}
-                    description={currentPassenger.dropoffAddress}
-                    pinColor="red"
-                  />
-                  {/* ✅ CRITICAL: Show polyline if route exists OR if we have currentLocation */}
-                  {/* This ensures 2nd driver onwards get polyline even if location is still loading */}
-                  {(routeCoordinates.length > 0 || currentLocation) && isValidCoordinates(currentPassenger?.dropoffCoordinates) && (
-                    <Polyline
-                      key={`polyline-inprogress-${routeCoordinates.length}`}
-                      coordinates={routeCoordinates.length > 0 ? routeCoordinates : (
-                        currentLocation ? [
-                          { latitude: currentLocation[1], longitude: currentLocation[0] },
-                          { latitude: currentPassenger.dropoffCoordinates[1], longitude: currentPassenger.dropoffCoordinates[0] },
-                        ] : [
-                          { latitude: currentPassenger.dropoffCoordinates[1], longitude: currentPassenger.dropoffCoordinates[0] },
-                          { latitude: currentPassenger.dropoffCoordinates[1], longitude: currentPassenger.dropoffCoordinates[0] },
-                        ]
-                      )}
-                      strokeColor={COLORS.primary}
-                      strokeWidth={3}
-                    />
-                  )}
-                </>
-              )}
-
-              {/* ARRIVED_AT_PICKUP state: Show pickup marker (waiting for start) */}
-              {currentPassenger?.status === 'arrived_at_pickup' && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
-                <>
-                  <Marker
-                    key={`pickup-arrived-${currentPassengerIndex}`}
-                    coordinate={{
-                      latitude: currentPassenger.pickupCoordinates[1],
-                      longitude: currentPassenger.pickupCoordinates[0],
-                    }}
-                    title={`Đã đến đón ${currentPassenger.name}`}
-                    description={currentPassenger.pickupAddress}
-                    pinColor="yellow"
-                  />
-                  {/* ✅ CRITICAL: Show polyline if route exists OR if we have any location */}
-                  {/* This ensures 2nd driver onwards get polyline even with fallback location */}
-                  {(routeCoordinates.length > 0 || currentLocation) && isValidCoordinates(currentPassenger?.pickupCoordinates) && (
-                    <Polyline
-                      key={`polyline-arrived-${routeCoordinates.length}-${currentLocation?.[0]?.toFixed(4) || 'no-loc'}`}
-                      coordinates={routeCoordinates.length > 0 ? routeCoordinates : [
-                        { 
-                          latitude: currentLocation ? currentLocation[1] : 21.0285, 
-                          longitude: currentLocation ? currentLocation[0] : 105.8542 
-                        },
-                        { 
-                          latitude: currentPassenger.pickupCoordinates[1], 
-                          longitude: currentPassenger.pickupCoordinates[0] 
-                        },
-                      ]}
-                      strokeColor={currentLocation ? COLORS.primary : `${COLORS.primary}80`}
-                      strokeWidth={3}
-                    />
-                  )}
-                </>
-              )}
-            </MapView>
-
-            {/* Zoom Controls */}
-            <View style={styles.zoomControls}>
-              <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomIn}>
-                <MaterialIcons name="add" size={20} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomOut}>
-                <MaterialIcons name="remove" size={20} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.zoomBtn} onPress={fitToCoordinates}>
-                <MaterialIcons name="fit-screen" size={18} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Status Badge */}
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(currentPassenger?.status) }]}>
+          {/* Status Badge với gradient */}
+          {/* <LinearGradient
+            colors={['#FFFFFF', '#FFF5F0']}
+            style={styles.statusBadge}
+          >
+            <View style={styles.statusBadgeContent}>
+              <View style={[styles.statusDot, { backgroundColor: getStatusColor(currentPassenger?.status) }]} />
               <Text style={styles.statusText}>
-                {getStatusLabel(currentPassenger?.status)} • {currentPassenger?.distance || 0} km
+                {getStatusLabel(currentPassenger?.status)}
               </Text>
             </View>
+            <Text style={styles.statusDistance}>{currentPassenger?.distance || 0} km</Text>
+          </LinearGradient> */}
 
-            {/* Price Badge */}
-            <View style={styles.priceBadge}>
-              <Text style={styles.priceText}>{((currentPassenger?.fare || 0) / 1000).toFixed(0)}k</Text>
+          {/* Price Badge với gradient cam */}
+          <LinearGradient
+            colors={['#FF6B00', '#FF8534']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.priceBadge}
+          >
+            <View style={styles.priceIconBadge}>
+              <MaterialIcons name="attach-money" size={18} color="#fff" />
             </View>
-          </View>
+            <Text style={styles.priceText}>{((currentPassenger?.fare || 0) / 1000).toFixed(0)}k</Text>
+          </LinearGradient>
           
 
           {/* Details Section - Draggable Bottom Sheet */}
@@ -1701,7 +1561,6 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 ref={scrollViewRef}
                 style={styles.detailsContainer}
                 showsVerticalScrollIndicator={false}
-                scrollEnabled={isScrollEnabled.current}
                 bounces={false}
               >
             {/* Empty State - No passengers yet */}
@@ -1722,14 +1581,19 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
               </View>
             ) : (
               <>
-                {/* Ride Info Card - Only show when needed */}
+                {/* Ride Info Card với gradient - Only show when needed */}
                 {currentPassenger && (currentPassenger.status === 'arrived_at_pickup' || currentPassenger.status === 'in_progress') && (
-                  <View style={styles.infoCard}>
+                  <LinearGradient
+                    colors={['#FFF5F0', '#FFFFFF']}
+                    style={styles.infoCard}
+                  >
                     {currentPassenger.status === 'arrived_at_pickup' && (
                       <View style={styles.infoRow}>
-                        <MaterialIcons name="location-on" size={20} color={COLORS.primary} />
+                        <View style={styles.infoIconBadge}>
+                          <MaterialIcons name="location-on" size={20} color="#fff" />
+                        </View>
                         <View style={styles.infoContent}>
-                          <Text style={styles.infoLabel}>Điểm đón</Text>
+                          <Text style={styles.infoLabel}>ĐIỂM ĐÓN</Text>
                           <Text style={styles.infoText} numberOfLines={2}>{currentPassenger?.pickupAddress || 'N/A'}</Text>
                         </View>
                       </View>
@@ -1737,20 +1601,32 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
                     {currentPassenger.status === 'in_progress' && (
                       <View style={[styles.infoRow, currentPassenger.status === 'in_progress' && { borderTopWidth: 0, paddingTop: 0, marginTop: 0 }]}>
-                        <MaterialIcons name="location-on" size={20} color="#f44336" />
+                        <View style={[styles.infoIconBadge, { backgroundColor: '#f44336' }]}>
+                          <MaterialIcons name="flag" size={20} color="#fff" />
+                        </View>
                         <View style={styles.infoContent}>
-                          <Text style={styles.infoLabel}>Điểm dừa</Text>
+                          <Text style={styles.infoLabel}>ĐIỂM TRẢ</Text>
                           <Text style={styles.infoText} numberOfLines={2}>{currentPassenger?.dropoffAddress || 'N/A'}</Text>
                         </View>
                       </View>
                     )}
-                  </View>
+                  </LinearGradient>
                 )}
 
-                {/* Passengers Info - Horizontal Carousel */}
+                {/* Passengers Info - Horizontal Carousel với gradient */}
                 {ride.customerId && ride.customerId.length > 1 && (
-                  <View style={styles.passengerCard}>
-                    <Text style={styles.cardTitle}>Hành khách ({ride.customerId?.length || 0}/{ride.totalSeats})</Text>
+                  <LinearGradient
+                    colors={['#FF6B00', '#FF9E40', '#FFF5F0']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.passengerCard}
+                  >
+                    <View style={styles.cardTitleRow}>
+                      <View style={styles.cardTitleIconBadge}>
+                        <MaterialIcons name="people" size={18} color="#fff" />
+                      </View>
+                      <Text style={styles.cardTitle}>HÀNH KHÁCH ({ride.customerId?.length || 0}/{ride.totalSeats})</Text>
+                    </View>
                 
                 <FlatList
                   data={ride.customerId}
@@ -1762,8 +1638,8 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   scrollEventThrottle={16}
                   onScroll={(e) => {
                     const contentOffsetX = e.nativeEvent.contentOffset.x
-                    // Calculate item width: 320 (card) + 12 (margin right) = 332
-                    const ITEM_WIDTH = 332
+                    // Calculate item width: 330 (card) + 16 (margin right) = 346
+                    const ITEM_WIDTH = 346
                     const newIndex = Math.round(contentOffsetX / ITEM_WIDTH)
                     const maxIndex = (ride.customerId?.length || 1) - 1
                     const finalIndex = Math.max(0, Math.min(newIndex, maxIndex))
@@ -1782,9 +1658,11 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                     }
                   }}
                   renderItem={({ item, index }) => (
-                    <View style={[styles.passengerCardItem, index === currentPassengerIndex && styles.passengerCardItemActive]}>
+                    <View
+                      style={[styles.passengerCardItem, index === currentPassengerIndex && styles.passengerCardItemActive]}
+                    >
                       <View style={styles.passengerCardAvatar}>
-                        <MaterialIcons name="person" size={28} color={COLORS.primary} />
+                        <MaterialIcons name="person" size={32} color={COLORS.primary} />
                       </View>
 
                       <View style={styles.passengerCardInfo}>
@@ -1792,7 +1670,9 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                           {typeof item === 'string' ? item : item.name || 'Khách hàng'}
                         </Text>
                         <View style={styles.ratingRow}>
-                          <MaterialIcons name="star" size={14} color="#FFD700" />
+                          <View style={styles.ratingBadge}>
+                            <MaterialIcons name="star" size={14} color="#FFD700" />
+                          </View>
                           <Text style={styles.ratingText}>
                             {typeof item === 'object' ? item.rating || 4.5 : 4.5}
                           </Text>
@@ -1818,7 +1698,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                             }
                           }}
                         >
-                          <MaterialIcons name="chat" size={18} color="#fff" />
+                          <MaterialIcons name="chat" size={20} color="#fff" />
                         </TouchableOpacity>
                         <TouchableOpacity 
                           style={styles.passengerActionBtn}
@@ -1831,20 +1711,30 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                             }
                           }}
                         >
-                          <MaterialIcons name="call" size={18} color="#fff" />
+                          <MaterialIcons name="call" size={20} color="#fff" />
                         </TouchableOpacity>
                       </View>
                     </View>
                   )}
                 />
-              </View>
+                  </LinearGradient>
             )}
 
             {/* Single passenger info - when only 1 passenger */}
             
             {ride.customerId && ride.customerId.length === 1 && currentPassenger && (
-              <View style={styles.passengerCard}>
-                <Text style={styles.cardTitle}>Khách hàng</Text>
+              <LinearGradient
+                colors={['#FF6B00', '#FF9E40', '#FFF5F0']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.passengerCard}
+              >
+                <View style={styles.cardTitleRow}>
+                  <View style={styles.cardTitleIconBadge}>
+                    <MaterialIcons name="person" size={18} color="#fff" />
+                  </View>
+                  <Text style={styles.cardTitle}>KHÁCH HÀNG</Text>
+                </View>
                 <View style={styles.singlePassengerInfo}>
                   <View style={styles.passengerCardAvatar}>
                     <MaterialIcons name="person" size={32} color={COLORS.primary} />
@@ -1852,7 +1742,9 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   <View style={{flex: 1}}>
                     <Text style={styles.passengerCardName}>{currentPassenger.name}</Text>
                     <View style={styles.ratingRow}>
-                      <MaterialIcons name="star" size={14} color="#FFD700" />
+                      <View style={styles.ratingBadge}>
+                        <MaterialIcons name="star" size={14} color="#FFD700" />
+                      </View>
                       <Text style={styles.ratingText}>{currentPassenger.rating || 4.5}</Text>
                     </View>
                     <Text style={styles.passengerCardPhone}>{currentPassenger.phone}</Text>
@@ -1875,7 +1767,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                         }
                       }}
                     >
-                      <MaterialIcons name="chat" size={18} color="#fff" />
+                      <MaterialIcons name="chat" size={20} color="#fff" />
                     </TouchableOpacity>
                     <TouchableOpacity 
                       style={styles.passengerActionBtn}
@@ -1888,104 +1780,164 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                         }
                       }}
                     >
-                      <MaterialIcons name="call" size={18} color="#fff" />
+                      <MaterialIcons name="call" size={20} color="#fff" />
                     </TouchableOpacity>
                   </View>
                 </View>
                 
-              </View>
+              </LinearGradient>
             )}
 
-            {/* Action Buttons - Based on passenger status */}
+            {/* Action Buttons với gradient - Based on passenger status */}
             <View style={styles.actionsContainer}>
               {(currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted') && (
                 <TouchableOpacity 
-                  style={[styles.actionBtn, styles.arrivingBtn]} 
                   onPress={handleMarkArrived}
                   disabled={updating}
+                  activeOpacity={0.8}
                 >
-                  <MaterialIcons name="location-on" size={20} color="#fff" />
-                  <Text style={styles.actionBtnText}>Bắt đầu đến điểm đón</Text>
+                  <LinearGradient
+                    colors={['#FFA500', '#FF8C00']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.actionBtn, styles.arrivingBtn]}
+                  >
+                    <View style={styles.actionBtnIconCircle}>
+                      <MaterialIcons name="location-on" size={20} color="#FFA500" />
+                    </View>
+                    <Text style={styles.actionBtnText}>Bắt đầu đến điểm đón</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
 
               {currentPassenger?.status === 'arrived_at_pickup' && (
                 <TouchableOpacity 
-                  style={[styles.actionBtn, styles.startBtn]} 
                   onPress={handleStartRide}
                   disabled={updating}
+                  activeOpacity={0.8}
                 >
-                  <MaterialIcons name="play-arrow" size={20} color="#fff" />
-                  <Text style={styles.actionBtnText}>Bắt đầu chuyến đi</Text>
+                  <LinearGradient
+                    colors={['#2196F3', '#1976D2']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.actionBtn, styles.startBtn]}
+                  >
+                    <View style={styles.actionBtnIconCircle}>
+                      <MaterialIcons name="play-arrow" size={20} color="#2196F3" />
+                    </View>
+                    <Text style={styles.actionBtnText}>Bắt đầu chuyến đi</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
 
               {currentPassenger?.status === 'in_progress' && (
                 <TouchableOpacity 
-                  style={[styles.actionBtn, styles.completeBtn]} 
                   onPress={handleCompletePassenger}
                   disabled={updating}
+                  activeOpacity={0.8}
                 >
-                  <MaterialIcons name="check-circle" size={20} color="#fff" />
-                  <Text style={styles.actionBtnText}>Hoàn thành chuyến đi</Text>
+                  <LinearGradient
+                    colors={['#4CAF50', '#388E3C']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.actionBtn, styles.completeBtn]}
+                  >
+                    <View style={styles.actionBtnIconCircle}>
+                      <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
+                    </View>
+                    <Text style={styles.actionBtnText}>Hoàn thành chuyến đi</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
 
               {currentPassenger?.status === 'completed' && (
-                <View style={[styles.actionBtn, styles.completedBtn]}>
-                  <MaterialIcons name="done-all" size={20} color="#fff" />
+                <LinearGradient
+                  colors={['#8BC34A', '#689F38']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.actionBtn, styles.completedBtn]}
+                >
+                  <View style={styles.actionBtnIconCircle}>
+                    <MaterialIcons name="done-all" size={20} color="#8BC34A" />
+                  </View>
                   <Text style={styles.actionBtnText}>Đã hoàn thành</Text>
-                </View>
+                </LinearGradient>
               )}
 
-              {/* Total Revenue Display - Only show when has passengers */}
+              {/* Total Revenue Display với gradient cam - Only show when has passengers */}
               {ride?.customerId && ride.customerId.length > 0 && (
-                <View style={styles.totalRevenueCard}>
+                <LinearGradient
+                  colors={['#FF6B00', '#FF8534']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.totalRevenueCard}
+                >
+                  <View style={styles.totalRevenueIconBadge}>
+                    <MaterialIcons name="account-balance-wallet" size={24} color="#FF6B00" />
+                  </View>
                   <View style={styles.totalRevenueHeader}>
-                    <Text style={styles.totalRevenueLabel}>Tổng doanh thu</Text>
+                    <Text style={styles.totalRevenueLabel}>TỔNG DOANH THU</Text>
                     <Text style={styles.totalRevenueAmount}>
                       {getTotalRevenue().toLocaleString('vi-VN')}đ
                     </Text>
                   </View>
                   <View style={styles.totalRevenueStatus}>
                     <View style={styles.statusIndicator}>
-                      <MaterialIcons 
-                        name={allPassengersCompleted() ? "check-circle" : "schedule"} 
-                        size={16} 
-                        color={allPassengersCompleted() ? "#4CAF50" : "#FFA500"}
-                      />
-                      <Text style={[styles.statusText, { color: allPassengersCompleted() ? "#4CAF50" : "#FFA500" }]}>
+                      <View style={[styles.statusIndicatorBadge, { backgroundColor: allPassengersCompleted() ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255, 255, 255, 0.3)' }]}>
+                        <MaterialIcons 
+                          name={allPassengersCompleted() ? "check-circle" : "schedule"} 
+                          size={18} 
+                          color="#fff"
+                        />
+                      </View>
+                      <Text style={styles.statusIndicatorText}>
                         {allPassengersCompleted() ? `Tất cả khách hoàn thành (${ride.customerId.length})` : `${ride.customerId.filter((p: any) => p.status === 'completed').length}/${ride.customerId.length} hoàn thành`}
                       </Text>
                     </View>
                   </View>
-                </View>
+                </LinearGradient>
               )}
 
-              {/* End Trip Button - Only enabled when all passengers completed and ride not already completed */}
+              {/* End Trip Button với gradient xanh lá - Only enabled when all passengers completed and ride not already completed */}
               {ride?.customerId && ride.customerId.length > 0 && ride.status !== 'completed' && (
                 <TouchableOpacity 
-                  style={[styles.actionBtn, styles.endTripBtn, (!allPassengersCompleted() || ride.status === 'completed') && styles.endTripBtnDisabled]} 
                   onPress={handleCompleteRide}
                   disabled={!allPassengersCompleted() || ride.status === 'completed' || updating}
+                  activeOpacity={0.8}
                 >
-                  <MaterialIcons 
-                    name="stop-circle" 
-                    size={20} 
-                    color={allPassengersCompleted() && ride.status !== 'completed' ? "#fff" : "#999"}
-                  />
-                  <Text style={[styles.actionBtnText, (!allPassengersCompleted() || ride.status === 'completed') && { color: '#999' }]}>
-                    Kết thúc chuyến đi
-                  </Text>
+                  <LinearGradient
+                    colors={allPassengersCompleted() && ride.status !== 'completed' ? ['#10b981', '#059669'] : ['#e0e0e0', '#bdbdbd']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.actionBtn, styles.endTripBtn]}
+                  >
+                    <View style={[styles.actionBtnIconCircle, (!allPassengersCompleted() || ride.status === 'completed') && { backgroundColor: 'rgba(153, 153, 153, 0.2)' }]}>
+                      <MaterialIcons 
+                        name="stop-circle" 
+                        size={20} 
+                        color={allPassengersCompleted() && ride.status !== 'completed' ? "#10b981" : "#999"}
+                      />
+                    </View>
+                    <Text style={[styles.actionBtnText, (!allPassengersCompleted() || ride.status === 'completed') && { color: '#999' }]}>
+                      Kết thúc chuyến đi
+                    </Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
 
-              {/* Show completed state when ride is already finished */}
+              {/* Show completed state khi ride đã kết thúc */}
               {ride?.customerId && ride.customerId.length > 0 && ride.status === 'completed' && (
-                <View style={[styles.actionBtn, styles.completedBtn]}>
-                  <MaterialIcons name="done-all" size={20} color="#fff" />
-                  <Text style={styles.actionBtnText}> Chuyến đã kết thúc</Text>
-                </View>
+                <LinearGradient
+                  colors={['#8BC34A', '#689F38']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.actionBtn, styles.completedBtn]}
+                >
+                  <View style={styles.actionBtnIconCircle}>
+                    <MaterialIcons name="done-all" size={20} color="#8BC34A" />
+                  </View>
+                  <Text style={styles.actionBtnText}>Chuyến đã kết thúc</Text>
+                </LinearGradient>
               )}
             </View>
               </>
@@ -2046,7 +1998,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
         </>
       )}
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -2087,7 +2039,7 @@ const getStatusColor = (status: string) => {
 // ...existing code...
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: '#fff', // White background
   },
@@ -2130,11 +2082,6 @@ const styles = StyleSheet.create({
     color: '#fff', // White text
     fontWeight: '600',
   },
-  mapContainer: {
-    flex: 1, // Full screen height
-    position: 'relative',
-    backgroundColor: '#f5f5f5', // Light gray map background
-  },
   map: {
     flex: 1,
   },
@@ -2149,17 +2096,19 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#fff', // White background
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
   },
   spacer: {
     flex: 1,
@@ -2172,92 +2121,153 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 10,
   },
-  zoomBtn: {
-    width: 48, // Bigger
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.primary, // Orange
+  homeButton: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#fff',
+    zIndex: 5,
   },
-  callButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#4CAF50', // Green
+  zoomBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  callButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
     shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   sosButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#FF5252',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FF5252',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   sosText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   statusBadge: {
     position: 'absolute',
-    bottom: 60,
-    left: 12,
-    paddingHorizontal: 16, // More padding
+    top: 10,
+    left: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 20, // More rounded
-    backgroundColor: '#fff', // White badge
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 5,
+  },
+  statusBadgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     borderWidth: 2,
-    borderColor: COLORS.primary, // Orange border
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: '#fff',
+  },
+  statusDistance: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginLeft: 8,
   },
   statusText: {
-    fontSize: 13, // Bigger
-    fontWeight: '700',
-    color: COLORS.primary, // Orange text
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    letterSpacing: 0.3,
   },
   priceBadge: {
     position: 'absolute',
-    bottom: 12,
-    right: 12,
-    paddingHorizontal: 20, // More padding
+    top: 49,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 16, // More rounded
-    backgroundColor: '#fff', // White background
-    borderWidth: 2,
-    borderColor: COLORS.primary, // Orange border
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: '#fff',
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+    zIndex: 5,
+  },
+  priceIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   priceText: {
-    fontSize: 18, // Bigger
+    fontSize: 18,
     fontWeight: '900',
-    color: COLORS.primary, // Orange text
+    color: '#fff',
+    letterSpacing: 0.5,
   },
   // Bottom Sheet Styles
   bottomSheetContainer: {
@@ -2271,39 +2281,39 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: '#FF6B00',
     shadowOffset: {
       width: 0,
-      height: -4,
+      height: -6,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 15,
     pointerEvents: 'auto', // Capture touches on sheet
   },
   dragHandleWrapper: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
   dragHandleBar: {
     width: 40,
     height: 5,
-    backgroundColor: '#ddd',
+    backgroundColor: '#FFB380',
     borderRadius: 3,
   },
   detailsContainer: {
     flex: 1,
-    paddingHorizontal: 16, // More padding
-    paddingVertical: 16,
-    backgroundColor: '#fff', // White background
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: '#FFFFFF',
   },
   // Empty passenger state
   emptyPassengerState: {
@@ -2314,49 +2324,66 @@ const styles = StyleSheet.create({
     paddingVertical: 60, // More padding
   },
   emptyPassengerTitle: {
-    fontSize: 20, // Bigger
-    fontWeight: '700',
-    color: '#1a1a1a', // Dark text
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1a1a1a',
     marginTop: 8,
+    letterSpacing: -0.5,
   },
   emptyPassengerSubtitle: {
-    fontSize: 15, // Bigger
-    color: '#666', // Gray text
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
-    maxWidth: 280,
-    lineHeight: 22,
+    maxWidth: 300,
+    lineHeight: 24,
+    fontWeight: '500',
   },
   refreshPassengerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 24, // More padding
-    paddingVertical: 14,
+    gap: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
     backgroundColor: COLORS.primary,
-    borderRadius: 12, // More rounded
-    marginTop: 16,
+    borderRadius: 16,
+    marginTop: 20,
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   refreshPassengerBtnText: {
-    fontSize: 15, // Bigger
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: '#fff',
+    letterSpacing: 0.3,
   },
   infoCard: {
-    backgroundColor: '#fff', // White card
-    borderRadius: 12, // More rounded
-    padding: 16, // More padding
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: COLORS.primary, // Orange border
-    shadowColor: '#000',
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  infoIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
     elevation: 3,
   },
   infoRow: {
@@ -2368,79 +2395,106 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    fontSize: 13, // Bigger
-    color: '#666', // Gray text
-    fontWeight: '700',
-    marginBottom: 4,
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '800',
+    marginBottom: 6,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   infoText: {
-    fontSize: 14, // Bigger
-    color: '#1a1a1a', // Dark text
-    fontWeight: '600',
-    lineHeight: 20,
+    fontSize: 15,
+    color: '#1a1a1a',
+    fontWeight: '700',
+    lineHeight: 22,
   },
   passengerCard: {
-    backgroundColor: '#fff', // White card
-    borderRadius: 12,
-    padding: 16, // More padding
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: COLORS.primary, // Orange border
-    shadowColor: '#000',
+    borderRadius: 28,
+    padding: 24,
+    marginBottom: 20,
+    borderWidth: 0,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 12,
+    overflow: 'hidden',
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  cardTitleIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#fff',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 4,
   },
   cardTitle: {
-    fontSize: 15, // Bigger
-    fontWeight: '700',
-    color: '#1a1a1a', // Dark text
-    marginBottom: 16,
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#fff',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   // Horizontal Carousel Card
   passengerCardItem: {
-    width: 320,
-    minHeight: 110, // Taller
-    backgroundColor: '#FFF5F0', // Light orange
-    borderRadius: 16, // More rounded
-    padding: 16, // More padding
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: '#FFE5DB', // Light orange border
+    width: 330,
+    minHeight: 140,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 24,
+    padding: 20,
+    marginRight: 16,
+    borderWidth: 0,
     flexDirection: 'row',
-    gap: 12,
-    opacity: 0.7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    gap: 16,
+    opacity: 0.6,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
   passengerCardItemActive: {
     opacity: 1,
-    borderColor: COLORS.primary, // Orange border
-    borderWidth: 3, // Thicker border
-    backgroundColor: '#FFF5F0', // Light orange
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 0,
+    backgroundColor: '#fff',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 16,
+    transform: [{ scale: 1.03 }],
   },
   passengerCardAvatar: {
-    width: 64, // Bigger
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#fff', // White background
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFF5F0',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.primary,
+    borderWidth: 3,
+    borderColor: '#FF6B00',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   passengerCardInfo: {
     flex: 1,
@@ -2448,42 +2502,50 @@ const styles = StyleSheet.create({
   },
   singlePassengerInfo: {
     flexDirection: 'row',
-    gap: 16, // More spacing
+    gap: 20,
     alignItems: 'center',
-    padding: 16, // More padding
-    backgroundColor: '#FFF5F0', // Light orange
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FFE5DB',
+    padding: 24,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    borderWidth: 0,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   passengerCardName: {
-    fontSize: 16, // Bigger
-    fontWeight: '700',
-    color: '#1a1a1a', // Dark text
+    fontSize: 19,
+    fontWeight: '900',
+    color: '#1a1a1a',
     marginBottom: 6,
+    letterSpacing: -0.3,
   },
   passengerCardPhone: {
-    fontSize: 13, // Bigger
-    color: '#666', // Gray text
-    marginTop: 2,
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
   passengerCardActions: {
     flexDirection: 'column',
-    gap: 10, // More spacing
+    gap: 12,
     justifyContent: 'center',
   },
   passengerActionBtn: {
-    width: 48, // Bigger
-    height: 48,
-    borderRadius: 12, // More rounded
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+    borderWidth: 0,
   },
   // Old vertical list styles (keep for compatibility)
   passengerItem: {
@@ -2562,7 +2624,7 @@ const styles = StyleSheet.create({
   },
   // Action buttons
   actionsContainer: {
-    gap: 14, // More spacing
+    gap: 16,
     marginBottom: 24,
   },
   actionBtn: {
@@ -2570,85 +2632,117 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 16, // Taller
-    paddingHorizontal: 20,
-    borderRadius: 14, // More rounded
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 0,
   },
-  arrivingBtn: {
-    backgroundColor: '#FFA500',
+  actionBtnIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  startBtn: {
-    backgroundColor: '#2196F3',
-  },
-  completeBtn: {
-    backgroundColor: '#4CAF50',
-  },
-  completedBtn: {
-    backgroundColor: '#8BC34A',
-    opacity: 0.7,
-  },
+  arrivingBtn: {},
+  startBtn: {},
+  completeBtn: {},
+  completedBtn: {},
   actionBtnText: {
-    fontSize: 16, // Bigger
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '900',
     color: '#fff',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   // Total Revenue Card
   totalRevenueCard: {
-    backgroundColor: '#fff', // White card
-    borderRadius: 16, // More rounded
-    padding: 20, // More padding
-    marginVertical: 16,
-    borderLeftWidth: 6, // Thicker accent
-    borderLeftColor: COLORS.primary,
-    borderWidth: 2,
-    borderColor: '#FFE5DB', // Light orange border
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
+    borderRadius: 24,
+    padding: 28,
+    marginVertical: 20,
+    borderWidth: 0,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 15,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  totalRevenueIconBadge: {
+    position: 'absolute',
+    top: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   totalRevenueHeader: {
     marginBottom: 12,
   },
   totalRevenueLabel: {
-    fontSize: 13, // Bigger
-    color: '#666', // Gray text
-    fontWeight: '700',
-    marginBottom: 6,
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '800',
+    marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.5,
+    opacity: 0.9,
   },
   totalRevenueAmount: {
-    fontSize: 28, // Bigger
+    fontSize: 32,
     fontWeight: '900',
-    color: COLORS.primary, // Orange text
+    color: '#fff',
+    letterSpacing: -0.5,
   },
   totalRevenueStatus: {
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0', // Light border
-    paddingTop: 12,
+    borderTopWidth: 2,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    paddingTop: 16,
+    marginTop: 12,
   },
   statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
+  statusIndicatorBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusIndicatorText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+    flex: 1,
+  },
   // End Trip Button
-  endTripBtn: {
-    backgroundColor: '#10b981',
-    borderWidth: 0,
-  },
-  endTripBtnDisabled: {
-    backgroundColor: '#e0e0e0', // Light gray
-    opacity: 0.6,
-  },
+  endTripBtn: {},
+  endTripBtnDisabled: {},
   // Modal
   modalOverlay: {
     flex: 1,
@@ -2656,13 +2750,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff', // White modal
-    borderTopLeftRadius: 24, // More rounded
-    borderTopRightRadius: 24,
-    padding: 20, // More padding
-    paddingBottom: 32,
-    borderTopWidth: 4,
-    borderTopColor: COLORS.primary, // Orange top border
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    paddingBottom: 36,
+    borderTopWidth: 6,
+    borderTopColor: COLORS.primary,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2671,63 +2765,82 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 17, // Bigger
-    fontWeight: '700',
-    color: '#1a1a1a', // Dark text
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    letterSpacing: -0.3,
   },
   modalCountdown: {
-    fontSize: 15, // Bigger
+    fontSize: 16,
     fontWeight: '900',
-    color: COLORS.primary,
-    backgroundColor: '#FFF5F0', // Light orange background
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    color: '#fff',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#fff',
+    overflow: 'hidden',
   },
   customerCard: {
-    backgroundColor: '#f8f9fa', // Light gray
-    borderRadius: 12,
-    padding: 16, // More padding
+    backgroundColor: '#FFF5F0',
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 20,
     flexDirection: 'row',
-    gap: 14,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  customerAvatar: {
-    width: 56, // Bigger
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFF5F0', // Light orange
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 16,
     borderWidth: 2,
     borderColor: COLORS.primary,
+  },
+  customerAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   customerDetails: {
     flex: 1,
     justifyContent: 'center',
   },
   customerName: {
-    fontSize: 16, // Bigger
-    fontWeight: '700',
-    color: '#1a1a1a', // Dark text
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    marginBottom: 6,
+    letterSpacing: -0.3,
   },
   customerPhone: {
-    fontSize: 13, // Bigger
-    color: '#666', // Gray text
-    marginBottom: 6,
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+    fontWeight: '600',
   },
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
+  ratingBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   ratingText: {
-    fontSize: 13, // Bigger
-    fontWeight: '700',
-    color: '#1a1a1a', // Dark text
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1a1a1a',
   },
   modalButtons: {
     flexDirection: 'row',
@@ -2735,14 +2848,16 @@ const styles = StyleSheet.create({
   },
   modalBtn: {
     flex: 1,
-    paddingVertical: 16, // Taller
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 16,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   acceptBtn: {
     backgroundColor: '#4CAF50',
@@ -2751,9 +2866,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f44336',
   },
   modalBtnText: {
-    fontSize: 16, // Bigger
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#fff',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
   },
 })

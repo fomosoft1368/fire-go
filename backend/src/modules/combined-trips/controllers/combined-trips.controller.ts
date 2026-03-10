@@ -49,16 +49,10 @@ export class CombinedTripsController {
       // ✅ DEBUG: Check what totalSeats value is received
       
 
-      // Calculate totalFare if not provided
-      let totalFare = createCombinedTripDto.totalFare;
-      if (!totalFare) {
-        totalFare =
-          (createCombinedTripDto.baseFare || 0) +
-          (createCombinedTripDto.distanceFare || 0) +
-          (createCombinedTripDto.timeFare || 0) +
-          (createCombinedTripDto.surgePricing || 0);
-        console.log('💰 Calculated totalFare:', totalFare);
-      }
+      // ✅ CRITICAL FIX: Don't use driver's estimated totalFare
+      // totalFare should be 0 initially, and will be updated as customers book
+      // This ensures totalFare = sum of all customer fares, not driver's estimate
+      let totalFare = 0;
 
       // ✅ FIX: Use totalSeats with proper fallback (only default if undefined, not if 0)
       const totalSeatsValue = createCombinedTripDto.totalSeats !== undefined 

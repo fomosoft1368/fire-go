@@ -34,6 +34,7 @@ import TransactionHistoryScreen from './src/screens/TransactionHistoryScreen'
 import PaymentWebViewScreen from './src/screens/PaymentWebViewScreen'
 import MapScreen from './src/screens/MapScreen'
 import CreateRideScreen from './src/screens/CreateRideScreen'
+import EarningsDetailScreen from './src/screens/EarningsDetailScreen'
 import TripActivities from './src/screens/TripActivities'
 import DeliveryRequestsScreen from './src/screens/DeliveryRequestsScreen'
 import ActiveDeliveryScreen from './src/screens/ActiveDeliveryScreen'
@@ -43,6 +44,8 @@ import ActiveHourlyServiceScreen from './src/screens/ActiveHourlyServiceScreen'
 import ChatScreen from './src/screens/ChatScreen'
 import NotificationScreen from './src/screens/Notification'
 import NotificationDetailScreen from './src/screens/NotificationDetail'
+import TermsOfServiceScreen from './src/screens/TermsOfServiceScreen'
+import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen'
 //
 
 
@@ -177,6 +180,11 @@ const HomeStackNavigator = () => {
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
+        name="EarningsDetail"
+        component={EarningsDetailScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
         name="PaymentWebView"
         component={PaymentWebViewScreen}
         options={{ animationEnabled: true }}
@@ -239,6 +247,16 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="NotificationDetail"
         component={NotificationDetailScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="TermsOfService"
+        component={TermsOfServiceScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
         options={{ animationEnabled: true }}
       />
     </Stack.Navigator>

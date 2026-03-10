@@ -102,11 +102,17 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
           requestFareField: request.fare,
           tripTotalFare: request.combinedTripId?.totalFare,
           NOTE: fare === 0 ? '⚠️ Khách chưa gửi giá' : '✅ Khách đã gửi giá',
-        })
-      } else {
+        })      } else {
         // Regular ride hoặc delivery: lấy từ nested object
-        fare = request.fare ?? data.fare ?? data.estimatedPrice ?? data.deliveryFee ?? 0
-        console.log(`💰 [${isDelivery ? 'Delivery' : 'RegularRide'}] Fare:`, fare)
+        // ⭐ CRITICAL FIX for hire rides: Check baseFare and totalFare
+        fare = request.fare ?? data.fare ?? data.baseFare ?? data.totalFare ?? data.estimatedPrice ?? data.deliveryFee ?? 0
+        console.log(`💰 [${isDelivery ? 'Delivery' : 'RegularRide/Hire'}] Fare:`, fare, {
+          requestFare: request.fare,
+          dataFare: data.fare,
+          dataBaseFare: data.baseFare,
+          dataTotalFare: data.totalFare,
+          finalFare: fare,
+        })
       }
 
       // Ensure we have basic data with proper fallbacks

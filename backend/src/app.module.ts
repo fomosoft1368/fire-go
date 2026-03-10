@@ -19,6 +19,7 @@ import { PricingModule } from './modules/pricing/pricing.module';
 import { HourlyServicesModule } from './modules/hourly-services/hourly-services.module';
 import { AddonServicesModule } from './modules/addon-services/addon-services.module';
 import { DriverSearchConfigModule } from './modules/config/config.module';
+import { LegalDocsModule } from './modules/config/legal-docs.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { DriverSearchConfigModule } from './modules/config/config.module';
     HourlyServicesModule,
     AddonServicesModule,
     DriverSearchConfigModule,
+    LegalDocsModule,
   ],
   controllers: [],
   providers: [],

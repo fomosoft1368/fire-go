@@ -1,10 +1,11 @@
-import { useRef, useEffect, useState } from 'react'
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native'
+import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
+import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native'
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps'
 import * as Location from 'expo-location'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 
 interface MapViewComponentProps {
+  style?: ViewStyle | ViewStyle[]
   height?: number
   initialRegion?: {
     latitude: number
@@ -34,7 +35,8 @@ interface MapViewComponentProps {
   }>
 }
 
-const MapViewComponent = ({
+const MapViewComponent = forwardRef(({
+  style,
   height = 300,
   initialRegion,
   onLocationSelect,
@@ -44,7 +46,7 @@ const MapViewComponent = ({
   driverCoords,
   routeCoordinates = [],
   drivers = [],
-}: MapViewComponentProps) => {
+}: MapViewComponentProps, ref) => {
   const mapRef = useRef<MapView>(null)
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   // Initialize with fallback region
@@ -55,7 +57,20 @@ const MapViewComponent = ({
     longitudeDelta: 0.0421,
   }
   const [currentRegion, setCurrentRegion] = useState(initialRegion || defaultRegion)
-  const [mapInitialRegion, setMapInitialRegion] = useState(initialRegion || defaultRegion)
+  const mapInitialRegion = initialRegion || defaultRegion
+
+  // Expose mapRef methods to parent component
+  useImperativeHandle(ref, () => ({
+    animateToRegion: (region: any, duration?: number) => {
+      mapRef.current?.animateToRegion(region, duration)
+    },
+    fitToCoordinates: (coordinates: any, options?: any) => {
+      mapRef.current?.fitToCoordinates(coordinates, options)
+    },
+    animateCamera: (camera: any, options?: any) => {
+      mapRef.current?.animateCamera(camera, options)
+    },
+  }))
 
   // Lấy vị trí người dùng ở BACKGROUND (không chặn rendering)
   useEffect(() => {
@@ -199,7 +214,7 @@ const MapViewComponent = ({
   }
 
   return (
-    <View style={[styles.container, { height }]}>
+    <View style={style || [styles.container, height ? { height, flex: 0 } : null]}>
       <MapView
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
@@ -355,9 +370,8 @@ const MapViewComponent = ({
             mapRef.current.animateCamera({
               heading: 0,
               pitch: 0,
-              zoom: mapRef.current.camera?.zoom || 15,
-              duration: 300,
-            }, { duration: 300 })
+              zoom: 15,
+            })
           }
         }}
       >
@@ -365,16 +379,16 @@ const MapViewComponent = ({
       </TouchableOpacity>
     </View>
   )
-}
+})
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     width: '100%',
-    marginBottom: 16,
     position: 'relative',
   },
   map: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   zoomButton: {
     position: 'absolute',

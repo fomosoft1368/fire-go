@@ -12,13 +12,15 @@ import {
     FlatList,
     Animated,
     Image,
+    StatusBar,
+    PanResponder,
+    Dimensions,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import * as Location from 'expo-location'
 import * as ImagePicker from 'expo-image-picker'
 import { COLORS } from '../constants'
 import MapViewComponent from '../components/MapView'
-import ChatScreen from './ChatScreen'
 import { mapsService } from '../services/mapsService'
 import { vehicleConditionService } from '../services/vehicleConditionService'
 interface TripActivitiesProps {
@@ -38,6 +40,10 @@ interface Customer {
     totalFares?: number
 }
 
+const SCREEN_HEIGHT = Dimensions.get('window').height
+const MIN_HEIGHT = SCREEN_HEIGHT * 0.42 // 42%
+const MAX_HEIGHT = SCREEN_HEIGHT * 0.85 // 85%
+
 export default function TripActivities({ navigation, route }: TripActivitiesProps) {
     const [ride, setRide] = useState<any>(null)
     const [customer, setCustomer] = useState<Customer | null>(null)
@@ -46,14 +52,62 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
     const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
     const [dropoffCoords, setDropoffCoords] = useState<{ latitude: number; longitude: number } | null>(null)
     const [tripStatus, setTripStatus] = useState<'going_to_pickup' | 'arrived_at_pickup' | 'vehicle-condition-checked' | 'in_progress'>('going_to_pickup')
-    const [showChat, setShowChat] = useState(false)
     const [unreadCount, setUnreadCount] = useState(0)
     const [routeInfo, setRouteInfo] = useState<any>(null)
     const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
     const [showVehicleCheckModal, setShowVehicleCheckModal] = useState(false)
     const [vehiclePhotos, setVehiclePhotos] = useState<string[]>([])
 
+    // Bottom Sheet Animation
+    const bottomSheetHeight = useRef(new Animated.Value(MIN_HEIGHT)).current
+    const lastGestureDy = useRef(0)
+
     const rideId = route?.params?.rideId
+
+    // Pan Responder for Bottom Sheet drag
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gestureState) => {
+                // Chỉ bắt gesture khi vuốt dọc
+                return Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
+            },
+            onPanResponderGrant: () => {
+                bottomSheetHeight.setOffset(lastGestureDy.current)
+            },
+            onPanResponderMove: (_, gestureState) => {
+                // Invert dy vì kéo lên là giá trị âm
+                const newValue = -gestureState.dy
+                // Clamp giá trị trong khoảng MIN và MAX
+                if (lastGestureDy.current + newValue < MIN_HEIGHT) {
+                    bottomSheetHeight.setValue(MIN_HEIGHT - lastGestureDy.current)
+                } else if (lastGestureDy.current + newValue > MAX_HEIGHT) {
+                    bottomSheetHeight.setValue(MAX_HEIGHT - lastGestureDy.current)
+                } else {
+                    bottomSheetHeight.setValue(newValue)
+                }
+            },
+            onPanResponderRelease: (_, gestureState) => {
+                bottomSheetHeight.flattenOffset()
+                const currentHeight = lastGestureDy.current - gestureState.dy
+                
+                // Tính threshold (giữa MIN và MAX)
+                const threshold = (MIN_HEIGHT + MAX_HEIGHT) / 2
+                
+                // Snap tới MIN hoặc MAX dựa vào vị trí hiện tại
+                const toValue = currentHeight > threshold ? MAX_HEIGHT : MIN_HEIGHT
+                
+                lastGestureDy.current = toValue
+                
+                Animated.spring(bottomSheetHeight, {
+                    toValue,
+                    useNativeDriver: false,
+                    damping: 25,
+                    stiffness: 120,
+                }).start()
+            },
+        })
+    ).current
 
     useEffect(() => {
         if (rideId) {
@@ -276,7 +330,16 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
     }
 
     const handleChat = () => {
-        setShowChat(true)
+        if (!navigation) return
+        
+        navigation.navigate('ChatScreen', {
+            customer: {
+                id: customer?._id,
+                name: customer?.name || 'Khách hàng',
+                phone: customer?.phone,
+            },
+            rideId: rideId,
+        })
         setUnreadCount(0)
     }
 
@@ -459,43 +522,32 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         }
     }
 
-    // Show chat screen
-    if (showChat && customer) {
-        return (
-            <ChatScreen
-                customer={{
-                    id: customer._id,
-                    name: customer.name || 'Khách hàng',
-                    phone: customer.phone,
-                }}
-                rideId={rideId}
-                onClose={() => setShowChat(false)}
-            />
-        )
-    }
-
     return (
         <View style={styles.container}>
-            <View style={StyleSheet.absoluteFillObject}>
-                <MapViewComponent
-                    height={'100%'}
-                    initialRegion={pickupCoords ? {
-                        latitude: pickupCoords.latitude,
-                        longitude: pickupCoords.longitude,
-                        latitudeDelta: 0.01,
-                        longitudeDelta: 0.01,
-                    } : undefined}
-                    pickupCoords={pickupCoords || undefined}
-                    dropoffCoords={dropoffCoords || undefined}
-                    driverCoords={driverLocation || undefined}
-                    routeCoordinates={routeInfo?.routeCoordinates || []}
-                />
-            </View>
+            <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+            <MapViewComponent
+                style={StyleSheet.absoluteFillObject}
+                initialRegion={pickupCoords ? {
+                    latitude: pickupCoords.latitude,
+                    longitude: pickupCoords.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                } : undefined}
+                pickupCoords={pickupCoords || undefined}
+                dropoffCoords={dropoffCoords || undefined}
+                driverCoords={driverLocation || undefined}
+                routeCoordinates={routeInfo?.routeCoordinates || []}
+            />
             <View style={styles.header}>
+                <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+                    <MaterialIcons name="arrow-back" size={24} color="#fff" />
+                </TouchableOpacity>
                 <Text style={styles.logoText}>firego</Text>
             </View>
-            <View style={styles.card}>
-                <View style={styles.handleBar} />
+            <Animated.View style={[styles.card, { height: bottomSheetHeight }]}>
+                <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+                    <View style={styles.handleBar} />
+                </View>
 
                 <ScrollView
                     showsVerticalScrollIndicator={false}
@@ -552,7 +604,9 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                             <MaterialIcons name="navigation" size={24} color="#FF6B00" />
                             <View style={styles.distanceToPickupInfo}>
                                 <Text style={styles.distanceToPickupLabel}>Khoảng cách đến điểm đón</Text>
-                                <Text style={styles.distanceToPickupValue}>2.3 km • 8 phút</Text>
+                                <Text style={styles.distanceToPickupValue}>
+                                    {routeInfo?.distance ? `${routeInfo.distance} km` : '0.0 km'} • {routeInfo?.duration ? `${routeInfo.duration} phút` : '0 phút'}
+                                </Text>
                             </View>
                         </View>
                         <TouchableOpacity style={styles.navigationButton}>
@@ -601,7 +655,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                                     {ride?.distance && (
                                         <View style={styles.distanceBadge}>
                                             <MaterialIcons name="straighten" size={12} color="#9CA3AF" />
-                                            <Text style={styles.distanceText}>{(ride.distance / 1000).toFixed(1)} km</Text>
+                                            <Text style={styles.distanceText}>{typeof ride.distance === 'number' ? ride.distance.toFixed(1) : ride.distance} km</Text>
                                         </View>
                                     )}
                                 </View>
@@ -625,12 +679,12 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                     <View style={styles.metricsGrid}>
                         <View style={styles.metricCard}>
                             <MaterialIcons name="straighten" size={18} color="#9CA3AF" />
-                            <Text style={styles.metricValue}>{ride?.distance ? `${(ride.distance / 1000).toFixed(1)} km` : '8.5 km'}</Text>
+                            <Text style={styles.metricValue}>{ride?.distance ? `${typeof ride.distance === 'number' ? ride.distance.toFixed(1) : ride.distance} km` : '0.0 km'}</Text>
                             <Text style={styles.metricLabel}>Tổng quãng đường</Text>
                         </View>
                         <View style={styles.metricCard}>
                             <MaterialIcons name="schedule" size={18} color="#9CA3AF" />
-                            <Text style={styles.metricValue}>{ride?.duration ? `${Math.round(ride.duration / 60)} phút` : '25 phút'}</Text>
+                            <Text style={styles.metricValue}>{ride?.duration ? `${typeof ride.duration === 'number' ? Math.round(ride.duration) : ride.duration} phút` : '0 phút'}</Text>
                             <Text style={styles.metricLabel}>Thời gian dự kiến</Text>
                         </View>
                     </View>
@@ -666,7 +720,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                         )}
                     </TouchableOpacity>
                 </View>
-            </View>
+            </Animated.View>
 
             {/* Vehicle Check Modal */}
             <Modal
@@ -754,7 +808,7 @@ const styles = StyleSheet.create({
     },
     header: {
         position: 'absolute',
-        top: 50,
+        top: 60,
         left: 20,
         flexDirection: 'row',
         alignItems: 'center',
@@ -762,16 +816,17 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        backgroundColor: '#FF6B00',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
+        shadowColor: '#FF6B00',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        elevation: 8,
     },
     logoText: {
         fontSize: 30,
@@ -784,17 +839,20 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: '#1a202c',
+        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
-        paddingTop: 12,
         paddingBottom: 16,
-        shadowColor: '#000',
+        shadowColor: '#FF6B00',
         shadowOffset: { width: 0, height: -6 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.15,
         shadowRadius: 12,
         elevation: 15,
-        maxHeight: '50%',
+    },
+    handleBarContainer: {
+        paddingVertical: 12,
+        alignItems: 'center',
+        width: '100%',
     },
     cardContent: {
         flex: 1,
@@ -806,14 +864,12 @@ const styles = StyleSheet.create({
     handleBar: {
         width: 40,
         height: 5,
-        backgroundColor: '#4B5563',
+        backgroundColor: '#FFB380',
         borderRadius: 3,
-        alignSelf: 'center',
-        marginBottom: 20,
     },
     // Customer Card
     customerCard: {
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
@@ -821,7 +877,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         borderWidth: 1,
-        borderColor: '#4B5563',
+        borderColor: '#FFB380',
     },
     customerInfo: {
         flexDirection: 'row',
@@ -837,7 +893,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginRight: 12,
         borderWidth: 2,
-        borderColor: '#4B5563',
+        borderColor: '#FFB380',
     },
     customerDetails: {
         flex: 1,
@@ -845,7 +901,7 @@ const styles = StyleSheet.create({
     customerName: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#fff',
+        color: '#1F2937',
         marginBottom: 4,
     },
     ratingRow: {
@@ -856,11 +912,11 @@ const styles = StyleSheet.create({
     ratingText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#9CA3AF',
+        color: '#6B7280',
     },
     tripCount: {
         fontSize: 12,
-        color: '#6B7280',
+        color: '#9CA3AF',
     },
     actionButtons: {
         flexDirection: 'row',
@@ -895,7 +951,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 5,
         borderWidth: 2,
-        borderColor: '#374151',
+        borderColor: '#FFFFFF',
     },
     badgeText: {
         fontSize: 10,
@@ -907,12 +963,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#374151',
+        backgroundColor: '#FFE5D9',
         borderRadius: 12,
         padding: 12,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#4B5563',
+        borderColor: '#FFB380',
     },
     statusBadge: {
         flexDirection: 'row',
@@ -928,16 +984,16 @@ const styles = StyleSheet.create({
     statusText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#fff',
+        color: '#1F2937',
     },
     etaText: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#FFB800',
+        color: '#FF6B00',
     },
     // Distance to Pickup Card
     distanceToPickupCard: {
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
         borderRadius: 16,
         padding: 14,
         marginBottom: 16,
@@ -945,7 +1001,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         borderWidth: 1,
-        borderColor: '#4B5563',
+        borderColor: '#FFB380',
     },
     distanceToPickupLeft: {
         flexDirection: 'row',
@@ -958,13 +1014,13 @@ const styles = StyleSheet.create({
     },
     distanceToPickupLabel: {
         fontSize: 12,
-        color: '#9CA3AF',
+        color: '#6B7280',
         marginBottom: 4,
     },
     distanceToPickupValue: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#fff',
+        color: '#1F2937',
     },
     navigationButton: {
         width: 40,
@@ -984,16 +1040,16 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#9CA3AF',
+        color: '#6B7280',
     },
     // Trip Info Section
     tripInfoSection: {
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#4B5563',
+        borderColor: '#FFB380',
     },
     tripInfoGrid: {
         flexDirection: 'row',
@@ -1005,19 +1061,19 @@ const styles = StyleSheet.create({
     },
     tripInfoLabel: {
         fontSize: 12,
-        color: '#9CA3AF',
+        color: '#6B7280',
         marginBottom: 4,
     },
     tripInfoValue: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#fff',
+        color: '#1F2937',
     },
     paymentBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: '#1a202c',
+        backgroundColor: '#FFE5D9',
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 8,
@@ -1025,17 +1081,17 @@ const styles = StyleSheet.create({
     },
     paymentText: {
         fontSize: 12,
-        color: '#9CA3AF',
+        color: '#6B7280',
         fontWeight: '500',
     },
     // Route Section
     routeSection: {
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#4B5563',
+        borderColor: '#FFB380',
     },
     locationItem: {
         flexDirection: 'row',
@@ -1052,12 +1108,12 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         backgroundColor: '#22C55E',
         borderWidth: 2,
-        borderColor: '#fff',
+        borderColor: '#FFFFFF',
     },
     routeLine: {
         width: 2,
         height: 40,
-        backgroundColor: '#4B5563',
+        backgroundColor: '#FFB380',
         marginTop: 4,
     },
     locationContent: {
@@ -1072,26 +1128,26 @@ const styles = StyleSheet.create({
     locationLabel: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#9CA3AF',
+        color: '#6B7280',
         marginBottom: 4,
     },
     locationAddress: {
         fontSize: 14,
-        color: '#fff',
+        color: '#1F2937',
         lineHeight: 20,
     },
     distanceBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        backgroundColor: '#1a202c',
+        backgroundColor: '#FFE5D9',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
     },
     distanceText: {
         fontSize: 11,
-        color: '#9CA3AF',
+        color: '#6B7280',
         fontWeight: '600',
     },
     // Metrics Grid
@@ -1102,23 +1158,23 @@ const styles = StyleSheet.create({
     },
     metricCard: {
         flex: 1,
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
         borderRadius: 12,
         padding: 14,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#4B5563',
+        borderColor: '#FFB380',
     },
     metricValue: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#fff',
+        color: '#1F2937',
         marginTop: 6,
         marginBottom: 2,
     },
     metricLabel: {
         fontSize: 11,
-        color: '#9CA3AF',
+        color: '#6B7280',
         fontWeight: '500',
         textAlign: 'center',
     },
@@ -1129,8 +1185,8 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         gap: 12,
         borderTopWidth: 1,
-        borderTopColor: '#374151',
-        backgroundColor: '#1a202c',
+        borderTopColor: '#FFE5D9',
+        backgroundColor: '#FFFFFF',
     },
     secondaryButton: {
         flex: 1,
@@ -1176,7 +1232,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     vehicleCheckModal: {
-        backgroundColor: '#1a202c',
+        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         paddingTop: 20,
@@ -1193,19 +1249,19 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#fff',
+        color: '#1F2937',
     },
     closeButton: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
         alignItems: 'center',
         justifyContent: 'center',
     },
     modalSubtitle: {
         fontSize: 14,
-        color: '#9CA3AF',
+        color: '#6B7280',
         marginBottom: 20,
     },
     photoList: {
@@ -1223,7 +1279,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         overflow: 'hidden',
         position: 'relative',
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
     },
     photoImage: {
         width: '100%',
@@ -1249,7 +1305,7 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
     },
     addPhotoText: {
         fontSize: 12,
@@ -1263,13 +1319,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 6,
         paddingVertical: 12,
-        backgroundColor: '#374151',
+        backgroundColor: '#FFF5F0',
         borderRadius: 8,
         marginBottom: 16,
     },
     photoCounterText: {
         fontSize: 14,
-        color: '#9CA3AF',
+        color: '#6B7280',
         fontWeight: '600',
     },
     modalActions: {
@@ -1280,14 +1336,14 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 14,
         borderRadius: 12,
-        backgroundColor: '#374151',
+        backgroundColor: '#F3F4F6',
         alignItems: 'center',
         justifyContent: 'center',
     },
     modalCancelButtonText: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#9CA3AF',
+        color: '#6B7280',
     },
     modalConfirmButton: {
         flex: 1,
