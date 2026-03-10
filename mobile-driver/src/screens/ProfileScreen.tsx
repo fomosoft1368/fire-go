@@ -176,6 +176,7 @@ export default function ProfileScreen() {
       value: currentRegion?.name,
       onPress: () => setShowRegionModal(true),
     },
+    
     {
       icon: 'lock-outline',
       label: 'Đổi mật khẩu',
@@ -187,6 +188,7 @@ export default function ProfileScreen() {
     {
       icon: 'notifications-none',
       label: 'Thông báo',
+      onPress: () => navigation.navigate('Notifications' as never),
     },
     {
       icon: 'language',
@@ -196,6 +198,7 @@ export default function ProfileScreen() {
     {
       icon: 'settings',
       label: 'Cài đặt ứng dụng',
+      onPress: () => navigation.navigate('SettingsScreen' as never),
     },
   ]
 

@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { MulterModule } from '@nestjs/platform-express';
 import { DriversService } from './drivers.service';
 import { DriversController } from './drivers.controller';
 import { Driver, DriverSchema } from './schemas/driver.schema';
@@ -31,6 +32,12 @@ import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.sc
       { name: Delivery.name, schema: DeliverySchema },
       { name: PricingConfig.name, schema: PricingConfigSchema },
     ]),
+    MulterModule.register({
+      dest: './uploads/driver-documents',
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB per file
+      },
+    }),
     PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
     WalletsModule, // Import WalletsModule for customer wallet handling
   ],
