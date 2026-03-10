@@ -2,6 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 interface AuthState {
   isLoading: boolean
+  isInitializing: boolean
   user: any
   token: string | null
   isAuthenticated: boolean
@@ -10,6 +11,7 @@ interface AuthState {
 
 const initialState: AuthState = {
   isLoading: false,
+  isInitializing: true,
   user: null,
   token: null,
   isAuthenticated: false,
@@ -56,6 +58,7 @@ const authSlice = createSlice({
       state.error = action.payload
     },
     restoreAuth: (state, action: PayloadAction<{ token: string; user: any } | null>) => {
+      state.isInitializing = false
       if (action.payload) {
         state.token = action.payload.token
         state.user = action.payload.user

@@ -382,7 +382,7 @@ console.log('[App] Fetching user profile with token...')
       console.log('👤 User from Redux:', user?.id || 'NULL')
       
       try {
-        const API_URL = 'http://192.168.1.18:3000/api'
+        const API_URL = 'http://192.168.1.16:3000/api'
         const token = await AsyncStorage.getItem('token')
         if (!token) {
           console.warn('[App] ⚠️ No auth token, skipping poll')
@@ -808,13 +808,13 @@ export default function App() {
 
         let endpoint = ''
         if (dataType === 'combined_trip') {
-          endpoint = `http://192.168.1.18:3000/api/combined-trips/${dataId}`
+          endpoint = `http://192.168.1.16:3000/api/combined-trips/${dataId}`
           console.log('[App] 📡 Fetching full combined trip data for:', dataId)
         } else if (dataType === 'ride') {
-          endpoint = `http://192.168.1.18:3000/api/rides/${dataId}`
+          endpoint = `http://192.168.1.16:3000/api/rides/${dataId}`
           console.log('[App] 📡 Fetching full ride data for:', dataId)
         } else if (dataType === 'delivery') {
-          endpoint = `http://192.168.1.18:3000/api/deliveries/${dataId}`
+          endpoint = `http://192.168.1.16:3000/api/deliveries/${dataId}`
           console.log('[App] 📡 Fetching full delivery data for:', dataId)
         }
 

@@ -469,6 +469,15 @@ export default function HomeScreen() {
           <Text style={styles.servicesSectionTitle}>Dịch vụ khác</Text>
           <View style={styles.servicesGrid}>
             <ServiceCard
+              icon="people"
+              iconColor="#f59e0b"
+              iconBg="#fef3c7"
+              title="Tạo ghép xe"
+              subtitle="Tạo chuyến mới"
+              count={0}
+              onPress={() => navigation.navigate('CreateRide')}
+            />
+            <ServiceCard
               icon="local-shipping"
               iconColor="#10b981"
               iconBg="#d1fae5"
@@ -503,12 +512,6 @@ export default function HomeScreen() {
                   size={20}
                   color={refreshing ? COLORS.textSecondary : COLORS.primary}
                 />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.createRideButton}
-                onPress={() => navigation.navigate('CreateRide')}
-              >
-                <MaterialIcons name="add" size={22} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>

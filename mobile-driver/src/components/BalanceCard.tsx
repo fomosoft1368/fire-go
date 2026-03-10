@@ -40,7 +40,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
   return (
     <View style={styles.cardWrapper}>
       <LinearGradient
-        colors={['#FF8A3D', '#FF6B00', '#E85D00']}
+        colors={['#FF6B35', '#FF6B35', '#FF6B35']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.card}
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 24,
     padding: SPACING.xl,
-    shadowColor: '#FF6B00',
+    shadowColor: '#FF6B35',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 16,

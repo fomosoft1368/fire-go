@@ -24,10 +24,10 @@ export default function EditProfileScreen() {
   const dispatch = useDispatch()
   const navigation = useNavigation()
   const { user } = useSelector((state: RootState) => state.auth)
-  
+
   const [formData, setFormData] = useState({
-    name: user?.firstName && user?.lastName 
-      ? `${user.firstName} ${user.lastName}` 
+    name: user?.firstName && user?.lastName
+      ? `${user.firstName} ${user.lastName}`
       : user?.name || '',
     email: user?.email || '',
     phone: user?.phone || user?.phoneNumber || '',
@@ -54,15 +54,15 @@ export default function EditProfileScreen() {
           const profile = await driverService.getProfile()
           console.log('[EditProfile] Fresh profile from API:', profile)
           console.log('[EditProfile] Fresh driverTypes:', profile.driverTypes)
-          
+
           // Update Redux
           dispatch(updateUser(profile))
-          
+
           // Update local state
           setSelectedDriverTypes(profile.driverTypes || ['rideshare'])
           setFormData({
-            name: profile.firstName && profile.lastName 
-              ? `${profile.firstName} ${profile.lastName}` 
+            name: profile.firstName && profile.lastName
+              ? `${profile.firstName} ${profile.lastName}`
               : profile.name || '',
             email: profile.email || '',
             phone: profile.phone || profile.phoneNumber || '',
@@ -71,7 +71,7 @@ export default function EditProfileScreen() {
           console.error('[EditProfile] Error loading profile:', error)
         }
       }
-      
+
       loadProfile()
     }, [])
   )
@@ -98,31 +98,31 @@ export default function EditProfileScreen() {
   const handleSave = async () => {
     try {
       setSaving(true)
-      
+
       const updateData = {
         phone: formData.phone,
         email: formData.email,
         driverTypes: selectedDriverTypes,
       }
-      
-      console.log('[EditProfile] Saving profile...') 
+
+      console.log('[EditProfile] Saving profile...')
       console.log('[EditProfile] Update data:', JSON.stringify(updateData, null, 2))
       console.log('[EditProfile] Selected driverTypes:', selectedDriverTypes)
-      
+
       const result = await driverService.updateMyProfile(updateData)
-      
+
       console.log('[EditProfile] ✅ Save successful')
       console.log('[EditProfile] Result:', JSON.stringify(result, null, 2))
-      
+
       // Refetch profile để đảm bảo dữ liệu đồng bộ
       const updatedProfile = await driverService.getProfile()
       console.log('[EditProfile] ✅ Updated profile from API:', JSON.stringify(updatedProfile, null, 2))
       console.log('[EditProfile] Updated driverTypes:', updatedProfile.driverTypes)
-      
+
       // Cập nhật Redux state với dữ liệu mới nhất từ API
       dispatch(updateUser(updatedProfile))
       console.log('[EditProfile] ✅ Redux updated')
-      
+
       // Cập nhật AsyncStorage
       const currentUser = await AsyncStorage.getItem('user')
       if (currentUser) {
@@ -131,7 +131,7 @@ export default function EditProfileScreen() {
         await AsyncStorage.setItem('user', JSON.stringify(mergedUser))
         console.log('[EditProfile] ✅ AsyncStorage updated')
       }
-      
+
       Alert.alert(
         'Thành công',
         'Thông tin cá nhân đã được cập nhật',
@@ -163,7 +163,7 @@ export default function EditProfileScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.lightBg} />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -328,7 +328,7 @@ export default function EditProfileScreen() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.infoItem} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.infoItem} activeOpacity={0.7} onPress={() => (navigation as any).navigate('')}>
             <View style={styles.infoLeft}>
               <View style={styles.infoIconContainer}>
                 <MaterialIcons
@@ -346,8 +346,8 @@ export default function EditProfileScreen() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.infoItem} 
+          <TouchableOpacity
+            style={styles.infoItem}
             activeOpacity={0.7}
             onPress={() => (navigation as any).navigate('ChangePassword')}
           >

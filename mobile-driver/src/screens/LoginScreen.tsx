@@ -10,6 +10,7 @@ import {
   ScrollView,
   ImageBackground,
   SafeAreaView,
+  Image,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
@@ -18,15 +19,15 @@ import { login as loginAPI } from '../services/authService'
 import type { RootState } from '../redux/store'
 
 const COLORS = {
-  primary: '#137fec',
+  primary: '#FF6B35',
   white: '#ffffff',
-  text: '#ffffff',
-  textSecondary: '#a0aec0',
-  border: '#2d3748',
-  background: '#0f172a',
-  surface: '#1a202c',
-  darkBg: '#0f172a',
-  darkCard: '#1a202c',
+  text: '#111418',
+  textSecondary: '#64748b',
+  border: '#e2e8f0',
+  background: '#ffffff',
+  surface: '#f8fafc',
+  darkBg: '#ffffff',
+  darkCard: '#f1f5f9',
   darkText: '#111418',
 }
 
@@ -82,7 +83,11 @@ export default function LoginScreen({ navigation }: any) {
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logoBg}>
-              <MaterialIcons name="directions-car" size={24} color={COLORS.primary} />
+              <Image
+                source={require('../assets/fire-logo.png')}
+                style={{ width: 45, height: 45 }}
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.appName}>firego</Text>
           </View>
@@ -289,7 +294,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '700',
     letterSpacing: -0.5,
-    color: '#FF6B00',
+    color: '#FF6B35',
   },
 
   bannerContainer: {

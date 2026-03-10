@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen, TopupScreen, WithdrawScreen, HourlyService, FindingServiceScreen, ServiceDetailScreen, ServiceRatingScreen  } from './screens'
-import { View, Text } from 'react-native'
+import { View, Text, ActivityIndicator } from 'react-native'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
@@ -160,6 +160,7 @@ const MainNavigator = () => {
 
 const RootNavigator = () => {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated)
+  const isInitializing = useSelector((state: RootState) => state.auth.isInitializing)
   const dispatch = useDispatch()
 
   useEffect(() => {
@@ -196,6 +197,16 @@ const RootNavigator = () => {
 
     restoreAuthFromStorage()
   }, [dispatch])
+
+  // Show loading screen while checking auth
+  if (isInitializing) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: 16, fontSize: 16, color: COLORS.textSecondary }}>Đang tải...</Text>
+      </View>
+    )
+  }
 
   return (
     <Stack.Navigator

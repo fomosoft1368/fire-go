@@ -139,6 +139,12 @@ export default function ProfileScreen() {
       onPress: () => Alert.alert('Email', user?.email || 'Chưa cập nhật'),
     },
     {
+      icon: 'location-on',
+      label: 'Vùng/Khu vực',
+      value: 'Hà Nội, Việt Nam',
+      onPress: () => navigation.navigate('SelectRegion'),
+    },
+    {
       icon: 'lock-outline',
       label: 'Đổi mật khẩu',
       onPress: () => navigation.navigate('ChangePassword'),

@@ -18,18 +18,21 @@ import { loginStart, loginSuccess, loginFailure } from '../redux/slices/authSlic
 import type { RootState } from '../redux/store'
 
 const COLORS = {
-  primary: '#137fec',
+  primary: '#FF6B35',
+  primaryLight: '#FF8C5A',
+  primaryDark: '#E55A25',
   white: '#ffffff',
-  text: '#ffffff',
-  textSecondary: '#a0aec0',
-  border: '#2d3748',
-  background: '#0f172a',
-  surface: '#1a202c',
-  darkBg: '#0f172a',
-  darkCard: '#1a202c',
+  text: '#111418',
+  textSecondary: '#64748b',
+  textTertiary: '#94a3b8',
+  border: '#e2e8f0',
+  background: '#ffffff',
+  surface: '#f8fafc',
+  darkBg: '#ffffff',
+  darkCard: '#f1f5f9',
   darkText: '#111418',
   success: '#10b981',
-  error: '#ff6b6b',
+  error: '#ef4444',
 }
 
 interface FormData {
@@ -45,19 +48,14 @@ interface FormData {
   vehicleColor: string
   vehiclePlate: string
   vehicleLicense: string
-  vehicleType: string // NEW: sedan, suv, pickup, motorcycle
+  vehicleType: string // sedan, suv, pickup, motorcycle
 
   // Driver License Info
   licenseNumber: string
   licenseExpiry: string
 
   // Service Selection
-  driverTypes: string[] // NEW: rideshare, hire, delivery
-
-  // Banking Info
-  bankName: string
-  bankAccount: string
-  bankAccountHolder: string
+  driverTypes: string[] // rideshare, hire, delivery
 }
 
 interface FormErrors {
@@ -65,7 +63,7 @@ interface FormErrors {
 }
 
 export default function RegisterScreen({ navigation }: any) {
-  const [step, setStep] = useState(1) // 1: Personal, 2: Vehicle, 3: Banking
+  const [step, setStep] = useState(1) // 1: Personal, 2: Vehicle
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -81,13 +79,10 @@ export default function RegisterScreen({ navigation }: any) {
     vehicleColor: '',
     vehiclePlate: '',
     vehicleLicense: '',
-    vehicleType: 'sedan', // NEW
+    vehicleType: 'sedan',
     licenseNumber: '',
     licenseExpiry: '',
-    driverTypes: ['rideshare'], // NEW
-    bankName: '',
-    bankAccount: '',
-    bankAccountHolder: '',
+    driverTypes: ['rideshare'],
   })
 
   const dispatch = useDispatch()
@@ -201,7 +196,7 @@ export default function RegisterScreen({ navigation }: any) {
     if (step === 1 && validateStep1()) {
       setStep(2)
     } else if (step === 2 && validateStep2()) {
-      setStep(3)
+      handleRegister()
     }
   }
 
@@ -212,8 +207,6 @@ export default function RegisterScreen({ navigation }: any) {
   }
 
   const handleRegister = async () => {
-    if (step !== 3) return
-
     setIsLoading(true)
     try {
       // Format the data for API
@@ -231,13 +224,10 @@ export default function RegisterScreen({ navigation }: any) {
         licenseNumber: formData.licenseNumber,
         licenseExpiry: formData.licenseExpiry,
         driverTypes: formData.driverTypes,
-        bankName: formData.bankName,
-        bankAccount: formData.bankAccount,
-        bankAccountHolder: formData.bankAccountHolder,
       }
 
       // Call registration API
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.16:3000/api'
       console.log('🚀 Calling API:', `${API_BASE_URL}/drivers`)
       console.log('📤 Registration Data:', registrationData)
 
@@ -381,7 +371,7 @@ export default function RegisterScreen({ navigation }: any) {
           <Text style={styles.headerTitle}>Đăng ký tài xế</Text>
           <View style={styles.stepIndicator}>
             <Text style={styles.stepText}>
-              Bước {step} / 3
+              Bước {step} / 2
             </Text>
           </View>
         </View>
@@ -391,7 +381,7 @@ export default function RegisterScreen({ navigation }: any) {
           <View
             style={[
               styles.progressFill,
-              { width: `${(step / 3) * 100}%` },
+              { width: `${(step / 2) * 100}%` },
             ]}
           />
         </View>
@@ -545,8 +535,7 @@ export default function RegisterScreen({ navigation }: any) {
                 </Text>
               </View>
             </View>
-          )}
-        </ScrollView>
+          )}        </ScrollView>
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
@@ -561,7 +550,7 @@ export default function RegisterScreen({ navigation }: any) {
             </TouchableOpacity>
           )}
 
-          {step < 3 ? (
+          {step < 2 ? (
             <TouchableOpacity
               style={[styles.button, styles.primaryButton, !step && { flex: 1 }]}
               onPress={handleNextStep}
@@ -573,7 +562,7 @@ export default function RegisterScreen({ navigation }: any) {
           ) : (
             <TouchableOpacity
               style={[styles.button, styles.primaryButton, styles.successButton]}
-              onPress={handleRegister}
+              onPress={handleNextStep}
               disabled={isLoading}
             >
               {isLoading ? (
@@ -603,7 +592,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingVertical: 12,
     backgroundColor: COLORS.darkBg,
     borderBottomWidth: 1,
@@ -615,126 +604,153 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 18,
-    fontWeight: '700',
+    marginLeft: 16,
+    fontSize: 20,
+    fontWeight: '800',
     color: COLORS.text,
     paddingTop: 60,
+    letterSpacing: 0.3,
   },
   stepIndicator: {
-    backgroundColor: COLORS.darkCard,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    backgroundColor: `${COLORS.primary}15`,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}30`,
   },
   stepText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.primary,
+    letterSpacing: 0.4,
   },
   progressBar: {
-    height: 4,
-    backgroundColor: COLORS.darkCard,
-    borderRadius: 2,
-    marginHorizontal: 16,
-    marginTop: 12,
+    height: 6,
+    backgroundColor: `${COLORS.border}30`,
+    borderRadius: 3,
+    marginHorizontal: 20,
+    marginTop: 16,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: COLORS.primary,
-    borderRadius: 2,
+    borderRadius: 3,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   scrollView: {
     flex: 1,
   },
   scrollViewContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
     paddingBottom: 140,
   },
   stepContent: {
-    marginBottom: 24,
+    marginBottom: 28,
   },
   stepTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '900',
     color: COLORS.text,
-    marginBottom: 8,
+    marginBottom: 12,
+    letterSpacing: -0.3,
   },
   stepDescription: {
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.textSecondary,
-    marginBottom: 24,
-    lineHeight: 20,
+    marginBottom: 32,
+    lineHeight: 24,
+    fontWeight: '500',
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '900',
     color: COLORS.text,
-    marginTop: 24,
-    marginBottom: 16,
+    marginTop: 32,
+    marginBottom: 18,
+    letterSpacing: 0.2,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 10,
+    marginBottom: 12,
+    letterSpacing: 0.3,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    borderRadius: 10,
+    borderRadius: 16,
     backgroundColor: COLORS.darkCard,
-    paddingHorizontal: 14,
-    height: 56,
+    paddingHorizontal: 18,
+    height: 62,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 14,
   },
   input: {
     flex: 1,
     fontSize: 16,
     color: COLORS.text,
     paddingRight: 12,
+    fontWeight: '500',
   },
   visibilityToggle: {
-    padding: 8,
-    marginLeft: 8,
+    padding: 10,
+    marginLeft: 12,
   },
   errorText: {
     color: COLORS.error,
-    fontSize: 12,
-    marginTop: 6,
+    fontSize: 13,
+    marginTop: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   infoBox: {
     flexDirection: 'row',
-    backgroundColor: `${COLORS.primary}15`,
-    borderLeftWidth: 3,
+    backgroundColor: `${COLORS.primary}12`,
+    borderLeftWidth: 5,
     borderLeftColor: COLORS.primary,
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 24,
-    gap: 12,
+    borderRadius: 14,
+    padding: 18,
+    marginTop: 32,
+    gap: 14,
     alignItems: 'flex-start',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
   },
   infoText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.textSecondary,
-    lineHeight: 18,
+    lineHeight: 22,
+    fontWeight: '500',
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingBottom: 24,
+    gap: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 18,
+    paddingBottom: 28,
     backgroundColor: COLORS.darkBg,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
@@ -744,88 +760,113 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    height: 52,
-    borderRadius: 10,
+    gap: 10,
+    height: 62,
+    borderRadius: 16,
   },
   primaryButton: {
     backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   secondaryButton: {
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: COLORS.primary,
     backgroundColor: 'transparent',
   },
   successButton: {
     backgroundColor: COLORS.success,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   primaryButtonText: {
     color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
   secondaryButtonText: {
     color: COLORS.primary,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
   vehicleTypeContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 90,
+    gap: 14,
+    marginBottom: 28,
   },
   vehicleTypeBtn: {
     flex: 1,
     minWidth: '45%',
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 16,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    borderRadius: 10,
+    borderRadius: 14,
     backgroundColor: COLORS.darkCard,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   vehicleTypeBtnActive: {
     borderColor: COLORS.primary,
     backgroundColor: `${COLORS.primary}20`,
   },
   vehicleTypeBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '800',
     color: COLORS.textSecondary,
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
   vehicleTypeBtnTextActive: {
     color: COLORS.primary,
-    fontWeight: '700',
+    fontWeight: '900',
   },
   serviceTypeContainer: {
-    gap: 12,
-    marginBottom: 24,
+    gap: 14,
+    marginBottom: 28,
   },
   serviceTypeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    gap: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    borderRadius: 10,
+    borderRadius: 14,
     backgroundColor: COLORS.darkCard,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   serviceTypeBtnActive: {
     borderColor: COLORS.primary,
     backgroundColor: `${COLORS.primary}20`,
   },
   serviceTypeBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '800',
     color: COLORS.text,
+    letterSpacing: 0.2,
   },
   serviceTypeBtnTextActive: {
     color: COLORS.primary,
+    fontWeight: '900',
   },
 })

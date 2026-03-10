@@ -62,7 +62,7 @@ export default function RatingDriverScreen({ navigation, route }: RatingDriverSc
         throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.')
       }
       
-      const API_URL = 'http://192.168.1.18:3000/api'
+      const API_URL = 'http://192.168.1.16:3000/api'
       
       // ✅ Use different endpoint based on trip type
       const endpoint = tripType === 'combined' 

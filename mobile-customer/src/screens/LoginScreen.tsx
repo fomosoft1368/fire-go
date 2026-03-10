@@ -12,6 +12,7 @@ import {
   Platform,
   ImageBackground,
   Dimensions,
+  Image,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
@@ -184,9 +185,13 @@ export default function LoginScreen() {
           {/* Logo */}
           <View style={styles.logoWrapper}>
             <View style={styles.logoContainer}>
-              <MaterialIcons name="directions-car" size={36} color="#fff" />
+              <Image
+                source={require('../assets/logooo.png')}
+                style={{ width: 45, height: 45 }}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles.appName}>FireGo</Text>
+            <Text style={styles.appName}>firego</Text>
           </View>
         </View>
 
@@ -244,7 +249,7 @@ export default function LoginScreen() {
                   authMode === 'login' ? handleLoginBack : handleRegisterBack
                 }
               >
-                <MaterialIcons name="arrow-back" size={20} color="#FF6B00" />
+                <MaterialIcons name="arrow-back" size={20} color="#FF6B35" />
               </TouchableOpacity>
             </View>
           )}
@@ -562,7 +567,7 @@ export default function LoginScreen() {
                     <MaterialIcons
                       name="fingerprint"
                       size={36}
-                      color="#E65100"
+                      color="#FF6B35"
                     />
                   </View>
                   <Text style={styles.biometricText}>Đăng nhập nhanh</Text>
@@ -579,7 +584,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#120C0A',
+    backgroundColor: '#ffffff',
   },
   scrollContent: {
     flexGrow: 1,
@@ -611,7 +616,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: BORDER_RADIUS.xl,
-    backgroundColor: '#FF6B00',
+    backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.md,
@@ -624,14 +629,14 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   appName: {
-    fontSize: 20,
+    fontSize: 30,
     fontWeight: '700',
-    color: '#fff',
-    letterSpacing: 2,
+    letterSpacing: -0.5,
+    color: '#FF6B35',
   },
   contentContainer: {
     flex: 1,
-    backgroundColor: '#120C0A',
+    backgroundColor: '#ffffff',
     marginTop: -30,
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
@@ -651,19 +656,19 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#fff',
+    color: '#111418',
     marginBottom: SPACING.xs,
   },
   tagline: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: '#64748b',
     textAlign: 'center',
     lineHeight: 20,
     maxWidth: 280,
   },
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#1F1612',
+    backgroundColor: '#f1f5f9',
     borderRadius: BORDER_RADIUS.xl,
     padding: 6,
     marginBottom: SPACING.xl,
@@ -676,7 +681,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.lg,
   },
   tabActive: {
-    backgroundColor: '#120C0A',
+    backgroundColor: '#ffffff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -686,7 +691,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#64748b',
+    color: '#94a3b8',
   },
   tabTextActive: {
     color: '#FF6B00',
@@ -711,26 +716,26 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#cbd5e1',
+    color: '#475569',
     marginBottom: SPACING.sm,
     marginLeft: SPACING.sm,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1F1612',
+    backgroundColor: '#f8fafc',
     borderRadius: BORDER_RADIUS.xl,
     paddingHorizontal: SPACING.lg,
     height: 56,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: '#e2e8f0',
   },
   inputIcon: {
     marginRight: SPACING.md,
   },
   input: {
     flex: 1,
-    color: '#fff',
+    color: '#111418',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -744,14 +749,14 @@ const styles = StyleSheet.create({
     color: '#FF6B00',
   },
   continueButton: {
-    backgroundColor: '#FF6B00',
+    backgroundColor: '#FF6B35',
     borderRadius: BORDER_RADIUS.xl,
     height: 56,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: SPACING.sm,
-    shadowColor: '#FF6B00',
+    shadowColor: '#FF6B35',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -810,9 +815,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 56,
     borderRadius: BORDER_RADIUS.xl,
-    backgroundColor: '#1F1612',
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: '#e2e8f0',
     justifyContent: 'center',
     alignItems: 'center',
   },
