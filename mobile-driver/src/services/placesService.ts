@@ -37,9 +37,10 @@ export const placesService = {
   /**
    * Search places với debounce tối ưu
    * @param keyword - Từ khóa tìm kiếm
+   * @param userId - Driver ID để lưu lịch sử tìm kiếm cá nhân (optional)
    * @returns Array địa điểm + metadata về nguồn
    */
-  async searchPlaces(keyword: string): Promise<PlacesSearchResponse> {
+  async searchPlaces(keyword: string, userId?: string): Promise<PlacesSearchResponse> {
     // Validate input
     if (!keyword || keyword.trim().length < 3) {
       return { results: [], source: 'cache' };
@@ -47,24 +48,28 @@ export const placesService = {
 
     const trimmedKeyword = keyword.trim().toLowerCase();
 
-    // 1️⃣ Check memory cache (frontend)
-    const cached = placeCache.get(trimmedKeyword);
+    // 1️⃣ Check memory cache (frontend) - include userId in cache key
+    const cacheKey = userId ? `${userId}:${trimmedKeyword}` : trimmedKeyword;
+    const cached = placeCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      console.log('✅ [PlacesService] Memory cache hit:', trimmedKeyword, `(${cached.results.length} places)`);
+      console.log('✅ [PlacesService] Memory cache hit:', cacheKey, `(${cached.results.length} places)`);
       return { results: cached.results, cached: true, source: 'cache' };
     }
 
     try {
-      // 2️⃣ Call backend endpoint
-      console.log('📡 [PlacesService] Fetching from backend:', trimmedKeyword);
-      // Backend sẽ check: Redis cache → Database → Google Places API
+      // 2️⃣ Call backend endpoint with userId
+      console.log('📡 [PlacesService] Fetching from backend:', { keyword: trimmedKeyword, userId });
+      // Backend sẽ check: Database (per-user) → Google Places API
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-      const res = await fetch(
-        `${API_BASE_URL}/places/search?keyword=${encodeURIComponent(trimmedKeyword)}`,
-        { signal: controller.signal }
-      );
+      const urlParams = new URLSearchParams({
+        keyword: trimmedKeyword,
+        ...(userId && { userId }), // Add userId if provided
+      });
+      const url = `${API_BASE_URL}/places/search?${urlParams.toString()}`;
+
+      const res = await fetch(url, { signal: controller.signal });
       
       clearTimeout(timeoutId);
 
@@ -79,14 +84,14 @@ export const placesService = {
       // 3️⃣ Cache result ở frontend - ONLY cache if have results
       // ⚡ Don't cache empty results to avoid caching "no match" responses
       if (response.results && response.results.length > 0) {
-        placeCache.set(trimmedKeyword, {
+        placeCache.set(cacheKey, {
           results: response.results,
           timestamp: Date.now(),
         });
         console.log(
           '✅ [PlacesService] Got results from',
           response.source || 'backend',
-          `(${response.results.length} places) - CACHED`
+          `(${response.results.length} places) - CACHED as ${cacheKey}`
         );
       } else {
         console.log(
@@ -100,7 +105,6 @@ export const placesService = {
     } catch (error: any) {
       console.error('[PlacesService] Search error:', error?.message || error);
       console.log('📍 [PlacesService] API_BASE_URL:', API_BASE_URL);
-      console.log('🔗 [PlacesService] Full URL:', `${API_BASE_URL}/places/search?keyword=${encodeURIComponent(trimmedKeyword)}`);
       
       if (error?.name === 'AbortError') {
         console.warn('[PlacesService] Request timeout');

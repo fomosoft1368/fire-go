@@ -5,7 +5,7 @@
 // iOS simulator: localhost hoặc 127.0.0.1
 // Real device: IP của máy trên mạng LAN (vd: 192.168.1.16)
 
-export const API_URL = 'http://192.168.1.16:3000/api'
+export const API_URL = 'http://192.168.1.18:3000/api'
 
 // Có thể dùng environment variable nếu cần
-// export const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.16:3000/api'
+// export const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'

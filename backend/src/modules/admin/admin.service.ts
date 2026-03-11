@@ -11,6 +11,7 @@ import { Driver } from '../drivers/schemas/driver.schema';
 import { Ride } from '../rides/schemas/ride.schema';
 import { RideRequest } from '../combined-trips/schemas/ride-request.schema';
 import { Delivery } from '../delivery/schemas/delivery.schema';
+import { HourlyService } from '../hourly-services/schemas/hourly-service.schema';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -25,6 +26,7 @@ export class AdminService {
     @InjectModel(Ride.name) private rideModel: Model<any>,
     @InjectModel(RideRequest.name) private rideRequestModel: Model<any>,
     @InjectModel(Delivery.name) private deliveryModel: Model<any>,
+    @InjectModel(HourlyService.name) private hourlyServiceModel: Model<any>,
   ) {}
 
   // Admin Logging
@@ -483,18 +485,18 @@ export class AdminService {
    * Get actual revenue stats from all sources (Rides + Combined Trips + Deliveries)
    */
   async getActualRevenueStats(startDate?: Date, endDate?: Date): Promise<any> {
-    const matchStage: any = {};
-
+    // Build date filter using updatedAt (since completedAt may not exist)
+    const ridesMatchStage: any = { status: 'completed' };
     if (startDate || endDate) {
       const dateFilter: any = {};
       if (startDate) dateFilter.$gte = new Date(startDate);
       if (endDate) dateFilter.$lte = new Date(endDate);
-      matchStage.completedAt = dateFilter;
+      ridesMatchStage.updatedAt = dateFilter;
     }
 
     // 1. Get revenue from regular rides
     const ridesStats = await this.rideModel.aggregate([
-      { $match: { status: 'completed', ...matchStage } },
+      { $match: ridesMatchStage },
       {
         $group: {
           _id: null,
@@ -505,8 +507,15 @@ export class AdminService {
     ]);
 
     // 2. Get revenue from combined trips (carpooling)
+    const combinedMatchStage: any = { status: 'completed', combinedTripId: { $exists: true } };
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      combinedMatchStage.updatedAt = dateFilter;
+    }
     const combinedTripsStats = await this.rideRequestModel.aggregate([
-      { $match: { status: 'completed', combinedTripId: { $exists: true }, ...matchStage } },
+      { $match: combinedMatchStage },
       {
         $group: {
           _id: null,
@@ -536,18 +545,40 @@ export class AdminService {
       },
     ]);
 
+    // 4. Get revenue from hourly services (cleaning)
+    const hourlyMatchStage: any = { status: 'completed' };
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      hourlyMatchStage.endTime = dateFilter;
+    }
+
+    const hourlyServicesStats = await this.hourlyServiceModel.aggregate([
+      { $match: hourlyMatchStage },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: { $ifNull: ['$actualPrice', '$estimatedPrice'] } },
+          totalRides: { $sum: 1 },
+        },
+      },
+    ]);
+
     // Combine all sources
     const rides = ridesStats[0] || { totalRevenue: 0, totalRides: 0 };
     const combinedTrips = combinedTripsStats[0] || { totalRevenue: 0, totalRides: 0 };
     const deliveries = deliveriesStats[0] || { totalRevenue: 0, totalRides: 0 };
+    const hourlyServices = hourlyServicesStats[0] || { totalRevenue: 0, totalRides: 0 };
 
-    const totalRevenue = rides.totalRevenue + combinedTrips.totalRevenue + deliveries.totalRevenue;
-    const totalRides = rides.totalRides + combinedTrips.totalRides + deliveries.totalRides;
+    const totalRevenue = rides.totalRevenue + combinedTrips.totalRevenue + deliveries.totalRevenue + hourlyServices.totalRevenue;
+    const totalRides = rides.totalRides + combinedTrips.totalRides + deliveries.totalRides + hourlyServices.totalRides;
 
     console.log('[Admin Revenue Stats]', {
       rides: { revenue: rides.totalRevenue, count: rides.totalRides },
       combinedTrips: { revenue: combinedTrips.totalRevenue, count: combinedTrips.totalRides },
       deliveries: { revenue: deliveries.totalRevenue, count: deliveries.totalRides },
+      hourlyServices: { revenue: hourlyServices.totalRevenue, count: hourlyServices.totalRides },
       total: { revenue: totalRevenue, count: totalRides },
     });
 
@@ -559,6 +590,7 @@ export class AdminService {
         rides: rides.totalRevenue,
         combinedTrips: combinedTrips.totalRevenue,
         deliveries: deliveries.totalRevenue,
+        hourlyServices: hourlyServices.totalRevenue,
       },
     };
   }
@@ -635,10 +667,31 @@ export class AdminService {
       },
     ]);
 
+    // 4. Daily revenue from hourly services (cleaning)
+    const hourlyServicesDaily = await this.hourlyServiceModel.aggregate([
+      {
+        $match: {
+          status: 'completed',
+          endTime: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$endTime' },
+            month: { $month: '$endTime' },
+            day: { $dayOfMonth: '$endTime' },
+          },
+          revenue: { $sum: { $ifNull: ['$actualPrice', '$estimatedPrice'] } },
+          rides: { $sum: 1 },
+        },
+      },
+    ]);
+
     // Merge all sources by date
     const dailyMap = new Map<string, any>();
 
-    [...ridesDaily, ...combinedTripsDaily, ...deliveriesDaily].forEach((item) => {
+    [...ridesDaily, ...combinedTripsDaily, ...deliveriesDaily, ...hourlyServicesDaily].forEach((item) => {
       const key = `${item._id.year}-${item._id.month}-${item._id.day}`;
       if (!dailyMap.has(key)) {
         dailyMap.set(key, {
@@ -675,17 +728,19 @@ export class AdminService {
    * Get revenue by service type from all sources
    */
   async getRevenueByServiceType(startDate?: Date, endDate?: Date): Promise<any[]> {
-    const matchStage: any = {};
+    // Build date filter for rides (use updatedAt since completedAt may not exist)
+    const ridesMatchStage: any = { status: 'completed' };
     if (startDate || endDate) {
       const dateFilter: any = {};
       if (startDate) dateFilter.$gte = new Date(startDate);
       if (endDate) dateFilter.$lte = new Date(endDate);
-      matchStage.completedAt = dateFilter;
+      ridesMatchStage.updatedAt = dateFilter;
     }
 
-    // Get stats from each source
-    const ridesStats = await this.rideModel.aggregate([
-      { $match: { status: 'completed', ...matchStage } },
+    // Get stats from each source (each service = 1 separate table)
+    // 1. Hire rides (Lái xe hộ) - ALL completed rides from rides table
+    const hireRidesStats = await this.rideModel.aggregate([
+      { $match: ridesMatchStage },
       {
         $group: {
           _id: null,
@@ -695,8 +750,16 @@ export class AdminService {
       },
     ]);
 
+    // 2. Share rides (Ghép xe) - ONLY from riderequests/combined_trips table  
+    const combinedMatchStage: any = { status: 'completed', combinedTripId: { $exists: true } };
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      combinedMatchStage.updatedAt = dateFilter;
+    }
     const combinedTripsStats = await this.rideRequestModel.aggregate([
-      { $match: { status: 'completed', combinedTripId: { $exists: true }, ...matchStage } },
+      { $match: combinedMatchStage },
       {
         $group: {
           _id: null,
@@ -725,18 +788,40 @@ export class AdminService {
       },
     ]);
 
-    const rides = ridesStats[0] || { revenue: 0, rides: 0 };
+    // 4. Get revenue from hourly services (cleaning)
+    const hourlyMatchStage: any = { status: 'completed' };
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      hourlyMatchStage.endTime = dateFilter;
+    }
+
+    const hourlyServicesStats = await this.hourlyServiceModel.aggregate([
+      { $match: hourlyMatchStage },
+      {
+        $group: {
+          _id: null,
+          revenue: { $sum: { $ifNull: ['$actualPrice', '$estimatedPrice'] } },
+          rides: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const hireRides = hireRidesStats[0] || { revenue: 0, rides: 0 };
     const combinedTrips = combinedTripsStats[0] || { revenue: 0, rides: 0 };
     const deliveries = deliveriesStats[0] || { revenue: 0, rides: 0 };
+    const hourlyServices = hourlyServicesStats[0] || { revenue: 0, rides: 0 };
 
-    const totalRides = rides.rides + combinedTrips.rides + deliveries.rides;
+    const totalRides = hireRides.rides + combinedTrips.rides + deliveries.rides + hourlyServices.rides;
+    const totalRevenue = hireRides.revenue + combinedTrips.revenue + deliveries.revenue + hourlyServices.revenue;
 
     const result = [
       {
         type: 'hire',
-        revenue: rides.revenue,
-        rides: rides.rides,
-        percentage: totalRides > 0 ? ((rides.rides / totalRides) * 100).toFixed(2) : 0,
+        revenue: hireRides.revenue,
+        rides: hireRides.rides,
+        percentage: totalRides > 0 ? ((hireRides.rides / totalRides) * 100).toFixed(2) : 0,
       },
       {
         type: 'share',
@@ -750,9 +835,495 @@ export class AdminService {
         rides: deliveries.rides,
         percentage: totalRides > 0 ? ((deliveries.rides / totalRides) * 100).toFixed(2) : 0,
       },
+      {
+        type: 'hourly',
+        revenue: hourlyServices.revenue,
+        rides: hourlyServices.rides,
+        percentage: totalRides > 0 ? ((hourlyServices.rides / totalRides) * 100).toFixed(2) : 0,
+      },
     ];
 
     console.log('[Admin Revenue By Type]', result);
+    console.log('[Admin Revenue By Type Details]', {
+      hireRides: `${hireRides.rides} rides, ${hireRides.revenue} VND`,
+      combinedTrips: `${combinedTrips.rides} trips, ${combinedTrips.revenue} VND`,
+      deliveries: `${deliveries.rides} deliveries, ${deliveries.revenue} VND`,
+      hourlyServices: `${hourlyServices.rides} services, ${hourlyServices.revenue} VND`,
+      totalRides,
+      totalRevenue,
+    });
+    return result;
+  }
+
+  /**
+   * Get peak hours analysis (actual data from all sources)
+   */
+  async getPeakHours(startDate?: Date, endDate?: Date): Promise<any[]> {
+    // Build date filter
+    const dateFilter: any = {};
+    if (startDate) dateFilter.$gte = startDate;
+    if (endDate) dateFilter.$lte = endDate;
+
+    const matchStage: any = { status: 'completed' };
+    if (startDate || endDate) {
+      matchStage.updatedAt = dateFilter;
+    }
+
+    // Aggregate rides by hour from all sources
+    const ridesByHour = await this.rideModel.aggregate([
+      { $match: matchStage },
+      {
+        $project: {
+          hour: { $hour: '$updatedAt' },
+          totalFare: 1,
+        },
+      },
+      {
+        $group: {
+          _id: '$hour',
+          rides: { $sum: 1 },
+          revenue: { $sum: '$totalFare' },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Aggregate from combined trips
+    const combinedByHour = await this.rideRequestModel.aggregate([
+      { $match: { ...matchStage, combinedTripId: { $exists: true } } },
+      {
+        $project: {
+          hour: { $hour: '$updatedAt' },
+          fare: 1,
+        },
+      },
+      {
+        $group: {
+          _id: '$hour',
+          rides: { $sum: 1 },
+          revenue: { $sum: '$fare' },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Aggregate from deliveries
+    const deliveriesByHour = await this.deliveryModel.aggregate([
+      { $match: matchStage },
+      {
+        $project: {
+          hour: { $hour: '$updatedAt' },
+          totalFare: 1,
+        },
+      },
+      {
+        $group: {
+          _id: '$hour',
+          rides: { $sum: 1 },
+          revenue: { $sum: '$totalFare' },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Aggregate from hourly services
+    const hourlyByHour = await this.hourlyServiceModel.aggregate([
+      { $match: matchStage },
+      {
+        $project: {
+          hour: { $hour: '$updatedAt' },
+          totalFare: 1,
+        },
+      },
+      {
+        $group: {
+          _id: '$hour',
+          rides: { $sum: 1 },
+          revenue: { $sum: '$totalFare' },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Combine all data by hour (0-23)
+    const result = [];
+    for (let hour = 0; hour < 24; hour++) {
+      const ridesData = ridesByHour.find(r => r._id === hour) || { rides: 0, revenue: 0 };
+      const combinedData = combinedByHour.find(r => r._id === hour) || { rides: 0, revenue: 0 };
+      const deliveryData = deliveriesByHour.find(r => r._id === hour) || { rides: 0, revenue: 0 };
+      const hourlyData = hourlyByHour.find(r => r._id === hour) || { rides: 0, revenue: 0 };
+
+      result.push({
+        hour,
+        rides: ridesData.rides + combinedData.rides + deliveryData.rides + hourlyData.rides,
+        revenue: ridesData.revenue + combinedData.revenue + deliveryData.revenue + hourlyData.revenue,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Get area/district performance (actual data from all sources)
+   */
+  async getAreaPerformance(startDate?: Date, endDate?: Date): Promise<any[]> {
+    // Build date filter
+    const dateFilter: any = {};
+    if (startDate) dateFilter.$gte = startDate;
+    if (endDate) dateFilter.$lte = endDate;
+
+    const matchStage: any = { status: 'completed' };
+    if (startDate || endDate) {
+      matchStage.updatedAt = dateFilter;
+    }
+
+    // Get rides grouped by pickup location
+    const ridesByArea = await this.rideModel.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: '$pickupLocation',
+          rides: { $sum: 1 },
+          revenue: { $sum: '$totalFare' },
+        },
+      },
+      { $sort: { rides: -1 } },
+      { $limit: 10 },
+    ]);
+
+    // Get combined trips grouped by pickup location
+    const combinedByArea = await this.rideRequestModel.aggregate([
+      { $match: { ...matchStage, combinedTripId: { $exists: true } } },
+      {
+        $group: {
+          _id: '$pickupLocation',
+          rides: { $sum: 1 },
+          revenue: { $sum: '$fare' },
+        },
+      },
+      { $sort: { rides: -1 } },
+      { $limit: 10 },
+    ]);
+
+    // Get deliveries grouped by pickup location
+    const deliveriesByArea = await this.deliveryModel.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: '$pickupLocation',
+          rides: { $sum: 1 },
+          revenue: { $sum: '$totalFare' },
+        },
+      },
+      { $sort: { rides: -1 } },
+      { $limit: 10 },
+    ]);
+
+    // Merge all data by location
+    const areaMap = new Map();
+
+    // Process rides
+    ridesByArea.forEach(area => {
+      const location = area._id || 'Không rõ';
+      if (!areaMap.has(location)) {
+        areaMap.set(location, { rides: 0, revenue: 0 });
+      }
+      const current = areaMap.get(location);
+      current.rides += area.rides;
+      current.revenue += area.revenue;
+    });
+
+    // Process combined trips
+    combinedByArea.forEach(area => {
+      const location = area._id || 'Không rõ';
+      if (!areaMap.has(location)) {
+        areaMap.set(location, { rides: 0, revenue: 0 });
+      }
+      const current = areaMap.get(location);
+      current.rides += area.rides;
+      current.revenue += area.revenue;
+    });
+
+    // Process deliveries
+    deliveriesByArea.forEach(area => {
+      const location = area._id || 'Không rõ';
+      if (!areaMap.has(location)) {
+        areaMap.set(location, { rides: 0, revenue: 0 });
+      }
+      const current = areaMap.get(location);
+      current.rides += area.rides;
+      current.revenue += area.revenue;
+    });
+
+    // Convert to array and sort by rides
+    const result = Array.from(areaMap.entries())
+      .map(([location, data]) => ({
+        name: location,
+        rides: data.rides,
+        revenue: data.revenue,
+      }))
+      .sort((a, b) => b.rides - a.rides)
+      .slice(0, 10);
+
+    // Calculate total for percentage
+    const totalRides = result.reduce((sum, area) => sum + area.rides, 0);
+
+    // Add percentage
+    return result.map(area => ({
+      ...area,
+      percentage: totalRides > 0 ? Math.round((area.rides / totalRides) * 100) : 0,
+    }));
+  }
+
+  /**
+   * Get cancel rate statistics (actual data from all sources)
+   */
+  async getCancelRate(startDate?: Date, endDate?: Date): Promise<any> {
+    // Build date filter
+    const dateFilter: any = {};
+    if (startDate) dateFilter.$gte = startDate;
+    if (endDate) dateFilter.$lte = endDate;
+
+    const matchStage: any = {};
+    if (startDate || endDate) {
+      matchStage.updatedAt = dateFilter;
+    }
+
+    // Aggregate rides
+    const ridesStats = await this.rideModel.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+          },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    // Aggregate combined trips
+    const combinedStats = await this.rideRequestModel.aggregate([
+      { $match: { ...matchStage, combinedTripId: { $exists: true } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+          },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    // Aggregate deliveries
+    const deliveryStats = await this.deliveryModel.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+          },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    // Aggregate hourly services
+    const hourlyStats = await this.hourlyServiceModel.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+          },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    // Combine all statistics
+    const rides = ridesStats[0] || { total: 0, completed: 0, cancelled: 0 };
+    const combined = combinedStats[0] || { total: 0, completed: 0, cancelled: 0 };
+    const deliveries = deliveryStats[0] || { total: 0, completed: 0, cancelled: 0 };
+    const hourly = hourlyStats[0] || { total: 0, completed: 0, cancelled: 0 };
+
+    const totalRides = rides.total + combined.total + deliveries.total + hourly.total;
+    const totalCompleted = rides.completed + combined.completed + deliveries.completed + hourly.completed;
+    const totalCancelled = rides.cancelled + combined.cancelled + deliveries.cancelled + hourly.cancelled;
+
+    const cancelRate = totalRides > 0 ? (totalCancelled / totalRides) * 100 : 0;
+
+    return {
+      totalRides,
+      totalCompleted,
+      totalCancelled,
+      cancelRate: parseFloat(cancelRate.toFixed(1)),
+    };
+  }
+
+  /**
+   * Get top drivers by total trips from all sources (rides, combined trips, deliveries, hourly services)
+   */
+  async getTopDrivers(limit: number = 10, startDate?: Date, endDate?: Date): Promise<any[]> {
+    const dateFilter: any = {};
+    if (startDate) dateFilter.$gte = startDate;
+    if (endDate) dateFilter.$lte = endDate;
+
+    const matchStage: any = { status: 'completed' };
+    if (startDate || endDate) {
+      matchStage.updatedAt = dateFilter;
+    }
+
+    // Aggregate drivers from rides
+    const ridesByDriver = await this.rideModel.aggregate([
+      { 
+        $match: { 
+          ...matchStage,
+          driverId: { $ne: null, $exists: true }
+        } 
+      },
+      {
+        $group: {
+          _id: '$driverId',
+          trips: { $sum: 1 },
+          earnings: { $sum: '$totalFare' },
+        },
+      },
+    ]);
+
+    // Aggregate drivers from combined trips
+    const combinedByDriver = await this.rideRequestModel.aggregate([
+      { 
+        $match: { 
+          ...matchStage,
+          driverId: { $ne: null, $exists: true }
+        } 
+      },
+      {
+        $group: {
+          _id: '$driverId',
+          trips: { $sum: 1 },
+          earnings: { $sum: '$totalFare' },
+        },
+      },
+    ]);
+
+    // Aggregate drivers from deliveries
+    const deliveriesByDriver = await this.deliveryModel.aggregate([
+      { 
+        $match: { 
+          ...matchStage,
+          driverId: { $ne: null, $exists: true }
+        } 
+      },
+      {
+        $group: {
+          _id: '$driverId',
+          trips: { $sum: 1 },
+          earnings: { $sum: '$totalFare' },
+        },
+      },
+    ]);
+
+    // Aggregate drivers from hourly services
+    const hourlyByDriver = await this.hourlyServiceModel.aggregate([
+      { 
+        $match: { 
+          ...matchStage,
+          driverId: { $ne: null, $exists: true }
+        } 
+      },
+      {
+        $group: {
+          _id: '$driverId',
+          trips: { $sum: 1 },
+          earnings: { $sum: '$totalFare' },
+        },
+      },
+    ]);
+
+    console.log('[TopDrivers] Aggregation results:');
+    console.log(`  - Rides: ${ridesByDriver.length} drivers`);
+    console.log(`  - Combined: ${combinedByDriver.length} drivers`);
+    console.log(`  - Deliveries: ${deliveriesByDriver.length} drivers`);
+    console.log(`  - Hourly: ${hourlyByDriver.length} drivers`);
+
+    // Merge all data by driver ID
+    const driverMap = new Map();
+
+    // Process all sources
+    [ridesByDriver, combinedByDriver, deliveriesByDriver, hourlyByDriver].forEach(dataSet => {
+      dataSet.forEach(driver => {
+        const driverId = driver._id?.toString();
+        if (!driverId) return;
+
+        if (!driverMap.has(driverId)) {
+          driverMap.set(driverId, { trips: 0, earnings: 0 });
+        }
+        const current = driverMap.get(driverId);
+        current.trips += driver.trips || 0;
+        current.earnings += driver.earnings || 0;
+      });
+    });
+
+    // Convert to array and sort by trips
+    const driversArray = Array.from(driverMap.entries())
+      .map(([driverId, data]) => ({
+        driverId,
+        trips: data.trips,
+        earnings: data.earnings,
+      }))
+      .sort((a, b) => b.trips - a.trips)
+      .slice(0, limit);
+
+    console.log(`[TopDrivers] Found ${driversArray.length} drivers before lookup, limit: ${limit}`);
+    driversArray.forEach((d, i) => {
+      console.log(`  ${i + 1}. Driver ${d.driverId}: ${d.trips} trips, ${d.earnings} earnings`);
+    });
+
+    // Lookup driver details from drivers collection
+    const result = [];
+    for (const driverData of driversArray) {
+      try {
+        // Convert string to ObjectId if needed
+        const driverObjectId = new Types.ObjectId(driverData.driverId);
+        const driver = await this.driverModel.findById(driverObjectId);
+        
+        if (driver) {
+          result.push({
+            driverId: driverData.driverId,
+            name: driver.fullName || `${driver.firstName || ''} ${driver.lastName || ''}`.trim() || 'Không rõ',
+            avatar: driver.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${driverData.driverId}`,
+            rating: driver.averageRating ? Math.round(driver.averageRating * 10) / 10 : 0,
+            trips: driverData.trips,
+            earnings: Math.round(driverData.earnings),
+          });
+          console.log(`[TopDrivers] ✓ Found driver: ${driver.fullName || driver.firstName}`);
+        } else {
+          console.log(`[TopDrivers] ✗ Driver not found in drivers collection: ${driverData.driverId}`);
+        }
+      } catch (error) {
+        console.error(`[TopDrivers] Error fetching driver ${driverData.driverId}:`, error.message);
+      }
+    }
+
+    console.log(`[TopDrivers] Returning ${result.length} drivers`);
     return result;
   }
 

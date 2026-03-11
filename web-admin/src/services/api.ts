@@ -428,6 +428,84 @@ class ApiService {
     return this.handleResponse<any>(response);
   }
 
+  // Combined Trips (Xe Ghép) API
+  async getCombinedTrips(params?: {
+    status?: string;
+    driverId?: string;
+  }): Promise<any[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.append('status', params.status);
+    if (params?.driverId) searchParams.append('driverId', params.driverId);
+
+    const url = `${API_BASE_URL}/combined-trips${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getCombinedTripDetail(tripId: string): Promise<any> {
+    const url = `${API_BASE_URL}/combined-trips/${tripId}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  async getCombinedTripRequests(tripId: string): Promise<any[]> {
+    const url = `${API_BASE_URL}/combined-trips/${tripId}/requests`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any[]>(response);
+  }
+
+  // Delivery (Giao Hàng) API
+  async getDeliveries(params?: {
+    status?: string;
+    customerId?: string;
+  }): Promise<any[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.append('status', params.status);
+    if (params?.customerId) searchParams.append('customerId', params.customerId);
+
+    const url = `${API_BASE_URL}/deliveries${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getDeliveryDetail(deliveryId: string): Promise<any> {
+    const url = `${API_BASE_URL}/deliveries/${deliveryId}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  // Hourly Services (Lái Xe Hộ) API
+  async getHourlyServices(params?: {
+    status?: string;
+  }): Promise<any[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.append('status', params.status);
+
+    const url = `${API_BASE_URL}/hourly-services${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getHourlyServiceDetail(serviceId: string): Promise<any> {
+    const url = `${API_BASE_URL}/hourly-services/${serviceId}`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<any>(response);
+  }
+
   // Notifications
   async getNotifications(): Promise<any[]> {
     const url = `${API_BASE_URL}/notifications`;
@@ -692,8 +770,14 @@ class ApiService {
     return this.handleResponse<any[]>(response);
   }
 
-  async getTopDrivers(limit: number = 10): Promise<any[]> {
-    const url = `${API_BASE_URL}/rides/analytics/top-drivers?limit=${limit}`;
+  async getTopDrivers(limit: number = 10, startDate?: string, endDate?: string): Promise<any[]> {
+    let url = `${API_BASE_URL}/admin/analytics/top-drivers?limit=${limit}`;
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    url = `${API_BASE_URL}/admin/analytics/top-drivers?${params.toString()}`;
+
     const response = await fetch(url, {
       headers: this.getHeaders(),
     });
@@ -737,6 +821,48 @@ class ApiService {
     });
     if (!response.ok) return [];
     return this.handleResponse<any[]>(response);
+  }
+
+  async getPeakHours(startDate?: string, endDate?: string): Promise<any[]> {
+    let url = `${API_BASE_URL}/admin/analytics/peak-hours`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getAreaPerformance(startDate?: string, endDate?: string): Promise<any[]> {
+    let url = `${API_BASE_URL}/admin/analytics/area-performance`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return [];
+    return this.handleResponse<any[]>(response);
+  }
+
+  async getCancelRate(startDate?: string, endDate?: string): Promise<any> {
+    let url = `${API_BASE_URL}/admin/analytics/cancel-rate`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) return null;
+    return this.handleResponse<any>(response);
   }
 
   // Generic HTTP methods

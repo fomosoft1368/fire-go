@@ -666,7 +666,7 @@ export default function FindingRideScreen({ navigation }: any) {
             </View>
 
             {/* Price */}
-            <LinearGradient
+            {/* <LinearGradient
               colors={['#FF6B00', '#FF8534']}
               style={styles.priceSection}
             >
@@ -679,7 +679,7 @@ export default function FindingRideScreen({ navigation }: any) {
                   <Text style={styles.oldPrice}>₫{Math.round((item.baseFare || 0) * 1.2).toLocaleString('vi-VN')}</Text>
                 )}
               </View>
-            </LinearGradient>
+            </LinearGradient> */}
           </View>
 
           {/* Match & Metrics Bar */}
@@ -766,7 +766,7 @@ export default function FindingRideScreen({ navigation }: any) {
                     <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
                   </LinearGradient>
                 </TouchableOpacity>
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={styles.secondaryButtonContainer}
                   activeOpacity={0.8}
                 >
@@ -776,7 +776,7 @@ export default function FindingRideScreen({ navigation }: any) {
                   >
                     <MaterialIcons name="chat" size={20} color="#FF6B00" />
                   </LinearGradient>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </>
             ) : (
               <TouchableOpacity
@@ -1438,14 +1438,14 @@ const styles = StyleSheet.create({
   },
   filterContainer: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    gap: SPACING.sm,
+    paddingVertical: SPACING.lg,
+    gap: SPACING.xl,
   },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderRadius: 20,
     borderWidth: 1,
     gap: SPACING.xs,
@@ -1453,6 +1453,7 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 13,
     fontWeight: '500',
+    lineHeight: 80,
   },
 
   /* Results Header */

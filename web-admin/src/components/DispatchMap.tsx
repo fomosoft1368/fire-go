@@ -15,10 +15,39 @@ interface Driver {
   averageRating?: number;
 }
 
+interface BaseTrip {
+  _id: string;
+  tripType: 'ride' | 'combined' | 'delivery' | 'hourly';
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupLocation?: {
+    type: string;
+    coordinates: [number, number];
+  };
+  dropoffLocation?: {
+    type: string;
+    coordinates: [number, number];
+  };
+  status: string;
+  driver?: {
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+    currentLocation?: {
+      coordinates: [number, number];
+    };
+  };
+  customer?: {
+    firstName?: string;
+    lastName?: string;
+  };
+}
+
 interface DispatchMapProps {
   drivers: Driver[];
   onDriverClick?: (driver: Driver) => void;
   selectedDriverId?: string;
+  selectedTrip?: BaseTrip | null;
 }
 
 declare global {
@@ -30,12 +59,14 @@ declare global {
 const DispatchMap: React.FC<DispatchMapProps> = ({ 
   drivers, 
   onDriverClick,
-  selectedDriverId 
+  selectedDriverId,
+  selectedTrip
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const infoWindowRef = useRef<any>(null);
+  const directionsRendererRef = useRef<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,7 +146,7 @@ const DispatchMap: React.FC<DispatchMapProps> = ({
     }
   };
 
-  // Update markers when drivers change
+  // Update markers when drivers or selectedTrip change
   useEffect(() => {
     if (!mapInstanceRef.current || !window.google) return;
 
@@ -125,6 +156,110 @@ const DispatchMap: React.FC<DispatchMapProps> = ({
     // Clear old markers
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current.clear();
+
+    // Clear old directions
+    if (directionsRendererRef.current) {
+      directionsRendererRef.current.setMap(null);
+      directionsRendererRef.current = null;
+    }
+
+    // If trip is selected, show only trip markers and route
+    if (selectedTrip && selectedTrip.pickupLocation && selectedTrip.dropoffLocation) {
+      console.log('🗺️ Showing selected trip on map:', selectedTrip._id);
+      const bounds = new google.maps.LatLngBounds();
+
+      // Pickup marker (green A)
+      const [pickupLng, pickupLat] = selectedTrip.pickupLocation.coordinates;
+      const pickupMarker = new google.maps.Marker({
+        position: { lat: pickupLat, lng: pickupLng },
+        map,
+        title: 'Điểm đón',
+        label: { text: 'A', color: '#ffffff', fontWeight: 'bold' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 14,
+          fillColor: '#10b981',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 3,
+        },
+      });
+      markersRef.current.set('pickup', pickupMarker);
+      bounds.extend({ lat: pickupLat, lng: pickupLng });
+
+      // Dropoff marker (red B)
+      const [dropoffLng, dropoffLat] = selectedTrip.dropoffLocation.coordinates;
+      const dropoffMarker = new google.maps.Marker({
+        position: { lat: dropoffLat, lng: dropoffLng },
+        map,
+        title: 'Điểm trả',
+        label: { text: 'B', color: '#ffffff', fontWeight: 'bold' },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 14,
+          fillColor: '#ef4444',
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 3,
+        },
+      });
+      markersRef.current.set('dropoff', dropoffMarker);
+      bounds.extend({ lat: dropoffLat, lng: dropoffLng });
+
+      // Driver marker (blue car) if available
+      if (selectedTrip.driver?.currentLocation?.coordinates) {
+        const [driverLng, driverLat] = selectedTrip.driver.currentLocation.coordinates;
+        const driverMarker = new google.maps.Marker({
+          position: { lat: driverLat, lng: driverLng },
+          map,
+          title: `Tài xế: ${selectedTrip.driver.firstName} ${selectedTrip.driver.lastName}`,
+          icon: {
+            path: 'M17.402,0H5.643C2.526,0,0,3.467,0,6.584v34.804c0,3.116,2.526,5.644,5.643,5.644h11.759c3.116,0,5.644-2.527,5.644-5.644 V6.584C23.044,3.467,20.518,0,17.402,0z M22.057,14.188v11.665l-2.729,0.351v-4.806L22.057,14.188z M20.625,10.773 c-1.016,3.9-2.219,8.51-2.219,8.51H4.638l-2.222-8.51C2.417,10.773,11.3,7.755,20.625,10.773z M3.748,21.713v4.492l-2.73-0.349 V14.502L3.748,21.713z M1.018,37.938V27.579l2.73,0.343v8.196L1.018,37.938z M2.575,40.882l2.218-3.336h13.771l2.219,3.336H2.575z M19.328,35.805v-7.872l2.729-0.355v10.048L19.328,35.805z',
+            fillColor: '#3b82f6',
+            fillOpacity: 1,
+            strokeColor: '#fff',
+            strokeWeight: 2,
+            scale: 0.6,
+            anchor: new google.maps.Point(12, 24),
+          },
+        });
+        markersRef.current.set('driver', driverMarker);
+        bounds.extend({ lat: driverLat, lng: driverLng });
+      }
+
+      // Draw polyline route
+      const directionsService = new google.maps.DirectionsService();
+      directionsRendererRef.current = new google.maps.DirectionsRenderer({
+        map,
+        suppressMarkers: true,
+        polylineOptions: {
+          strokeColor: '#3b82f6',
+          strokeOpacity: 0.8,
+          strokeWeight: 5,
+          geodesic: true,
+        },
+      });
+
+      directionsService.route(
+        {
+          origin: { lat: pickupLat, lng: pickupLng },
+          destination: { lat: dropoffLat, lng: dropoffLng },
+          travelMode: google.maps.TravelMode.DRIVING,
+        },
+        (result: any, status: any) => {
+          if (status === 'OK' && result) {
+            directionsRendererRef.current.setDirections(result);
+            console.log('✅ Polyline drawn successfully');
+          } else {
+            console.error('❌ Directions request failed:', status);
+          }
+        }
+      );
+
+      // Fit map to bounds
+      map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+      return;
+    }
 
     // Filter drivers with valid locations
     const driversWithLocation = drivers.filter(
@@ -242,7 +377,7 @@ const DispatchMap: React.FC<DispatchMapProps> = ({
         }
       });
     }
-  }, [drivers, onDriverClick]);
+  }, [drivers, onDriverClick, selectedTrip]);
 
   // Highlight selected driver
   useEffect(() => {

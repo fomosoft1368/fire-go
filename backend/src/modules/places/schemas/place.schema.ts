@@ -5,8 +5,11 @@ export type PlaceDocument = Place & Document;
 
 @Schema({ timestamps: true })
 export class Place {
-  @Prop({ required: true, unique: true, index: true })
-  placeId: string; // Google Place ID
+  @Prop({ required: false, index: true })
+  userId?: string; // Customer ID or Driver ID - tracks who searched
+
+  @Prop({ required: true, index: true })
+  placeId: string; // Google Place ID (removed unique - can be saved per user)
 
   @Prop({ required: true, index: true })
   keyword: string; // Search keyword
@@ -35,6 +38,7 @@ export class Place {
 
 export const PlaceSchema = SchemaFactory.createForClass(Place);
 
-// Index for faster search
-PlaceSchema.index({ keyword: 1, createdAt: -1 });
-PlaceSchema.index({ placeId: 1 });
+// Index for faster per-user search
+PlaceSchema.index({ userId: 1, keyword: 1, lastSearchedAt: -1 });
+PlaceSchema.index({ userId: 1, placeId: 1 }); // Avoid duplicate places per user
+PlaceSchema.index({ keyword: 1, createdAt: -1 }); // Fallback for old data without userId

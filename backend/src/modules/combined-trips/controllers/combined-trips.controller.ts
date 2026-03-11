@@ -749,28 +749,26 @@ export class CombinedTripsController {
       // Build query
       const query: any = {
         combinedTripId: new Types.ObjectId(combinedTripId),
-        status: 'pending',
       };
       
-      // Only filter by driverId if provided
+      // Only filter by status and driverId if driverId is provided (for driver polling)
+      // For admin view (no driverId), return ALL requests regardless of status
       if (driverId) {
         query.driverId = new Types.ObjectId(driverId);
-        
-      } else {
-        
+        query.status = 'pending'; // Only pending for driver
       }
       
       // Query with optional driverId filter
       const requests = await this.rideRequestModel.find(query)
         .populate({
           path: 'combinedTripId',
-          select: '_id totalFare estimatedPrice fare pickupLocation dropoffLocation distance duration status', // ⭐ Include fare fields
+          select: '_id totalFare estimatedPrice fare pickupLocation dropoffLocation distance duration status',
           populate: {
             path: 'driverId',
             select: 'firstName lastName phone avatar rating currentLocation',
           }
         })
-        .populate('customerId', 'name phone rating')
+        .populate('customerId', 'firstName lastName phone avatar email')
         .sort({ createdAt: -1 })
 
      

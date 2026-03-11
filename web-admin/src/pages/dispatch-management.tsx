@@ -20,10 +20,13 @@ interface Driver {
   averageRating?: number;
 }
 
-interface Ride {
+type TripType = 'ride' | 'combined' | 'delivery' | 'hourly';
+
+interface BaseTrip {
   _id: string;
+  tripType: TripType; // Added to identify trip type
   customerId: any;
-  driverId?: string;
+  driverId?: any;
   pickupAddress: string;
   dropoffAddress: string;
   pickupLocation?: {
@@ -34,7 +37,7 @@ interface Ride {
     type: string;
     coordinates: [number, number];
   };
-  status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'accepted' | 'in_progress' | 'arrived_at_pickup' | 'completed' | 'cancelled';
   totalFare: number;
   distance: number;
   duration: number;
@@ -45,7 +48,18 @@ interface Ride {
     lastName?: string;
     phone?: string;
   };
+  driver?: {
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    currentLocation?: {
+      coordinates: [number, number];
+    };
+  };
 }
+
+type Ride = BaseTrip;
 
 interface NearbyDriver extends Driver {
   distance: number; // km
@@ -109,15 +123,20 @@ const DispatchManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dispatch' | 'disputes'>('dispatch');
 
   // Dispatch states
-  const [pendingRides, setPendingRides] = useState<Ride[]>([]);
+  const [allTrips, setAllTrips] = useState<BaseTrip[]>([]); // All trips from all services
+  const [filteredTrips, setFilteredTrips] = useState<BaseTrip[]>([]);
   const [availableDrivers, setAvailableDrivers] = useState<Driver[]>([]);
   const [allDrivers, setAllDrivers] = useState<Driver[]>([]); // All drivers for map
-  const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
+  const [selectedRide, setSelectedRide] = useState<BaseTrip | null>(null);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [nearbyDrivers, setNearbyDrivers] = useState<NearbyDriver[]>([]);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const { addNotification } = useNotification();
+
+  // Filters
+  const [filterTripType, setFilterTripType] = useState<'all' | TripType>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'accepted' | 'in_progress' | 'arrived_at_pickup' | 'completed' | 'cancelled'>('all');
 
   // Disputes states
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -131,8 +150,8 @@ const DispatchManagement: React.FC = () => {
     appealed: 0,
   });
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'under_review' | 'resolved' | 'rejected' | 'appealed'>('all');
-  const [filterSeverity, setFilterSeverity] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
+  const [disputeFilterStatus, setDisputeFilterStatus] = useState<'all' | 'open' | 'under_review' | 'resolved' | 'rejected' | 'appealed'>('all');
+  const [disputeFilterSeverity, setDisputeFilterSeverity] = useState<'all' | 'low' | 'medium' | 'high' | 'critical'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [resolvingDispute, setResolvingDispute] = useState(false);
   const [resolutionType, setResolutionType] = useState<'refund' | 'credit' | 'adjustment' | 'warning' | 'suspension' | 'dismissal'>('dismissal');
@@ -153,16 +172,31 @@ const DispatchManagement: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Apply trip filters
+  useEffect(() => {
+    let filtered = allTrips;
+
+    if (filterTripType !== 'all') {
+      filtered = filtered.filter(t => t.tripType === filterTripType);
+    }
+
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(t => t.status === filterStatus);
+    }
+
+    setFilteredTrips(filtered);
+  }, [allTrips, filterTripType, filterStatus]);
+
   // Apply dispute filters
   useEffect(() => {
     let filtered = disputes;
 
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(d => d.status === filterStatus);
+    if (disputeFilterStatus !== 'all') {
+      filtered = filtered.filter(d => d.status === disputeFilterStatus);
     }
 
-    if (filterSeverity !== 'all') {
-      filtered = filtered.filter(d => d.severity === filterSeverity);
+    if (disputeFilterSeverity !== 'all') {
+      filtered = filtered.filter(d => d.severity === disputeFilterSeverity);
     }
 
     if (searchQuery) {
@@ -175,60 +209,108 @@ const DispatchManagement: React.FC = () => {
     }
 
     setFilteredDisputes(filtered);
-  }, [disputes, filterStatus, filterSeverity, searchQuery]);
+  }, [disputes, disputeFilterStatus, disputeFilterSeverity, searchQuery]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [ridesRes, driversRes] = await Promise.all([
-        apiService.getRides({ status: 'pending' }),
-        apiService.getDrivers()
+      console.log('🔄 Loading all trips from all services...');
+
+      const [ridesRes, combinedRes, deliveriesRes, hourlyRes, driversRes] = await Promise.all([
+        apiService.getRides().catch(err => { console.error('Error loading rides:', err); return []; }),
+        apiService.getCombinedTrips().catch(err => { console.error('Error loading combined trips:', err); return []; }),
+        apiService.getDeliveries().catch(err => { console.error('Error loading deliveries:', err); return []; }),
+        apiService.getHourlyServices().catch(err => { console.error('Error loading hourly services:', err); return []; }),
+        apiService.getDrivers().catch(err => { console.error('Error loading drivers:', err); return []; })
       ]);
 
-      // Filter rides - should already be pending from API, but double check
-      let pending = Array.isArray(ridesRes)
-        ? ridesRes.filter((r: any) => r.status === 'pending')
-        : [];
+      // Normalize all trips to BaseTrip format
+      const normalizedRides: BaseTrip[] = Array.isArray(ridesRes) ? ridesRes.map((r: any) => ({
+        ...r,
+        tripType: 'ride' as TripType,
+        pickupAddress: r.pickupAddress || 'Không xác định',
+        dropoffAddress: r.dropoffAddress || 'Không xác định',
+      })) : [];
 
-      // Populate customer data if missing (backend fix)
-      pending = await Promise.all(pending.map(async (ride: any) => {
-        if (!ride.customer && ride.customerId) {
-          try {
-            // Extract ID if customerId is an object (already partially populated)
-            const customerId = typeof ride.customerId === 'string' 
-              ? ride.customerId 
-              : ride.customerId?._id?.toString();
-            
-            if (customerId) {
-              // Fetch customer data separately if not populated
-              const customerRes = await apiService.get(`/customers/${customerId}`).catch(() => null);
-              if (customerRes) {
-                ride.customer = customerRes;
-              }
-            }
-          } catch (e) {
-            console.warn('Failed to fetch customer for ride:', ride._id);
-          }
+      const normalizedCombined: BaseTrip[] = Array.isArray(combinedRes) ? combinedRes.map((c: any) => {
+        // Fix status for combined trips: if has driver, should not be "pending"
+        let actualStatus = c.status;
+        if (c.status === 'pending' && c.driverId) {
+          // If has driver but status is still "pending", change to "accepted"
+          actualStatus = 'accepted';
+          console.log(`🔧 [CombinedTrip ${c._id}] Fixed status: pending → accepted (has driverId)`);
         }
-        return ride;
-      }));
+        
+        return {
+          ...c,
+          status: actualStatus,
+          tripType: 'combined' as TripType,
+          pickupAddress: c.pickupLocationAddress || c.pickupAddress || 'Không xác định',
+          dropoffAddress: c.dropoffLocationAddress || c.dropoffAddress || 'Không xác định',
+          pickupLocation: c.pickupLocation || (c.pickupCoordinates ? { type: 'Point', coordinates: c.pickupCoordinates } : undefined),
+          dropoffLocation: c.dropoffLocation || (c.dropoffCoordinates ? { type: 'Point', coordinates: c.dropoffCoordinates } : undefined),
+        };
+      }) : [];
+
+      const normalizedDeliveries: BaseTrip[] = Array.isArray(deliveriesRes) ? deliveriesRes.map((d: any) => ({
+        ...d,
+        tripType: 'delivery' as TripType,
+        pickupAddress: d.pickupAddress || 'Không xác định',
+        dropoffAddress: d.dropoffAddress || 'Không xác định',
+        pickupLocation: d.pickupLocation || (d.pickupCoordinates ? { type: 'Point', coordinates: d.pickupCoordinates } : undefined),
+        dropoffLocation: d.dropoffLocation || (d.dropoffCoordinates ? { type: 'Point', coordinates: d.dropoffCoordinates } : undefined),
+      })) : [];
+
+      const normalizedHourly: BaseTrip[] = Array.isArray(hourlyRes) ? hourlyRes.map((h: any) => ({
+        ...h,
+        tripType: 'hourly' as TripType,
+        pickupAddress: h.pickupAddress || h.startAddress || 'Không xác định',
+        dropoffAddress: h.dropoffAddress || h.endAddress || 'Không xác định',
+        pickupLocation: h.pickupLocation || (h.pickupCoordinates ? { type: 'Point', coordinates: h.pickupCoordinates } : undefined),
+        dropoffLocation: h.dropoffLocation || (h.dropoffCoordinates ? { type: 'Point', coordinates: h.dropoffCoordinates } : undefined),
+      })) : [];
+
+      // Combine all trips and sort by creation date
+      const allTripsData = [
+        ...normalizedRides,
+        ...normalizedCombined,
+        ...normalizedDeliveries,
+        ...normalizedHourly,
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       // Store all drivers for map display
       const allDriversList = Array.isArray(driversRes) ? driversRes : [];
 
-      // Filter only available drivers (not on ride/trip, online or offline)
+      // Filter only available drivers (not on ride/trip)
       const available = allDriversList.filter((d: any) => d.status !== 'on_ride' && d.status !== 'on_trip');
 
-      console.log('📍 Loaded pending rides:', pending.length);
-      console.log('👥 Loaded available drivers:', available.length);
-      console.log('🗺️ Total drivers for map:', allDriversList.length);
-      console.log('🔍 First ride customer data:', pending[0]?.customer || 'No customer');
+      console.log('✅ Loaded trips:', {
+        rides: normalizedRides.length,
+        combined: normalizedCombined.length,
+        deliveries: normalizedDeliveries.length,
+        hourly: normalizedHourly.length,
+        total: allTripsData.length,
+      });
+      console.log('👥 Loaded drivers:', {
+        total: allDriversList.length,
+        available: available.length,
+      });
       
-      setPendingRides(pending);
+      setAllTrips(allTripsData);
+      setFilteredTrips(allTripsData);
       setAvailableDrivers(available);
       setAllDrivers(allDriversList);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('❌ Error loading data:', error);
+      addNotification({
+        id: `error-${Date.now()}`,
+        type: 'other',
+        title: 'Lỗi',
+        message: 'Không thể tải dữ liệu chuyến đi',
+        timestamp: new Date().toISOString(),
+        read: false,
+        priority: 'high',
+      });
     } finally {
       setLoading(false);
     }
@@ -560,6 +642,38 @@ const DispatchManagement: React.FC = () => {
     return labels[type] || type;
   };
 
+  const getTripTypeLabel = (type: TripType) => {
+    const labels: { [key in TripType]: string } = {
+      ride: '🚗 Đặt xe',
+      combined: '🚙 Xe ghép',
+      delivery: '📦 Giao hàng',
+      hourly: '⏰ Lái xe hộ',
+    };
+    return labels[type];
+  };
+
+  const getTripTypeColor = (type: TripType) => {
+    const colors: { [key in TripType]: string } = {
+      ride: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400',
+      combined: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400',
+      delivery: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400',
+      hourly: 'bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-400',
+    };
+    return colors[type];
+  };
+
+  const getTripStatusColor = (status: string) => {
+    const colors: { [key: string]: string } = {
+      pending: 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
+      accepted: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400',
+      in_progress: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400',
+      arrived_at_pickup: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400',
+      completed: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400',
+      cancelled: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400',
+    };
+    return colors[status] || 'bg-gray-100 dark:bg-gray-500/20 text-gray-700 dark:text-gray-400';
+  };
+
   return (
     <Layout>
       <div className="p-6 space-y-6">
@@ -609,8 +723,20 @@ const DispatchManagement: React.FC = () => {
           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Chờ giao tài xế</p>
-                <p className="text-2xl font-bold text-yellow-600">{pendingRides.length}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tổng chuyến</p>
+                <p className="text-2xl font-bold text-blue-600">{filteredTrips.length}</p>
+              </div>
+              <div className="p-3 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
+                <span className="material-symbols-outlined text-blue-600">local_shipping</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Chờ tài xế</p>
+                <p className="text-2xl font-bold text-yellow-600">{filteredTrips.filter(t => t.status === 'pending').length}</p>
               </div>
               <div className="p-3 bg-yellow-100 dark:bg-yellow-500/20 rounded-lg">
                 <span className="material-symbols-outlined text-yellow-600">pending_actions</span>
@@ -621,35 +747,25 @@ const DispatchManagement: React.FC = () => {
           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tổng số tài xế</p>
-                <p className="text-2xl font-bold text-blue-600">{allDrivers.length}</p>
-              </div>
-              <div className="p-3 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
-                <span className="material-symbols-outlined text-blue-600">group</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tài xế có sẵn</p>
-                <p className="text-2xl font-bold text-green-600">{availableDrivers.length}</p>
-              </div>
-              <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-lg">
-                <span className="material-symbols-outlined text-green-600">verified_driver</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Tài xế gần đó</p>
-                <p className="text-2xl font-bold text-purple-600">{nearbyDrivers.length}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Đang di chuyển</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {filteredTrips.filter(t => ['accepted', 'in_progress', 'arrived_at_pickup'].includes(t.status)).length}
+                </p>
               </div>
               <div className="p-3 bg-purple-100 dark:bg-purple-500/20 rounded-lg">
-                <span className="material-symbols-outlined text-purple-600">location_on</span>
+                <span className="material-symbols-outlined text-purple-600">directions_car</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Hoàn thành</p>
+                <p className="text-2xl font-bold text-green-600">{filteredTrips.filter(t => t.status === 'completed').length}</p>
+              </div>
+              <div className="p-3 bg-green-100 dark:bg-green-500/20 rounded-lg">
+                <span className="material-symbols-outlined text-green-600">check_circle</span>
               </div>
             </div>
           </div>
@@ -657,12 +773,64 @@ const DispatchManagement: React.FC = () => {
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Filters */}
+          <div className="lg:col-span-3">
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">Loại dịch vụ</label>
+                  <select
+                    value={filterTripType}
+                    onChange={(e) => setFilterTripType(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="all">Tất cả</option>
+                    <option value="ride">🚗 Đặt xe</option>
+                    <option value="combined">🚙 Xe ghép</option>
+                    <option value="delivery">📦 Giao hàng</option>
+                    <option value="hourly">⏰ Lái xe hộ</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">Trạng thái</label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="all">Tất cả</option>
+                    <option value="pending">Chờ tài xế</option>
+                    <option value="accepted">Đã nhận</option>
+                    <option value="in_progress">Đang di chuyển</option>
+                    <option value="arrived_at_pickup">Đã đến điểm đón</option>
+                    <option value="completed">Hoàn thành</option>
+                    <option value="cancelled">Đã hủy</option>
+                  </select>
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setFilterTripType('all');
+                      setFilterStatus('all');
+                    }}
+                    className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    Xóa bộ lọc
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Map - Always visible with all drivers */}
           <div className="lg:col-span-2">
             <DispatchMap 
               drivers={allDrivers}
               onDriverClick={(driver) => setSelectedDriver(driver)}
               selectedDriverId={selectedDriver?._id}
+              selectedTrip={selectedRide}
             />
           </div>
 
@@ -738,7 +906,34 @@ const DispatchManagement: React.FC = () => {
                   </button>
                 </div>
 
+                {/* Show message for completed/cancelled trips */}
+                {(selectedRide.status === 'completed' || selectedRide.status === 'cancelled') && (
+                  <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4 mb-4 text-center">
+                    <div className="text-4xl mb-2">
+                      {selectedRide.status === 'completed' ? '✅' : '❌'}
+                    </div>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Chuyến đi {selectedRide.status === 'completed' ? 'đã hoàn thành' : 'đã bị hủy'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">Không hiển thị bản đồ theo dõi</p>
+                  </div>
+                )}
+
                 <div className="space-y-2 text-sm mb-4">
+                  {/* Trip Type Badge */}
+                  <div>
+                    <span className={`px-3 py-1 text-xs font-bold rounded inline-block ${getTripTypeColor(selectedRide.tripType)}`}>
+                      {getTripTypeLabel(selectedRide.tripType)}
+                    </span>
+                    <span className={`ml-2 px-3 py-1 text-xs font-bold rounded inline-block ${getTripStatusColor(selectedRide.status)}`}>
+                      {selectedRide.status === 'pending' ? 'Chờ tài xế' :
+                       selectedRide.status === 'accepted' ? 'Đã nhận' :
+                       selectedRide.status === 'in_progress' ? 'Đang đi' :
+                       selectedRide.status === 'arrived_at_pickup' ? 'Đã đến đón' :
+                       selectedRide.status === 'completed' ? 'Hoàn thành' :
+                       selectedRide.status === 'cancelled' ? 'Đã hủy' : selectedRide.status}
+                    </span>
+                  </div>
                   <div>
                     <p className="text-xs text-slate-500">Khách:</p>
                     <p className="font-bold text-slate-900 dark:text-white">
@@ -754,11 +949,14 @@ const DispatchManagement: React.FC = () => {
                     <p className="font-bold text-slate-900 dark:text-white">{selectedRide.dropoffAddress}</p>
                   </div>
                   <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
-                    <span className="text-slate-500">{selectedRide.distance?.toFixed(1) || 0} km</span>
-                    <span className="font-bold text-emerald-600">{(selectedRide.totalFare || 0).toLocaleString()}đ</span>
+                    <span className="text-slate-500">{(parseFloat(selectedRide.distance as any) || 0).toFixed(1)} km</span>
+                    <span className="font-bold text-emerald-600">{(Number(selectedRide.totalFare) || 0).toLocaleString()}đ</span>
                   </div>
                 </div>
 
+                {/* Only show driver assignment for pending trips without driver */}
+                {selectedRide.status === 'pending' && !selectedRide.driverId ? (
+                  <>
                 {/* Nearby Drivers */}
                 <div className="mb-4">
                   <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
@@ -785,7 +983,7 @@ const DispatchManagement: React.FC = () => {
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs font-bold text-blue-600">{driver.distance.toFixed(1)}km</p>
+                              <p className="text-xs font-bold text-blue-600">{(parseFloat(driver.distance as any) || 0).toFixed(1)}km</p>
                               <p className="text-xs text-slate-500">{driver.licensePlate || 'N/A'}</p>
                             </div>
                           </div>
@@ -814,6 +1012,20 @@ const DispatchManagement: React.FC = () => {
                     Random
                   </button>
                 </div>
+                  </>
+                ) : selectedRide.status !== 'completed' && selectedRide.status !== 'cancelled' ? (
+                  <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-lg text-center">
+                    <div className="text-3xl mb-2">🚕</div>
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
+                      Chuyến đi đã có tài xế
+                    </p>
+                    {selectedRide.driver && (
+                      <p className="text-xs text-blue-600 dark:text-blue-300">
+                        {selectedRide.driver.firstName} {selectedRide.driver.lastName}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-8 border border-slate-200 dark:border-slate-700 text-center">
@@ -824,10 +1036,10 @@ const DispatchManagement: React.FC = () => {
           </div>
         </div>
 
-        {/* Pending Rides List */}
+        {/* All Trips List */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-slate-200 dark:border-slate-700">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-            Chuyến đi chờ giao ({pendingRides.length})
+            Danh sách chuyến đi ({filteredTrips.length})
           </h2>
 
           {loading ? (
@@ -835,16 +1047,17 @@ const DispatchManagement: React.FC = () => {
               <span className="material-symbols-outlined animate-spin">refresh</span>
               <p className="mt-2 text-xs">Đang tải...</p>
             </div>
-          ) : pendingRides.length === 0 ? (
+          ) : filteredTrips.length === 0 ? (
             <div className="text-center py-8 text-slate-500">
-              <span className="material-symbols-outlined text-4xl mb-2">check_circle</span>
-              <p className="text-sm">Không có chuyến đi chờ</p>
+              <span className="material-symbols-outlined text-4xl mb-2">search_off</span>
+              <p className="text-sm">Không tìm thấy chuyến đi nào</p>
             </div>
           ) : (
             <div className="overflow-x-auto" style={{ maxHeight: '400px', overflowY: 'auto' }}>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-900 dark:text-white">Loại</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-900 dark:text-white">Khách hàng</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-900 dark:text-white">SĐT</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-slate-900 dark:text-white">Điểm đón</th>
@@ -856,7 +1069,7 @@ const DispatchManagement: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingRides.map(ride => (
+                  {filteredTrips.map(ride => (
                     <tr 
                       key={ride._id}
                       onClick={() => setSelectedRide(ride)}
@@ -866,6 +1079,11 @@ const DispatchManagement: React.FC = () => {
                           : ''
                       }`}
                     >
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`px-2 py-1 text-xs font-bold rounded inline-block ${getTripTypeColor(ride.tripType)}`}>
+                          {getTripTypeLabel(ride.tripType)}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm text-slate-900 dark:text-white font-medium">
                         {ride.customer?.firstName && ride.customer?.lastName
                           ? `${ride.customer.firstName} ${ride.customer.lastName}`
@@ -881,14 +1099,19 @@ const DispatchManagement: React.FC = () => {
                         {ride.dropoffAddress}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 text-right">
-                        {ride.distance?.toFixed(1) || 0} km
+                        {(parseFloat(ride.distance as any) || 0).toFixed(1)} km
                       </td>
                       <td className="px-4 py-3 text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">
-                        {(ride.totalFare || 0).toLocaleString()}đ
+                        {(Number(ride.totalFare) || 0).toLocaleString()}đ
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded">
-                          Chờ
+                        <span className={`px-2 py-1 text-xs font-bold rounded inline-block ${getTripStatusColor(ride.status)}`}>
+                          {ride.status === 'pending' ? 'Chờ tài xế' :
+                           ride.status === 'accepted' ? 'Đã nhận' :
+                           ride.status === 'in_progress' ? 'Đang đi' :
+                           ride.status === 'arrived_at_pickup' ? 'Đã đến đón' :
+                           ride.status === 'completed' ? 'Hoàn thành' :
+                           ride.status === 'cancelled' ? 'Đã hủy' : ride.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -1007,8 +1230,8 @@ const DispatchManagement: React.FC = () => {
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">Trạng thái</label>
                 <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as any)}
+                  value={disputeFilterStatus}
+                  onChange={(e) => setDisputeFilterStatus(e.target.value as any)}
                   className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="all">Tất cả</option>
@@ -1023,8 +1246,8 @@ const DispatchManagement: React.FC = () => {
               <div>
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 block">Mức độ</label>
                 <select
-                  value={filterSeverity}
-                  onChange={(e) => setFilterSeverity(e.target.value as any)}
+                  value={disputeFilterSeverity}
+                  onChange={(e) => setDisputeFilterSeverity(e.target.value as any)}
                   className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="all">Tất cả</option>
@@ -1039,8 +1262,8 @@ const DispatchManagement: React.FC = () => {
                 <button
                   onClick={() => {
                     setSearchQuery('');
-                    setFilterStatus('all');
-                    setFilterSeverity('all');
+                    setDisputeFilterStatus('all');
+                    setDisputeFilterSeverity('all');
                   }}
                   className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                 >
@@ -1177,9 +1400,9 @@ const DispatchManagement: React.FC = () => {
                           📌 {selectedDispute.ride.dropoffAddress}
                         </p>
                         <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
-                          <span>{selectedDispute.ride.distance}km</span>
+                          <span>{parseFloat(selectedDispute.ride.distance as any) || 0}km</span>
                           <span>{selectedDispute.ride.duration} phút</span>
-                          <span className="font-bold text-emerald-600">{selectedDispute.ride.totalFare.toLocaleString()}đ</span>
+                          <span className="font-bold text-emerald-600">{(Number(selectedDispute.ride.totalFare) || 0).toLocaleString()}đ</span>
                         </div>
                       </div>
                     )}
