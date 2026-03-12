@@ -5,7 +5,7 @@ export interface Transaction {
   customerId: string | Customer
   transactionCode: string
   type: 'deposit' | 'withdraw' | 'withdrawal' | 'topup' | 'payment' | 'refund' | 'transfer' | 'earning'
-  status: 'pending' | 'processing' | 'transferring' | 'success' | 'failed' | 'cancelled'
+  status: 'pending' | 'processing' | 'transferring' | 'success' | 'completed' | 'failed' | 'cancelled'
   amount: number
   fee?: number
   description?: string
@@ -211,6 +211,7 @@ export const walletService = {
       processing: 'Đang xử lý',
       transferring: 'Đang chuyển',
       success: 'Hoàn thành',
+      completed: 'Hoàn thành',
       failed: 'Thất bại',
       cancelled: 'Hủy',
     }
@@ -223,6 +224,7 @@ export const walletService = {
       processing: '#2196F3',
       transferring: '#9C27B0',
       success: '#4CAF50',
+      completed: '#4CAF50',
       failed: '#F44336',
       cancelled: '#9E9E9E',
     }
