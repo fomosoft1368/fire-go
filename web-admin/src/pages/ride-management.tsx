@@ -8,6 +8,7 @@ interface Ride {
   customerId: string;
   driverId?: string;
   status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
+  type?: 'hire' | 'rideshare' | 'delivery'; // Added type field
   pickupAddress: string;
   dropoffAddress: string;
   distance: number;
@@ -40,6 +41,32 @@ export default function RideManagement() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [selectedRide, setSelectedRide] = useState<any>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [rideshareRequests, setRideshareRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
+  // Fetch requests when modal opens for rideshare trips
+  useEffect(() => {
+    const fetchRequests = async () => {
+      if (showDetailModal && selectedRide && selectedRide.type === 'rideshare') {
+        setLoadingRequests(true);
+        try {
+          const tripId = selectedRide._id || selectedRide.id;
+          console.log('🔍 Fetching requests for trip:', tripId);
+          const requests = await apiService.getCombinedTripRequests(tripId);
+          console.log('📋 Fetched rideshare requests:', requests);
+          setRideshareRequests(requests || []);
+        } catch (err) {
+          console.error('❌ Error fetching requests:', err);
+          setRideshareRequests([]);
+        } finally {
+          setLoadingRequests(false);
+        }
+      }
+    };
+    fetchRequests();
+  }, [showDetailModal, selectedRide]);
 
   // Fetch rides data
   useEffect(() => {
@@ -48,16 +75,23 @@ export default function RideManagement() {
         setLoading(true);
         setError(null);
 
-        console.log('🚀 Fetching rides from API...');
-        const allRides = await apiService.getRides({
-          status: filterStatus !== 'all' ? filterStatus : undefined,
-        });
+        console.log('🚀 Fetching all trips from 3 sources...');
+        
+        const statusFilter = filterStatus !== 'all' ? filterStatus : undefined;
 
-        console.log('📦 API Response:', allRides);
-        console.log('📊 Number of rides:', allRides?.length || 0);
+        // Fetch from all 3 sources in parallel
+        const [regularRides, combinedTrips, deliveries] = await Promise.all([
+          apiService.getRides({ status: statusFilter }),
+          apiService.getCombinedTrips({ status: statusFilter }),
+          apiService.getDeliveries({ status: statusFilter }),
+        ]);
 
-        // Map populated driver/customer info with fallback for name and avatar
-        const mappedRides = (allRides || []).map((ride: any) => {
+        console.log('📦 Regular rides:', regularRides?.length || 0);
+        console.log('📦 Combined trips (xe ghép):', combinedTrips?.length || 0);
+        console.log('📦 Deliveries (giao hàng):', deliveries?.length || 0);
+
+        // Map regular rides
+        const mappedRegularRides = (regularRides || []).map((ride: any) => {
           // Get customer name from firstName + lastName
           let customerName = 'Khách hàng';
           if (ride.customerId && typeof ride.customerId === 'object') {
@@ -92,8 +126,22 @@ export default function RideManagement() {
             }
           }
 
+          // Helper to safely get address string from GeoJSON or text
+          const getAddressString = (field: any): string => {
+            if (!field) return 'N/A';
+            if (typeof field === 'string') return field;
+            if (typeof field === 'object' && field.type === 'Point') {
+              // GeoJSON object - show coordinates
+              return `${field.coordinates?.[1]?.toFixed(4) || '?'}, ${field.coordinates?.[0]?.toFixed(4) || '?'}`;
+            }
+            return 'N/A';
+          };
+
           return {
             ...ride,
+            type: 'hire', // Thuê xe thường
+            pickupAddress: getAddressString(ride.pickupAddress),
+            dropoffAddress: getAddressString(ride.dropoffAddress),
             driver: ride.driverId && typeof ride.driverId === 'object' ? {
               name: driverName,
               avatar:
@@ -109,7 +157,167 @@ export default function RideManagement() {
             } : undefined,
           };
         });
-        setRides(mappedRides);
+
+        // Map combined trips (xe ghép)
+        const mappedCombinedTrips = (combinedTrips || []).map((trip: any) => {
+          let customerName = 'Khách hàng';
+          let customerCount = 0;
+          let customers: any[] = [];
+
+          // Combined trips có thể có NHIỀU khách hàng trong array customerId
+          if (trip.customerId && Array.isArray(trip.customerId)) {
+            customerCount = trip.customerId.length;
+            customers = trip.customerId;
+            if (customerCount === 1) {
+              const customer = trip.customerId[0];
+              if (customer && typeof customer === 'object') {
+                const userId = customer.userId || customer;
+                if (userId?.firstName && userId?.lastName) {
+                  customerName = `${userId.firstName} ${userId.lastName}`.trim();
+                } else if (customer.firstName && customer.lastName) {
+                  customerName = `${customer.firstName} ${customer.lastName}`.trim();
+                } else if (userId?.firstName) {
+                  customerName = userId.firstName;
+                } else if (customer.firstName) {
+                  customerName = customer.firstName;
+                }
+              }
+            } else if (customerCount > 1) {
+              customerName = `${customerCount} khách hàng`;
+            }
+          } else if (trip.userId && typeof trip.userId === 'object') {
+            // Fallback: old field name
+            const user = trip.userId;
+            if (user?.firstName && user?.lastName) {
+              customerName = `${user.firstName} ${user.lastName}`.trim();
+            } else if (user?.firstName) {
+              customerName = user.firstName;
+            } else if (user?.name) {
+              customerName = user.name;
+            }
+            customers = [user];
+            customerCount = 1;
+          }
+
+          let driverName = 'Tài xế';
+          if (trip.driverId && typeof trip.driverId === 'object') {
+            const driver = trip.driverId;
+            const driverUserId = driver.userId || driver;
+            if (driverUserId?.firstName && driverUserId?.lastName) {
+              driverName = `${driverUserId.firstName} ${driverUserId.lastName}`.trim();
+            } else if (driverUserId?.firstName) {
+              driverName = driverUserId.firstName;
+            } else if (driver.bankAccountHolder) {
+              driverName = driver.bankAccountHolder;
+            }
+          }
+
+          // Helper to safely get address string from GeoJSON or text
+          const getAddressString = (field: any): string => {
+            if (!field) return 'N/A';
+            if (typeof field === 'string') return field;
+            if (typeof field === 'object' && field.type === 'Point') {
+              // GeoJSON object - just show coordinates
+              return `${field.coordinates?.[1]?.toFixed(4) || '?'}, ${field.coordinates?.[0]?.toFixed(4) || '?'}`;
+            }
+            return 'N/A';
+          };
+
+          return {
+            ...trip,
+            type: 'rideshare', // Xe ghép
+            pickupAddress: getAddressString(trip.pickupLocation || trip.pickupAddress),
+            dropoffAddress: getAddressString(trip.dropoffLocation || trip.dropoffAddress),
+            passengers: trip.numberOfSeats || trip.passengers || 1,
+            customerCount, // NEW: số lượng khách hàng
+            customers, // NEW: danh sách khách hàng đầy đủ
+            driver: trip.driverId && typeof trip.driverId === 'object' ? {
+              name: driverName,
+              avatar:
+                trip.driverId.userId?.avatar ||
+                `https://i.pravatar.cc/150?u=${trip.driverId.userId?.firstName || trip.driverId.bankAccountHolder || trip.driverId._id}`,
+              rating: trip.driverId.averageRating,
+            } : undefined,
+            customer: customers.length > 0 ? {
+              name: customerName,
+              avatar:
+                customers[0]?.userId?.avatar || 
+                customers[0]?.avatar ||
+                `https://i.pravatar.cc/150?u=${customers[0]?.userId?._id || customers[0]?._id || 'default'}`,
+            } : undefined,
+          };
+        });
+
+        // Map deliveries (giao hàng)
+        const mappedDeliveries = (deliveries || []).map((delivery: any) => {
+          let customerName = 'Khách hàng';
+          if (delivery.customerId && typeof delivery.customerId === 'object') {
+            const customer = delivery.customerId;
+            const userId = customer.userId || customer;
+            if (userId?.firstName && userId?.lastName) {
+              customerName = `${userId.firstName} ${userId.lastName}`.trim();
+            } else if (userId?.firstName) {
+              customerName = userId.firstName;
+            } else if (userId?.name) {
+              customerName = userId.name;
+            }
+          }
+
+          let driverName = 'Tài xế';
+          if (delivery.driverId && typeof delivery.driverId === 'object') {
+            const driver = delivery.driverId;
+            const driverUserId = driver.userId || driver;
+            if (driverUserId?.firstName && driverUserId?.lastName) {
+              driverName = `${driverUserId.firstName} ${driverUserId.lastName}`.trim();
+            } else if (driverUserId?.firstName) {
+              driverName = driverUserId.firstName;
+            } else if (driver.bankAccountHolder) {
+              driverName = driver.bankAccountHolder;
+            }
+          }
+
+          // Helper to safely get address string from GeoJSON or text
+          const getAddressString = (field: any): string => {
+            if (!field) return 'N/A';
+            if (typeof field === 'string') return field;
+            if (typeof field === 'object' && field.type === 'Point') {
+              // GeoJSON object - show coordinates
+              return `${field.coordinates?.[1]?.toFixed(4) || '?'}, ${field.coordinates?.[0]?.toFixed(4) || '?'}`;
+            }
+            return 'N/A';
+          };
+
+          return {
+            ...delivery,
+            type: 'delivery', // Giao hàng
+            pickupAddress: getAddressString(delivery.pickupAddress || delivery.pickupLocation),
+            dropoffAddress: getAddressString(delivery.dropoffAddress || delivery.dropoffLocation),
+            passengers: 0, // Deliveries don't have passengers
+            driver: delivery.driverId && typeof delivery.driverId === 'object' ? {
+              name: driverName,
+              avatar:
+                delivery.driverId.userId?.avatar ||
+                `https://i.pravatar.cc/150?u=${delivery.driverId.userId?.firstName || delivery.driverId.bankAccountHolder || delivery.driverId._id}`,
+              rating: delivery.driverId.averageRating,
+            } : undefined,
+            customer: delivery.customerId && typeof delivery.customerId === 'object' ? {
+              name: customerName,
+              avatar:
+                delivery.customerId.userId?.avatar ||
+                `https://i.pravatar.cc/150?u=${delivery.customerId.userId?._id || delivery.customerId._id || delivery.customerId}`,
+            } : undefined,
+          };
+        });
+
+        // Merge all trips
+        const allTrips = [
+          ...mappedRegularRides,
+          ...mappedCombinedTrips,
+          ...mappedDeliveries,
+        ];
+
+        console.log('📊 Total trips after merge:', allTrips.length);
+        setRides(allTrips);
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Lỗi tải dữ liệu cuốc xe';
         console.error('❌ Error fetching rides:', err);
@@ -176,14 +384,31 @@ export default function RideManagement() {
     }
   };
 
-  const getRouteColor = (status: string) => {
-    switch (status) {
-      case 'in_progress': return 'border-primary bg-primary';
-      case 'completed': return 'border-green-500 bg-green-500';
-      case 'cancelled': return 'border-slate-400 bg-slate-400';
-      case 'pending': return 'border-yellow-500 bg-yellow-500';
-      case 'accepted': return 'border-blue-500 bg-blue-500';
-      default: return 'border-primary bg-primary';
+  const getTypeBadge = (type?: string) => {
+    switch (type) {
+      case 'hire':
+        return (
+          <div className="px-2 py-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-semibold flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">local_taxi</span>
+            Thuê xe
+          </div>
+        );
+      case 'rideshare':
+        return (
+          <div className="px-2 py-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-semibold flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">group</span>
+            Xe ghép
+          </div>
+        );
+      case 'delivery':
+        return (
+          <div className="px-2 py-1 rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-semibold flex items-center gap-1">
+            <span className="material-symbols-outlined text-[14px]">package</span>
+            Giao hàng
+          </div>
+        );
+      default:
+        return null;
     }
   };
 
@@ -250,7 +475,18 @@ export default function RideManagement() {
               <span className="material-symbols-outlined text-yellow-500 text-2xl">attach_money</span>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Doanh thu</p>
             </div>
-            <p className="text-3xl font-bold text-slate-900 dark:text-white">{(rides.reduce((sum, r) => sum + (r.totalFare || 0), 0) / 1000000).toFixed(1)}M đ</p>
+            <p className="text-3xl font-bold text-slate-900 dark:text-white">
+              {(() => {
+                const total = rides.reduce((sum, r) => {
+                  const fare = r.totalFare;
+                  const numFare = typeof fare === 'string' 
+                    ? parseFloat((fare as string).replace(/\./g, '').replace(/,/g, ''))
+                    : (fare || 0);
+                  return sum + (isNaN(numFare) ? 0 : numFare);
+                }, 0);
+                return (total / 1000000).toFixed(1);
+              })()}M đ
+            </p>
           </div>
         </div>
 
@@ -318,6 +554,7 @@ export default function RideManagement() {
                 <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">ID Cuốc</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Loại</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Tài xế</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Khách hàng</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Tuyến đường</th>
@@ -325,6 +562,7 @@ export default function RideManagement() {
                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Giá tiền</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Trạng thái</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Thời gian</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-900 dark:text-white">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -342,6 +580,11 @@ export default function RideManagement() {
                         {/* ID */}
                         <td className="px-6 py-4">
                           <p className="text-sm font-semibold text-slate-900 dark:text-white">#{rideId.slice(-6).toUpperCase()}</p>
+                        </td>
+
+                        {/* Type */}
+                        <td className="px-6 py-4">
+                          {getTypeBadge(ride.type)}
                         </td>
 
                         {/* Driver */}
@@ -382,13 +625,25 @@ export default function RideManagement() {
 
                         {/* Distance */}
                         <td className="px-6 py-4">
-                          <p className="text-sm text-slate-900 dark:text-white font-medium">{ride.distance?.toFixed(1) || '0'} km</p>
+                          <p className="text-sm text-slate-900 dark:text-white font-medium">
+                            {(() => {
+                              const dist = typeof ride.distance === 'string' 
+                                ? parseFloat(ride.distance) 
+                                : (ride.distance || 0);
+                              return isNaN(dist) ? '0' : dist.toFixed(1);
+                            })()} km
+                          </p>
                         </td>
 
                         {/* Fare */}
                         <td className="px-6 py-4">
                           <p className={`text-sm font-bold ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-white'}`}>
-                            {(ride.totalFare || 0).toLocaleString('vi-VN')}đ
+                            {(() => {
+                              const fare = typeof ride.totalFare === 'string'
+                                ? parseFloat((ride.totalFare as string).replace(/\./g, '').replace(/,/g, ''))
+                                : (ride.totalFare || 0);
+                              return isNaN(fare) ? '0' : fare.toLocaleString('vi-VN');
+                            })()}đ
                           </p>
                         </td>
 
@@ -400,6 +655,24 @@ export default function RideManagement() {
                         {/* Time */}
                         <td className="px-6 py-4">
                           <p className="text-sm text-slate-600 dark:text-slate-400">{time}</p>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-6 py-4">
+                          {ride.type === 'rideshare' && (ride as any).customerCount > 0 ? (
+                            <button
+                              onClick={() => {
+                                setSelectedRide(ride);
+                                setShowDetailModal(true);
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors text-xs font-semibold"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">visibility</span>
+                              Chi tiết
+                            </button>
+                          ) : (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -477,6 +750,220 @@ export default function RideManagement() {
               </div>
             </div>
           </>
+        )}
+
+        {/* Detail Modal for Rideshare Trips */}
+        {showDetailModal && selectedRide && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => {
+            setShowDetailModal(false);
+            setRideshareRequests([]);
+          }}>
+            <div className="bg-white dark:bg-card-dark rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 bg-white dark:bg-card-dark border-b border-slate-200 dark:border-slate-700 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-purple-600 text-2xl">group</span>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Chi tiết chuyến xe ghép</h2>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setRideshareRequests([]);
+                    }}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-slate-500">close</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Trip Info */}
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Thông tin chuyến đi</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">ID Cuốc</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">#{(selectedRide._id || selectedRide.id || '').slice(-6).toUpperCase()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Số lượng khách</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">{(selectedRide as any).customerCount || 0} người</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Khoảng cách</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {(() => {
+                          const dist = typeof selectedRide.distance === 'string' 
+                            ? parseFloat(selectedRide.distance) 
+                            : (selectedRide.distance || 0);
+                          return isNaN(dist) ? '0' : dist.toFixed(1);
+                        })()} km
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Tổng tiền</p>
+                      <p className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                        {(() => {
+                          const fare = typeof selectedRide.totalFare === 'string'
+                            ? parseFloat((selectedRide.totalFare as string).replace(/\./g, '').replace(/,/g, ''))
+                            : (selectedRide.totalFare || 0);
+                          return isNaN(fare) ? '0' : fare.toLocaleString('vi-VN');
+                        })()}đ
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Driver Info */}
+                {selectedRide.driver && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-blue-600 text-lg">local_taxi</span>
+                      Tài xế
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      <img className="w-12 h-12 rounded-full object-cover" src={selectedRide.driver.avatar} alt={selectedRide.driver.name} />
+                      <div>
+                        <p className="font-semibold text-slate-900 dark:text-white">{selectedRide.driver.name}</p>
+                        {selectedRide.driver.rating && (
+                          <div className="flex items-center gap-1 text-yellow-500">
+                            <span className="material-symbols-outlined text-sm">star</span>
+                            <span className="text-sm font-medium">{selectedRide.driver.rating.toFixed(1)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Customers List */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-purple-600 text-lg">group</span>
+                    Danh sách khách hàng ({loadingRequests ? '...' : rideshareRequests.length})
+                  </h3>
+                  
+                  {loadingRequests ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin">
+                        <span className="material-symbols-outlined text-2xl text-purple-600">autorenew</span>
+                      </div>
+                      <span className="ml-3 text-slate-500 dark:text-slate-400">Đang tải...</span>
+                    </div>
+                  ) : rideshareRequests.length === 0 ? (
+                    <div className="text-center py-8">
+                      <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">group_off</span>
+                      <p className="text-slate-500 dark:text-slate-400 mt-2">Không có thông tin khách hàng</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {rideshareRequests.map((request: any, index: number) => {
+                        // Get customer info
+                        const customer = request.customerId;
+                        const customerName = customer?.firstName && customer?.lastName 
+                          ? `${customer.firstName} ${customer.lastName}`.trim()
+                          : customer?.firstName || 'Khách hàng';
+                        const avatar = customer?.avatar || `https://i.pravatar.cc/150?u=${customer?._id || index}`;
+
+                        // Get address info - handle both string and GeoJSON
+                        const getAddressString = (field: any): string => {
+                          if (!field) return 'Chưa có thông tin';
+                          if (typeof field === 'string') return field;
+                          if (typeof field === 'object' && field.type === 'Point') {
+                            return `${field.coordinates?.[1]?.toFixed(4) || '?'}, ${field.coordinates?.[0]?.toFixed(4) || '?'}`;
+                          }
+                          return 'Chưa có thông tin';
+                        };
+
+                        const pickupAddr = getAddressString(request.pickupAddress);
+                        const dropoffAddr = getAddressString(request.dropoffAddress);
+
+                        return (
+                          <div key={request._id || index} className="bg-white dark:bg-slate-700 rounded-lg p-4 border border-slate-200 dark:border-slate-600">
+                            {/* Customer Header */}
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold text-sm">
+                                {index + 1}
+                              </div>
+                              <img className="w-10 h-10 rounded-full object-cover" src={avatar} alt={customerName} />
+                              <div className="flex-1">
+                                <p className="font-semibold text-slate-900 dark:text-white">{customerName}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {request.seats || 1} chỗ
+                                  {request.fare && ` • ${request.fare.toLocaleString('vi-VN')}đ`}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Customer's Route */}
+                            <div className="ml-11 space-y-2">
+                              <div className="flex gap-2">
+                                <div className="flex flex-col items-center">
+                                  <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                                  <div className="w-0.5 flex-1 bg-slate-300 dark:bg-slate-600 my-0.5 min-h-[20px]"></div>
+                                  <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                                </div>
+                                <div className="flex-1 space-y-3 pb-1">
+                                  <div>
+                                    <p className="text-xs text-green-600 dark:text-green-400 font-medium mb-0.5">Điểm đón</p>
+                                    <p className="text-sm text-slate-900 dark:text-white">{pickupAddr}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-0.5">Điểm đến</p>
+                                    <p className="text-sm text-slate-900 dark:text-white">{dropoffAddr}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Route Info */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-green-600 text-lg">route</span>
+                    Tuyến đường chung
+                  </h3>
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        <div className="w-0.5 flex-1 bg-slate-300 dark:bg-slate-600 my-1"></div>
+                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      </div>
+                      <div className="flex-1 space-y-4">
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Điểm bắt đầu</p>
+                          <p className="text-sm text-slate-900 dark:text-white">{selectedRide.pickupAddress}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Điểm kết thúc</p>
+                          <p className="text-sm text-slate-900 dark:text-white">{selectedRide.dropoffAddress}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4">
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setRideshareRequests([]);
+                  }}
+                  className="w-full py-2.5 rounded-lg bg-primary text-white font-semibold hover:bg-primary-dark transition-colors"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </Layout>

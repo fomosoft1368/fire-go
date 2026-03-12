@@ -21,6 +21,7 @@ import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useSelector } from 'react-redux'
+import * as Location from 'expo-location'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { API_BASE_URL } from '../constants/config'
 import { driverService } from '../services/driverService'
@@ -118,6 +119,49 @@ export default function CreateRideScreen() {
   const pickupDebounceTimer = useRef<NodeJS.Timeout | null>(null)
   const dropoffDebounceTimer = useRef<NodeJS.Timeout | null>(null)
 
+  // Current location for sorting by proximity
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+
+  // Get current location on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status !== 'granted') {
+          console.warn('⚠️ Location permission denied')
+          return
+        }
+
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        })
+        
+        setCurrentLocation({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        })
+        console.log('📍 Current location:', location.coords.latitude, location.coords.longitude)
+      } catch (error) {
+        console.error('❌ Error getting location:', error)
+      }
+    })()
+  }, [])
+
+  // Calculate distance between two coordinates (Haversine formula)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371 // Earth radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLon = ((lon2 - lon1) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
   // Fetch route polyline when both coords are available
   useEffect(() => {
     if (pickupCoords && dropoffCoords) {
@@ -209,7 +253,23 @@ export default function CreateRideScreen() {
       setIsSearchingPickup(true)
       const response = await placesService.searchPlaces(keyword)
       console.log(`📍 Pickup search (${response.source}):`, response.results.length, 'results')
-      setPickupSuggestions(response.results)
+      
+      // Sort by distance from current location if available
+      let sortedResults = response.results
+      if (currentLocation && response.results.length > 0) {
+        sortedResults = [...response.results].sort((a, b) => {
+          // Skip places with invalid coordinates
+          if (a.lat === 0 || a.lng === 0) return 1
+          if (b.lat === 0 || b.lng === 0) return -1
+          
+          const distA = calculateDistance(currentLocation.latitude, currentLocation.longitude, a.lat, a.lng)
+          const distB = calculateDistance(currentLocation.latitude, currentLocation.longitude, b.lat, b.lng)
+          return distA - distB
+        })
+        console.log('✅ Sorted by proximity to current location')
+      }
+      
+      setPickupSuggestions(sortedResults)
     } catch (error) {
       console.error('Error searching pickup places:', error)
       setPickupSuggestions([])
@@ -224,7 +284,23 @@ export default function CreateRideScreen() {
       setIsSearchingDropoff(true)
       const response = await placesService.searchPlaces(keyword)
       console.log(`📍 Dropoff search (${response.source}):`, response.results.length, 'results')
-      setDropoffSuggestions(response.results)
+      
+      // Sort by distance from current location if available
+      let sortedResults = response.results
+      if (currentLocation && response.results.length > 0) {
+        sortedResults = [...response.results].sort((a, b) => {
+          // Skip places with invalid coordinates
+          if (a.lat === 0 || a.lng === 0) return 1
+          if (b.lat === 0 || b.lng === 0) return -1
+          
+          const distA = calculateDistance(currentLocation.latitude, currentLocation.longitude, a.lat, a.lng)
+          const distB = calculateDistance(currentLocation.latitude, currentLocation.longitude, b.lat, b.lng)
+          return distA - distB
+        })
+        console.log('✅ Sorted by proximity to current location')
+      }
+      
+      setDropoffSuggestions(sortedResults)
     } catch (error) {
       console.error('Error searching dropoff places:', error)
       setDropoffSuggestions([])
@@ -514,21 +590,36 @@ export default function CreateRideScreen() {
                 <FlatList
                   data={pickupSuggestions}
                   keyExtractor={(item, index) => `${item.placeId || item.name}-${index}`}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.suggestionItem}
-                      onPress={() => selectPickupPlace(item)}
-                    >
-                      <MaterialIcons name="location-on" size={14} color={COLORS.primary} />
-                      <View style={styles.suggestionContent}>
-                        <Text style={styles.suggestionName}>{item.name}</Text>
-                        {item.address && item.address !== item.name && (
-                          <Text style={styles.suggestionAddress}>{item.address}</Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  )}
+                  scrollEnabled={true}
+                  nestedScrollEnabled={true}
+                  renderItem={({ item }) => {
+                    // Calculate distance if current location available
+                    const distance = currentLocation && item.lat !== 0 && item.lng !== 0
+                      ? calculateDistance(currentLocation.latitude, currentLocation.longitude, item.lat, item.lng)
+                      : null
+                    
+                    return (
+                      <TouchableOpacity
+                        style={styles.suggestionItem}
+                        onPress={() => selectPickupPlace(item)}
+                      >
+                        <MaterialIcons name="location-on" size={14} color={COLORS.primary} />
+                        <View style={styles.suggestionContent}>
+                          <View style={styles.suggestionHeader}>
+                            <Text style={styles.suggestionName}>{item.name || item.address}</Text>
+                            {distance !== null && (
+                              <Text style={styles.suggestionDistance}>
+                                {distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}
+                              </Text>
+                            )}
+                          </View>
+                          {item.address && item.address !== item.name && item.name && (
+                            <Text style={styles.suggestionAddress}>{item.address}</Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  }}
                 />
               </View>
             )}
@@ -567,21 +658,36 @@ export default function CreateRideScreen() {
                 <FlatList
                   data={dropoffSuggestions}
                   keyExtractor={(item, index) => `${item.placeId || item.name}-${index}`}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.suggestionItem}
-                      onPress={() => selectDropoffPlace(item)}
-                    >
-                      <MaterialIcons name="location-on" size={14} color="#FF6B6B" />
-                      <View style={styles.suggestionContent}>
-                        <Text style={styles.suggestionName}>{item.name}</Text>
-                        {item.address && item.address !== item.name && (
-                          <Text style={styles.suggestionAddress}>{item.address}</Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  )}
+                  scrollEnabled={true}
+                  nestedScrollEnabled={true}
+                  renderItem={({ item }) => {
+                    // Calculate distance if current location available
+                    const distance = currentLocation && item.lat !== 0 && item.lng !== 0
+                      ? calculateDistance(currentLocation.latitude, currentLocation.longitude, item.lat, item.lng)
+                      : null
+                    
+                    return (
+                      <TouchableOpacity
+                        style={styles.suggestionItem}
+                        onPress={() => selectDropoffPlace(item)}
+                      >
+                        <MaterialIcons name="location-on" size={14} color="#FF6B6B" />
+                        <View style={styles.suggestionContent}>
+                          <View style={styles.suggestionHeader}>
+                            <Text style={styles.suggestionName}>{item.name || item.address}</Text>
+                            {distance !== null && (
+                              <Text style={styles.suggestionDistance}>
+                                {distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`}
+                              </Text>
+                            )}
+                          </View>
+                          {item.address && item.address !== item.name && item.name && (
+                            <Text style={styles.suggestionAddress}>{item.address}</Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  }}
                 />
               </View>
             )}
@@ -905,11 +1011,23 @@ const styles = StyleSheet.create({
   suggestionContent: {
     flex: 1,
   },
+  suggestionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   suggestionName: {
     fontSize: 14, // Bigger
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 8,
+  },
+  suggestionDistance: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   suggestionAddress: {
     fontSize: 12,

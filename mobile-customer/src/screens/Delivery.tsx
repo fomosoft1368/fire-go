@@ -13,6 +13,7 @@ import {
     KeyboardAvoidingView,
     Keyboard,
     Platform,
+    ActivityIndicator,
 } from 'react-native'
 import * as Location from 'expo-location'
 import { SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
@@ -98,6 +99,7 @@ export default function Delivery(props?: DeliveryProps) {
     const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
     const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+    const [isLoadingCurrentLocation, setIsLoadingCurrentLocation] = useState(true)
     const [drivers, setDrivers] = useState<any[]>([])
 
     // Draggable Bottom Sheet
@@ -111,12 +113,14 @@ export default function Delivery(props?: DeliveryProps) {
     // Initialize pickup location with current user location
     useEffect(() => {
         const initializePickupLocation = async () => {
+            setIsLoadingCurrentLocation(true)
             try {
                 console.log('[Delivery] 📍 Requesting location permission...')
                 const { status } = await Location.requestForegroundPermissionsAsync()
 
                 if (status !== 'granted') {
                     console.log('[Delivery] ⚠️ Location permission denied')
+                    setIsLoadingCurrentLocation(false)
                     return
                 }
 
@@ -142,6 +146,8 @@ export default function Delivery(props?: DeliveryProps) {
                 setPickup('Hà Nội, Việt Nam')
                 // Still mark as selected so route can calc if dropoff is selected
                 setIsPickupSelected(true)
+            } finally {
+                setIsLoadingCurrentLocation(false)
             }
         }
 
@@ -796,11 +802,15 @@ export default function Delivery(props?: DeliveryProps) {
                                 <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
                                     <View style={styles.inputRow}>
                                         <View style={styles.iconWrapper}>
-                                            <MaterialIcons name="radio-button-checked" size={20} color="#22C55E" />
+                                            {isLoadingCurrentLocation ? (
+                                                <ActivityIndicator size="small" color="#22C55E" />
+                                            ) : (
+                                                <MaterialIcons name="radio-button-checked" size={20} color="#22C55E" />
+                                            )}
                                         </View>
                                         <TextInput
                                             style={styles.input}
-                                            placeholder="Điểm lấy hàng"
+                                            placeholder={isLoadingCurrentLocation ? "Đang lấy vị trí..." : "Điểm lấy hàng"}
                                             placeholderTextColor="#9CA3AF"
                                             value={pickup}
                                             onChangeText={handlePickupLocationChange}
@@ -808,6 +818,7 @@ export default function Delivery(props?: DeliveryProps) {
                                                 setShowPickupSuggestions(true)
                                                 snapToMax()
                                             }}
+                                            editable={!isLoadingCurrentLocation}
                                         />
                                     </View>
 

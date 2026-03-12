@@ -25,11 +25,14 @@ interface RevenueByType {
 }
 
 export default function RevenueManagement() {
-  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month'>('week');
+  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'custom'>('week');
   const [loading, setLoading] = useState(true);
   const [revenueStats, setRevenueStats] = useState<RevenueStats | null>(null);
   const [dailyRevenues, setDailyRevenues] = useState<DailyRevenue[]>([]);
   const [revenueByType, setRevenueByType] = useState<RevenueByType[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   useEffect(() => {
     fetchRevenueData();
@@ -45,7 +48,27 @@ export default function RevenueManagement() {
       const startDate = new Date();
       let days = 7;
       
-      if (timeFilter === 'today') {
+      if (timeFilter === 'custom') {
+        // Use custom date range
+        if (customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          // Set start to beginning of day
+          start.setHours(0, 0, 0, 0);
+          // Set end to end of day
+          end.setHours(23, 59, 59, 999);
+          
+          startDate.setTime(start.getTime());
+          endDate.setTime(end.getTime());
+          
+          const diffTime = Math.abs(end.getTime() - start.getTime());
+          days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        } else {
+          // If custom dates not set, default to week
+          days = 7;
+          startDate.setDate(startDate.getDate() - 6);
+        }
+      } else if (timeFilter === 'today') {
         days = 1;
         startDate.setDate(startDate.getDate());
       } else if (timeFilter === 'week') {
@@ -108,35 +131,100 @@ export default function RevenueManagement() {
 
   // Generate chart data from daily revenues
   const generateChartPath = () => {
-    if (!dailyRevenues || dailyRevenues.length === 0) {
-      return 'M0 110 C 30 110, 50 80, 80 90 C 110 100, 130 50, 160 60 C 190 70, 210 30, 240 40 C 270 50, 290 20, 320 30 C 350 40, 375 10, 375 10';
-    }
-
     const width = 375;
     const height = 150;
     const padding = 20;
     
+    // Get the number of days based on filter
+    let daysToShow = 7;
+    if (timeFilter === 'today') daysToShow = 1;
+    else if (timeFilter === 'week') daysToShow = 7;
+    else if (timeFilter === 'month') daysToShow = 30;
+    
+    // Fill missing days with 0 revenue to ensure we have enough data points
+    const today = new Date();
+    const filledData: DailyRevenue[] = [];
+    
+    for (let i = daysToShow - 1; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      
+      // Find matching data from API
+      const existingData = dailyRevenues.find(d => {
+        const dataDate = new Date(d.date);
+        return dataDate.getDate() === date.getDate() && 
+               dataDate.getMonth() === date.getMonth();
+      });
+      
+      if (existingData) {
+        filledData.push(existingData);
+      } else {
+        // Fill with empty data
+        filledData.push({
+          id: `empty-${i}`,
+          date: date.toISOString(),
+          month: `T${date.getMonth() + 1}`,
+          day: date.getDate().toString(),
+          rides: 0,
+          revenue: '0',
+        });
+      }
+    }
+    
+    console.log('[Chart] Filled data:', filledData);
+    
+    // Get last 7 days of filled data for chart
+    const recentData = filledData.slice(-7);
+    console.log('[Chart] Recent data for chart:', recentData);
+    
+    if (!recentData || recentData.length === 0) {
+      console.log('[Chart] No data available, using default path');
+      return 'M20 110 L355 110';
+    }
+    
     // Parse revenue values safely
-    const revenueValues = dailyRevenues.map(r => {
+    const revenueValues = recentData.map(r => {
       const revStr = typeof r.revenue === 'string' ? r.revenue.replace(/\./g, '').replace(/,/g, '') : String(r.revenue);
       return parseInt(revStr) || 0;
     });
     
-    const maxRevenue = Math.max(...revenueValues, 1000000);
-    console.log('[Chart] Parsed revenues:', revenueValues, 'Max:', maxRevenue);
+    console.log('[Chart] Parsed revenue values:', revenueValues);
     
-    const points = dailyRevenues.slice(-7).map((item, idx) => {
-      const revenue = revenueValues[dailyRevenues.length - 7 + idx] || 0;
-      const x = (idx / Math.max(dailyRevenues.length - 1, 1)) * (width - padding * 2) + padding;
-      const y = height - ((revenue / maxRevenue) * (height - padding * 2)) - padding;
-      return { x, y };
+    // Calculate max revenue, use actual max or a reasonable minimum
+    const maxRevenue = Math.max(...revenueValues);
+    const minRevenue = Math.min(...revenueValues);
+    
+    console.log('[Chart] Min:', minRevenue, 'Max:', maxRevenue);
+    
+    // If all values are 0, draw flat line at bottom
+    if (maxRevenue === 0) {
+      console.log('[Chart] All values are zero, drawing flat line at bottom');
+      return 'M20 130 L355 130';
+    }
+    
+    // Add 10% padding to max for better visualization
+    // If min = max (flat line), add artificial range for positioning
+    const displayMax = maxRevenue * 1.2; // 20% above for padding
+    const displayMin = 0; // Always start from 0 for better visual
+    const range = displayMax - displayMin;
+    
+    // Generate points with correct x-coordinate spacing
+    const points = recentData.map((item, idx) => {
+      const revenue = revenueValues[idx] || 0;
+      const x = (idx / Math.max(recentData.length - 1, 1)) * (width - padding * 2) + padding;
+      // Normalize to range for better visualization
+      const normalizedValue = range > 0 ? (revenue - displayMin) / range : 0.5;
+      const y = height - (normalizedValue * (height - padding * 2)) - padding;
+      return { x, y: Math.max(padding, Math.min(height - padding, y)) };
     });
 
+    console.log('[Chart] Generated points:', points);
+
     if (points.length < 2) {
-      return 'M0 110 L375 110';
+      return `M${points[0].x} ${points[0].y} L${width - padding} ${points[0].y}`;
     }
 
-    // Generate smooth curve using quadratic Bezier
+    // Generate smooth curve using cubic Bezier
     let path = `M${points[0].x} ${points[0].y}`;
     for (let i = 1; i < points.length; i++) {
       const cp1x = points[i - 1].x + (points[i].x - points[i - 1].x) / 3;
@@ -146,13 +234,30 @@ export default function RevenueManagement() {
       path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${points[i].x} ${points[i].y}`;
     }
 
-    console.log('[Chart] Generated path:', path);
+    console.log('[Chart] Final path:', path);
     return path;
   };
 
   const generateFillPath = () => {
     const linePath = generateChartPath();
     return linePath + ' V 150 H 0 Z';
+  };
+
+  // Get chart labels (last 7 days with filled data)
+  const getChartLabels = () => {
+    const today = new Date();
+    const labels = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      labels.push({
+        month: `T${date.getMonth() + 1}`,
+        day: date.getDate().toString(),
+      });
+    }
+    
+    return labels;
   };
 
   return (
@@ -190,10 +295,94 @@ export default function RevenueManagement() {
           >
             <span className="text-sm font-medium">Tháng này</span>
           </button>
-          <button className="flex h-10 shrink-0 items-center justify-center px-4 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+          <button 
+            className={`flex h-10 shrink-0 items-center justify-center px-4 rounded-lg transition-all ${
+              timeFilter === 'custom'
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'border border-slate-300 dark:border-slate-700 bg-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDatePicker(!showDatePicker);
+            }}
+          >
             <span className="material-symbols-outlined text-xl">calendar_month</span>
           </button>
         </div>
+
+        {/* Date Picker Modal - Fixed position to avoid overflow issues */}
+        {showDatePicker && (
+          <div 
+            className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+            onClick={() => setShowDatePicker(false)}
+          >
+            <div 
+              className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xl p-4 w-full max-w-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Chọn khoảng thời gian</h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Từ ngày</label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    max={customEndDate || new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Đến ngày</label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    min={customStartDate}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowDatePicker(false);
+                      setTimeFilter('week');
+                      setCustomStartDate('');
+                      setCustomEndDate('');
+                    }}
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (customStartDate && customEndDate) {
+                        setTimeFilter('custom');
+                        setShowDatePicker(false);
+                      }
+                    }}
+                    disabled={!customStartDate || !customEndDate}
+                    className="flex-1 px-3 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Display selected date range */}
+        {timeFilter === 'custom' && customStartDate && customEndDate && (
+          <div className="mb-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+            <span className="material-symbols-outlined text-base">date_range</span>
+            <span>
+              Từ <span className="font-bold text-slate-900 dark:text-white">{new Date(customStartDate).toLocaleDateString('vi-VN')}</span> đến <span className="font-bold text-slate-900 dark:text-white">{new Date(customEndDate).toLocaleDateString('vi-VN')}</span>
+            </span>
+          </div>
+        )}
 
         {/* Total Revenue Card */}
         <div className="mb-6">
@@ -207,7 +396,7 @@ export default function RevenueManagement() {
             </div>
             <div className="flex items-baseline gap-2 mt-1 z-10">
               <h2 className="text-white text-4xl font-extrabold tracking-tight">
-                {loading ? '...' : (totalRevenue / 1000000000).toFixed(1)} <span className="text-xl text-slate-400 font-bold">Tỷ ₫</span>
+                {loading ? '...' : totalRevenue.toLocaleString('vi-VN')} <span className="text-xl text-slate-400 font-bold">₫</span>
               </h2>
             </div>
             <div className="flex items-center gap-2 mt-2 z-10">
@@ -239,7 +428,7 @@ export default function RevenueManagement() {
                 <path d={generateChartPath()} fill="none" stroke="#FF6B00" strokeLinecap="round" strokeWidth="3" />
               </svg>
               <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-2 px-1">
-                {dailyRevenues.slice(-7).map((item, idx) => (
+                {getChartLabels().map((item, idx) => (
                   <span key={idx}>{item.month.replace('T', '')}/{item.day}</span>
                 ))}
               </div>
@@ -258,11 +447,12 @@ export default function RevenueManagement() {
             <div className="space-y-5">
               {revenueByType.length > 0 ? (
                 revenueByType.map((item, idx) => {
-                  const colors = ['bg-primary', 'bg-purple-500', 'bg-blue-500'];
+                  const colors = ['bg-primary', 'bg-purple-500', 'bg-blue-500', 'bg-emerald-500'];
                   const typeNames: Record<string, string> = {
                     hire: 'Lái xe hộ',
                     share: 'Ghép xe',
                     delivery: 'Giao hàng',
+                    hourly: 'Dọn dẹp',
                   };
                   const percentage = typeof item.percentage === 'string' ? parseFloat(item.percentage) : item.percentage;
                   return (

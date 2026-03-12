@@ -462,7 +462,7 @@ export default function RideDetailRequestScreen() {
             <View style={styles.mapHero}>
               
               <MapViewComponent
-                height={height * 0.35}
+                height={height * 0.5}
                 pickupCoords={{ latitude: pickupCoordinates[1], longitude: pickupCoordinates[0] }}
                 dropoffCoords={{ latitude: dropoffCoordinates[1], longitude: dropoffCoordinates[0] }}
               />
@@ -888,7 +888,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapHero: {
-    height: height * 0.35,
+    height: height * 0.5,
     position: 'relative',
   },
   mapGradientBottom: {
@@ -896,7 +896,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 250,
+    height: 100,
   },
   topAppBar: {
     position: 'absolute',

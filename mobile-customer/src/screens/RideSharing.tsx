@@ -92,6 +92,9 @@ export default function RideSharing(props?: RideSharingProps) {
   const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
   const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [pickupLoadingSuggestions, setPickupLoadingSuggestions] = useState(false)
+  const [dropoffLoadingSuggestions, setDropoffLoadingSuggestions] = useState(false)
+  const [isLoadingCurrentLocation, setIsLoadingCurrentLocation] = useState(true)
 
   const [fareEstimate, setFareEstimate] = useState<any>(null)
   const [drivers, setDrivers] = useState<any[]>([])
@@ -344,12 +347,14 @@ export default function RideSharing(props?: RideSharingProps) {
   // Initialize pickup location with current user location
   useEffect(() => {
     const initializePickupLocation = async () => {
+      setIsLoadingCurrentLocation(true)
       try {
         console.log('[RideSharing] 📍 Requesting location permission...')
         const { status } = await Location.requestForegroundPermissionsAsync()
 
         if (status !== 'granted') {
           console.log('[RideSharing] ⚠️ Location permission denied')
+          setIsLoadingCurrentLocation(false)
           return
         }
 
@@ -372,6 +377,8 @@ export default function RideSharing(props?: RideSharingProps) {
         console.error('[RideSharing] ❌ Error getting location:', error)
         // Fallback to default location
         setPickupLocation('Hà Nội, Việt Nam')
+      } finally {
+        setIsLoadingCurrentLocation(false)
       }
     }
 
@@ -639,6 +646,7 @@ export default function RideSharing(props?: RideSharingProps) {
 
     if (text.trim().length >= 3) {
       setShowPickupSuggestions(true)
+      setPickupLoadingSuggestions(true)
       const timeout = setTimeout(async () => {
         try {
           console.log('[Delivery] Pickup search for:', text)
@@ -648,11 +656,14 @@ export default function RideSharing(props?: RideSharingProps) {
         } catch (error) {
           console.error('Error searching pickup locations:', error)
           setPickupSuggestions([])
+        } finally {
+          setPickupLoadingSuggestions(false)
         }
       }, 500)
       setPickupSearchTimeout(timeout)
     } else {
       setPickupSuggestions([])
+      setPickupLoadingSuggestions(false)
       if (text.trim().length === 0) {
         setShowPickupSuggestions(false)
       }
@@ -698,6 +709,7 @@ export default function RideSharing(props?: RideSharingProps) {
 
     if (text.trim().length >= 3) {
       setShowDropoffSuggestions(true)
+      setDropoffLoadingSuggestions(true)
       const timeout = setTimeout(async () => {
         try {
           console.log('[Delivery] Dropoff search for:', text)
@@ -707,11 +719,14 @@ export default function RideSharing(props?: RideSharingProps) {
         } catch (error) {
           console.error('Error searching dropoff locations:', error)
           setDropoffSuggestions([])
+        } finally {
+          setDropoffLoadingSuggestions(false)
         }
       }, 500)
       setDropoffSearchTimeout(timeout)
     } else {
       setDropoffSuggestions([])
+      setDropoffLoadingSuggestions(false)
       if (text.trim().length === 0) {
         setShowDropoffSuggestions(false)
       }
@@ -947,11 +962,15 @@ export default function RideSharing(props?: RideSharingProps) {
               <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
                 <View style={styles.inputRow}>
                   <View style={styles.iconWrapper}>
-                    <MaterialIcons name="radio-button-checked" size={20} color="#FF6B00" />
+                    {isLoadingCurrentLocation ? (
+                      <ActivityIndicator size="small" color="#FF6B00" />
+                    ) : (
+                      <MaterialIcons name="radio-button-checked" size={20} color="#FF6B00" />
+                    )}
                   </View>
                   <TextInput
                     style={styles.input}
-                    placeholder="Nhập điểm đón..."
+                    placeholder={isLoadingCurrentLocation ? "Đang lấy vị trí..." : "Nhập điểm đón..."}
                     placeholderTextColor="#9CA3AF"
                     value={pickupLocation}
                     onChangeText={handlePickupLocationChange}
@@ -959,9 +978,16 @@ export default function RideSharing(props?: RideSharingProps) {
                       setShowPickupSuggestions(true)
                       snapToMax()
                     }}
+                    editable={!isLoadingCurrentLocation}
                   />
                 </View>
-                {showPickupSuggestions && pickupSuggestions.length > 0 && (
+                {showPickupSuggestions && pickupLoadingSuggestions && (
+                  <View style={[styles.suggestionsDropdown, { justifyContent: 'center', alignItems: 'center', paddingVertical: 20 }]}>
+                    <ActivityIndicator size="small" color="#FF6B00" />
+                    <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>Đang tìm kiếm...</Text>
+                  </View>
+                )}
+                {showPickupSuggestions && !pickupLoadingSuggestions && pickupSuggestions.length > 0 && (
                   <ScrollView
                     style={styles.suggestionsDropdown}
                     keyboardShouldPersistTaps="handled"
@@ -1005,7 +1031,13 @@ export default function RideSharing(props?: RideSharingProps) {
                     }}
                   />
                 </View>
-                {showDropoffSuggestions && dropoffSuggestions.length > 0 && (
+                {showDropoffSuggestions && dropoffLoadingSuggestions && (
+                  <View style={[styles.suggestionsDropdown, { justifyContent: 'center', alignItems: 'center', paddingVertical: 20 }]}>
+                    <ActivityIndicator size="small" color="#FF6B00" />
+                    <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>Đang tìm kiếm...</Text>
+                  </View>
+                )}
+                {showDropoffSuggestions && !dropoffLoadingSuggestions && dropoffSuggestions.length > 0 && (
                   <ScrollView
                     style={styles.suggestionsDropdown}
                     keyboardShouldPersistTaps="handled"
@@ -1029,8 +1061,59 @@ export default function RideSharing(props?: RideSharingProps) {
               </View>
             </View>
 
+            {/* Selected Locations Detail Card */}
+            {isPickupSelected && isDropoffSelected && (
+              <View style={styles.selectedLocationsCard}>
+                <View style={styles.selectedLocationsHeader}>
+                  <MaterialIcons name="check-circle" size={18} color="#10b981" />
+                  <Text style={styles.selectedLocationsTitle}>Chi tiết hành trình</Text>
+                </View>
+                
+                {/* Pickup Location */}
+                <View style={styles.locationDetailItem}>
+                  <View style={styles.locationDetailIconContainer}>
+                    <MaterialIcons name="radio-button-checked" size={16} color="#FF6B00" />
+                  </View>
+                  <View style={styles.locationDetailContent}>
+                    <Text style={styles.locationDetailLabel}>Điểm đón</Text>
+                    <Text style={styles.locationDetailAddress} numberOfLines={2}>
+                      {pickupLocation}
+                    </Text>
+                    <Text style={styles.locationDetailCoords}>
+                      {pickupCoordinates[1].toFixed(6)}, {pickupCoordinates[0].toFixed(6)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Journey Line */}
+                <View style={styles.journeyLine}>
+                  <View style={styles.journeyDots}>
+                    <View style={styles.journeyDot} />
+                    <View style={styles.journeyDot} />
+                    <View style={styles.journeyDot} />
+                  </View>
+                </View>
+
+                {/* Dropoff Location */}
+                <View style={styles.locationDetailItem}>
+                  <View style={[styles.locationDetailIconContainer, { backgroundColor: '#fee2e2' }]}>
+                    <MaterialIcons name="flag" size={16} color="#ef4444" />
+                  </View>
+                  <View style={styles.locationDetailContent}>
+                    <Text style={styles.locationDetailLabel}>Điểm đến</Text>
+                    <Text style={styles.locationDetailAddress} numberOfLines={2}>
+                      {dropoffLocation}
+                    </Text>
+                    <Text style={styles.locationDetailCoords}>
+                      {dropoffCoordinates[1].toFixed(6)}, {dropoffCoordinates[0].toFixed(6)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Time & Passenger Section */}
-            <View style={styles.timePassengerSection}>
+            {/* <View style={styles.timePassengerSection}>
               <View style={[styles.timeWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
                 <View>
                   <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Thời gian</Text>
@@ -1048,9 +1131,9 @@ export default function RideSharing(props?: RideSharingProps) {
                   thumbColor={colors.primary}
                   style={styles.switch}
                 />
-              </View>
+              </View> */}
 
-              <View style={[styles.passengerWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+              {/* <View style={[styles.passengerWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
                 <Text style={[styles.passengerLabel, { color: colors.textSecondary }]}>Số khách</Text>
                 <View style={styles.passengerControls}>
                   <TouchableOpacity
@@ -1071,8 +1154,8 @@ export default function RideSharing(props?: RideSharingProps) {
                     <Text style={[styles.passengerButtonText, { color: colors.textSecondary }]}>+</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-            </View>
+              </View> */}
+            {/* </View> */}
 
             {/* Route Map & Info */}
             {routeInfo && (
@@ -1546,6 +1629,84 @@ const styles = StyleSheet.create({
   suggestionSecondaryText: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  selectedLocationsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  selectedLocationsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  selectedLocationsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  locationDetailItem: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  locationDetailIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFF7ED',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  locationDetailContent: {
+    flex: 1,
+  },
+  locationDetailLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  locationDetailAddress: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  locationDetailCoords: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  journeyLine: {
+    marginLeft: 18,
+    paddingVertical: 8,
+  },
+  journeyDots: {
+    flexDirection: 'column',
+    gap: 4,
+    alignItems: 'center',
+  },
+  journeyDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#D1D5DB',
   },
 })
 // 00',

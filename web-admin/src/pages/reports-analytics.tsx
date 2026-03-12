@@ -38,6 +38,8 @@ const ReportsAnalytics: React.FC = () => {
   const [revenueByType, setRevenueByType] = useState<any[]>([]);
   const [peakHours, setPeakHours] = useState<PeakHour[]>([]);
   const [dailyRevenue, setDailyRevenue] = useState<any[]>([]);
+  const [areaPerformance, setAreaPerformance] = useState<any[]>([]);
+  const [cancelRateData, setCancelRateData] = useState<any>(null);
 
   const filters = [
     { id: 'today', label: 'Hôm nay' },
@@ -67,12 +69,12 @@ const ReportsAnalytics: React.FC = () => {
         startDate.setDate(startDate.getDate() - 29);
       }
 
-      // Fetch revenue stats
-      const revenueStats = await apiService.getRevenueStats(
+      // Fetch actual revenue stats from all sources
+      const revenueStats = await apiService.getActualRevenueStats(
         startDate.toISOString(),
         endDate.toISOString()
       );
-      console.log('[Analytics] Revenue stats:', revenueStats);
+      console.log('[Analytics] Actual revenue stats:', revenueStats);
       
       if (revenueStats) {
         setKpiData(prev => ({
@@ -81,110 +83,127 @@ const ReportsAnalytics: React.FC = () => {
           completedRides: revenueStats.totalRides || 0,
         }));
       } else {
-        console.warn('[Analytics] No revenue stats, using defaults');
-        // Fallback to mock data
+        console.warn('[Analytics] No revenue stats, using zeros');
         setKpiData(prev => ({
           ...prev,
-          totalRevenue: 150000000,
-          completedRides: 1240,
+          totalRevenue: 0,
+          completedRides: 0,
         }));
       }
 
-      // Fetch revenue by type
-      const typeData = await apiService.getRevenueByType(
+      // Fetch actual revenue by type from all sources
+      const typeData = await apiService.getActualRevenueByType(
         startDate.toISOString(),
         endDate.toISOString()
       );
-      console.log('[Analytics] Revenue by type:', typeData);
+      console.log('[Analytics] Actual revenue by type:', typeData);
       if (Array.isArray(typeData) && typeData.length > 0) {
         setRevenueByType(typeData);
       }
 
-      // Fetch peak hours
+      // Fetch peak hours from actual data
       const peakHoursData = await apiService.getPeakHours(
         startDate.toISOString(),
         endDate.toISOString()
       );
-      console.log('[Analytics] Peak hours:', peakHoursData);
+      console.log('[Analytics] Actual peak hours:', peakHoursData);
       if (Array.isArray(peakHoursData) && peakHoursData.length > 0) {
         setPeakHours(peakHoursData);
       }
 
-      // Fetch daily revenue - get full range for chart
-      const days = activeFilter === 'today' ? 1 : activeFilter === 'week' ? 7 : 30;
-      const dailyRevData = await apiService.getDailyRevenue(days);
-      console.log('[Analytics] Daily revenue data points:', dailyRevData?.length, dailyRevData);
-      if (Array.isArray(dailyRevData) && dailyRevData.length > 0) {
-        setDailyRevenue(dailyRevData);
-      } else {
-        // Fallback with mock data
-        const mockDaily = [];
-        for (let i = 0; i < days; i++) {
-          const d = new Date();
-          d.setDate(d.getDate() - (days - 1 - i));
-          mockDaily.push({
-            date: d.toISOString().split('T')[0],
-            revenue: Math.random() * 50000000 + 30000000,
-            rides: Math.floor(Math.random() * 100) + 50
-          });
-        }
-        setDailyRevenue(mockDaily);
+      // Fetch area performance from actual data
+      const areaData = await apiService.getAreaPerformance(
+        startDate.toISOString(),
+        endDate.toISOString()
+      );
+      console.log('[Analytics] Actual area performance:', areaData);
+      if (Array.isArray(areaData) && areaData.length > 0) {
+        setAreaPerformance(areaData);
       }
 
-      // Fetch top drivers
-      const driversData = await apiService.getTopDrivers(10);
-      console.log('[Analytics] Top drivers:', driversData);
+      // Fetch cancel rate from actual data
+      const cancelData = await apiService.getCancelRate(
+        startDate.toISOString(),
+        endDate.toISOString()
+      );
+      console.log('[Analytics] Actual cancel rate:', cancelData);
+      if (cancelData) {
+        setCancelRateData(cancelData);
+        setKpiData(prev => ({
+          ...prev,
+          cancelRate: cancelData.cancelRate || 0,
+        }));
+      }
+
+      // Fetch actual daily revenue from all sources
+      const days = activeFilter === 'today' ? 1 : activeFilter === 'week' ? 7 : 30;
+      const dailyRevData = await apiService.getActualDailyRevenue(days);
+      console.log('[Analytics] Actual daily revenue data points:', dailyRevData?.length, dailyRevData);
+      
+      // Fill missing days with 0 revenue to ensure chart has smooth lines
+      const filledDaily = [];
+      const today = new Date();
+      
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // Find matching data from API
+        const existingData = Array.isArray(dailyRevData) 
+          ? dailyRevData.find(d => d.date?.startsWith(dateStr))
+          : null;
+        
+        if (existingData) {
+          filledDaily.push(existingData);
+        } else {
+          // Fill with empty data
+          filledDaily.push({
+            date: dateStr,
+            revenue: 0,
+            rides: 0,
+            month: `T${date.getMonth() + 1}`,
+            day: date.getDate()
+          });
+        }
+      }
+      
+      console.log('[Analytics] Filled daily data:', filledDaily);
+      setDailyRevenue(filledDaily);
+
+      // Fetch top drivers (limit to 3 for display)
+      const driversData = await apiService.getTopDrivers(
+        3,
+        startDate.toISOString(),
+        endDate.toISOString()
+      );
+      console.log('[Analytics] Top 3 drivers:', driversData);
       if (Array.isArray(driversData) && driversData.length > 0) {
-        const formattedDrivers: DriverStats[] = driversData.map((d: any) => ({
+        const formattedDrivers: DriverStats[] = driversData.map((d: any, index: number) => ({
           id: d.driverId,
           name: d.name,
           avatar: d.avatar,
           rating: d.rating,
           trips: d.trips,
           earnings: d.earnings,
-          rank: d.rank,
+          rank: index + 1, // Use index as rank since API returns sorted by trips
         }));
         setTopDrivers(formattedDrivers);
       }
 
     } catch (error) {
       console.error('[Analytics] Error fetching data:', error);
-      // Use fallback mock data on error
+      // Use empty data on error
       setKpiData({
-        totalRevenue: 150000000,
-        completedRides: 1240,
-        cancelRate: 4.5,
-        activeDrivers: 245,
+        totalRevenue: 0,
+        completedRides: 0,
+        cancelRate: 0,
+        activeDrivers: 0,
       });
-      setTopDrivers([
-        {
-          id: '1',
-          name: 'Nguyễn Văn A',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nguyen-van-a',
-          rating: 4.9,
-          trips: 142,
-          earnings: 25000000,
-          rank: 1
-        },
-        {
-          id: '2',
-          name: 'Lê Thị B',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=le-thi-b',
-          rating: 4.8,
-          trips: 138,
-          earnings: 23000000,
-          rank: 2
-        },
-        {
-          id: '3',
-          name: 'Trần Văn C',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tran-van-c',
-          rating: 4.8,
-          trips: 125,
-          earnings: 21000000,
-          rank: 3
-        }
-      ]);
+      setTopDrivers([]);
+      setPeakHours([]);
+      setAreaPerformance([]);
+      setCancelRateData(null);
     } finally {
       setLoading(false);
     }
@@ -209,7 +228,7 @@ const ReportsAnalytics: React.FC = () => {
     },
     {
       title: 'Tỷ lệ hủy',
-      value: '4.5%',
+      value: `${kpiData.cancelRate.toFixed(1)}%`,
       change: '-2%',
       isPositive: false,
       icon: 'cancel',
@@ -217,15 +236,22 @@ const ReportsAnalytics: React.FC = () => {
     }
   ];
 
-  const areaPerformance = [
-    { name: 'Quận 1, TP.HCM', value: 450, percentage: 85 },
-    { name: 'Quận 3, TP.HCM', value: 210, percentage: 45 },
-    { name: 'Quận Bình Thạnh', value: 185, percentage: 35 }
-  ];
-
-  // Generate peak hours data for chart
+  // Generate peak hours data for chart (0-23 hours)
   const chartPeakHours = peakHours.length > 0 
-    ? peakHours.map(p => Math.round((p.rides / Math.max(...peakHours.map(x => x.rides))) * 100))
+    ? (() => {
+        // Group into 8 segments (3-hour intervals for better visualization)
+        const segments = [];
+        for (let i = 0; i < 8; i++) {
+          const startHour = i * 3;
+          const endHour = startHour + 3;
+          const segmentData = peakHours.filter(p => p.hour >= startHour && p.hour < endHour);
+          const totalRides = segmentData.reduce((sum, p) => sum + p.rides, 0);
+          segments.push(totalRides);
+        }
+        // Normalize to 0-100 scale
+        const maxRides = Math.max(...segments, 1);
+        return segments.map(rides => Math.round((rides / maxRides) * 100));
+      })()
     : [30, 50, 40, 75, 95, 85, 60, 45];
 
   return (
@@ -493,31 +519,35 @@ const ReportsAnalytics: React.FC = () => {
             <a className="text-primary text-sm font-semibold" href="#">Xem bản đồ</a>
           </div>
           <div className="flex flex-col gap-3">
-            {areaPerformance.map((area, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-4 bg-white dark:bg-[#1E252B] p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800"
-              >
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
-                  <span className="material-symbols-outlined text-slate-600 dark:text-slate-300">location_on</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-slate-900 dark:text-white text-base font-bold truncate">{area.name}</p>
-                    <p className="text-slate-900 dark:text-white text-base font-bold">{area.value}</p>
+            {areaPerformance && areaPerformance.length > 0 ? (
+              areaPerformance.slice(0, 3).map((area, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-4 bg-white dark:bg-[#1E252B] p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800"
+                >
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
+                    <span className="material-symbols-outlined text-slate-600 dark:text-slate-300">location_on</span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full ${
-                        index === 0 ? 'bg-primary' : index === 1 ? 'bg-primary/70' : 'bg-primary/50'
-                      }`}
-                      style={{ width: `${area.percentage}%` }}
-                    />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-slate-900 dark:text-white text-base font-bold truncate">{area.name}</p>
+                      <p className="text-slate-900 dark:text-white text-base font-bold">{area.rides}</p>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          index === 0 ? 'bg-primary' : index === 1 ? 'bg-primary/70' : 'bg-primary/50'
+                        }`}
+                        style={{ width: `${area.percentage}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">{area.percentage}% tổng số cuốc</p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">{area.percentage}% tổng số cuốc hôm nay</p>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="py-8 text-center text-gray-400">Không có dữ liệu khu vực</div>
+            )}
           </div>
         </div>
 
@@ -584,7 +614,7 @@ const ReportsAnalytics: React.FC = () => {
               const csv = `Báo cáo phân tích,${new Date().toLocaleDateString('vi-VN')}
 Tổng doanh thu,${kpiData.totalRevenue}
 Cuốc xe hoàn thành,${kpiData.completedRides}
-Tỷ lệ hủy,4.5%
+Tỷ lệ hủy,${kpiData.cancelRate.toFixed(1)}%
 
 Tài xế xuất sắc
 ${topDrivers.map(d => `${d.rank},${d.name},${d.rating},${d.trips} chuyến,${d.earnings}`).join('\n')}`;

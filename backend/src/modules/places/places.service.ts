@@ -52,27 +52,36 @@ export class PlacesService {
   /**
    * Search places with optimization:
    * 1. Check memory cache (instant)
-   * 2. Check database
+   * 2. Check database (per-user history)
    * 3. Call Google Places API (last resort)
+   * @param keyword - Search keyword
+   * @param userLat - User latitude (optional)
+   * @param userLng - User longitude (optional)
+   * @param userId - Customer ID or Driver ID for personalized search history
    */
-  async searchPlaces(keyword: string, userLat: number, userLng: number): Promise<{
+  async searchPlaces(keyword: string, userLat: number, userLng: number, userId?: string): Promise<{
     results: PlaceResult[];
     source: 'cache' | 'database' | 'google';
   }> {
     const normalizedKeyword = keyword.trim().toLowerCase();
 
-    console.log('🔍 [PlacesService] Searching:', normalizedKeyword);
+    console.log('🔍 [PlacesService] Searching:', { keyword: normalizedKeyword, userId });
 
-    // 1️⃣ Check memory cache
-    const cached = placeCache.get(normalizedKeyword);
+    // 1️⃣ Check memory cache (include userId in cache key)
+    const cacheKey = userId ? `${userId}:${normalizedKeyword}` : normalizedKeyword;
+    const cached = placeCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      console.log('✅ Memory cache hit:', normalizedKeyword);
+      console.log('✅ Memory cache hit:', cacheKey);
       return { results: cached.results, source: 'cache' };
     }
 
-    // 2️⃣ Check database
+    // 2️⃣ Check database (filter by userId if provided)
+    const dbQuery = userId
+      ? { userId, keyword: new RegExp(normalizedKeyword, 'i') }
+      : { keyword: new RegExp(normalizedKeyword, 'i') };
+    
     const dbResults = await this.placeModel.find(
-      { keyword: new RegExp(normalizedKeyword, 'i') },
+      dbQuery,
       { _id: 0, placeId: 1, name: 1, address: 1, lat: 1, lng: 1 },
       { limit: 10, sort: { searchCount: -1, lastSearchedAt: -1 } }
     );
@@ -86,17 +95,17 @@ export class PlacesService {
         lng: doc.lng,
       }));
 
-      // Cache result
-      placeCache.set(normalizedKeyword, {
+      // Cache result (with userId in key)
+      placeCache.set(cacheKey, {
         results,
         timestamp: Date.now(),
       });
 
-      console.log('✅ Database hit:', normalizedKeyword, `(${results.length} results)`);
+      console.log('✅ Database hit:', cacheKey, `(${results.length} results)`);
 
-      // Update lastSearchedAt
+      // Update lastSearchedAt and searchCount
       this.placeModel.updateMany(
-        { keyword: new RegExp(normalizedKeyword, 'i') },
+        dbQuery,
         {
           lastSearchedAt: new Date(),
           $inc: { searchCount: 1 }
@@ -107,20 +116,20 @@ export class PlacesService {
     }
 
     // 3️⃣ Call Google Places Autocomplete API
-    console.log('🔍 Calling Google Places API for:', normalizedKeyword);
-    const googleResults = await this.callGooglePlacesAPI(normalizedKeyword, 0, 0);
+    console.log('🔍 Calling Google Places API for:', normalizedKeyword, 'userId:', userId);
+    const googleResults = await this.callGooglePlacesAPI(normalizedKeyword, userLat, userLng);
 
     if (googleResults.length > 0) {
-      // Save to database for future use
-      await this.savePlacesToDatabase(normalizedKeyword, googleResults);
+      // Save to database for future use (with userId)
+      await this.savePlacesToDatabase(normalizedKeyword, googleResults, userId);
 
-      // Cache result
-      placeCache.set(normalizedKeyword, {
+      // Cache result (with userId in key)
+      placeCache.set(cacheKey, {
         results: googleResults,
         timestamp: Date.now(),
       });
 
-      console.log(`✅ GOOGLE hit: ${normalizedKeyword} (${googleResults.length} results)`);
+      console.log(`✅ GOOGLE hit: ${cacheKey} (${googleResults.length} results)`);
       return { results: googleResults, source: 'google' };
     }
     console.log('data google : ', googleResults);
@@ -304,14 +313,19 @@ export class PlacesService {
   }
 
   /**
-   * Save places to database for caching
+   * Save places to database for caching (per user)
+   * @param keyword - Search keyword
+   * @param results - Place results from Google
+   * @param userId - Customer ID or Driver ID (optional)
    */
   private async savePlacesToDatabase(
     keyword: string,
-    results: PlaceResult[]
+    results: PlaceResult[],
+    userId?: string
   ): Promise<void> {
     try {
       const documents = results.map((result) => ({
+        userId: userId || null, // Save userId if provided
         placeId: result.placeId,
         keyword: keyword.toLowerCase(),
         name: result.name,
@@ -320,18 +334,23 @@ export class PlacesService {
         lng: result.lng,
         description: result.description,
         lastSearchedAt: new Date(),
+        searchCount: 1,
       }));
 
-      // Upsert to avoid duplicates
+      // Upsert to avoid duplicates per user
       for (const doc of documents) {
+        const query = userId
+          ? { userId, placeId: doc.placeId, keyword: doc.keyword }
+          : { placeId: doc.placeId, keyword: doc.keyword };
+        
         await this.placeModel.updateOne(
-          { placeId: doc.placeId },
-          doc,
+          query,
+          { $set: doc, $inc: { searchCount: 1 } },
           { upsert: true }
         );
       }
 
-      console.log('💾 Saved', documents.length, 'places to database');
+      console.log(`💾 Saved ${documents.length} places to database${userId ? ` for user ${userId}` : ''}`);
     } catch (error) {
       console.error('Error saving places:', error);
     }

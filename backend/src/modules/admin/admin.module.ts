@@ -11,6 +11,7 @@ import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 import { Ride, RideSchema } from '../rides/schemas/ride.schema';
 import { RideRequest, RideRequestSchema } from '../combined-trips/schemas/ride-request.schema';
 import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
+import { HourlyService, HourlyServiceSchema } from '../hourly-services/schemas/hourly-service.schema';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
       { name: Ride.name, schema: RideSchema },
       { name: RideRequest.name, schema: RideRequestSchema },
       { name: Delivery.name, schema: DeliverySchema },
+      { name: HourlyService.name, schema: HourlyServiceSchema },
     ]),
   ],
   controllers: [AdminController],

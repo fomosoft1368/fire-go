@@ -41,6 +41,52 @@ export class AdminController {
     );
   }
 
+  @Get('analytics/peak-hours')
+  async getPeakHours(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getPeakHours(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('analytics/area-performance')
+  async getAreaPerformance(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getAreaPerformance(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('analytics/cancel-rate')
+  async getCancelRate(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getCancelRate(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('analytics/top-drivers')
+  async getTopDrivers(
+    @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.adminService.getTopDrivers(
+      limit ? parseInt(limit, 10) : 10,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
   // ========== USER MANAGEMENT ==========
 
   // Get all users (all roles including customers/drivers)

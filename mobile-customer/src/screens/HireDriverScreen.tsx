@@ -104,6 +104,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
   const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [isLoadingCurrentLocation, setIsLoadingCurrentLocation] = useState(true)
 
   // Draggable Bottom Sheet
   const screenHeight = Dimensions.get('window').height
@@ -305,12 +306,14 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   // Initialize pickup location with current user location
   useEffect(() => {
     const initializePickupLocation = async () => {
+      setIsLoadingCurrentLocation(true)
       try {
         console.log('[HireDriverScreen] 📍 Requesting location permission...')
         const { status } = await Location.requestForegroundPermissionsAsync()
 
         if (status !== 'granted') {
           console.log('[HireDriverScreen] ⚠️ Location permission denied')
+          setIsLoadingCurrentLocation(false)
           return
         }
 
@@ -331,6 +334,8 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         console.error('[HireDriverScreen] ❌ Error getting location:', error)
         // Fallback to default location
         setPickupLocation('Hà Nội, Việt Nam')
+      } finally {
+        setIsLoadingCurrentLocation(false)
       }
     }
 
@@ -741,7 +746,11 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
                   <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
                     <View style={styles.inputRow}>
                       <View style={styles.iconWrapper}>
-                        <MaterialIcons name="radio-button-checked" size={24} color="#FF6B00" />
+                        {isLoadingCurrentLocation ? (
+                          <ActivityIndicator size="small" color="#FF6B00" />
+                        ) : (
+                          <MaterialIcons name="radio-button-checked" size={24} color="#FF6B00" />
+                        )}
                       </View>
                       <TextInput
                         style={styles.input}
@@ -751,9 +760,9 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
                           setShowPickupSuggestions(true)
                           snapToMax()
                         }}
-                        placeholder="Nhập điểm đón"
+                        placeholder={isLoadingCurrentLocation ? "Đang lấy vị trí..." : "Nhập điểm đón"}
                         placeholderTextColor={colors.textSecondary}
-                        editable={!isSearching && !driverFound}
+                        editable={!isSearching && !driverFound && !isLoadingCurrentLocation}
                       />
                     </View>
 

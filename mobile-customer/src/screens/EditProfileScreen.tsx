@@ -206,7 +206,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
           {/* Profile Section */}
           <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
-            <MaterialIcons name="person" size={60} color={COLORS.primary} />
+            <MaterialIcons name="person" size={60} color={COLORS.card} />
             <TouchableOpacity style={styles.editAvatarButton}>
               <MaterialIcons name="edit" size={16} color="#fff" />
             </TouchableOpacity>
@@ -296,7 +296,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
         {/* Additional Options */}
         <View style={styles.optionsSection}>
           <TouchableOpacity style={styles.optionItem}>
-            <MaterialIcons name="lock-outline" size={20} color={COLORS.primary} />
+            <MaterialIcons name="lock-outline" size={20} color={COLORS.card} />
             <Text style={styles.optionText}>Đổi mật khẩu</Text>
             <MaterialIcons
               name="chevron-right"
@@ -309,7 +309,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
             <MaterialIcons
               name="verified-user"
               size={20}
-              color={COLORS.primary}
+              color={COLORS.card}
             />
             <Text style={styles.optionText}>Xác minh tài khoản</Text>
             <MaterialIcons
@@ -320,7 +320,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.optionItem}>
-            <MaterialIcons name="location-on" size={20} color={COLORS.primary} />
+            <MaterialIcons name="location-on" size={20} color={COLORS.card} />
             <Text style={styles.optionText}>Địa chỉ tiết kiệm</Text>
             <MaterialIcons
               name="chevron-right"
@@ -363,7 +363,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#fdfbfb',
   },
   header: {
     flexDirection: 'row',
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#0a0a0a',
   },
   content: {
     flex: 1,
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.md,
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   profileText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#080808',
     marginBottom: SPACING.sm,
   },
   emailText: {
@@ -440,11 +440,11 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#0f0f0f',
     marginBottom: SPACING.sm,
   },
   formInput: {
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.primary,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
     borderRadius: BORDER_RADIUS.md,
@@ -495,7 +495,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
-    backgroundColor: '#1e293b',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
@@ -515,7 +515,7 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#e5e6e9',
     borderTopWidth: 1,
     borderTopColor: COLORS.borderLight,
   },
