@@ -32,8 +32,6 @@ const PromoBanner = () => {
 const styles = StyleSheet.create({
     bannerContainer: {
         paddingHorizontal: 16,
-        paddingVertical: 16,
-        backgroundColor: '#F5F7FA',
     },
     banner: {
         flexDirection: 'row',

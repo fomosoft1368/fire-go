@@ -184,14 +184,20 @@ export default function LoginScreen() {
 
           {/* Logo */}
           <View style={styles.logoWrapper}>
-            <View style={styles.logoContainer}>
-              <Image
-                source={require('../assets/logooo.png')}
-                style={{ width: 45, height: 45 }}
-                resizeMode="contain"
-              />
-            </View>
+            <Image
+              source={require('../assets/logooo.png')}
+              style={{ width: 39, height: 39 }}
+              resizeMode="contain"
+            />
             <Text style={styles.appName}>firego</Text>
+          </View>
+
+          {/* Badge */}
+          <View style={styles.badgeWrapper}>
+            <View style={styles.badge}>
+              <MaterialIcons name="verified" size={14} color={"#fff"} />
+              <Text style={styles.badgeText}>Đối tác tin cậy</Text>
+            </View>
           </View>
         </View>
 
@@ -532,49 +538,6 @@ export default function LoginScreen() {
             )}
           </View>
 
-          {/* Divider & Social - Only show on login first step */}
-          {authMode === 'login' && loginStep === 1 && (
-            <>
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Hoặc đăng nhập qua</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <View style={styles.socialContainer}>
-                <TouchableOpacity style={styles.socialButton}>
-                  <MaterialIcons
-                    name="public"
-                    size={24}
-                    color="#4285F4"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.socialButton}>
-                  <MaterialIcons
-                    name="public"
-                    size={24}
-                    color="#1877F2"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.socialButton}>
-                  <MaterialIcons name="public" size={24} color="#000" />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.biometricContainer}>
-                <TouchableOpacity style={styles.biometricButton}>
-                  <View style={styles.biometricIconContainer}>
-                    <MaterialIcons
-                      name="fingerprint"
-                      size={36}
-                      color="#FF6B35"
-                    />
-                  </View>
-                  <Text style={styles.biometricText}>Đăng nhập nhanh</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -601,45 +564,57 @@ const styles = StyleSheet.create({
   },
   headerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   logoWrapper: {
     position: 'absolute',
-    top: SPACING.xl,
+    top: 0,
     left: 0,
-    right: 0,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: SPACING.xxl,
-  },
-  logoContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: BORDER_RADIUS.xl,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    justifyContent: 'flex-start',
+    flexDirection: 'row',
+    gap: 8,
+    paddingLeft: 20,
+    paddingTop: 24,
   },
   appName: {
-    fontSize: 30,
-    fontWeight: '700',
-    letterSpacing: -0.5,
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -1,
     color: '#FF6B35',
+  },
+  badgeWrapper: {
+    position: 'absolute',
+    bottom: 60,
+    right: 20,
+    zIndex: 10,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FF6B35',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+    letterSpacing: 0.3,
   },
   contentContainer: {
     flex: 1,
     backgroundColor: '#ffffff',
-    marginTop: -30,
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
+    marginTop: -39,
+    borderTopLeftRadius: 39,
+    borderTopRightRadius: 39,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xl,
     paddingBottom: SPACING.lg,

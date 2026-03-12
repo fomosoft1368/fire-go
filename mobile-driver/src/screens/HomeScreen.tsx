@@ -603,11 +603,10 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ icon, iconColor, iconBg, titl
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F2F4F7',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
   },
   header: {
     flexDirection: 'row',

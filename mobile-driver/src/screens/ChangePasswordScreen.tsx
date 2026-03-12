@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, FC } from 'react'
 import {
   View,
   Text,
@@ -14,27 +14,48 @@ import {
   Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { useNavigation } from '@react-navigation/native'
+import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
-import { changePassword } from '../services/authService'
+import { authService } from '../services/authService'
 
-export default function ChangePasswordScreen() {
-  const navigation = useNavigation()
-  const [formData, setFormData] = useState({
+type RootStackParamList = {
+  ChangePassword: undefined
+}
+
+type Props = NativeStackScreenProps<RootStackParamList, 'ChangePassword'>
+
+interface FormData {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+interface ShowPasswords {
+  current: boolean
+  new: boolean
+  confirm: boolean
+}
+
+interface Errors {
+  [key: string]: string
+}
+
+const ChangePasswordScreen: FC<Props> = ({ navigation }) => {
+  const [formData, setFormData] = useState<FormData>({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
-  const [showPasswords, setShowPasswords] = useState({
+  const [showPasswords, setShowPasswords] = useState<ShowPasswords>({
     current: false,
     new: false,
     confirm: false,
   })
-  const [isLoading, setIsLoading] = useState(false)
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [errors, setErrors] = useState<Errors>({})
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {}
+  const validateForm = (): boolean => {
+    const newErrors: Errors = {}
 
     if (!formData.currentPassword) {
       newErrors.currentPassword = 'Vui lòng nhập mật khẩu hiện tại'
@@ -60,33 +81,43 @@ export default function ChangePasswordScreen() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleChangePassword = async () => {
+  const handleChangePassword = async (): Promise<void> => {
     if (!validateForm()) {
       return
     }
 
     setIsLoading(true)
     try {
-      await changePassword(formData.currentPassword, formData.newPassword)
-      
-      Alert.alert('Thành công', 'Đổi mật khẩu thành công!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            navigation.goBack()
-          },
-        },
-      ])
-
-      // Clear form
-      setFormData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
+      const response = await authService.changePassword({
+        currentPassword: formData.currentPassword,
+        newPassword: formData.newPassword,
+        confirmPassword: formData.confirmPassword,
       })
+
+      if (response.success) {
+        Alert.alert('Thành công', 'Đổi mật khẩu thành công!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.goBack()
+            },
+          },
+        ])
+
+        // Clear form
+        setFormData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        })
+      }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Lỗi đổi mật khẩu'
-      
+      console.error('❌ Change password error:', error)
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Lỗi đổi mật khẩu'
+
       if (errorMessage.includes('current')) {
         Alert.alert('Lỗi', 'Mật khẩu hiện tại không đúng')
       } else {
@@ -385,3 +416,5 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
 })
+
+export default ChangePasswordScreen

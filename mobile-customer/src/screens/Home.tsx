@@ -6,10 +6,8 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
-    KeyboardAvoidingView,
-    Platform,
 } from 'react-native';
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -70,7 +68,7 @@ const Home = () => {
     }
     return (
         <View style={styles.container}>
-            {/* Header - Fixed */}
+            {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <View style={styles.avatarContainer}>
@@ -83,170 +81,167 @@ const Home = () => {
                         <Text style={styles.userName}>{getDisplayName()}</Text>
                     </View>
                 </View>
-                <TouchableOpacity style={styles.notificationButton} onPress={handleOpenNotifications}>
-                    <View style={styles.notificationIconContainer}>
+                <View style={styles.headerRight}>
+                    <TouchableOpacity
+                        style={styles.notificationButton}
+                        onPress={handleOpenNotifications}
+                    >
                         <Ionicons name="notifications-outline" size={24} color="#333" />
-                        <View style={styles.notificationDot} />
-                    </View>
-                </TouchableOpacity>
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
-                style={{ flex: 1 }}
-            >
-                <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                    {/* Search Bar */}
-                    <View style={styles.searchContainer}>
-                        <View style={styles.searchBar}>
-                            <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
-                            <TextInput
-                                style={styles.searchInput}
-                                placeholder="Bạn muốn đi đâu hôm nay?"
-                                placeholderTextColor="#9CA3AF"
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                            />
-                            {searchQuery.length > 0 && (
-                                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                    <Ionicons name="close-circle" size={20} color="#9CA3AF" />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    </View>
-
-                    {/* Banner */}
-                    <PromoBanner />
-
-                    {/* Services Section */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <View>
-                                <Text style={styles.sectionTitle}>Dịch vụ của chúng tôi</Text>
-                                <Text style={styles.sectionSubtitle}>Chọn dịch vụ phù hợp với bạn</Text>
-                            </View>
-                            <TouchableOpacity style={styles.seeAllButton}>
-                                <Text style={styles.seeAllText}>Xem tất cả</Text>
-                                <Ionicons name="arrow-forward" size={16} color="#FF6B35" />
+            {/* Content */}
+            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {/* Search Bar */}
+                <View style={styles.searchContainer}>
+                    <View style={styles.searchBar}>
+                        <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Bạn muốn đi đâu hôm nay?"
+                            placeholderTextColor="#9CA3AF"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
                             </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.servicesGrid}>
-                            {/* Đặt xe */}
-                            <TouchableOpacity
-                                style={styles.serviceCard}
-                                onPress={() => navigation.navigate('BookRide')}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.serviceIcon, { backgroundColor: '#FFF3E0' }]}>
-                                    <Ionicons name="people" size={32} color="#F57C00" />
-                                </View>
-                                <Text style={styles.serviceText}>Ghép xe</Text>
-                                <Text style={styles.serviceDesc}>Tiết kiệm chi phí</Text>
-                            </TouchableOpacity>
-
-                            {/* Lái xe hộ */}
-                            <TouchableOpacity
-                                style={styles.serviceCard}
-                                onPress={() => navigation.navigate('HireDriver')}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.serviceIcon, { backgroundColor: '#FFE0CC' }]}>
-                                    <MaterialIcons name="drive-eta" size={32} color="#FF6B35" />
-                                </View>
-                                <Text style={styles.serviceText}>Lái xe hộ</Text>
-                                <Text style={styles.serviceDesc}>An toàn thoải mái</Text>
-                            </TouchableOpacity>
-
-                            {/* Vận chuyển */}
-                            <TouchableOpacity
-                                style={styles.serviceCard}
-                                onPress={() => navigation.navigate('Delivery')}
-                                activeOpacity={0.7}
-                            >
-                                <View style={styles.badgeContainer}>
-                                    <View style={styles.discountBadge}>
-                                        <Ionicons name="pricetag" size={10} color="#FFF" />
-                                        <Text style={styles.discountText}>-30%</Text>
-                                    </View>
-                                </View>
-                                <View style={[styles.serviceIcon, { backgroundColor: '#FFEDD5' }]}>
-                                    <Ionicons name="cube" size={32} color="#EA580C" />
-                                </View>
-                                <Text style={styles.serviceText}>Vận chuyển</Text>
-                                <Text style={styles.serviceDesc}>Nhanh chóng</Text>
-                            </TouchableOpacity>
-
-                            {/* Thêm dịch vụ mới nếu cần */}
-                            <TouchableOpacity
-                                style={styles.serviceCard}
-                                onPress={() => navigation.navigate('HourlyService')}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.serviceIcon, { backgroundColor: '#FFEDD5' }]}>
-                                    <Ionicons name="time" size={32} color="#EA580C" />
-                                </View>
-                                <Text style={styles.serviceText}>Dịch vụ theo yêu cầu</Text>
-                                <Text style={styles.serviceDesc}>Khám phá thêm</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    {/* Recent Locations */}
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <View>
-                                <Text style={styles.sectionTitle}>Địa điểm gần đây</Text>
-                                <Text style={styles.sectionSubtitle}>Các địa điểm bạn đã đến</Text>
-                            </View>
-                            <TouchableOpacity>
-                                <Ionicons name="refresh" size={24} color="#EA580C" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {recentLocations.length === 0 ? (
-                            <View style={styles.emptyState}>
-                                <Ionicons name="location-outline" size={48} color="#D1D5DB" />
-                                <Text style={styles.emptyStateText}>Chưa có địa điểm gần đây</Text>
-                                <Text style={styles.emptyStateSubtext}>Đặt chuyến đi đầu tiên của bạn!</Text>
-                            </View>
-                        ) : (
-                            recentLocations.map((location, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={styles.locationCard}
-                                    activeOpacity={0.7}
-                                    onPress={() => {
-                                        // Navigate to Delivery with this location
-                                        navigation.navigate('Delivery')
-                                    }}
-                                >
-                                    <View style={[
-                                        styles.locationIcon,
-                                        { backgroundColor: location.iconBg || '#FFEDD5' }
-                                    ]}>
-                                        <Ionicons
-                                            name={location.icon || 'location'}
-                                            size={22}
-                                            color={location.iconColor || '#EA580C'}
-                                        />
-                                    </View>
-                                    <View style={styles.locationInfo}>
-                                        <Text style={styles.locationName}>{location.name}</Text>
-                                        <Text style={styles.locationAddress}>
-                                            📍 {location.address}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.locationArrow}>
-                                        <Ionicons name="arrow-forward" size={20} color="#9CA3AF" />
-                                    </View>
-                                </TouchableOpacity>
-                            ))
                         )}
                     </View>
-                </ScrollView>
-            </KeyboardAvoidingView>
+                </View>
+
+                {/* Banner */}
+                <PromoBanner />
+
+                {/* Services Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <View>
+                            <Text style={styles.sectionTitle}>Dịch vụ của chúng tôi</Text>
+                            <Text style={styles.sectionSubtitle}>Chọn dịch vụ phù hợp với bạn</Text>
+                        </View>
+                        <TouchableOpacity style={styles.seeAllButton}>
+                            <Text style={styles.seeAllText}>Xem tất cả</Text>
+                            <Ionicons name="arrow-forward" size={16} color="#FF6B35" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.servicesGrid}>
+                        {/* Đặt xe */}
+                        <TouchableOpacity
+                            style={styles.serviceCard}
+                            onPress={() => navigation.navigate('BookRide')}
+                            activeOpacity={0.7}
+                        >
+                            <View style={[styles.serviceIcon, { backgroundColor: '#FFF3E0' }]}>
+                                <Ionicons name="people" size={32} color="#F57C00" />
+                            </View>
+                            <Text style={styles.serviceText}>Ghép xe</Text>
+                            <Text style={styles.serviceDesc}>Tiết kiệm chi phí</Text>
+                        </TouchableOpacity>
+
+                        {/* Lái xe hộ */}
+                        <TouchableOpacity
+                            style={styles.serviceCard}
+                            onPress={() => navigation.navigate('HireDriver')}
+                            activeOpacity={0.7}
+                        >
+                            <View style={[styles.serviceIcon, { backgroundColor: '#FFE0CC' }]}>
+                                <MaterialIcons name="drive-eta" size={32} color="#FF6B35" />
+                            </View>
+                            <Text style={styles.serviceText}>Lái xe hộ</Text>
+                            <Text style={styles.serviceDesc}>An toàn thoải mái</Text>
+                        </TouchableOpacity>
+
+                        {/* Vận chuyển */}
+                        <TouchableOpacity
+                            style={styles.serviceCard}
+                            onPress={() => navigation.navigate('Delivery')}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.badgeContainer}>
+                                <View style={styles.discountBadge}>
+                                    <Ionicons name="pricetag" size={10} color="#FFF" />
+                                    <Text style={styles.discountText}>-30%</Text>
+                                </View>
+                            </View>
+                            <View style={[styles.serviceIcon, { backgroundColor: '#FFEDD5' }]}>
+                                <Ionicons name="cube" size={32} color="#EA580C" />
+                            </View>
+                            <Text style={styles.serviceText}>Vận chuyển</Text>
+                            <Text style={styles.serviceDesc}>Nhanh chóng</Text>
+                        </TouchableOpacity>
+
+                        {/* Thêm dịch vụ mới nếu cần */}
+                        <TouchableOpacity
+                            style={styles.serviceCard}
+                            onPress={() => navigation.navigate('HourlyService')}
+                            activeOpacity={0.7}
+                        >
+                            <View style={[styles.serviceIcon, { backgroundColor: '#FFEDD5' }]}>
+                                <Ionicons name="time" size={32} color="#EA580C" />
+                            </View>
+                            <Text style={styles.serviceText}>Dịch vụ theo yêu cầu</Text>
+                            <Text style={styles.serviceDesc}>Khám phá thêm</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Recent Locations */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <View>
+                            <Text style={styles.sectionTitle}>Địa điểm gần đây</Text>
+                            <Text style={styles.sectionSubtitle}>Các địa điểm bạn đã đến</Text>
+                        </View>
+                        <TouchableOpacity>
+                            <Ionicons name="refresh" size={24} color="#EA580C" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {recentLocations.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Ionicons name="location-outline" size={48} color="#D1D5DB" />
+                            <Text style={styles.emptyStateText}>Chưa có địa điểm gần đây</Text>
+                            <Text style={styles.emptyStateSubtext}>Đặt chuyến đi đầu tiên của bạn!</Text>
+                        </View>
+                    ) : (
+                        recentLocations.map((location, index) => (
+                            <TouchableOpacity
+                                key={index}
+                                style={styles.locationCard}
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                    // Navigate to Delivery with this location
+                                    navigation.navigate('Delivery')
+                                }}
+                            >
+                                <View style={[
+                                    styles.locationIcon,
+                                    { backgroundColor: location.iconBg || '#FFEDD5' }
+                                ]}>
+                                    <Ionicons
+                                        name={location.icon || 'location'}
+                                        size={22}
+                                        color={location.iconColor || '#EA580C'}
+                                    />
+                                </View>
+                                <View style={styles.locationInfo}>
+                                    <Text style={styles.locationName}>{location.name}</Text>
+                                    <Text style={styles.locationAddress}>
+                                        📍 {location.address}
+                                    </Text>
+                                </View>
+                                <View style={styles.locationArrow}>
+                                    <Ionicons name="arrow-forward" size={20} color="#9CA3AF" />
+                                </View>
+                            </TouchableOpacity>
+                        ))
+                    )}
+                </View>
+            </ScrollView>
         </View>
     );
 };
@@ -254,7 +249,7 @@ const Home = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8fafc',
+        backgroundColor: '#F2F4F7',
     },
     scrollView: {
         flex: 1,
@@ -298,22 +293,7 @@ const styles = StyleSheet.create({
         borderWidth: 3,
         borderColor: '#FFF',
     },
-    verifiedBadge: {
-        position: 'absolute',
-        bottom: -2,
-        right: -2,
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: '#FFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
+
     userInfoContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -332,37 +312,36 @@ const styles = StyleSheet.create({
         color: '#111827',
         letterSpacing: -0.4,
     },
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
     notificationButton: {
         padding: 4,
     },
-    notificationIconContainer: {
-        position: 'relative',
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#F5F7FA',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    notificationDot: {
+    notificationBadge: {
         position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: '#EF4444',
+        top: 2,
+        right: 2,
+        backgroundColor: '#ef4444',
+        borderRadius: 10,
+        minWidth: 20,
+        height: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 5,
         borderWidth: 2,
-        borderColor: '#FFF',
+        borderColor: '#fff',
+    },
+    notificationBadgeText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#fff',
     },
     searchContainer: {
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingVertical: 16,
         backgroundColor: '#F5F7FA',
     },
     searchBar: {
@@ -528,7 +507,6 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#F5F7FA',
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#000',

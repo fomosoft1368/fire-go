@@ -177,8 +177,8 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
 
 const styles = StyleSheet.create({
   cardWrapper: {
-    marginHorizontal: SPACING.xl,
-    marginTop: SPACING.lg,
+    marginHorizontal: SPACING.lg,
+    marginTop: 16,
     marginBottom: SPACING.lg,
   },
   card: {

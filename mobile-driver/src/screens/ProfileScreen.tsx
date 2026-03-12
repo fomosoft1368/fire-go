@@ -18,10 +18,11 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import { logout } from '../redux/slices/authSlice'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { SPACING } from '../constants'
 import type { RootState } from '../redux/store'
 import { driverService } from '../services/driverService'
-
+import { Image } from 'react-native'
 const REGIONS = [
   { id: 'hanoi', name: 'Hà Nội', icon: 'location-city' },
   { id: 'danang', name: 'Đà Nẵng', icon: 'location-city' },
@@ -49,7 +50,21 @@ export default function ProfileScreen() {
       {
         text: 'Đăng xuất',
         style: 'destructive',
-        onPress: () => dispatch(logout()),
+        onPress: async () => {
+          try {
+            // Xóa token và user data từ AsyncStorage
+            await AsyncStorage.removeItem('token')
+            await AsyncStorage.removeItem('user')
+            console.log('✅ AsyncStorage cleared')
+            
+            // Dispatch logout action để reset Redux state
+            dispatch(logout())
+          } catch (error) {
+            console.error('❌ Error during logout:', error)
+            // Vẫn logout dù có lỗi
+            dispatch(logout())
+          }
+        },
       },
     ])
   }
@@ -244,18 +259,20 @@ export default function ProfileScreen() {
             {/* Avatar */}
             <View style={styles.avatarContainer}>
               <View style={styles.avatarInner}>
-                <Text style={styles.avatarText}>
-                  {user?.name?.charAt(0)?.toUpperCase() || 'T'}
-                </Text>
+                <Image 
+                  source={require('../assets/av.png')}
+                  style={styles.avatarImage}
+                />
               </View>
-              <TouchableOpacity style={styles.cameraButton}>
-                <MaterialIcons name="camera-alt" size={16} color="#fff" />
-              </TouchableOpacity>
             </View>
 
             {/* User Info */}
-            <Text style={styles.profileName}>{user?.name || 'Tài xế'}</Text>
-            <Text style={styles.profileEmail}>{user?.email || 'email@example.com'}</Text>
+            <Text style={styles.profileName}>
+              {user?.firstName && user?.lastName
+                ? `${user.firstName} ${user.lastName}`
+                : 'Tài xế'}
+            </Text>
+            <Text style={styles.profileEmail}>{user?.email}</Text>
 
             {/* Driver Types Badges */}
             {user?.driverTypes && user.driverTypes.length > 0 && (
@@ -278,34 +295,6 @@ export default function ProfileScreen() {
             )}
           </LinearGradient>
         </View>
-
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => navigation.navigate('EditProfile' as never)}
-          >
-            <View style={styles.quickActionIcon}>
-              <MaterialIcons name="edit" size={20} color="#FF6B00" />
-            </View>
-            <Text style={styles.quickActionText}>Sửa hồ sơ</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.quickActionButton}>
-            <View style={styles.quickActionIcon}>
-              <MaterialIcons name="share" size={20} color="#3b82f6" />
-            </View>
-            <Text style={styles.quickActionText}>Chia sẻ</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.quickActionButton}>
-            <View style={styles.quickActionIcon}>
-              <MaterialIcons name="attach-money" size={20} color="#10b981" />
-            </View>
-            <Text style={styles.quickActionText}>Nạp tiền</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Account Section */}
         <MenuSection title="Tài khoản" items={accountItems} />
 
@@ -524,9 +513,9 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   avatarInner: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -543,6 +532,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#fff',
     letterSpacing: -1,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 75,
   },
   cameraButton: {
     position: 'absolute',
