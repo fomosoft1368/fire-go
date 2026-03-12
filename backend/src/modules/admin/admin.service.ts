@@ -1019,12 +1019,30 @@ export class AdminService {
       { $limit: 10 },
     ]);
 
+    // Helper function to format location
+    const formatLocation = (location: any): string => {
+      if (!location) return 'Không rõ';
+      
+      // If it's a GeoJSON object
+      if (typeof location === 'object' && location.type === 'Point' && location.coordinates) {
+        const [lon, lat] = location.coordinates;
+        return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      }
+      
+      // If it's already a string
+      if (typeof location === 'string') {
+        return location;
+      }
+      
+      return 'Không rõ';
+    };
+
     // Merge all data by location
     const areaMap = new Map();
 
     // Process rides
     ridesByArea.forEach(area => {
-      const location = area._id || 'Không rõ';
+      const location = formatLocation(area._id);
       if (!areaMap.has(location)) {
         areaMap.set(location, { rides: 0, revenue: 0 });
       }
@@ -1035,7 +1053,7 @@ export class AdminService {
 
     // Process combined trips
     combinedByArea.forEach(area => {
-      const location = area._id || 'Không rõ';
+      const location = formatLocation(area._id);
       if (!areaMap.has(location)) {
         areaMap.set(location, { rides: 0, revenue: 0 });
       }
@@ -1046,7 +1064,7 @@ export class AdminService {
 
     // Process deliveries
     deliveriesByArea.forEach(area => {
-      const location = area._id || 'Không rõ';
+      const location = formatLocation(area._id);
       if (!areaMap.has(location)) {
         areaMap.set(location, { rides: 0, revenue: 0 });
       }
