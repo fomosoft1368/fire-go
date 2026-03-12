@@ -756,20 +756,6 @@ class ApiService {
     return this.handleResponse<any[]>(response);
   }
 
-  async getPeakHours(startDate?: string, endDate?: string): Promise<any[]> {
-    let url = `${API_BASE_URL}/rides/analytics/peak-hours`;
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-    if (params.toString()) url += `?${params.toString()}`;
-
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-    });
-    if (!response.ok) return [];
-    return this.handleResponse<any[]>(response);
-  }
-
   async getTopDrivers(limit: number = 10, startDate?: string, endDate?: string): Promise<any[]> {
     let url = `${API_BASE_URL}/admin/analytics/top-drivers?limit=${limit}`;
     const params = new URLSearchParams();
