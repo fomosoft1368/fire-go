@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
     View,
     Text,
@@ -21,6 +21,7 @@ import * as Location from 'expo-location'
 import type { RootState } from '../redux/store'
 import { hourlyServiceService } from '../services/hourlyServiceService'
 import { mapsService } from '../services/mapsService'
+import MapViewComponent from '@/components/MapView'
 
 interface AddOnService {
     id: string
@@ -78,10 +79,14 @@ export default function HourlyService() {
     const [loadingAddress, setLoadingAddress] = useState(false)
     const [services, setServices] = useState<AddOnService[]>([])
     const [showAllServices, setShowAllServices] = useState(false)
+    
+    // Calendar month/year state
+    const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth())
+    const [calendarYear, setCalendarYear] = useState(new Date().getFullYear())
 
     const timeSlots = ['08:00', '09:30', '13:00', '15:30', '17:00']
-    const basePrice = 250000
-    const MAX_VISIBLE_SERVICES = 3
+    const basePrice = 0
+    const MAX_VISIBLE_SERVICES = 4
 
     // Fetch addon services từ API khi component mount
     useEffect(() => {
@@ -152,16 +157,24 @@ export default function HourlyService() {
         }
     }
 
-    const totalAddOnPrice = services
-        .filter(s => s.selected)
-        .reduce((sum, s) => sum + s.price, 0)
+    const totalAddOnPrice = useMemo(() => 
+        services
+            .filter(s => s.selected)
+            .reduce((sum, s) => sum + s.price, 0),
+        [services]
+    )
 
-    const totalPrice = basePrice + totalAddOnPrice
+    const totalPrice = useMemo(() => {
+        // Only add basePrice if there are selected services
+        if (totalAddOnPrice === 0) return 0
+        return basePrice + totalAddOnPrice
+    }, [totalAddOnPrice])
 
     const handleToggleService = (id: string) => {
         setServices(services.map(s =>
             s.id === id ? { ...s, selected: !s.selected } : s
         ))
+        console.log('[HourlyService] 💰 Service toggled:', id, 'New total:', basePrice + services.filter(s => (s.id === id ? !s.selected : s.selected)).reduce((sum, s) => sum + s.price, 0))
     }
 
     const handleContinue = async () => {
@@ -177,22 +190,34 @@ export default function HourlyService() {
 
         setLoading(true)
         try {
+            const selectedServices = services.filter(s => s.selected)
+            const addOnPrice = selectedServices.reduce((sum, s) => sum + s.price, 0)
+            const finalPrice = basePrice + addOnPrice
+
+            console.log('[HourlyService] 📊 Price Summary:')
+            console.log('  Base price:', basePrice)
+            console.log('  Selected services:', selectedServices.length, selectedServices.map(s => `${s.name}(${s.price}đ)`))
+            console.log('  Add-on total:', addOnPrice)
+            console.log('  Final price:', finalPrice)
+
             const payload = {
                 customerId: user.id,
                 hours,
                 selectedDate,
                 selectedTime,
+                month: calendarMonth + 1, // Backend cần month (1-12)
+                year: calendarYear,
                 propertyType,
                 address,
                 notes: notes.trim(),
-                services: services.map(({ id, name, price, duration, selected }) => ({
+                services: selectedServices.map(({ id, name, price, duration }) => ({
                     id,
                     name,
                     price,
                     duration,
-                    selected,
+                    selected: true,
                 })),
-                estimatedPrice: totalPrice,
+                estimatedPrice: finalPrice,
             }
 
             console.log('[HourlyService] Creating service with payload:', payload)
@@ -221,6 +246,27 @@ export default function HourlyService() {
         }
     }
 
+    // Calendar navigation functions
+    const handlePreviousMonth = () => {
+        if (calendarMonth === 0) {
+            setCalendarMonth(11)
+            setCalendarYear(calendarYear - 1)
+        } else {
+            setCalendarMonth(calendarMonth - 1)
+        }
+        setSelectedDate(1) // Reset selected date when changing month
+    }
+
+    const handleNextMonth = () => {
+        if (calendarMonth === 11) {
+            setCalendarMonth(0)
+            setCalendarYear(calendarYear + 1)
+        } else {
+            setCalendarMonth(calendarMonth + 1)
+        }
+        setSelectedDate(1) // Reset selected date when changing month
+    }
+
     const getDaysInMonth = (month: number, year: number) => {
         return new Date(year, month + 1, 0).getDate()
     }
@@ -229,13 +275,11 @@ export default function HourlyService() {
         return new Date(year, month, 1).getDay()
     }
 
-    const currentDate = new Date()
-    const month = currentDate.getMonth()
-    const year = currentDate.getFullYear()
-    const daysInMonth = getDaysInMonth(month, year)
-    const firstDay = getFirstDayOfMonth(month, year)
+    // Use calendar state instead of current date
+    const daysInMonth = getDaysInMonth(calendarMonth, calendarYear)
+    const firstDay = getFirstDayOfMonth(calendarMonth, calendarYear)
 
-    const monthName = currentDate.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
+    const monthName = new Date(calendarYear, calendarMonth).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
 
     return (
         <SafeAreaView style={styles.container}>
@@ -292,11 +336,17 @@ export default function HourlyService() {
                     {/* Calendar */}
                     <View style={styles.calendarCard}>
                         <View style={styles.calendarHeader}>
-                            <TouchableOpacity style={styles.calendarNav}>
+                            <TouchableOpacity 
+                                style={styles.calendarNav}
+                                onPress={handlePreviousMonth}
+                            >
                                 <MaterialIcons name="chevron-left" size={24} color="#FF6B35" />
                             </TouchableOpacity>
                             <Text style={styles.monthText}>{monthName}</Text>
-                            <TouchableOpacity style={styles.calendarNav}>
+                            <TouchableOpacity 
+                                style={styles.calendarNav}
+                                onPress={handleNextMonth}
+                            >
                                 <MaterialIcons name="chevron-right" size={24} color="#FF6B35" />
                             </TouchableOpacity>
                         </View>
@@ -439,13 +489,7 @@ export default function HourlyService() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Địa điểm làm việc</Text>
                     <View style={styles.addressCard}>
-                        <Image
-                            source={{ uri: 'https://via.placeholder.com/400x150?text=Map' }}
-                            style={styles.mapImage}
-                        />
-                        <View style={styles.locationPin}>
-                            <MaterialIcons name="location-on" size={24} color="#fff" />
-                        </View>
+                        <MapViewComponent height={220}/>
                         <View style={styles.addressInputContainer}>
                             <MaterialIcons name="home" size={20} color="#FF6B35" />
                             <View style={styles.inputWrapper}>
@@ -498,62 +542,56 @@ export default function HourlyService() {
                         </View>
                     ) : (
                         <>
-                            {(showAllServices ? services : services.slice(0, MAX_VISIBLE_SERVICES)).map((service) => (
-                                <TouchableOpacity
-                                    key={service.id}
-                                    style={[
-                                        styles.serviceItem,
-                                        service.selected && styles.serviceItemSelected,
-                                    ]}
-                                    onPress={() => handleToggleService(service.id)}
-                                >
-                                    <View style={styles.serviceLeft}>
+                            <View style={styles.serviceGridContainer}>
+                                {(showAllServices ? services : services.slice(0, MAX_VISIBLE_SERVICES)).map((service) => (
+                                    <TouchableOpacity
+                                        key={service.id}
+                                        style={[
+                                            styles.serviceGridCard,
+                                            service.selected && styles.serviceGridCardSelected,
+                                        ]}
+                                        onPress={() => handleToggleService(service.id)}
+                                        activeOpacity={0.7}
+                                    >
                                         <View
                                             style={[
-                                                styles.serviceIcon,
-                                                { backgroundColor: service.color + '20' },
+                                                styles.serviceGridIcon,
+                                                { backgroundColor: service.color + '15' },
                                             ]}
                                         >
                                             <MaterialIcons
                                                 name={service.icon as any}
-                                                size={20}
+                                                size={32}
                                                 color={service.color}
                                             />
                                         </View>
-                                        <View style={styles.serviceInfo}>
-                                            <Text style={styles.serviceName}>{service.name}</Text>
-                                            <Text style={styles.serviceDuration}>
-                                                +{service.duration} phút
-                                            </Text>
-                                        </View>
-                                    </View>
-                                    <View style={styles.serviceRight}>
-                                        <Text style={styles.servicePrice}>
+                                        <Text style={styles.serviceGridName} numberOfLines={2}>
+                                            {service.name}
+                                        </Text>
+                                        <Text style={styles.serviceGridDuration}>
+                                            +{service.duration} phút
+                                        </Text>
+                                        <Text style={styles.serviceGridPrice}>
                                             {service.price.toLocaleString('vi-VN')}đ
                                         </Text>
-                                        <View
-                                            style={[
-                                                styles.checkbox,
-                                                service.selected && styles.checkboxSelected,
-                                            ]}
-                                        >
-                                            {service.selected && (
-                                                <MaterialIcons name="check" size={16} color="#fff" />
-                                            )}
-                                        </View>
-                                    </View>
-                                </TouchableOpacity>
-                            ))}
+                                        {service.selected && (
+                                            <View style={styles.serviceGridCheckmark}>
+                                                <MaterialIcons name="check-circle" size={24} color="#FF6B35" />
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
                             
                             {services.length > MAX_VISIBLE_SERVICES && (
                                 <TouchableOpacity
-                                    style={styles.showMoreButton}
+                                    style={styles.viewAllButton}
                                     onPress={() => setShowAllServices(!showAllServices)}
                                 >
-                                    <Text style={styles.showMoreButtonText}>
+                                    <Text style={styles.viewAllButtonText}>
                                         {showAllServices 
-                                            ? `Ẩn bớt (${MAX_VISIBLE_SERVICES} trên ${services.length})`
-                                            : `Xem thêm ${services.length - MAX_VISIBLE_SERVICES} dịch vụ khác`
+                                            ? `Ẩn bớt ⋀`
+                                            : `Xem tất cả (${services.length})`
                                         }
                                     </Text>
                                     <MaterialIcons 
@@ -587,10 +625,10 @@ export default function HourlyService() {
 
             {/* Sticky Bottom Action */}
             <View style={styles.bottomAction}>
-                <View style={styles.priceContainer}>
+                <View style={styles.priceContainer} key={`price-${totalPrice}`}>
                     <Text style={styles.priceLabel}>Tổng cộng</Text>
                     <Text style={styles.totalPrice}>
-                        {totalPrice.toLocaleString('vi-VN')}đ
+                        {totalPrice > 0 ? totalPrice.toLocaleString('vi-VN') + 'đ' : 'Chọn dịch vụ'}
                     </Text>
                 </View>
                 <TouchableOpacity
@@ -812,10 +850,12 @@ const styles = StyleSheet.create({
     addressCard: {
         backgroundColor: '#fff',
         borderRadius: 12,
-        overflow: 'hidden',
+        overflow: 'visible',
         borderWidth: 1,
         borderColor: '#e2e8f0',
         elevation: 2,
+        position: 'relative',
+        minHeight: 200,
     },
     mapImage: {
         width: '100%',
@@ -836,14 +876,29 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 2,
         borderColor: '#fff',
-        elevation: 3,
+        elevation: 5,
+        shadowColor: '#FF6B35',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 6,
     },
     addressInputContainer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingVertical: 14,
+        paddingBottom: 16,
         gap: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(226, 232, 240, 0.6)',
+        elevation: 8,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
     },
     inputWrapper: {
         flex: 1,
@@ -852,40 +907,45 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 4,
+        marginBottom: 2,
+        gap: 8,
     },
     inputLabel: {
-        fontSize: 12,
-        fontWeight: '700',
+        fontSize: 11,
+        fontWeight: '600',
         color: '#94a3b8',
         textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     currentLocationButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        paddingVertical: 4,
-        paddingHorizontal: 8,
-        backgroundColor: '#FFF3EE',
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: '#FF6B35',
-        minHeight: 24,
-        minWidth: 80,
+        gap: 5,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        backgroundColor: '#FF6B35',
+        borderRadius: 20,
+        borderWidth: 0,
+        minHeight: 28,
         justifyContent: 'center',
+        elevation: 2,
     },
     currentLocationText: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: '#FF6B35',
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#fff',
     },
     addressInput: {
+        flex: 1,
         fontSize: 14,
         fontWeight: '500',
         color: '#0f172a',
-        padding: 8,
-        backgroundColor: '#f1f5f9',
-        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: '#f8fafc',
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
     },
     serviceItem: {
         flexDirection: 'row',
@@ -902,6 +962,68 @@ const styles = StyleSheet.create({
     serviceItemSelected: {
         borderColor: '#FF6B35',
         backgroundColor: '#FFF3EE',
+    },
+    serviceGridContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 12,
+    },
+    serviceGridCard: {
+        width: '48%',
+        backgroundColor: '#fff',
+        borderWidth: 2,
+        borderColor: '#e2e8f0',
+        borderRadius: 14,
+        paddingVertical: 16,
+        paddingHorizontal: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+    },
+    serviceGridCardSelected: {
+        borderColor: '#FF6B35',
+        borderWidth: 2,
+        backgroundColor: '#FFF3EE',
+        elevation: 4,
+    },
+    serviceGridIcon: {
+        width: 56,
+        height: 56,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    serviceGridName: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0f172a',
+        textAlign: 'center',
+        marginBottom: 6,
+        lineHeight: 18,
+    },
+    serviceGridDuration: {
+        fontSize: 11,
+        color: '#64748b',
+        marginBottom: 8,
+    },
+    serviceGridPrice: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#FF6B35',
+    },
+    serviceGridCheckmark: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: '#fff',
+        borderRadius: 12,
     },
     serviceLeft: {
         flexDirection: 'row',
@@ -1078,6 +1200,26 @@ const styles = StyleSheet.create({
     showMoreButtonText: {
         fontSize: 14,
         fontWeight: '600',
+        color: '#FF6B35',
+    },
+    viewAllButton: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginTop: 8,
+        marginBottom: 8,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#FF6B35',
+        backgroundColor: '#fff',
+        gap: 8,
+        elevation: 2,
+    },
+    viewAllButtonText: {
+        fontSize: 15,
+        fontWeight: '700',
         color: '#FF6B35',
     },
 })

@@ -365,12 +365,14 @@ export default function ActiveHourlyServiceScreen({ navigation, route }: any) {
                                 <View style={styles.scheduleInfo}>
                                     <Text style={styles.scheduleLabel}>Ngày làm việc</Text>
                                     <Text style={styles.scheduleValue}>
-                                        {new Date(service.selectedDate).toLocaleDateString('vi-VN', {
-                                            weekday: 'long',
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
+                                        {service.year && service.month
+                                          ? new Date(service.year, service.month - 1, service.selectedDate).toLocaleDateString('vi-VN', {
+                                              weekday: 'long',
+                                              year: 'numeric',
+                                              month: 'long',
+                                              day: 'numeric'
+                                            })
+                                          : 'N/A'}
                                     </Text>
                                 </View>
                             </View>
