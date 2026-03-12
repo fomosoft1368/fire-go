@@ -498,7 +498,7 @@ export default function HomeScreen() {
           </View>
         </View>
         {/* Rides List */}
-        <View style={styles.ridesSection}>
+        {/* <View style={styles.ridesSection}>
           <View style={styles.sectionTitleContainer}>
             <Text style={styles.sectionTitle}>Hoạt động có sẵn</Text>
             <View style={styles.buttonGroup}>
@@ -539,7 +539,7 @@ export default function HomeScreen() {
             </View>
 
           )}
-        </View>
+        </View> */}
 
         {/* Floating Map Button - Draggable */}
         <Animated.View

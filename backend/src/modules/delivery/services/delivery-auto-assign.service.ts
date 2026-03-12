@@ -561,8 +561,8 @@ export class DeliveryAutoAssignService {
     // Calculate distance manually for all delivery drivers to see why Ho Van Trinh is filtered
     console.log(`\n[getAvailableDriversWithScores] 🔍 Analyzing which drivers pass geospatial filter...`);
     const deliveryDriversNearby = allDeliveryDrivers.filter((d: any) => {
-      if (!d.isOnline || !d.isAvailable || !d.isVerified) {
-        console.log(`  ❌ ${d.firstName} ${d.lastName} - FILTERED: not (online && available && verified)`);
+      if (!d.isOnline || !d.isAvailable) {
+        console.log(`  ❌ ${d.firstName} ${d.lastName} - FILTERED: not (online && available)`);
         return false;
       }
 
@@ -591,7 +591,6 @@ export class DeliveryAutoAssignService {
     const drivers = await this.driverModel.find({
       isAvailable: true,
       isOnline: true,
-      isVerified: true,
       driverTypes: { $in: ['delivery'] }, // Tìm tài xế có 'delivery' trong array driverTypes
       currentLocation: {
         $near: {

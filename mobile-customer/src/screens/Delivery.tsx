@@ -903,19 +903,19 @@ export default function Delivery(props?: DeliveryProps) {
                                             key={type.key}
                                             style={[
                                                 styles.optionBtn,
-                                                goodsType === type.key && styles.optionBtnActive
+                                                goodsType === type.label && styles.optionBtnActive
                                             ]}
-                                            onPress={() => setGoodsType(type.key)}
+                                            onPress={() => setGoodsType(type.label)}
                                             activeOpacity={0.7}
                                         >
                                             <MaterialCommunityIcons
                                                 name={type.icon as any}
                                                 size={18}
-                                                color={goodsType === type.key ? '#FF6B00' : '#6B7280'}
+                                                color={goodsType === type.label ? '#FF6B00' : '#6B7280'}
                                             />
                                             <Text style={[
                                                 styles.optionBtnText,
-                                                goodsType === type.key && styles.optionBtnTextActive
+                                                goodsType === type.label && styles.optionBtnTextActive
                                             ]}>
                                                 {type.label}
                                             </Text>
@@ -935,14 +935,14 @@ export default function Delivery(props?: DeliveryProps) {
                                             key={w.key}
                                             style={[
                                                 styles.weightBtn,
-                                                weight === w.key && styles.weightBtnActive
+                                                weight === w.label && styles.weightBtnActive
                                             ]}
-                                            onPress={() => setWeight(w.key)}
+                                            onPress={() => setWeight(w.label)}
                                             activeOpacity={0.7}
                                         >
                                             <Text style={[
                                                 styles.weightBtnText,
-                                                weight === w.key && styles.weightBtnTextActive
+                                                weight === w.label && styles.weightBtnTextActive
                                             ]}>
                                                 {w.label}
                                             </Text>
@@ -962,19 +962,19 @@ export default function Delivery(props?: DeliveryProps) {
                                             key={v.key}
                                             style={[
                                                 styles.vehicleCard,
-                                                vehicle === v.key && styles.vehicleCardActive
+                                                vehicle === v.label && styles.vehicleCardActive
                                             ]}
-                                            onPress={() => setVehicle(v.key)}
+                                            onPress={() => setVehicle(v.label)}
                                             activeOpacity={0.7}
                                         >
                                             <MaterialCommunityIcons
                                                 name={v.icon as any}
                                                 size={32}
-                                                color={vehicle === v.key ? '#FF6B00' : '#6B7280'}
+                                                color={vehicle === v.label ? '#FF6B00' : '#6B7280'}
                                             />
                                             <Text style={[
                                                 styles.vehicleLabel,
-                                                vehicle === v.key && styles.vehicleLabelActive
+                                                vehicle === v.label && styles.vehicleLabelActive
                                             ]}>
                                                 {v.label}
                                             </Text>

@@ -430,22 +430,15 @@ export default function TripHistoryScreen() {
       })
     } else {
       // Nếu là hire ride
-      const statusMap: Record<string, string> = {
-        completed: 'Hoàn thành',
-        cancelled: 'Đã hủy',
-        in_progress: 'Đang chạy',
-        pending: 'Đang tìm tài xế',
-        accepted: 'Đã có tài xế',
-      }
-      const statusLabel = statusMap[booking.status] || booking.status
-      const fareText = booking.estimatedFare > 0
-        ? booking.estimatedFare.toLocaleString('vi-VN') + 'đ'
-        : 'Chưa xác định'
-      Alert.alert(
-        'Chi tiết chuyến đi',
-        `📍 Điểm đón: ${booking.pickupLocation}\n🏁 Điểm đến: ${booking.dropoffLocation}\n\n🕐 Thời gian: ${booking.bookingTime}\n📊 Trạng thái: ${statusLabel}\n💰 Giá: ${fareText}\n\n👤 Tài xế: ${booking.driverName || 'Chưa có'}\n🚗 Biển số: ${booking.carPlate || 'N/A'}`,
-        [{ text: 'Đóng' }]
-      )
+      navigation.navigate('RideTracking', {
+        rideId: booking.id,
+        status: booking.status,
+        pickupLocation: booking.pickupLocation,
+        dropoffLocation: booking.dropoffLocation,
+        driverName: booking.driverName,
+        carPlate: booking.carPlate,
+        estimatedFare: booking.estimatedFare,
+      })
     }
   }
 
