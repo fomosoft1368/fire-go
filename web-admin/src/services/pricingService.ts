@@ -15,12 +15,20 @@ export interface CarpoolDiscount {
   discount: number;
 }
 
+export interface DistanceRange {
+  id: string;
+  minKm: number;
+  maxKm: number; // -1 = vô hạn (Infinity)
+  pricePerKm: number;
+}
+
 export interface VehicleTypePrice {
   type: string;
   name: string;
   baseFee: number;
   pricePerKm: number;
   minimumFare: number;
+  distanceRanges?: DistanceRange[]; // ✨ NEW: Giá theo khoảng cách
 }
 
 // ============ GIAO HÀNG - Delivery Config Types ============
@@ -55,6 +63,29 @@ export interface HireDriverPricing {
   description?: string;
 }
 
+// ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Route Types ============
+export interface InterProvincialRoute {
+  id: string;
+  name: string;
+  origin: {
+    city: string;
+    province: string;
+    coordinates: { lat: number; lng: number };
+    radius: number;
+  };
+  destination: {
+    city: string;
+    province: string;
+    coordinates: { lat: number; lng: number };
+    radius: number;
+  };
+  fixedPrice: number;
+  vehicleType: string;
+  isActive: boolean;
+  description?: string;
+  estimatedDuration?: number;
+}
+
 export interface PricingConfig {
   _id?: string;
   vehicleTypes: VehicleTypePrice[];
@@ -69,6 +100,8 @@ export interface PricingConfig {
   deliveryVehicleTypes?: DeliveryVehicleType[];
   // ============ LÁI XE HỘ ============
   hireDriverPricing?: HireDriverPricing[];
+  // ============ CHUYẾN ĐI LIÊN TỈNH ============
+  interProvincialRoutes?: InterProvincialRoute[];
   updatedAt?: string;
 }
 
@@ -178,6 +211,18 @@ class PricingService {
     } catch (error) {
       console.error('Error updating hire driver pricing:', error);
       throw error;
+    }
+  }
+
+  // ============ DRIVER SEARCH CONFIG - Get search radius ============
+  async getDriverSearchConfig(serviceType: string = 'rideshare'): Promise<{ searchRadiusMeters: number }> {
+    try {
+      const response = await axios.get(`${API_URL}/api/config/driver-search/${serviceType}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching driver search config:', error);
+      // Return default if API fails
+      return { searchRadiusMeters: 10000 };
     }
   }
 }

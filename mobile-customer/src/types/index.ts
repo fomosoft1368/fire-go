@@ -52,6 +52,29 @@ export interface RideBooking {
   hourlyServiceId?: string
 }
 
+// ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Route Types ============
+export interface InterProvincialRoute {
+  id: string
+  name: string
+  origin: {
+    city: string
+    province: string
+    coordinates: { lat: number; lng: number }
+    radius: number
+  }
+  destination: {
+    city: string
+    province: string
+    coordinates: { lat: number; lng: number }
+    radius: number
+  }
+  fixedPrice: number
+  vehicleType: string
+  isActive: boolean
+  description?: string
+  estimatedDuration?: number
+}
+
 // Notification Types
 export interface Notification {
   _id: string

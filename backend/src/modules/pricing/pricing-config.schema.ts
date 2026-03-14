@@ -30,6 +30,23 @@ export class CarpoolDiscount {
   discount: number;
 }
 
+// ============ DISTANCE RANGE - Giá theo khoảng cách ============
+@Schema()
+export class DistanceRange {
+  @Prop({ required: true })
+  id: string; // Unique ID for frontend
+
+  @Prop({ required: true })
+  minKm: number; // Khoảng cách tối thiểu (km), ví dụ: 0
+
+  @Prop({ required: true })
+  maxKm: number; // Khoảng cách tối đa (km), ví dụ: 10, hoặc Infinity
+
+  @Prop({ required: true })
+  pricePerKm: number; // Giá mỗi km trong khoảng này (VNĐ)
+}
+// ============ END DISTANCE RANGE ============
+
 @Schema()
 export class VehicleTypePrice {
   @Prop({ required: true })
@@ -42,10 +59,13 @@ export class VehicleTypePrice {
   baseFee: number;
 
   @Prop({ required: true })
-  pricePerKm: number;
+  pricePerKm: number; // Giá mặc định (fallback nếu không có distanceRanges)
 
   @Prop({ required: true })
   minimumFare: number;
+
+  @Prop({ type: [DistanceRange], default: [] })
+  distanceRanges: DistanceRange[]; // ✨ NEW: Giá theo khoảng cách
 }
 
 // ============ GIAO HÀNG - Delivery Pricing Config ============
@@ -118,6 +138,48 @@ export class HireDriverPricing {
 }
 // ============ END LÁI XE HỘ ============
 
+// ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Route ============
+@Schema()
+export class InterProvincialRoute {
+  @Prop({ required: true })
+  id: string; // Unique ID for frontend
+
+  @Prop({ required: true })
+  name: string; // 'Hà Tĩnh - Vinh', 'Hà Nội - Hải Phòng'
+
+  @Prop({ required: true, type: Object })
+  origin: {
+    city: string; // 'TP. Hà Tĩnh'
+    province: string; // 'Hà Tĩnh'
+    coordinates: { lat: number; lng: number }; // Tọa độ trung tâm
+    radius: number; // Bán kính (km) để check điểm nằm trong vùng
+  };
+
+  @Prop({ required: true, type: Object })
+  destination: {
+    city: string; // 'TP. Vinh'
+    province: string; // 'Nghệ An'
+    coordinates: { lat: number; lng: number };
+    radius: number; // Bán kính (km)
+  };
+
+  @Prop({ required: true })
+  fixedPrice: number; // Giá cố định (VNĐ) - không tính theo km
+
+  @Prop({ required: true })
+  vehicleType: string; // 'sedan', 'suv', 'truck' - Loại xe áp dụng
+
+  @Prop({ default: true })
+  isActive: boolean; // Bật/tắt route
+
+  @Prop()
+  description?: string; // Mô tả (optional)
+
+  @Prop()
+  estimatedDuration?: number; // Thời gian di chuyển dự kiến (phút)
+}
+// ============ END CHUYẾN ĐI LIÊN TỈNH ============
+
 @Schema({ timestamps: true })
 export class PricingConfig {
   @Prop({ type: [VehicleTypePrice], default: [] })
@@ -153,6 +215,11 @@ export class PricingConfig {
   @Prop({ type: [HireDriverPricing], default: [] })
   hireDriverPricing: HireDriverPricing[];
   // ============ END LÁI XE HỘ ============
+
+  // ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Routes ============
+  @Prop({ type: [InterProvincialRoute], default: [] })
+  interProvincialRoutes: InterProvincialRoute[];
+  // ============ END CHUYẾN ĐI LIÊN TỈNH ============
 
   // ============ TOPUP DISCOUNT - Nạp tiền chiết khấu ============
   @Prop({ required: false, default: 0 })

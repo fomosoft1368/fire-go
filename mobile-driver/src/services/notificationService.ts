@@ -1,10 +1,9 @@
 import axios from 'axios'
-
-const API_BASE = 'http://192.168.1.18:3000'
+import { API_BASE_URL } from '../constants/config'
 
 // Create axios instance with timeout
 const axiosInstance = axios.create({
-  baseURL: API_BASE,
+  baseURL: API_BASE_URL, // Already includes /api
   timeout: 10000, // 10 second timeout
 })
 
@@ -40,16 +39,33 @@ class NotificationService {
       const params: any = { limit, skip }
       if (type) params.type = type
 
-      const response = await axiosInstance.post(`/api/notifications`, {}, {
+      console.log('📡 Calling /notifications with:', {
+        url: `${API_BASE_URL}/notifications`,
+        params,
+        hasToken: !!this.token,
+      })
+
+      const response = await axiosInstance.post(`/notifications`, {}, {
         params,
         headers: {
           Authorization: `Bearer ${this.token}`,
         },
         timeout: 10000,
       })
+      
+      console.log('✅ Response received:', {
+        status: response.status,
+        dataLength: response.data?.data?.length || 0,
+        total: response.data?.total || 0,
+      })
+      
       return response.data
     } catch (error: any) {
-      console.error('Get notifications error:', error.message || error)
+      console.error('❌ Get notifications error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      })
       // Return empty response instead of throwing
       return { data: [], total: 0 }
     }
@@ -57,7 +73,7 @@ class NotificationService {
 
   async getUnreadCount() {
     try {
-      const response = await axiosInstance.get(`/api/notifications/unread/count`, {
+      const response = await axiosInstance.get(`/notifications/unread/count`, {
         headers: {
           Authorization: `Bearer ${this.token}`,
         },
@@ -74,7 +90,7 @@ class NotificationService {
   async markAsRead(notificationId: string) {
     try {
       const response = await axiosInstance.patch(
-        `/api/notifications/${notificationId}/read`,
+        `/notifications/${notificationId}/read`,
         {},
         {
           headers: {
@@ -93,7 +109,7 @@ class NotificationService {
   async markAllAsRead() {
     try {
       const response = await axiosInstance.patch(
-        `/api/notifications/read-all`,
+        `/notifications/read-all`,
         {},
         {
           headers: {
@@ -111,7 +127,7 @@ class NotificationService {
 
   async deleteNotification(notificationId: string) {
     try {
-      const response = await axiosInstance.delete(`/api/notifications/${notificationId}`, {
+      const response = await axiosInstance.delete(`/notifications/${notificationId}`, {
         headers: {
           Authorization: `Bearer ${this.token}`,
         },

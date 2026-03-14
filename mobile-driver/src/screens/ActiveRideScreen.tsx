@@ -774,6 +774,13 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
             hasStatus: !!c.status,
           })))
           
+          // 🚨 CRITICAL FIX: Detect cancelled customers BEFORE filtering
+          const oldCustomerIds = new Set((ride?.customerId || []).map((c: any) => c._id))
+          const cancelledCustomers = data.customerId.filter((customer: any) => 
+            customer.status === 'cancelled' && oldCustomerIds.has(customer._id)
+          )
+          
+          // Filter out inactive customers
           data.customerId = data.customerId.filter((customer: any) => {
             // ✅ RELAXED FILTER: Keep customers that are active OR have no status (legacy data)
             // Only exclude customers explicitly marked as 'timeout', 'rejected', or 'cancelled'
@@ -787,20 +794,25 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 status: customer.status,
                 reason: 'excluded status',
               })
-              
-              // ✅ Show notification when customer cancels
-              if (customer.status === 'cancelled' && ride?.customerId?.find((c: any) => c._id === customer._id)) {
-                // Only show alert if this customer was previously in the list (means they just cancelled)
-                setTimeout(() => {
-                  Alert.alert(
-                    'Khách hàng đã hủy chuyến',
-                    `${customer.name} đã hủy yêu cầu đặt xe. Ghế đã được hoàn lại.`,
-                    [{ text: 'OK' }]
-                  )
-                }, 300) // Small delay to avoid alert during render
-              }
             }
             return !shouldExclude // Keep if NOT in excluded list
+          })
+          
+          // ✅ Show alert for cancelled customers (AFTER filtering, to avoid duplicate alerts)
+          cancelledCustomers.forEach((customer: any) => {
+            console.log(`🚨 [ActiveRideScreen] Customer cancelled:`, {
+              id: customer._id,
+              name: customer.name,
+              status: customer.status,
+            })
+            
+            setTimeout(() => {
+              Alert.alert(
+                'Khách hàng đã hủy chuyến',
+                `${customer.name} đã hủy yêu cầu đặt xe. Ghế đã được hoàn lại.`,
+                [{ text: 'OK' }]
+              )
+            }, 300) // Small delay to avoid alert during render
           })
           
           console.log(`🔄 [ActiveRideScreen] Customer filter: ${originalCount} → ${data.customerId.length} active`)
@@ -1044,7 +1056,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
   // Check if all passengers are completed
   const allPassengersCompleted = () => {
-    if (!ride?.customerId || ride.customerId.length === 0) return false
+    if (!ride?.customerId || ride.customerId.length === 0) return true // Allow ending trip when no passengers
     return ride.customerId.every((passenger: any) => passenger.status === 'completed')
   }
 
@@ -1578,6 +1590,34 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   <MaterialIcons name="refresh" size={20} color="#fff" />
                   <Text style={styles.refreshPassengerBtnText}>Làm mới</Text>
                 </TouchableOpacity>
+
+                {/* End Trip Button for empty trips */}
+                {ride && ride.status !== 'completed' && (
+                  <TouchableOpacity 
+                    onPress={handleCompleteRide}
+                    disabled={updating}
+                    activeOpacity={0.8}
+                    style={{ marginTop: 16, width: '100%', paddingHorizontal: 20 }}
+                  >
+                    <LinearGradient
+                      colors={['#10b981', '#059669']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.actionBtn, styles.endTripBtn]}
+                    >
+                      <View style={styles.actionBtnIconCircle}>
+                        <MaterialIcons 
+                          name="stop-circle" 
+                          size={20} 
+                          color="#10b981"
+                        />
+                      </View>
+                      <Text style={styles.actionBtnText}>
+                        Kết thúc chuyến đi
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <>
@@ -1613,17 +1653,12 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   </LinearGradient>
                 )}
 
-                {/* Passengers Info - Horizontal Carousel với gradient */}
+                {/* Passengers Info - Horizontal Carousel */}
                 {ride.customerId && ride.customerId.length > 1 && (
-                  <LinearGradient
-                    colors={['#FF6B00', '#FF9E40', '#FFF5F0']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.passengerCard}
-                  >
+                  <View style={styles.passengerCard}>
                     <View style={styles.cardTitleRow}>
                       <View style={styles.cardTitleIconBadge}>
-                        <MaterialIcons name="people" size={18} color="#fff" />
+                        <MaterialIcons name="people" size={20} color="#FF6B00" />
                       </View>
                       <Text style={styles.cardTitle}>HÀNH KHÁCH ({ride.customerId?.length || 0}/{ride.totalSeats})</Text>
                     </View>
@@ -1717,21 +1752,16 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                     </View>
                   )}
                 />
-                  </LinearGradient>
+                  </View>
             )}
 
             {/* Single passenger info - when only 1 passenger */}
             
             {ride.customerId && ride.customerId.length === 1 && currentPassenger && (
-              <LinearGradient
-                colors={['#FF6B00', '#FF9E40', '#FFF5F0']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.passengerCard}
-              >
+              <View style={styles.passengerCard}>
                 <View style={styles.cardTitleRow}>
                   <View style={styles.cardTitleIconBadge}>
-                    <MaterialIcons name="person" size={18} color="#fff" />
+                    <MaterialIcons name="person" size={20} color="#FF6B00" />
                   </View>
                   <Text style={styles.cardTitle}>KHÁCH HÀNG</Text>
                 </View>
@@ -1785,7 +1815,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   </View>
                 </View>
                 
-              </LinearGradient>
+              </View>
             )}
 
             {/* Action Buttons với gradient - Based on passenger status */}
@@ -1864,14 +1894,9 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                 </LinearGradient>
               )}
 
-              {/* Total Revenue Display với gradient cam - Only show when has passengers */}
+              {/* Total Revenue Display - Only show when has passengers */}
               {ride?.customerId && ride.customerId.length > 0 && (
-                <LinearGradient
-                  colors={['#FF6B00', '#FF8534']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.totalRevenueCard}
-                >
+                <View style={styles.totalRevenueCard}>
                   <View style={styles.totalRevenueIconBadge}>
                     <MaterialIcons name="account-balance-wallet" size={24} color="#FF6B00" />
                   </View>
@@ -1883,11 +1908,11 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                   </View>
                   <View style={styles.totalRevenueStatus}>
                     <View style={styles.statusIndicator}>
-                      <View style={[styles.statusIndicatorBadge, { backgroundColor: allPassengersCompleted() ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255, 255, 255, 0.3)' }]}>
+                      <View style={[styles.statusIndicatorBadge, { backgroundColor: allPassengersCompleted() ? '#ecfdf5' : '#fef3c7' }]}>
                         <MaterialIcons 
                           name={allPassengersCompleted() ? "check-circle" : "schedule"} 
                           size={18} 
-                          color="#fff"
+                          color={allPassengersCompleted() ? '#10b981' : '#f59e0b'}
                         />
                       </View>
                       <Text style={styles.statusIndicatorText}>
@@ -1895,49 +1920,41 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                       </Text>
                     </View>
                   </View>
-                </LinearGradient>
+                </View>
               )}
 
-              {/* End Trip Button với gradient xanh lá - Only enabled when all passengers completed and ride not already completed */}
+              {/* End Trip Button - Only enabled when all passengers completed and ride not already completed */}
               {ride?.customerId && ride.customerId.length > 0 && ride.status !== 'completed' && (
                 <TouchableOpacity 
                   onPress={handleCompleteRide}
                   disabled={!allPassengersCompleted() || ride.status === 'completed' || updating}
                   activeOpacity={0.8}
                 >
-                  <LinearGradient
-                    colors={allPassengersCompleted() && ride.status !== 'completed' ? ['#10b981', '#059669'] : ['#e0e0e0', '#bdbdbd']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.actionBtn, styles.endTripBtn]}
+                  <View
+                    style={[styles.actionBtn, styles.endTripBtn, allPassengersCompleted() && ride.status !== 'completed' && styles.endTripBtnActive]}
                   >
-                    <View style={[styles.actionBtnIconCircle, (!allPassengersCompleted() || ride.status === 'completed') && { backgroundColor: 'rgba(153, 153, 153, 0.2)' }]}>
+                    <View style={[styles.actionBtnIconCircle, allPassengersCompleted() && ride.status !== 'completed' && styles.endTripIconActive]}>
                       <MaterialIcons 
                         name="stop-circle" 
                         size={20} 
-                        color={allPassengersCompleted() && ride.status !== 'completed' ? "#10b981" : "#999"}
+                        color={allPassengersCompleted() && ride.status !== 'completed' ? "#10b981" : "#94a3b8"}
                       />
                     </View>
-                    <Text style={[styles.actionBtnText, (!allPassengersCompleted() || ride.status === 'completed') && { color: '#999' }]}>
+                    <Text style={[styles.actionBtnText, allPassengersCompleted() && ride.status !== 'completed' && styles.endTripTextActive]}>
                       Kết thúc chuyến đi
                     </Text>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
               )}
 
               {/* Show completed state khi ride đã kết thúc */}
               {ride?.customerId && ride.customerId.length > 0 && ride.status === 'completed' && (
-                <LinearGradient
-                  colors={['#8BC34A', '#689F38']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[styles.actionBtn, styles.completedBtn]}
-                >
-                  <View style={styles.actionBtnIconCircle}>
-                    <MaterialIcons name="done-all" size={20} color="#8BC34A" />
+                <View style={[styles.actionBtn, styles.completedBtn]}>
+                  <View style={[styles.actionBtnIconCircle, styles.completedIconCircle]}>
+                    <MaterialIcons name="done-all" size={20} color="#10b981" />
                   </View>
-                  <Text style={styles.actionBtnText}>Chuyến đã kết thúc</Text>
-                </LinearGradient>
+                  <Text style={[styles.actionBtnText, styles.completedText]}>Chuyến đã kết thúc</Text>
+                </View>
               )}
             </View>
               </>
@@ -2409,48 +2426,46 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   passengerCard: {
-    borderRadius: 28,
-    padding: 24,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 20,
     borderWidth: 0,
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 12,
     overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 2,
-    borderBottomColor: 'rgba(255, 255, 255, 0.3)',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   cardTitleIconBadge: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: '#fff5eb',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#fff',
+    shadowColor: '#FF6B00',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   cardTitle: {
     fontSize: 14,
-    fontWeight: '900',
-    color: '#fff',
+    fontWeight: '700',
+    color: '#0f172a',
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    letterSpacing: 0.5,
   },
   // Horizontal Carousel Card
   passengerCardItem: {
@@ -2502,12 +2517,13 @@ const styles = StyleSheet.create({
   },
   singlePassengerInfo: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 16,
     alignItems: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    borderWidth: 0,
+    padding: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
     shadowColor: '#FF6B00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -2634,91 +2650,100 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: 16,
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-    borderWidth: 0,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   actionBtnIconCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: '#f8fafc',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
-    elevation: 3,
   },
   arrivingBtn: {},
   startBtn: {},
   completeBtn: {},
-  completedBtn: {},
+  completedBtn: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#d1fae5',
+  },
+  completedIconCircle: {
+    backgroundColor: '#d1fae5',
+  },
+  completedText: {
+    color: '#10b981',
+  },
+  endTripBtn: {},
+  endTripBtnActive: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#d1fae5',
+  },
+  endTripIconActive: {
+    backgroundColor: '#d1fae5',
+  },
+  endTripTextActive: {
+    color: '#10b981',
+  },
   actionBtnText: {
     fontSize: 15,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    fontWeight: '700',
+    color: '#64748b',
+    letterSpacing: -0.2,
   },
   // Total Revenue Card
   totalRevenueCard: {
-    borderRadius: 24,
-    padding: 28,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
     marginVertical: 20,
     borderWidth: 0,
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 15,
     position: 'relative',
     overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   totalRevenueIconBadge: {
     position: 'absolute',
-    top: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    top: 20,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff5eb',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   totalRevenueHeader: {
     marginBottom: 12,
   },
   totalRevenueLabel: {
     fontSize: 12,
-    color: '#fff',
-    fontWeight: '800',
+    color: '#64748b',
+    fontWeight: '700',
     marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    opacity: 0.9,
+    letterSpacing: 0.5,
   },
   totalRevenueAmount: {
     fontSize: 32,
-    fontWeight: '900',
-    color: '#fff',
+    fontWeight: '800',
+    color: '#0f172a',
     letterSpacing: -0.5,
   },
   totalRevenueStatus: {
-    borderTopWidth: 2,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
     paddingTop: 16,
     marginTop: 12,
   },
@@ -2736,13 +2761,10 @@ const styles = StyleSheet.create({
   },
   statusIndicatorText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: '600',
+    color: '#0f172a',
     flex: 1,
   },
-  // End Trip Button
-  endTripBtn: {},
-  endTripBtnDisabled: {},
   // Modal
   modalOverlay: {
     flex: 1,

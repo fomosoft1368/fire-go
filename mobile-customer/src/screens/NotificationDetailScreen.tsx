@@ -92,8 +92,8 @@ const NotificationDetailScreen = () => {
   }, [notification._id, onDelete, navigation])
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-      <View style={[styles.header, { backgroundColor: colors.bgSecondary, borderBottomColor: colors.border }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -107,7 +107,7 @@ const NotificationDetailScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={[styles.content, { backgroundColor: colors.bg }]}>
+      <ScrollView style={[styles.content, { backgroundColor: colors.card }]}>
         <Text style={[styles.title, { color: colors.text }]}>{notification.title}</Text>
         <Text style={[styles.time, { color: colors.textSecondary }]}>
           {formatDate(notification.sentAt || notification.createdAt)}

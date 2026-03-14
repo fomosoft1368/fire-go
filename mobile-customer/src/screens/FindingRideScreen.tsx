@@ -39,6 +39,7 @@ export default function FindingRideScreen({ navigation }: any) {
   const endLat = params?.endLat ?? 21.0285  // Customer's dropoff latitude
   const totalFare = params?.totalFare ?? 0
   const seats = params?.seats ?? 1
+  const interProvincialRoute = params?.interProvincialRoute ?? null  // 🔥 NEW: Fixed-price route
   const [selectedSeats, setSelectedSeats] = useState<number[]>([])
   const [tripData, setTripData] = useState(ride)
   // 🔍 Debug params
@@ -51,6 +52,7 @@ export default function FindingRideScreen({ navigation }: any) {
     seats,
     pickupCoords: [startLng, startLat],
     dropoffCoords: [endLng, endLat],
+    interProvincialRoute: interProvincialRoute ? `${interProvincialRoute.name} - ${interProvincialRoute.fixedPrice}đ` : 'None',
   })
 
   const themeMode = useSelector((state: RootState) => state.theme.mode)
@@ -75,6 +77,35 @@ export default function FindingRideScreen({ navigation }: any) {
     comfort: Math.round(totalFare * 1.3),
     premium: Math.round(totalFare * 1.6),
   })
+  const [tripExpiredAt, setTripExpiredAt] = useState<Date | null>(null) // ⏱️ Track trip expiry time
+
+  // 🔍 DEBUG: Log vehicle prices whenever they change
+  useEffect(() => {
+    console.log('[FindingRideScreen] 💰 Vehicle Prices Updated:', {
+      basic: vehiclePrices.basic,
+      comfort: vehiclePrices.comfort,
+      premium: vehiclePrices.premium,
+      hasInterProvincialRoute: !!interProvincialRoute,
+      fixedPrice: interProvincialRoute?.fixedPrice || 'N/A',
+    })
+  }, [vehiclePrices, interProvincialRoute])
+
+  // ⏱️ Countdown timer to update remaining time display
+  useEffect(() => {
+    if (!tripExpiredAt || !creatingNewTrip) return
+
+    const intervalId = setInterval(() => {
+      const remaining = Math.ceil((tripExpiredAt.getTime() - Date.now()) / 60000)
+      if (remaining <= 0) {
+        console.log('[FindingRideScreen] ⏰ Countdown reached 0 - auto-cancelling')
+        handleCancelTrip()
+      }
+      // Force re-render to update countdown text
+      setTripExpiredAt(new Date(tripExpiredAt.getTime()))
+    }, 30000) // Update every 30 seconds
+
+    return () => clearInterval(intervalId)
+  }, [tripExpiredAt, creatingNewTrip])
 
   // Animation
   const scanAnim = useRef(new Animated.Value(0)).current
@@ -86,6 +117,9 @@ export default function FindingRideScreen({ navigation }: any) {
   // Fetch SHARE rides on mount
   useEffect(() => {
     isMountedRef.current = true
+
+    // ✅ Check if there's a pending trip from previous session
+    checkPendingTrip()
 
     // Get current GPS location first
     getCurrentLocation()
@@ -107,6 +141,18 @@ export default function FindingRideScreen({ navigation }: any) {
   // Calculate fare independently if not provided by params
   useEffect(() => {
     const calculateFareIfNeeded = async () => {
+      // 🔥 PRIORITY 1: If inter-provincial route with FIXED PRICE, use that
+      if (interProvincialRoute && interProvincialRoute.fixedPrice) {
+        console.log('[FindingRideScreen] 🚍 Using FIXED PRICE from inter-provincial route:', interProvincialRoute.fixedPrice)
+        // Use fixed price for all vehicle types (they're all the same route)
+        setVehiclePrices({
+          basic: interProvincialRoute.fixedPrice,
+          comfort: interProvincialRoute.fixedPrice,
+          premium: interProvincialRoute.fixedPrice,
+        })
+        return
+      }
+
       // If totalFare already provided from params, use it
       if (totalFare > 0) {
         console.log('[FindingRideScreen] Updating vehicle prices from totalFare:', totalFare)
@@ -157,7 +203,7 @@ export default function FindingRideScreen({ navigation }: any) {
     }
 
     calculateFareIfNeeded()
-  }, [totalFare, distance, seats])
+  }, [totalFare, distance, seats, interProvincialRoute])
 
   // Fetch rides when location is obtained
   useEffect(() => {
@@ -239,6 +285,116 @@ export default function FindingRideScreen({ navigation }: any) {
         setCurrentLocation({ lng: startLng, lat: startLat })
       }
     }
+  }
+
+  // ✅ Check if there's a pending trip from previous session
+  const checkPendingTrip = async () => {
+    try {
+      console.log('[FindingRideScreen] 🔍 Checking for pending trip...')
+      
+      const pendingTripId = await AsyncStorage.getItem('pendingTripId')
+      const pendingTripExpiry = await AsyncStorage.getItem('pendingTripExpiry')
+      
+      if (pendingTripId && pendingTripExpiry) {
+        const expiryDate = new Date(pendingTripExpiry)
+        const now = new Date()
+        
+        console.log('[FindingRideScreen] 📦 Found pending trip:', {
+          tripId: pendingTripId,
+          expiresAt: expiryDate.toISOString(),
+          now: now.toISOString(),
+          isExpired: now > expiryDate,
+        })
+        
+        // Check if trip expired
+        if (now > expiryDate) {
+          console.log('[FindingRideScreen] ⏰ Pending trip expired - clearing storage')
+          await AsyncStorage.removeItem('pendingTripId')
+          await AsyncStorage.removeItem('pendingTripExpiry')
+          return
+        }
+        
+        // Trip still valid - restore state
+        console.log('[FindingRideScreen] ✅ Restoring pending trip state')
+        setNewTripId(pendingTripId)
+        setTripExpiredAt(expiryDate)
+        setCreatingNewTrip(true)
+        openVehicleModal()
+        
+        // Start polling immediately
+        startPollingTripStatus(pendingTripId)
+      } else {
+        console.log('[FindingRideScreen] ℹ️ No pending trip found')
+      }
+    } catch (error) {
+      console.error('[FindingRideScreen] ❌ Error checking pending trip:', error)
+    }
+  }
+
+  // ✅ Start polling trip status (extracted from handleCreateNewTrip)
+  const startPollingTripStatus = (tripId: string) => {
+    console.log('[FindingRideScreen] 🔄 Starting polling for trip:', tripId)
+    
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const pollTimestamp = new Date().toISOString()
+        console.log('[FindingRideScreen] ==========================================')
+        console.log('[FindingRideScreen] 🔄 Polling at:', pollTimestamp)
+        console.log('[FindingRideScreen] Trip ID:', tripId)
+
+        // Use service method instead of direct fetch
+        const tripData = await combinedTripsService.getCombinedTripDetail(tripId)
+
+        console.log('[FindingRideScreen] ✅ Trip status:', tripData.status)
+        console.log('[FindingRideScreen] ==========================================')
+
+        if (tripData.status === 'accepted') {
+          console.log('[FindingRideScreen] ⚠️⚠️⚠️ TRIP ACCEPTED - clearing storage')
+          
+          // Clear AsyncStorage
+          await AsyncStorage.removeItem('pendingTripId')
+          await AsyncStorage.removeItem('pendingTripExpiry')
+          
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          setCreatingNewTrip(false)
+          setNewTripId(null)
+          closeVehicleModal()
+
+          // Navigate to DriverFoundScreen
+          navigation.navigate('DriverFound', {
+            combinedTripId: tripId,
+          })
+        } else if (tripData.status === 'cancelled') {
+          console.log('[FindingRideScreen] ❌ TRIP CANCELLED - clearing storage')
+          
+          // Clear AsyncStorage
+          await AsyncStorage.removeItem('pendingTripId')
+          await AsyncStorage.removeItem('pendingTripExpiry')
+          
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          setCreatingNewTrip(false)
+          setNewTripId(null)
+          closeVehicleModal()
+          
+          // Show message if cancelled by system (timeout)
+          if ((tripData as any).cancellationBy === 'system') {
+            Alert.alert(
+              'Hết thời gian chờ',
+              'Không tìm thấy tài xế sau 15 phút. Vui lòng thử lại.',
+              [{ text: 'OK' }]
+            )
+          }
+        }
+      } catch (error) {
+        console.error('[FindingRideScreen] ❌ Error polling trip status:', error)
+      }
+    }, 1000) // Poll every 1 second
   }
 
   const scanOpacity = scanAnim.interpolate({
@@ -388,12 +544,15 @@ export default function FindingRideScreen({ navigation }: any) {
       const fareToSend = Math.round(basePricePerPerson * (1 - discountRate))
 
       console.log('[FindingRideScreen] 🆔', requestId, '🔍 FARE DEBUG:', {
+        hasInterProvincialRoute: !!interProvincialRoute,
+        interProvincialRoutePrice: interProvincialRoute?.fixedPrice,
         totalFareFromParams: totalFare,
         selectedVehicleType,
         basePricePerPerson,
         seats,
         discountRate: `${discountRate * 100}%`,
         fareAfterDiscount: fareToSend,
+        isUsingFixedPrice: !!interProvincialRoute && interProvincialRoute.fixedPrice > 0,
       })
 
       if (fareToSend === 0 || !fareToSend) {
@@ -427,6 +586,11 @@ export default function FindingRideScreen({ navigation }: any) {
         totalFare: fareToSend,
         seats,
         vehicleType: selectedVehicleType,
+        interProvincialRoute: interProvincialRoute ? {
+          routeId: interProvincialRoute.id,
+          routeName: interProvincialRoute.name,
+          fixedPrice: interProvincialRoute.fixedPrice,
+        } : undefined, // 🔥 Pass inter-provincial route info to backend
       }
 
       console.log('[FindingRideScreen] 🆔', requestId, '📤 SENDING REQUEST TO BACKEND')
@@ -460,59 +624,22 @@ export default function FindingRideScreen({ navigation }: any) {
         throw new Error('Trip ID not found in response')
       }
 
-      setNewTripId(data.trip._id)
-
-      // Poll trip status to check if driver accepted - no timeout, poll forever
       const tripId = data.trip._id
-      console.log('[FindingRideScreen] Starting polling for trip:', tripId)
+      setNewTripId(tripId)
 
-      pollIntervalRef.current = setInterval(async () => {
-        try {
-          const pollTimestamp = new Date().toISOString();
-          console.log('[FindingRideScreen] ==========================================');
-          console.log('[FindingRideScreen] 🔄 Polling at:', pollTimestamp);
-          console.log('[FindingRideScreen] Trip ID:', tripId);
+      // ✅ Save to AsyncStorage with 15-minute expiry
+      const expiryDate = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+      await AsyncStorage.setItem('pendingTripId', tripId)
+      await AsyncStorage.setItem('pendingTripExpiry', expiryDate.toISOString())
+      setTripExpiredAt(expiryDate)
+      
+      console.log('[FindingRideScreen] 💾 Saved pending trip to AsyncStorage:', {
+        tripId,
+        expiresAt: expiryDate.toISOString(),
+      })
 
-          // Use service method instead of direct fetch
-          const tripData = await combinedTripsService.getCombinedTripDetail(tripId)
-
-          console.log('[FindingRideScreen] ✅ Full trip data:', JSON.stringify(tripData, null, 2));
-          console.log('[FindingRideScreen] Trip status:', tripData.status);
-          console.log('[FindingRideScreen] Has driverId:', !!tripData.driverId);
-          console.log('[FindingRideScreen] Driver info:', tripData.driverId);
-          console.log('[FindingRideScreen] ==========================================');
-
-          if (tripData.status === 'accepted') {
-            console.log('[FindingRideScreen] ⚠️⚠️⚠️ TRIP ACCEPTED DETECTED ⚠️⚠️⚠️');
-            console.log('[FindingRideScreen] Trip ID:', tripId);
-            console.log('[FindingRideScreen] Driver ID:', tripData.driverId?._id || tripData.driverId);
-            console.log('[FindingRideScreen] Driver name:', tripData.driverId ? `${tripData.driverId.firstName} ${tripData.driverId.lastName}` : 'Unknown');
-            console.log('[FindingRideScreen] AcceptedAt:', tripData.acceptedAt);
-
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-              pollIntervalRef.current = null
-            }
-            setCreatingNewTrip(false)
-            setNewTripId(null)
-            closeVehicleModal()
-
-            // Navigate to DriverFoundScreen
-            navigation.navigate('DriverFound', {
-              combinedTripId: tripId,
-            })
-          } else if (tripData.status === 'cancelled') {
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-              pollIntervalRef.current = null
-            }
-            setCreatingNewTrip(false)
-            setNewTripId(null)
-          }
-        } catch (error) {
-          console.error('[FindingRideScreen] ❌ Error polling trip status:', error)
-        }
-      }, 1000) // Poll every 1 second
+      // Start polling trip status
+      startPollingTripStatus(tripId)
 
     } catch (error: any) {
       console.error('[FindingRideScreen] Error creating trip:', error)
@@ -563,6 +690,11 @@ export default function FindingRideScreen({ navigation }: any) {
               if (response.ok) {
                 console.log('[FindingRideScreen] ✅ Trip cancelled successfully')
 
+                // ✅ Clear AsyncStorage
+                await AsyncStorage.removeItem('pendingTripId')
+                await AsyncStorage.removeItem('pendingTripExpiry')
+                console.log('[FindingRideScreen] 🗑️ Cleared pending trip from AsyncStorage')
+
                 // Clear polling interval
                 if (pollIntervalRef.current) {
                   clearInterval(pollIntervalRef.current)
@@ -572,6 +704,7 @@ export default function FindingRideScreen({ navigation }: any) {
 
                 setCreatingNewTrip(false)
                 setNewTripId(null)
+                setTripExpiredAt(null)
                 closeVehicleModal()
                 Alert.alert('Đã hủy', 'Chuyến đi đã được hủy thành công')
               } else {
@@ -595,6 +728,7 @@ export default function FindingRideScreen({ navigation }: any) {
       combinedTripId: trip._id,
       pickupCoordinates: [startLng, startLat],
       dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
+      hasInterProvincialRoute: !!interProvincialRoute,
     })
     navigation.navigate('RideDetailRequest', {
       combinedTripId: trip._id,
@@ -604,6 +738,7 @@ export default function FindingRideScreen({ navigation }: any) {
       pickupAddress: pickupAddress,
       dropoffAddress: dropoffAddress,
       tripType: 'combined_trip',
+      interProvincialRoute: interProvincialRoute, // 🔥 Pass fixed-price route info
     })
   }
 
@@ -854,7 +989,7 @@ export default function FindingRideScreen({ navigation }: any) {
       </View>
 
       {/* Filter Chips */}
-      <ScrollView
+      {/* <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={[styles.filterScroll, { backgroundColor: colors.card }]}
@@ -894,8 +1029,8 @@ export default function FindingRideScreen({ navigation }: any) {
               {filter.label}
             </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+        ))} */}
+      {/* </ScrollView> */}
 
       {/* Results Header */}
       <View style={[styles.resultsHeader, { borderBottomColor: colors.border }]}>
@@ -963,7 +1098,7 @@ export default function FindingRideScreen({ navigation }: any) {
                       🔍 Đang tìm tài xế gần bạn...
                     </Text>
                     <Text style={[styles.searchingSubtext, { color: colors.textSecondary }]}>
-                      Quét liên tục mỗi 30 giây
+                      Quét liên tục mỗi 30 giây - Tìm cả tài xế mới hoàn thành cuốc
                     </Text>
                     <View style={styles.searchingProgress}>
                       <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
@@ -1027,17 +1162,17 @@ export default function FindingRideScreen({ navigation }: any) {
             rides.length === 0 ? (
               <View style={styles.emptyState}>
                 <View style={[styles.emptyIcon, { backgroundColor: colors.bgSecondary }]}>
-                  <MaterialIcons name="radar" size={32} color={colors.textSecondary} />
+                  <MaterialIcons name="radar" size={32} color={colors.primary} />
                 </View>
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>
                   Không tìm thấy chuyến phù hợp?
                 </Text>
                 <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                  Thử mở rộng bán kính tìm kiếm hoặc thay đổi thời gian xuất phát.
+                  Vui lòng đợi chờ trong ít phút để chúng tôi tìm chuyến phù hợp.
                 </Text>
-                <TouchableOpacity>
+                {/* <TouchableOpacity>
                   <Text style={styles.expandLink}>Mở rộng tìm kiếm</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
               </View>
             ) : (
               <View style={styles.promoCard}>
@@ -1119,16 +1254,16 @@ export default function FindingRideScreen({ navigation }: any) {
                       },
                     ]}
                   >
-                    <View style={[styles.scanRingInner, { borderColor: '#38e07b' }]} />
+                    <View style={[styles.scanRingInner, { borderColor: '#f79503' }]} />
                   </Animated.View>
-                  <MaterialIcons name="search" size={48} color="#38e07b" />
+                  <MaterialIcons name="search" size={48} color="#f79503" />
                 </View>
 
                 <Text style={[styles.scanningTitle, { color: colors.text }]}>
                   Đang quét tài xế gần bạn
                 </Text>
                 <Text style={[styles.scanningSubtitle, { color: colors.textSecondary }]}>
-                  Quét mỗi 30 giây cho đến khi tìm thấy tài xế
+                  {tripExpiredAt ? `Tự động hủy sau ${Math.max(0, Math.ceil((tripExpiredAt.getTime() - Date.now()) / 60000))} phút` : 'Quét mỗi giây cho đến khi tìm thấy tài xế'}
                 </Text>
 
                 <View style={styles.tripInfoBox}>

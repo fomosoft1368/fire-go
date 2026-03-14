@@ -15,6 +15,7 @@ import { ModuleRef } from '@nestjs/core';
 @Injectable()
 export class CombinedTripsService implements OnModuleInit {
   private timeoutCheckInterval: NodeJS.Timeout | null = null;
+  private pendingTripScannerInterval: NodeJS.Timeout | null = null; // ✅ NEW: Scanner for pending customer trips
   private processingTrips: Set<string> = new Set(); // Track trips being processed
 
 
@@ -36,6 +37,8 @@ export class CombinedTripsService implements OnModuleInit {
     this.pricingService = this.moduleRef.get(PricingService, { strict: false });
     console.log('🚀 CombinedTripsService initialized - starting timeout checker');
     this.startTimeoutChecker();
+    console.log('🚀 CombinedTripsService initialized - starting pending trip scanner');
+    this.startPendingTripScanner(); // ✅ NEW: Start scanner for pending customer trips
   }
 
   /**
@@ -57,11 +60,96 @@ export class CombinedTripsService implements OnModuleInit {
       return;
     }
 
-    // ✅ Chuẩn bị dữ liệu cho pricing
+    // 🚍 CRITICAL: SKIP inter-provincial fixed price requests
+    // Chỉ tính lại fare cho distance-based requests
+    const dynamicPriceRequests = requests.filter(req => !req.hasFixedPrice);
+    const fixedPriceRequests = requests.filter(req => req.hasFixedPrice);
+    
+    console.log(`[recalculateFaresForCombinedTrip] 📊 Breakdown:`);
+    console.log(`  → ${dynamicPriceRequests.length} distance-based requests (will recalculate)`);
+    console.log(`  → ${fixedPriceRequests.length} fixed-price requests (keep original price)`);
+    
+    if (fixedPriceRequests.length > 0) {
+      fixedPriceRequests.forEach(req => {
+        console.log(`    🚍 Fixed price: Request ${req._id} - ${req.fare?.toLocaleString()}đ (${req.seats} ghế)`);
+      });
+    }
+    
+    // 🚍 CRITICAL FIX: Nếu TẤT CẢ requests đều là fixed price → VẪN CẦN recalculate discount!
+    // Vì discount phụ thuộc vào TỔNG SỐ NGƯỜI trong xe
+    if (dynamicPriceRequests.length === 0) {
+      console.log('[recalculateFaresForCombinedTrip] 🚍 ALL requests use fixed price - recalculating discount based on total passengers');
+      
+      // Tính tổng số ghế để xác định discount
+      const totalSeats = fixedPriceRequests.reduce((sum, req) => sum + (req.seats || 1), 0);
+      
+      // ✅ Lấy discount rate từ pricing config (carpoolDiscounts)
+      const pricingConfig = await this.pricingService.getConfig();
+      const discountConfig = pricingConfig.carpoolDiscounts.find(
+        (d) => d.passengers === totalSeats,
+      );
+      const discountRate = discountConfig ? discountConfig.discount / 100 : 0;
+      
+      console.log(`[recalculateFaresForCombinedTrip] 📊 Total seats: ${totalSeats}, Discount: ${Math.round(discountRate * 100)}% (from config)`);
+      
+      // Recalculate fare cho TẤT CẢ fixed-price requests với discount mới
+      await Promise.all(fixedPriceRequests.map(async (req) => {
+        const baseFare = req.baseFare || req.fare || 0;
+        const newFare = Math.round(baseFare * (1 - discountRate));
+        
+        console.log(`  → Request ${req._id}: ${baseFare.toLocaleString()}đ → ${newFare.toLocaleString()}đ (${Math.round(discountRate * 100)}% off)`);
+        
+        return this.rideRequestModel.findByIdAndUpdate(req._id, { fare: newFare });
+      }));
+      
+      // Update trip totalFare
+      const tripTotalFare = await this.rideRequestModel.find({
+        combinedTripId: new Types.ObjectId(combinedTripId),
+        status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] },
+      }).then(reqs => reqs.reduce((sum, req) => sum + (req.fare || 0), 0));
+      
+      await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
+        totalFare: tripTotalFare,
+      });
+      
+      console.log(`[recalculateFaresForCombinedTrip] ✅ Updated ${fixedPriceRequests.length} fixed-price requests. Trip total: ${tripTotalFare.toLocaleString()}đ`);
+      return;
+    }
+
+    // ✅ Tính TỔNG SỐ GHẾ trong xe (bao gồm CẢ fixed-price requests)
+    // Điều này quan trọng để tính discount đúng!
+    const totalSeatsFromFixedPrice = fixedPriceRequests.reduce((sum, req) => sum + (req.seats || 1), 0);
+    const totalSeatsFromDynamic = dynamicPriceRequests.reduce((sum, req) => sum + (req.seats || 1), 0);
+    const totalSeatsInTrip = totalSeatsFromFixedPrice + totalSeatsFromDynamic;
+
+    console.log(`[recalculateFaresForCombinedTrip] 🎫 Total seats in trip: ${totalSeatsInTrip}`);
+    console.log(`  → ${totalSeatsFromFixedPrice} ghế (fixed-price) + ${totalSeatsFromDynamic} ghế (distance-based)`);
+
+    // ✅ CHỈ tính lại giá cho distance-based requests
+    // Chuẩn bị dữ liệu cho pricing
     // CRITICAL: Phải tạo entry cho MỖI GHẾ, không phải mỗi request
     // Ví dụ: 1 request với 2 ghế → tạo 2 passenger entries
     const passengers = [];
-    for (const req of requests) {
+    
+    // 🚍 CRITICAL FIX: Thêm "dummy passengers" cho fixed-price requests
+    // Lý do: Pricing service tính discount dựa trên passengers.length
+    // Nếu không thêm, pricing service sẽ tính discount SAI!
+    // Ví dụ: 2 ghế fixed-price + 1 ghế dynamic = 3 ghế → discount 25%
+    // Nếu chỉ đếm 1 ghế dynamic → discount 0% (SAI!)
+    for (const req of fixedPriceRequests) {
+      const seatsCount = req.seats || 1;
+      for (let i = 0; i < seatsCount; i++) {
+        passengers.push({
+          distance: req.distance || 10, // Dummy distance (không quan trọng, không dùng để tính giá)
+          isPeakTime: false,
+          peakMultiplier: 1.0,
+          vehicleType: 'sedan',
+        });
+      }
+    }
+    
+    // Thêm distance-based requests (sẽ dùng để tính giá)
+    for (const req of dynamicPriceRequests) {
       const seatsCount = req.seats || 1;
       for (let i = 0; i < seatsCount; i++) {
         passengers.push({
@@ -73,18 +161,42 @@ export class CombinedTripsService implements OnModuleInit {
       }
     }
 
-    const totalSeats = passengers.length;
-    console.log(`[recalculateFaresForCombinedTrip] Calculating price for ${totalSeats} TOTAL SEATS from ${requests.length} requests`);
-    console.log(`  → Breakdown: ${requests.map(r => `${r.seats || 1} ghế`).join(', ')}`);
+    console.log(`[recalculateFaresForCombinedTrip] Calculating price with ${passengers.length} passengers (${totalSeatsFromFixedPrice} dummy + ${totalSeatsFromDynamic} real)`);
+    console.log(`  → Distance-based requests: ${dynamicPriceRequests.map(r => `${r.seats || 1} ghế`).join(', ')}`);
 
-    // Tính lại giá cho tất cả khách
+    // Tính lại giá CHỈ cho distance-based requests
     const pricingResult = await this.pricingService.calculatePrice({ passengers });
     const breakdown = pricingResult.breakdown;
 
-    // ✅ Cập nhật fare cho từng request
+    console.log(`[recalculateFaresForCombinedTrip] 💡 Discount applied: ${breakdown[0]?.discountApplied || 0}% (based on ${passengers.length} total seats)`);
+
+    // 🚍 NEW: Tính lại fare cho FIXED-PRICE requests với discount MỚI
+    // Fixed-price requests CŨNG ĐƯỢC giảm giá khi có thêm người ghép!
+    const newDiscountRate = (breakdown[0]?.discountApplied || 0) / 100;
+    
+    if (fixedPriceRequests.length > 0) {
+      console.log(`[recalculateFaresForCombinedTrip] 🚍 Recalculating ${fixedPriceRequests.length} fixed-price requests with NEW discount ${Math.round(newDiscountRate * 100)}%`);
+      
+      await Promise.all(fixedPriceRequests.map(async (req) => {
+        // baseFare = giá gốc TRƯỚC discount
+        const baseFare = req.baseFare || req.fare || 0;
+        
+        // Áp dụng discount MỚI
+        const newFare = Math.round(baseFare * (1 - newDiscountRate));
+        
+        console.log(`  → Fixed-price Request ${req._id}: baseFare ${baseFare.toLocaleString()}đ → newFare ${newFare.toLocaleString()}đ (discount ${Math.round(newDiscountRate * 100)}%)`);
+        
+        return this.rideRequestModel.findByIdAndUpdate(req._id, { fare: newFare });
+      }));
+      
+      console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${fixedPriceRequests.length} fixed-price requests`);
+    }
+
+    // ✅ Cập nhật fare CHỈ cho distance-based requests
     // Mỗi request có thể có nhiều ghế, cần lấy tổng giá cho TẤT CẢ ghế của request đó
-    let passengerIndex = 0;
-    await Promise.all(requests.map(async (req) => {
+    // 🚍 CRITICAL: Skip dummy passengers (fixed-price) ở đầu breakdown!
+    let passengerIndex = totalSeatsFromFixedPrice; // Bắt đầu từ sau dummy passengers
+    await Promise.all(dynamicPriceRequests.map(async (req) => {
       const seatsCount = req.seats || 1;
       let totalFareForRequest = 0;
       
@@ -95,25 +207,25 @@ export class CombinedTripsService implements OnModuleInit {
         passengerIndex++;
       }
       
-      console.log(`  → Request ${req._id}: ${req.distance}km, ${seatsCount} ghế, tổng: ${totalFareForRequest.toLocaleString()}đ (${(totalFareForRequest/seatsCount).toLocaleString()}đ/ghế)`);
+      console.log(`  → Distance-based Request ${req._id}: ${req.distance}km, ${seatsCount} ghế, tổng: ${totalFareForRequest.toLocaleString()}đ (${(totalFareForRequest/seatsCount).toLocaleString()}đ/ghế)`);
       return this.rideRequestModel.findByIdAndUpdate(req._id, { fare: totalFareForRequest });
     }));
     
-    console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${requests.length} ACTIVE requests in trip ${combinedTripId}`);
+    console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${dynamicPriceRequests.length} distance-based requests`);
     
-    // ✅ CRITICAL: Update combinedTrip totalFare = sum of all request fares
-    const updatedRequests = await this.rideRequestModel.find({
+    // ✅ CRITICAL: Update combinedTrip totalFare = sum of ALL request fares (fixed + dynamic)
+    const allUpdatedRequests = await this.rideRequestModel.find({
       combinedTripId: new Types.ObjectId(combinedTripId),
       status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] },
     });
     
-    const tripTotalFare = updatedRequests.reduce((sum, req) => sum + (req.fare || 0), 0);
+    const tripTotalFare = allUpdatedRequests.reduce((sum, req) => sum + (req.fare || 0), 0);
     
     await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
       totalFare: tripTotalFare,
     });
     
-    console.log(`[recalculateFaresForCombinedTrip] 💰 Updated trip totalFare: ${tripTotalFare.toLocaleString()}đ (from ${updatedRequests.length} requests)`);
+    console.log(`[recalculateFaresForCombinedTrip] 💰 Updated trip totalFare: ${tripTotalFare.toLocaleString()}đ (${fixedPriceRequests.length} fixed + ${dynamicPriceRequests.length} dynamic)`);
   }
 
   /**
@@ -547,7 +659,17 @@ export class CombinedTripsService implements OnModuleInit {
                   if (delayNeeded > 0) {
                     console.log(`⏰ [Timeout Checker] Request expired at ${expiredReq.expiresAt.toISOString()}`);
                     console.log(`⏰ [Timeout Checker] Will find next driver in ${delayNeeded}ms (15s from expiry)`);
-                    setTimeout(() => {
+                    setTimeout(async () => {
+                      // ✅ CRITICAL FIX: Re-check trip status when timeout executes (not just when scheduling)
+                      // Customer may have cancelled during the 15s delay
+                      const tripRecheck = await this.combinedTripModel.findById(combinedTripId);
+                      if (!tripRecheck || tripRecheck.status !== 'pending') {
+                        console.log('⚠️ [Timeout Checker] Trip no longer pending (cancelled/completed), skipping driver search');
+                        this.processingTrips.delete(combinedTripId);
+                        console.log('🔓 [Timeout Checker] Unlocked trip', combinedTripId);
+                        return;
+                      }
+                      
                       console.log('🔄 [Timeout Checker] 15 seconds passed, finding next driver for trip:', combinedTripId);
                       this.findAndNotifyDrivers(combinedTripId, pickupCoordinates)
                         .catch(err => {
@@ -591,12 +713,81 @@ export class CombinedTripsService implements OnModuleInit {
   }
 
   /**
+   * ✅ NEW: Start interval to scan pending customer-created trips and re-trigger driver search
+   * Runs every 30 seconds to catch newly available drivers
+   */
+  private startPendingTripScanner() {
+    console.log('🔄 Starting pending trip scanner - will scan every 30 seconds');
+    
+    this.pendingTripScannerInterval = setInterval(async () => {
+      try {
+        const now = new Date();
+        
+        // Find all pending trips created by customers that haven't expired yet
+        const pendingTrips = await this.combinedTripModel.find({
+          status: 'pending',
+          createdBy: 'customer',
+          $or: [
+            { expiresAt: { $gte: now } }, // Not expired yet
+            { expiresAt: { $exists: false } }, // No expiry set (fallback)
+          ],
+        });
+
+        if (pendingTrips.length > 0) {
+          console.log(`🔄 [Pending Trip Scanner] Found ${pendingTrips.length} pending customer trips`);
+          
+          for (const trip of pendingTrips) {
+            const tripId = (trip as any)._id.toString();
+            
+            // Skip if already being processed
+            if (this.processingTrips.has(tripId)) {
+              console.log(`⚠️ [Pending Trip Scanner] Trip ${tripId} already being processed, skipping`);
+              continue;
+            }
+            
+            // Check if trip has any pending ride requests
+            const pendingRequests = await this.rideRequestModel.countDocuments({
+              combinedTripId: (trip as any)._id,
+              status: 'pending',
+            });
+            
+            // Only re-scan if there are NO pending requests (means all previous requests were timeout/rejected)
+            if (pendingRequests === 0) {
+              console.log(`🔄 [Pending Trip Scanner] Trip ${tripId} has no pending requests - re-scanning for available drivers`);
+              
+              const pickupCoordinates = trip.pickupLocation?.coordinates as [number, number];
+              if (pickupCoordinates) {
+                // Re-trigger driver search
+                this.findAndNotifyDrivers(tripId, pickupCoordinates).catch(err => {
+                  console.error(`❌ [Pending Trip Scanner] Error finding drivers for trip ${tripId}:`, err);
+                });
+              } else {
+                console.warn(`⚠️ [Pending Trip Scanner] Trip ${tripId} has no pickup coordinates`);
+              }
+            } else {
+              console.log(`⏳ [Pending Trip Scanner] Trip ${tripId} has ${pendingRequests} pending requests - waiting for driver response`);
+            }
+          }
+        } else {
+          console.log('🔄 [Pending Trip Scanner] No pending customer trips found');
+        }
+      } catch (error) {
+        console.error('❌ Error in pending trip scanner:', error);
+      }
+    }, 30000); // Scan every 30 seconds
+  }
+
+  /**
    * Stop the timeout checker (for cleanup)
    */
   onModuleDestroy() {
     if (this.timeoutCheckInterval) {
       clearInterval(this.timeoutCheckInterval);
       console.log('⏰ Timeout checker stopped');
+    }
+    if (this.pendingTripScannerInterval) {
+      clearInterval(this.pendingTripScannerInterval);
+      console.log('🔄 Pending trip scanner stopped');
     }
   }
 
@@ -925,6 +1116,12 @@ export class CombinedTripsService implements OnModuleInit {
         createdBy: trip.createdBy,
       });
 
+      // ✅ CRITICAL: Check if trip is cancelled - do NOT accept
+      if (trip.status === CombinedTripStatus.CANCELLED) {
+        console.error('❌ Trip is CANCELLED - cannot accept');
+        throw new BadRequestException('Chuyến đi đã bị hủy');
+      }
+
       if (trip.status !== CombinedTripStatus.PENDING) {
         console.error('❌ Trip not available for acceptance. Status:', trip.status);
         throw new BadRequestException(`Combined trip is not available for acceptance. Current status: ${trip.status}`);
@@ -1045,6 +1242,13 @@ export class CombinedTripsService implements OnModuleInit {
         throw new NotFoundException(`Combined trip not found: ${combinedTripId}`);
       }
       
+      // ✅ CRITICAL: Check if trip is cancelled - do NOT send to drivers
+      if (combinedTrip.status === 'cancelled') {
+        console.log('⚠️ [findAndNotifyDrivers] Trip is CANCELLED - skipping driver search');
+        console.log('🚫 Cancelled at:', combinedTrip.cancelledAt);
+        return; // Early return - trip was cancelled
+      }
+      
       // ⭐ CRITICAL FIX: If trip is driver-created, skip finding drivers (driver already assigned)
       if (combinedTrip.createdBy === 'driver') {
         console.log('⚠️ [findAndNotifyDrivers] Trip created by DRIVER - skipping driver search (driver already assigned)');
@@ -1152,11 +1356,15 @@ export class CombinedTripsService implements OnModuleInit {
         // Don't mark as no_drivers_available - keep trying forever until customer cancels
         // Schedule retry after 30 seconds
         setTimeout(async () => {
+          // ✅ CRITICAL FIX: Re-check trip status when retry executes
+          // Customer may have cancelled during the 30s delay
           const trip = await this.combinedTripModel.findById(combinedTripId);
-          if (trip && trip.status === 'pending') {
-            console.log('🔄 Retrying driver search...');
-            await this.findAndNotifyDrivers(combinedTripId, pickupCoordinates);
+          if (!trip || trip.status !== 'pending') {
+            console.log('⚠️ [Retry] Trip no longer pending (cancelled/completed), skipping driver search');
+            return;
           }
+          console.log('🔄 Retrying driver search...');
+          await this.findAndNotifyDrivers(combinedTripId, pickupCoordinates);
         }, 30000); // Retry after 30 seconds
         return;
       }
@@ -1312,11 +1520,15 @@ export class CombinedTripsService implements OnModuleInit {
         console.warn('⚠️ No other available drivers found - will retry in 30s');
         // Retry after 30 seconds
         setTimeout(async () => {
+          // ✅ CRITICAL FIX: Re-check trip status when retry executes
+          // Customer may have cancelled during the 30s delay
           const tripCheck = await this.combinedTripModel.findById(combinedTripId);
-          if (tripCheck && tripCheck.status === 'pending') {
-            console.log('🔄 Retrying driver search after timeout...');
-            await this.findAndNotifyDrivers(combinedTripId, pickupCoordinates);
+          if (!tripCheck || tripCheck.status !== 'pending') {
+            console.log('⚠️ [Retry] Trip no longer pending (cancelled/completed), skipping driver search');
+            return;
           }
+          console.log('🔄 Retrying driver search after timeout...');
+          await this.findAndNotifyDrivers(combinedTripId, pickupCoordinates);
         }, 30000);
         return;
       }
@@ -1390,11 +1602,26 @@ export class CombinedTripsService implements OnModuleInit {
   async update(tripId: string, updateData: any): Promise<any> {
     try {
       const tripIdObj = new Types.ObjectId(tripId);
+      
+      // ✅ CRITICAL: Check if trip is already cancelled
+      const existingTrip = await this.combinedTripModel.findById(tripIdObj);
+      if (existingTrip?.status === 'cancelled' && updateData.status && updateData.status !== 'cancelled') {
+        console.error('❌ Cannot change status of cancelled trip:', tripId);
+        throw new BadRequestException('Cannot change status of a cancelled trip');
+      }
+      
       const updatedTrip = await this.combinedTripModel.findByIdAndUpdate(
         tripIdObj,
-        updateData,
+        { $set: updateData }, // Use $set to ensure fields are updated
         { new: true }
       );
+      
+      console.log('✅ Trip updated:', {
+        tripId,
+        updatedFields: Object.keys(updateData),
+        newStatus: updatedTrip?.status,
+      });
+      
       return updatedTrip;
     } catch (error) {
       console.error('❌ Error updating trip:', error);

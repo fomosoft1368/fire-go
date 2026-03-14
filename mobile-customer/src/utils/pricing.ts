@@ -6,12 +6,20 @@ import { API_BASE_URL } from '../constants'
  */
 
 // Config từ backend API
+interface DistanceRange {
+  id: string
+  minKm: number
+  maxKm: number // -1 = vô hạn (Infinity)
+  pricePerKm: number
+}
+
 interface VehicleTypePrice {
   type: string
   name: string
   baseFee: number
   pricePerKm: number
   minimumFare: number
+  distanceRanges?: DistanceRange[] // ✨ NEW: Giá theo khoảng cách
 }
 
 interface CarpoolDiscount {
@@ -231,9 +239,125 @@ export const isPeakHour = async (date: Date = new Date()): Promise<{ isPeak: boo
 }
 
 /**
+ * ✨ TÍNH GIÁ CỘNG DỒN THEO KHOẢNG CÁCH (Progressive Pricing)
+ * 
+ * Ví dụ: Đi 54km với config:
+ * - 0-10km: 12,000đ/km
+ * - 10-50km: 6,000đ/km  
+ * - 50-100km: 5,000đ/km
+ * 
+ * Tính toán:
+ * - 10km đầu: 10 × 12,000 = 120,000đ
+ * - 40km tiếp: 40 × 6,000 = 240,000đ
+ * - 4km cuối: 4 × 5,000 = 20,000đ
+ * → Tổng: 380,000đ
+ */
+const calculateProgressiveDistancePrice = (distance: number, vehicleConfig: VehicleTypePrice): number => {
+  console.log('\n📏 [Progressive Distance Pricing]')
+  console.log('  Distance:', distance, 'km')
+  console.log('  Vehicle:', vehicleConfig.type, '-', vehicleConfig.name)
+  
+  // Kiểm tra có distanceRanges không
+  if (!vehicleConfig.distanceRanges || vehicleConfig.distanceRanges.length === 0) {
+    console.log('  ⚠️ No distance ranges configured')
+    const totalPrice = distance * vehicleConfig.pricePerKm
+    console.log('  → Using default price:', vehicleConfig.pricePerKm.toLocaleString(), 'đ/km')
+    console.log('  → Total:', totalPrice.toLocaleString(), 'đ')
+    return totalPrice
+  }
+
+  // Sắp xếp ranges theo minKm tăng dần
+  const sortedRanges = [...vehicleConfig.distanceRanges].sort((a, b) => a.minKm - b.minKm)
+  
+  console.log('  Available ranges:')
+  sortedRanges.forEach((range, idx) => {
+    const maxDisplay = range.maxKm === -1 ? '∞' : range.maxKm
+    console.log(`    ${idx + 1}. ${range.minKm}-${maxDisplay}km: ${range.pricePerKm.toLocaleString()}đ/km`)
+  })
+
+  let totalPrice = 0
+  let coveredDistance = 0 // Km đã tính
+  
+  console.log('\n  Progressive calculation:')
+
+  for (const range of sortedRanges) {
+    // Nếu đã đủ km rồi thì stop
+    if (coveredDistance >= distance) break
+    
+    const rangeStart = range.minKm
+    const rangeEnd = range.maxKm === -1 ? Infinity : range.maxKm
+    
+    // Skip range nếu chưa đến
+    if (distance <= rangeStart) continue
+    
+    // Tính km trong range này
+    const startKmInRange = Math.max(rangeStart, coveredDistance)
+    const endKmInRange = Math.min(rangeEnd, distance)
+    const distanceInRange = endKmInRange - startKmInRange
+    
+    if (distanceInRange <= 0) continue
+    
+    const priceForRange = distanceInRange * range.pricePerKm
+    totalPrice += priceForRange
+    coveredDistance += distanceInRange
+    
+    const maxDisplay = range.maxKm === -1 ? '∞' : range.maxKm
+    console.log(`    • ${rangeStart}-${maxDisplay}km: ${distanceInRange.toFixed(1)}km × ${range.pricePerKm.toLocaleString()}đ = ${priceForRange.toLocaleString()}đ`)
+  }
+  
+  console.log(`  ✅ Total distance price: ${totalPrice.toLocaleString()}đ (covered ${coveredDistance}km)`)
+  return totalPrice
+}
+
+/**
+ * ✨ LẤY GIÁ MỖI KM DỰA TRÊN KHOẢNG CÁCH (DEPRECATED - giữ lại cho backward compatibility)
+ * Nếu có distanceRanges, tìm range phù hợp
+ * Nếu không có, dùng pricePerKm mặc định
+ */
+const getPricePerKmForDistance = (distance: number, vehicleConfig: VehicleTypePrice): number => {
+  console.log('\n📏 [Distance Range Check]')
+  console.log('  Distance:', distance, 'km')
+  console.log('  Vehicle:', vehicleConfig.type, '-', vehicleConfig.name)
+  
+  // Kiểm tra có distanceRanges không
+  if (!vehicleConfig.distanceRanges || vehicleConfig.distanceRanges.length === 0) {
+    console.log('  ⚠️ No distance ranges configured')
+    console.log('  → Using default price:', vehicleConfig.pricePerKm, 'đ/km')
+    return vehicleConfig.pricePerKm
+  }
+
+  // Hiển thị tất cả ranges
+  console.log('  Available ranges:')
+  vehicleConfig.distanceRanges.forEach((range, idx) => {
+    const maxDisplay = range.maxKm === -1 ? '∞' : range.maxKm
+    console.log(`    ${idx + 1}. ${range.minKm}-${maxDisplay}km: ${range.pricePerKm.toLocaleString()}đ/km`)
+  })
+
+  // Tìm range phù hợp với distance
+  const matchingRange = vehicleConfig.distanceRanges.find((range: DistanceRange) => {
+    const minKm = range.minKm || 0
+    const maxKm = range.maxKm === -1 ? Infinity : range.maxKm // -1 = vô hạn
+    return distance >= minKm && distance <= maxKm
+  })
+
+  if (matchingRange) {
+    const maxDisplay = matchingRange.maxKm === -1 ? '∞' : matchingRange.maxKm
+    console.log(`  ✅ Matched: ${matchingRange.minKm}-${maxDisplay}km`)
+    console.log(`  → Price: ${matchingRange.pricePerKm.toLocaleString()}đ/km`)
+    return matchingRange.pricePerKm
+  }
+
+  // Không tìm thấy range phù hợp, dùng giá mặc định
+  console.warn(`  ⚠️ No matching range for ${distance}km`)
+  console.log(`  → Using default: ${vehicleConfig.pricePerKm.toLocaleString()}đ/km`)
+  return vehicleConfig.pricePerKm
+}
+
+/**
  * CÔNG THỨC TÍNH GIÁ MỚI (THEO TÀI LIỆU)
  * 
  * BƯỚC 1: raw_price = (distance × price_per_km) + base_fee
+ *         ✨ price_per_km được lấy từ distanceRanges (nếu có)
  * BƯỚC 2: base_price = isPeakTime ? raw_price × peak_multiplier : raw_price
  * BƯỚC 3: final_price = base_price × (1 - discount_rate[N])
  * BƯỚC 4: Áp dụng minimum_fare
@@ -271,16 +395,14 @@ export const calculateFare = async (
     throw new Error(`Vehicle type ${carType} not found`)
   }
 
-  console.log('💰 [calculateFare] CALCULATION:', {
-    distance: distance + ' km',
-    carType,
-    baseFee: vehicleConfig.baseFee,
-    pricePerKm: vehicleConfig.pricePerKm,
-    minimumFare: vehicleConfig.minimumFare,
-    totalPassengers,
-    isPeakTime: isPeakTime !== undefined ? isPeakTime : 'auto-check',
-    peakMultiplier: peakMultiplier || 'auto-check',
-  })
+  console.log('\n💰 ============ TÍNH GIÁ CƯỚC ============')
+  console.log('  Khoảng cách:', distance, 'km')
+  console.log('  Loại xe:', carType, '-', vehicleConfig.name)
+  console.log('  Phí mở cuốc:', vehicleConfig.baseFee.toLocaleString(), 'đ')
+  console.log('  Giá mặc định/km:', vehicleConfig.pricePerKm.toLocaleString(), 'đ')
+  console.log('  Giá tối thiểu:', vehicleConfig.minimumFare.toLocaleString(), 'đ')
+  console.log('  Số người ghép:', totalPassengers)
+  console.log('========================================\n')
 
   // ✅ Validation: distance should be 0-1000 km (anything above is wrong)
   if (distance > 10000) {
@@ -291,8 +413,13 @@ export const calculateFare = async (
   }
 
   // BƯỚC 1: Tính raw_price
-  const rawPrice = distance * vehicleConfig.pricePerKm + vehicleConfig.baseFee
-  console.log('  Step 1 (raw_price):', `${distance} × ${vehicleConfig.pricePerKm} + ${vehicleConfig.baseFee} = ${rawPrice}`)
+  // ✨ SỬ DỤNG PROGRESSIVE PRICING (Tính cộng dồn theo từng khoảng)
+  const distancePrice = calculateProgressiveDistancePrice(distance, vehicleConfig)
+  const rawPrice = distancePrice + vehicleConfig.baseFee
+  console.log('\n📊 [BƯỚC 1] Tính giá cơ bản (raw_price):')
+  console.log('  Công thức: distancePrice + baseFee')
+  console.log('  Tính toán:', distancePrice.toLocaleString(), '+', vehicleConfig.baseFee.toLocaleString())
+  console.log('  → Raw price:', rawPrice.toLocaleString(), 'đ')
 
   // BƯỚC 2: Xác định peak multiplier
   let actualMultiplier = 1.0
@@ -318,27 +445,47 @@ export const calculateFare = async (
   }
 
   const basePrice = rawPrice * actualMultiplier
-  console.log('  Step 2 (base_price):', isPeak ? `${rawPrice} × ${actualMultiplier} = ${basePrice} (PEAK ${actualMultiplier})` : `${basePrice} (no peak)`)
+  console.log('\n📊 [BƯỚC 2] Áp dụng hệ số giờ cao điểm:')
+  if (isPeak) {
+    console.log('  ⏰ Đang trong giờ cao điểm!')
+    console.log('  Hệ số:', actualMultiplier)
+    console.log('  Công thức:', rawPrice.toLocaleString(), '×', actualMultiplier)
+    console.log('  → Base price:', basePrice.toLocaleString(), 'đ')
+  } else {
+    console.log('  ⏰ Giờ thường (không tăng giá)')
+    console.log('  → Base price:', basePrice.toLocaleString(), 'đ')
+  }
 
   // BƯỚC 3: Tìm discount rate theo số người
   const discountConfig = config.carpoolDiscounts.find(
     d => d.passengers === totalPassengers
   )
   const discountRate = discountConfig ? discountConfig.discount / 100 : 0
-  console.log('  Step 3 (discount):', `${totalPassengers} people = ${discountRate * 100}% discount`)
+  console.log('\n📊 [BƯỚC 3] Giảm giá ghép xe:')
+  console.log('  Số người:', totalPassengers)
+  console.log('  Giảm giá:', Math.round(discountRate * 100) + '%')
 
   // Tính final_price
   let finalPrice = basePrice * (1 - discountRate)
-  console.log('  Step 4 (final):', `${basePrice} × (1 - ${discountRate}) = ${finalPrice}`)
+  console.log('  Công thức:', basePrice.toLocaleString(), '× (1 -', discountRate.toFixed(2) + ')')
+  console.log('  → Giá sau giảm:', finalPrice.toLocaleString(), 'đ')
 
   // BƯỚC 4: Áp dụng minimum fare
+  console.log('\n📊 [BƯỚC 4] Áp dụng giá tối thiểu:')
   if (finalPrice < vehicleConfig.minimumFare) {
-    console.log('  Step 5 (minimum):', `${finalPrice} < ${vehicleConfig.minimumFare}, using minimum`)
+    console.log('  ⚠️ Giá thấp hơn mức tối thiểu!')
+    console.log('  ', finalPrice.toLocaleString(), '<', vehicleConfig.minimumFare.toLocaleString())
+    console.log('  → Áp dụng giá tối thiểu:', vehicleConfig.minimumFare.toLocaleString(), 'đ')
     finalPrice = vehicleConfig.minimumFare
+  } else {
+    console.log('  ✅ Giá hợp lệ (≥ mức tối thiểu)')
   }
 
   // Làm tròn lên nghìn
   const roundedFinalPrice = Math.ceil(finalPrice / 1000) * 1000
+  console.log('\n📊 [BƯỚC 5] Làm tròn:')
+  console.log('  Trước làm tròn:', finalPrice.toLocaleString(), 'đ')
+  console.log('  Sau làm tròn:', roundedFinalPrice.toLocaleString(), 'đ')
 
   const result = {
     rawPrice: Math.round(rawPrice),
@@ -349,7 +496,19 @@ export const calculateFare = async (
     discountApplied: Math.round(discountRate * 100),
     vehicleType: carType,
   }
-  console.log('✅ [calculateFare] RESULT:', result)
+
+  console.log('\n🎯 ============ KẾT QUẢ CUỐI CÙNG ============')
+  console.log('  💵 GIÁ KHÁCH HÀNG TRẢ:', roundedFinalPrice.toLocaleString(), 'đ')
+  console.log('\n  Chi tiết:')
+  console.log('    • Giá gốc:', Math.round(rawPrice).toLocaleString(), 'đ')
+  if (isPeak) {
+    console.log('    • Sau cao điểm:', Math.round(basePrice).toLocaleString(), 'đ', '(hệ số', actualMultiplier + ')')
+  }
+  if (discountRate > 0) {
+    console.log('    • Giảm giá ghép xe:', '-' + Math.round(discountRate * 100) + '%')
+  }
+  console.log('    • Giá cuối:', roundedFinalPrice.toLocaleString(), 'đ')
+  console.log('============================================\n')
   
   return result
 }
@@ -450,7 +609,9 @@ export const calculateCarpoolFares = async (
 
   for (const passenger of passengers) {
     // BƯỚC 1: raw_price
-    const rawPrice = passenger.distance * vehicleConfig.pricePerKm + vehicleConfig.baseFee
+    // ✨ SỬ DỤNG PROGRESSIVE PRICING (Tính cộng dồn theo từng khoảng)
+    const distancePrice = calculateProgressiveDistancePrice(passenger.distance, vehicleConfig)
+    const rawPrice = distancePrice + vehicleConfig.baseFee
 
     // BƯỚC 2: base_price
     // ✅ Dùng peakMultiplier đã lưu (1.0, 1.3, 1.5), KHÔNG check lại
@@ -591,6 +752,88 @@ export const calculateHireDriverFare = async (
     }
   }
 }
+
+
+// ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Route Pricing ============
+/**
+ * Tính giá cho chuyến đi liên tỉnh với giá cố định
+ * CHỈ áp dụng giảm giá ghép xe, KHÔNG áp dụng peak multiplier, KHÔNG tính theo km
+ */
+export const calculateInterProvincialFare = async (
+  fixedPrice: number,
+  totalPassengers: number = 1,
+  routeName?: string
+): Promise<{
+  fixedPrice: number
+  discountRate: number
+  finalPrice: number
+  pricePerPerson: number
+  breakdown: string
+}> => {
+  const config = await getPricingConfig()
+  
+  console.log('\n💰 ============ TÍNH GIÁ LIÊN TỈNH ============')
+  console.log('  Chuyến:', routeName || 'Inter-provincial route')
+  console.log('  Giá cố định:', fixedPrice.toLocaleString(), 'đ')
+  console.log('  Số người ghép:', totalPassengers)
+  console.log('========================================\n')
+
+  // BƯỚC 1: Giá cố định (không tính theo km)
+  console.log('📊 [BƯỚC 1] Giá cố định:')
+  console.log('  → Fixed price:', fixedPrice.toLocaleString(), 'đ')
+  console.log('  ⚠️  KHÔNG tính theo km')
+  console.log('  ⚠️  KHÔNG áp dụng giờ cao điểm')
+
+  // BƯỚC 2: Tìm discount rate theo số người
+  const discountConfig = config.carpoolDiscounts.find(
+    d => d.passengers === totalPassengers
+  )
+  const discountRate = discountConfig ? discountConfig.discount / 100 : 0
+
+  console.log('\n📊 [BƯỚC 2] Giảm giá ghép xe:')
+  console.log('  Số người:', totalPassengers)
+  console.log('  Giảm giá:', Math.round(discountRate * 100) + '%')
+  console.log('  Công thức:', fixedPrice.toLocaleString(), '× (1 -', discountRate + ')')
+
+  // BƯỚC 3: Tính giá sau giảm
+  const finalPrice = Math.round(fixedPrice * (1 - discountRate))
+  console.log('  → Giá sau giảm:', finalPrice.toLocaleString(), 'đ')
+
+  // BƯỚC 4: Làm tròn lên nghìn
+  const roundedFinalPrice = Math.ceil(finalPrice / 1000) * 1000
+  console.log('\n📊 [BƯỚC 3] Làm tròn:')
+  console.log('  Trước làm tròn:', finalPrice.toLocaleString(), 'đ')
+  console.log('  Sau làm tròn:', roundedFinalPrice.toLocaleString(), 'đ')
+
+  // BƯỚC 5: Tính giá trung bình mỗi người
+  const pricePerPerson = Math.round(roundedFinalPrice / totalPassengers)
+
+  console.log('\n🎯 ============ KẾT QUẢ CUỐI CÙNG ============')
+  console.log('  💵 TỔNG GIÁ:', roundedFinalPrice.toLocaleString(), 'đ')
+  console.log('  💵 TRUNG BÌNH MỖI NGƯỜI:', pricePerPerson.toLocaleString(), 'đ')
+  console.log('\n  Chi tiết:')
+  console.log('    • Giá cố định:', fixedPrice.toLocaleString(), 'đ')
+  if (discountRate > 0) {
+    console.log('    • Giảm giá ghép xe:', '-' + Math.round(discountRate * 100) + '%')
+  }
+  console.log('    • Giá cuối:', roundedFinalPrice.toLocaleString(), 'đ')
+  console.log('    • ⚠️  KHÔNG áp dụng giờ cao điểm')
+  console.log('    • ⚠️  KHÔNG tính theo km')
+  console.log('============================================\n')
+
+  const breakdown = `Giá cố định ${fixedPrice.toLocaleString()}đ${
+    discountRate > 0 ? ` - Giảm ${Math.round(discountRate * 100)}% (ghép ${totalPassengers} người)` : ''
+  } = ${roundedFinalPrice.toLocaleString()}đ (${pricePerPerson.toLocaleString()}đ/người)`
+
+  return {
+    fixedPrice,
+    discountRate: Math.round(discountRate * 100),
+    finalPrice: roundedFinalPrice,
+    pricePerPerson,
+    breakdown,
+  }
+}
+// ============ END CHUYẾN ĐI LIÊN TỈNH ============
 
 
 /**

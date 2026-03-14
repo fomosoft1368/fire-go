@@ -180,6 +180,9 @@ export class CombinedTrip {
   
   @Prop({ default: 1 })
   availableSeats?: number; // Number of seats customer needs
+  
+  @Prop()
+  expiresAt?: Date; // When this trip expires (15 minutes for customer-created trips)
 }
 
 export const CombinedTripSchema = SchemaFactory.createForClass(CombinedTrip);

@@ -36,4 +36,11 @@ export const FONT_SIZES = {
   xxl: 24,
 } as const
 
-export const API_BASE_URL = 'http://10.0.2.2:3000/api'
+// API Configuration
+// - Android Emulator: use 10.0.2.2
+// - iOS Simulator: use 127.0.0.1 or localhost
+// - Physical Device: use your machine's IP (192.168.x.x)
+export const API_BASE_URL = 'http://192.168.1.18:3000/api'
+
+// API timeout in milliseconds (30 seconds for physical devices)
+export const API_TIMEOUT = 30000

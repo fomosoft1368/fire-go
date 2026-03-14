@@ -58,30 +58,35 @@ export default function NotificationDetailScreen({ navigation, route }: Notifica
 Vui lòng đợi ở cổng chính của tòa nhà. Xe màu trắng.`,
   }
 
-  const getNotificationIcon = (type: NotificationType) => {
-    switch (type) {
-      case 'trip':
-        return 'local-taxi'
-      case 'promo':
-        return 'card-giftcard'
-      case 'system':
-        return 'info'
-      case 'earnings':
-        return 'account-balance-wallet'
-    }
+  const getNotificationIcon = (type: NotificationType | string) => {
+    const lowerType = String(type).toLowerCase()
+    
+    if (lowerType.includes('trip') || lowerType.includes('ride')) return 'local-taxi'
+    if (lowerType.includes('promo') || lowerType.includes('promotion')) return 'card-giftcard'
+    if (lowerType.includes('system') || lowerType.includes('message')) return 'info'
+    if (lowerType.includes('earning') || lowerType.includes('payment') || lowerType.includes('wallet')) return 'account-balance-wallet'
+    if (lowerType.includes('delivery')) return 'local-shipping'
+    if (lowerType.includes('review') || lowerType.includes('rating')) return 'star'
+    
+    return 'notifications'
   }
 
-  const getNotificationColor = (type: NotificationType) => {
-    switch (type) {
-      case 'trip':
-        return { primary: '#FF6B00', secondary: '#E85D00', bg: '#fff5eb' }
-      case 'promo':
-        return { primary: '#8b5cf6', secondary: '#7c3aed', bg: '#ede9fe' }
-      case 'system':
-        return { primary: '#3b82f6', secondary: '#2563eb', bg: '#dbeafe' }
-      case 'earnings':
-        return { primary: '#10b981', secondary: '#059669', bg: '#d1fae5' }
-    }
+  const getNotificationColor = (type: NotificationType | string) => {
+    const lowerType = String(type).toLowerCase()
+    
+    if (lowerType.includes('trip') || lowerType.includes('ride'))
+      return { primary: '#FF6B00', secondary: '#E85D00', bg: '#fff5eb' }
+    if (lowerType.includes('promo') || lowerType.includes('promotion'))
+      return { primary: '#8b5cf6', secondary: '#7c3aed', bg: '#ede9fe' }
+    if (lowerType.includes('system') || lowerType.includes('message'))
+      return { primary: '#3b82f6', secondary: '#2563eb', bg: '#dbeafe' }
+    if (lowerType.includes('earning') || lowerType.includes('payment') || lowerType.includes('wallet'))
+      return { primary: '#10b981', secondary: '#059669', bg: '#d1fae5' }
+    if (lowerType.includes('delivery'))
+      return { primary: '#0284C7', secondary: '#0369A1', bg: '#E0F2FE' }
+    
+    // Default color for unknown types
+    return { primary: '#64748B', secondary: '#475569', bg: '#F1F5F9' }
   }
 
   const colors = getNotificationColor(notification.type)
@@ -207,7 +212,7 @@ Vui lòng đợi ở cổng chính của tòa nhà. Xe màu trắng.`,
         )}
 
         {/* Related Notifications */}
-        <View style={styles.relatedSection}>
+        {/* <View style={styles.relatedSection}>
           <Text style={styles.relatedTitle}>Thông báo liên quan</Text>
 
           <TouchableOpacity style={styles.relatedItem}>
@@ -235,7 +240,7 @@ Vui lòng đợi ở cổng chính của tòa nhà. Xe màu trắng.`,
             </View>
             <MaterialIcons name="chevron-right" size={20} color="#cbd5e1" />
           </TouchableOpacity>
-        </View>
+        </View> */}
       </ScrollView>
     </SafeAreaView>
   )
