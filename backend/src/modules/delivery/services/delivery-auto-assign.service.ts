@@ -7,6 +7,7 @@ import { DeliveryAssignmentRequest, DeliveryAssignmentRequestDocument } from '..
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '../../config/config.service';
 import { ServiceType } from '../../config/schemas/driver-search-config.schema';
+import { DriversService } from '../../drivers/drivers.service';
 
 interface DriverScore {
   driver: any;
@@ -29,6 +30,7 @@ export class DeliveryAutoAssignService {
     @InjectModel(DeliveryAssignmentRequest.name) private assignmentRequestModel: Model<DeliveryAssignmentRequestDocument>,
     private eventEmitter: EventEmitter2,
     private configService: ConfigService,
+    private driversService: DriversService,
   ) {}
 
   /**
@@ -527,71 +529,16 @@ export class DeliveryAutoAssignService {
     console.log(`\n========== SEARCHING FOR DRIVERS ==========`)
     console.log(`[getAvailableDriversWithScores] Searching for drivers near [${lng}, ${lat}] within ${maxDistance}m`);
 
-    // ⭐ FIRST: Get ALL online drivers to see what's filtered
-    const allOnlineDrivers = await this.driverModel.find({
-      isOnline: true,
-    })
-    .select('_id firstName lastName isOnline isAvailable isVerified currentLocation driverTypes deliveryEnabled')
-    .exec();
+    // ✅ Get ALL busy driver IDs across ALL services (rides, delivery, combined-trips, hourly-services)
+    const busyDriverIds = await this.driversService.getBusyDriverIds();
+    console.log(`[getAvailableDriversWithScores] Excluding ${busyDriverIds.length} busy drivers (across all services)`);
 
-    console.log(`[getAvailableDriversWithScores] 📊 Total ONLINE drivers: ${allOnlineDrivers.length}`);
-    allOnlineDrivers.forEach((d: any) => {
-      const driverTypesStr = Array.isArray(d.driverTypes) ? d.driverTypes.join(',') : d.driverTypes;
-      console.log(`  [${d._id}] ${d.firstName} ${d.lastName}`);
-      console.log(`       online=${d.isOnline}, available=${d.isAvailable}, verified=${d.isVerified}`);
-      console.log(`       driverTypes=[${driverTypesStr}], deliveryEnabled=${d.deliveryEnabled}`);
-      console.log(`       hasLocation=${!!d.currentLocation}`);
-    });
-
-    // Step 1: Check all drivers with delivery type (no location filter)
-    const allDeliveryDrivers = await this.driverModel.find({
-      driverTypes: { $in: ['delivery'] },
-      isOnline: true,
-    })
-    .select('_id firstName lastName isOnline isAvailable isVerified currentLocation driverTypes')
-    .exec();
-
-    console.log(`[getAvailableDriversWithScores] 📦 Drivers with driverTypes containing 'delivery': ${allDeliveryDrivers.length}`);
-    allDeliveryDrivers.forEach((d: any) => {
-      const driverTypesStr = Array.isArray(d.driverTypes) ? d.driverTypes.join(',') : d.driverTypes;
-      console.log(`  ✅ ${d.firstName} ${d.lastName} (${d._id}): online=${d.isOnline}, available=${d.isAvailable}, verified=${d.isVerified}, driverTypes=[${driverTypesStr}]`);
-    });
-
-    // ⭐ IMPORTANT: Debug geospatial filter
-    // Calculate distance manually for all delivery drivers to see why Ho Van Trinh is filtered
-    console.log(`\n[getAvailableDriversWithScores] 🔍 Analyzing which drivers pass geospatial filter...`);
-    const deliveryDriversNearby = allDeliveryDrivers.filter((d: any) => {
-      if (!d.isOnline || !d.isAvailable) {
-        console.log(`  ❌ ${d.firstName} ${d.lastName} - FILTERED: not (online && available)`);
-        return false;
-      }
-
-      if (!d.currentLocation || !d.currentLocation.coordinates) {
-        console.log(`  ❌ ${d.firstName} ${d.lastName} - FILTERED: No valid currentLocation`);
-        return false;
-      }
-
-      const driverLng = d.currentLocation.coordinates[0];
-      const driverLat = d.currentLocation.coordinates[1];
-      const distance = this.calculateDistance(lat, lng, driverLat, driverLng);
-
-      if (distance > maxDistance) {
-        console.log(`  ❌ ${d.firstName} ${d.lastName} - FILTERED: Too far (${distance.toFixed(0)}m > ${maxDistance}m)`);
-        console.log(`       Driver location: [${driverLng}, ${driverLat}], Target: [${lng}, ${lat}]`);
-        return false;
-      }
-
-      console.log(`  ✅ ${d.firstName} ${d.lastName} - PASSES: Distance ${distance.toFixed(0)}m`);
-      return true;
-    });
-
-    console.log(`[getAvailableDriversWithScores] Total NEARBY delivery drivers: ${deliveryDriversNearby.length}\n`);
-
-    // Step 2: Now apply full filters with geospatial
+    // Query for available delivery drivers
     const drivers = await this.driverModel.find({
       isAvailable: true,
       isOnline: true,
       driverTypes: { $in: ['delivery'] }, // Tìm tài xế có 'delivery' trong array driverTypes
+      _id: { $nin: busyDriverIds }, // ✅ Exclude drivers busy with ANY service
       currentLocation: {
         $near: {
           $geometry: {

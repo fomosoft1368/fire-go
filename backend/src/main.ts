@@ -44,16 +44,18 @@ async function bootstrap() {
   app.use(require('express').urlencoded({ limit: '50mb', extended: true }));
 
   // Enable CORS
+  const corsOrigins = [
+    process.env.CORS_WEB_ADMIN_VITE,
+    process.env.CORS_WEB_ADMIN_ALT,
+    process.env.CORS_MOBILE_CUSTOMER,
+    process.env.CORS_MOBILE_CUSTOMER_ALT,
+    process.env.CORS_LOCAL_NETWORK_1,
+    process.env.CORS_LOCAL_NETWORK_2,
+    process.env.CORS_ANDROID_EMULATOR,
+  ].filter(Boolean); // Remove undefined values
+
   app.enableCors({
-    origin: [
-      'http://localhost:5173',   // Web Admin (Vite)
-      'http://localhost:3001',   // Web Admin alternative
-      'http://localhost:8081',   // Mobile Customer (Expo)
-      'http://localhost:8082',   // Mobile Customer (Expo alternative)
-      'http://192.168.1.18:8081', // Mobile on local network
-      'http://192.168.1.18:8082', // Mobile on local network
-      'http://10.0.2.2:3000',    // Android emulator
-    ],
+    origin: corsOrigins,
     credentials: true,
   });
 

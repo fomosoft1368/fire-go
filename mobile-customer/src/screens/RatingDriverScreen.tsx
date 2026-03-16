@@ -14,7 +14,7 @@ import {
   ScrollView,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { SPACING } from '../constants'
+import { SPACING, API_BASE_URL } from '../constants'
 
 interface RatingDriverScreenProps {
   navigation: any
@@ -62,12 +62,9 @@ export default function RatingDriverScreen({ navigation, route }: RatingDriverSc
         throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.')
       }
       
-      const API_URL = 'http://192.168.1.18:3000/api'
-      
-      // ✅ Use different endpoint based on trip type
       const endpoint = tripType === 'combined' 
-        ? `${API_URL}/combined-trips/${rideId}/rate`
-        : `${API_URL}/rides/${rideId}/rate`
+        ? `${API_BASE_URL}/combined-trips/${rideId}/rate`
+        : `${API_BASE_URL}/rides/${rideId}/rate`
       
       console.log('🔍 [Rating] API URL:', endpoint)
       console.log('🔍 [Rating] Token exists:', !!token)

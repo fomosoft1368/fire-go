@@ -917,4 +917,5 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+export { API_BASE_URL };
 export type { Driver };

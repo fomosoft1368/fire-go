@@ -1,5 +1,4 @@
-// Update API_BASE_URL to your backend URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'
+import { API_BASE_URL } from '../constants/config'
 
 export interface LegalDocSection {
   title: string

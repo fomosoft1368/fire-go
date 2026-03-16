@@ -5,6 +5,7 @@ import { DeliveryAutoAssignService } from './services/delivery-auto-assign.servi
 import { DeliveryController } from './controllers/delivery.controller';
 import { Delivery, DeliverySchema } from './schemas/delivery.schema';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
+import { DriversModule } from '../drivers/drivers.module';
 import { DeliveryAssignmentRequest, DeliveryAssignmentRequestSchema } from './schemas/delivery-assignment-request.schema';
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
 import { DriverSearchConfigModule } from '../config/config.module';
@@ -12,6 +13,7 @@ import { DriverSearchConfigModule } from '../config/config.module';
 @Module({
   imports: [
     DriverSearchConfigModule,
+    DriversModule,
     MongooseModule.forFeature([
       { name: Delivery.name, schema: DeliverySchema },
       { name: Driver.name, schema: DriverSchema },

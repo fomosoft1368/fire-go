@@ -13,6 +13,7 @@ export class DriversService {
     @InjectModel('CombinedTrip') private combinedTripModel: Model<any>,
     @InjectModel('RideRequest') private rideRequestModel: Model<any>,
     @InjectModel('Delivery') private deliveryModel: Model<any>,
+    @InjectModel('HourlyService') private hourlyServiceModel: Model<any>,
     @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
     private eventEmitter: EventEmitter2,
   ) {}
@@ -140,6 +141,64 @@ export class DriversService {
       isAcceptingRides: true,
       currentLocation: { $exists: true }, // Must have location
     }).sort({ createdAt: -1 });
+  }
+
+  /**
+   * Get IDs of drivers who are currently busy with ANY service
+   * Checks across: Rides, Combined Trips, Delivery, Hourly Services
+   */
+  async getBusyDriverIds(): Promise<string[]> {
+    const busyDriverIds = new Set<string>();
+
+    // 1️⃣ Check active rides (regular rides)
+    const activeRides = await this.rideModel.find({
+      status: { $in: ['accepted', 'in_progress'] },
+      driverId: { $exists: true, $ne: null },
+    }).select('driverId').lean();
+    
+    activeRides.forEach(ride => {
+      if (ride.driverId) {
+        busyDriverIds.add(ride.driverId.toString());
+      }
+    });
+
+    // 2️⃣ Check active combined trips (carpooling)
+    const activeCombinedTrips = await this.combinedTripModel.find({
+      status: { $in: ['accepted', 'in_progress'] },
+      driverId: { $exists: true, $ne: null },
+    }).select('driverId').lean();
+    
+    activeCombinedTrips.forEach(trip => {
+      if (trip.driverId) {
+        busyDriverIds.add(trip.driverId.toString());
+      }
+    });
+
+    // 3️⃣ Check active deliveries
+    const activeDeliveries = await this.deliveryModel.find({
+      status: { $in: ['driver_assigned', 'picking_up', 'delivering'] },
+      driverId: { $exists: true, $ne: null },
+    }).select('driverId').lean();
+    
+    activeDeliveries.forEach(delivery => {
+      if (delivery.driverId) {
+        busyDriverIds.add(delivery.driverId.toString());
+      }
+    });
+
+    // 4️⃣ Check active hourly services
+    const activeHourlyServices = await this.hourlyServiceModel.find({
+      status: { $in: ['confirmed', 'in_progress'] },
+      workerId: { $exists: true, $ne: null },
+    }).select('workerId').lean();
+    
+    activeHourlyServices.forEach(service => {
+      if (service.workerId) {
+        busyDriverIds.add(service.workerId.toString());
+      }
+    });
+
+    return Array.from(busyDriverIds);
   }
 
   async updateStatus(driverId: string, status: DriverStatus): Promise<DriverDocument> {

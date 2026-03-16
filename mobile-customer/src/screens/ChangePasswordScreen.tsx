@@ -13,7 +13,7 @@ import {
   Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { COLORS, SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
 import { authService } from '../services/authService'
 
 interface ChangePasswordScreenProps {
@@ -130,7 +130,7 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
         console.log('[ChangePassword] Could not decode token:', e)
       }
     
-      const url = `${process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'}/customers/change-password`
+      const url = `${API_BASE_URL}/customers/change-password`
       console.log('[ChangePassword] Request URL:', url)
       console.log('[ChangePassword] Authorization:', `Bearer ${token.substring(0, 20)}...`)
       

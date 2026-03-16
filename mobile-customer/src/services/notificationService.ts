@@ -1,6 +1,7 @@
 import axios from 'axios'
+import { API_BASE_URL } from '../constants'
 
-const API_BASE = 'http://192.168.1.18:3000'
+const API_BASE = API_BASE_URL.replace('/api', '')
 
 // Create axios instance with timeout
 const axiosInstance = axios.create({

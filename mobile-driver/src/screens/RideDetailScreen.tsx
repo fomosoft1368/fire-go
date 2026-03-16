@@ -18,6 +18,7 @@ import { useSelector } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { RootState } from '../redux/store'
 import { COLORS } from '../constants'
+import { API_BASE_URL } from '../constants/config'
 import MapViewComponent from '../components/MapView'
 interface RideDetailScreenProps {
   navigation: any
@@ -105,9 +106,8 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const fetchRideDetail = async () => {
     setLoading(true)
     try {
-      const API_URL = 'http://192.168.1.18:3000/api'
-      console.log('🚗 Fetching ride detail from:', `${API_URL}/rides/${rideId}`)
-      const response = await fetch(`${API_URL}/rides/${rideId}`, {
+      console.log('🚗 Fetching ride detail from:', `${API_BASE_URL}/rides/${rideId}`)
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -155,8 +155,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
-              const API_URL = 'http://192.168.1.18:3000/api'
-              const response = await fetch(`${API_URL}/rides/${rideId}`, {
+              const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'in_progress' }),
@@ -190,8 +189,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
-              const API_URL = 'http://192.168.1.18:3000/api'
-              const response = await fetch(`${API_URL}/rides/${rideId}`, {
+              const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'completed' }),
@@ -228,11 +226,10 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
         throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
       }
 
-      const API_URL = 'http://192.168.1.18:3000/api'
       console.log('🚗 Accepting ride:', { rideId, driverId: user.id })
       console.log('🔑 Using token:', token.substring(0, 20) + '...')
 
-      const response = await fetch(`${API_URL}/rides/${rideId}/accept`, {
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}/accept`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -271,8 +268,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
-              const API_URL = 'http://192.168.1.18:3000/api'
-              const response = await fetch(`${API_URL}/rides/${rideId}`, {
+              const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'cancelled' }),
@@ -297,8 +293,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     if (!requestingCustomer) return
     try {
       setUpdating(true)
-      const API_URL = 'http://192.168.1.18:3000/api'
-      const response = await fetch(`${API_URL}/rides/${rideId}/add-passenger`, {
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}/add-passenger`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerId: requestingCustomer._id }),

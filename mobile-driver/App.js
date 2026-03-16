@@ -418,7 +418,6 @@ console.log('[App] Fetching user profile with token...')
       console.log('👤 User from Redux:', user?.id || 'NULL')
       
       try {
-        const API_URL = 'http://192.168.1.18:3000/api'
         const token = await AsyncStorage.getItem('token')
         if (!token) {
           console.warn('[App] ⚠️ No auth token, skipping poll')
@@ -430,7 +429,7 @@ console.log('[App] Fetching user profile with token...')
         // ============================================================
         try {
           console.log('[App] 🔄 Polling regular rides assignment requests...')
-          const rideResponse = await fetch(`${API_URL}/rides/assignment-requests/pending`, {
+          const rideResponse = await fetch(`${API_BASE_URL}/rides/assignment-requests/pending`, {
             headers: { 
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
@@ -473,8 +472,8 @@ console.log('[App] Fetching user profile with token...')
           try {
             const driverId = user?.id
             const endpoint = driverId 
-              ? `${API_URL}/combined-trips/${trip._id}/requests?driverId=${driverId}`
-              : `${API_URL}/combined-trips/${trip._id}/requests`
+              ? `${API_BASE_URL}/combined-trips/${trip._id}/requests?driverId=${driverId}`
+              : `${API_BASE_URL}/combined-trips/${trip._id}/requests`
             
             console.log('[App] 🔗 Polling combined trip endpoint:', endpoint)
             
@@ -520,7 +519,7 @@ console.log('[App] Fetching user profile with token...')
         // ============================================================
         try {
           console.log('[App] 🔄 Polling delivery assignment requests...')
-          const deliveryResponse = await fetch(`${API_URL}/deliveries/assignment-requests/pending`, {
+          const deliveryResponse = await fetch(`${API_BASE_URL}/deliveries/assignment-requests/pending`, {
             headers: { 
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`

@@ -14,6 +14,8 @@ import { MaterialIcons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useSelector } from 'react-redux'
 import { COLORS } from '../constants'
+import { API_BASE_URL } from '../constants/config'
+import type { RootState } from '../redux/store'
 
 interface CustomerRequest {
   _id: string
@@ -74,13 +76,12 @@ export default function RideRequestsScreen({ navigation, route }: any) {
     
     setLoading(true)
     try {
-      const API_URL = 'http://192.168.1.18:3000/api'
       const tripId = combinedTripId || rideId
       
       // Determine endpoint based on source type or ID
-      let endpoint = `${API_URL}/rides/${tripId}/requests`
+      let endpoint = `${API_BASE_URL}/rides/${tripId}/requests`
       if (sourceType === 'combined_trip' || combinedTripId) {
-        endpoint = `${API_URL}/combined-trips/${tripId}/requests`
+        endpoint = `${API_BASE_URL}/combined-trips/${tripId}/requests`
       }
       
       console.log('📍 Loading requests from:', endpoint)
@@ -126,13 +127,12 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const handleAcceptRequest = async (requestId: string) => {
     setAccepting(requestId)
     try {
-      const API_URL = 'http://192.168.1.18:3000/api'
       const tripId = combinedTripId || rideId
       
       // Determine endpoint based on source type
-      let endpoint = `${API_URL}/rides/${tripId}/requests/${requestId}/accept`
+      let endpoint = `${API_BASE_URL}/rides/${tripId}/requests/${requestId}/accept`
       if (sourceType === 'combined_trip' || combinedTripId) {
-        endpoint = `${API_URL}/combined-trips/${tripId}/requests/${requestId}/accept`
+        endpoint = `${API_BASE_URL}/combined-trips/${tripId}/requests/${requestId}/accept`
       }
       
       console.log('📍 Accepting request:', endpoint)
@@ -156,13 +156,12 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const handleRejectRequest = async (requestId: string) => {
     setRejecting(requestId)
     try {
-      const API_URL = 'http://192.168.1.18:3000/api'
       const tripId = combinedTripId || rideId
       
       // Determine endpoint based on source type
-      let endpoint = `${API_URL}/rides/${tripId}/requests/${requestId}/reject`
+      let endpoint = `${API_BASE_URL}/rides/${tripId}/requests/${requestId}/reject`
       if (sourceType === 'combined_trip' || combinedTripId) {
-        endpoint = `${API_URL}/combined-trips/${tripId}/requests/${requestId}/reject`
+        endpoint = `${API_BASE_URL}/combined-trips/${tripId}/requests/${requestId}/reject`
       }
       
       console.log('📍 Rejecting request:', endpoint)

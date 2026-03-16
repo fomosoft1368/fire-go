@@ -18,6 +18,7 @@ import { CombinedTrip, CombinedTripStatus } from '../schemas/combined-trip.schem
 import { JwtAuthGuard } from '../../../modules/auth/guards/jwt-auth.guard';
 import { RideRequest, RequestStatus } from '../schemas/ride-request.schema';
 import { Driver } from '../../drivers/schemas/driver.schema';
+import { DriversService } from '../../drivers/drivers.service';
 import { Types } from 'mongoose';
 import { PricingConfig } from '../../pricing/pricing-config.schema';
 
@@ -30,6 +31,7 @@ export class CombinedTripsController {
     @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTrip>,
     @InjectModel(Driver.name) private driverModel: Model<Driver>,
     @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
+    private readonly driversService: DriversService,
   ) {}
 
   /**
@@ -1105,14 +1107,10 @@ export class CombinedTripsController {
         // Case 1: Customer created new trip, driver accepting → Add driver to trip
        
         
-        // ✅ Check if driver already has an active trip
-        const activeDriverTrip = await this.combinedTripsService.getCombinedTripsModel().findOne({
-          driverId: request.driverId,
-          status: { $in: ['pending', 'accepted', 'in_progress'] },
-        });
-
-        if (activeDriverTrip) {
-          throw new BadRequestException('Tài xế đang có chuyến đi đang hoạt động.');
+        // ✅ Check if driver is busy with ANY service (rides, delivery, combined-trips, hourly-services)
+        const busyDriverIds = await this.driversService.getBusyDriverIds();
+        if (busyDriverIds.includes(request.driverId.toString())) {
+          throw new BadRequestException('Tài xế đang bận với một dịch vụ khác.');
         }
 
         // ✅ CRITICAL: Check driver wallet balance BEFORE accepting request
@@ -1276,6 +1274,14 @@ export class CombinedTripsController {
       } else {
         // Other cases (driver-created trips, etc.)
        
+        
+        // ✅ Check if driver is busy with ANY service
+        if (request.driverId) {
+          const busyDriverIds = await this.driversService.getBusyDriverIds();
+          if (busyDriverIds.includes(request.driverId.toString())) {
+            throw new BadRequestException('Tài xế đang bận với một dịch vụ khác.');
+          }
+        }
         
         // ✅ CRITICAL: Check driver wallet balance if driver is accepting
         if (request.driverId) {

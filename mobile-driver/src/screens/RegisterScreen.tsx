@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
 import { loginStart, loginSuccess, loginFailure } from '../redux/slices/authSlice'
 import type { RootState } from '../redux/store'
+import { API_BASE_URL } from '../constants/config'
 
 const COLORS = {
   primary: '#FF6B35',
@@ -227,7 +228,6 @@ export default function RegisterScreen({ navigation }: any) {
       }
 
       // Call registration API
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'
       console.log('🚀 Calling API:', `${API_BASE_URL}/drivers`)
       console.log('📤 Registration Data:', registrationData)
 
