@@ -108,9 +108,16 @@ export class CombinedTripsService implements OnModuleInit {
         status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] },
       }).then(reqs => reqs.reduce((sum, req) => sum + (req.fare || 0), 0));
       
-      await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
-        totalFare: tripTotalFare,
-      });
+      // ✅ Only update if trip is not cancelled
+      await this.combinedTripModel.findOneAndUpdate(
+        {
+          _id: combinedTripId,
+          status: { $ne: 'cancelled' },
+        },
+        {
+          totalFare: tripTotalFare,
+        }
+      );
       
       console.log(`[recalculateFaresForCombinedTrip] ✅ Updated ${fixedPriceRequests.length} fixed-price requests. Trip total: ${tripTotalFare.toLocaleString()}đ`);
       return;
@@ -221,9 +228,16 @@ export class CombinedTripsService implements OnModuleInit {
     
     const tripTotalFare = allUpdatedRequests.reduce((sum, req) => sum + (req.fare || 0), 0);
     
-    await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
-      totalFare: tripTotalFare,
-    });
+    // ✅ Only update if trip is not cancelled
+    await this.combinedTripModel.findOneAndUpdate(
+      {
+        _id: combinedTripId,
+        status: { $ne: 'cancelled' },
+      },
+      {
+        totalFare: tripTotalFare,
+      }
+    );
     
     console.log(`[recalculateFaresForCombinedTrip] 💰 Updated trip totalFare: ${tripTotalFare.toLocaleString()}đ (${fixedPriceRequests.length} fixed + ${dynamicPriceRequests.length} dynamic)`);
   }
@@ -1033,6 +1047,13 @@ export class CombinedTripsService implements OnModuleInit {
     status: CombinedTripStatus,
   ): Promise<CombinedTrip> {
     try {
+      // ✅ CRITICAL: Cannot change status of cancelled trip
+      const existingTrip = await this.combinedTripModel.findById(combinedTripId);
+      if (existingTrip?.status === 'cancelled' && status !== CombinedTripStatus.CANCELLED) {
+        console.error('❌ Cannot change status of cancelled trip:', combinedTripId);
+        throw new BadRequestException('Cannot change status of a cancelled trip');
+      }
+      
       const trip = await this.combinedTripModel.findByIdAndUpdate(
         combinedTripId,
         { status, updatedAt: new Date() },
@@ -1134,8 +1155,13 @@ export class CombinedTripsService implements OnModuleInit {
 
       console.log('✅ Trip is available - updating to ACCEPTED...');
       
-      const updatedTrip = await this.combinedTripModel.findByIdAndUpdate(
-        combinedTripId,
+      // ✅ Use atomic update with status check to prevent race conditions
+      const updatedTrip = await this.combinedTripModel.findOneAndUpdate(
+        {
+          _id: combinedTripId,
+          status: CombinedTripStatus.PENDING, // Only update if still pending
+          driverId: { $exists: false }, // And no driver assigned yet
+        },
         {
           driverId: new Types.ObjectId(driverId),
           status: CombinedTripStatus.ACCEPTED,
@@ -1387,10 +1413,24 @@ export class CombinedTripsService implements OnModuleInit {
 
       // Update trip with current driver being notified (NOT a queue)
       // sửa lại để chỉ có 1 tài xế được thông báo
-      await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
-        currentDriverId: targetDriver._id,
-        notificationSentAt: new Date(),
-      });
+      // ✅ CRITICAL: Only update if trip is still pending (not cancelled)
+      const updateResult = await this.combinedTripModel.findOneAndUpdate(
+        {
+          _id: combinedTripId,
+          status: { $ne: 'cancelled' }, // Only update if NOT cancelled
+        },
+        {
+          currentDriverId: targetDriver._id,
+          notificationSentAt: new Date(),
+        },
+        { new: true }
+      );
+      
+      if (!updateResult) {
+        console.log('⚠️ [findAndNotifyDrivers] Trip was cancelled or no longer exists - aborting driver notification');
+        console.log('🚫 NOT creating ride request for driver:', targetDriver._id);
+        return; // Early return - trip was cancelled
+      }
 
       // Create ride request for this driver with complete trip details
       // Get timeout from config (RIDESHARE service) — fallback to 45s if config missing/zero
@@ -1537,10 +1577,24 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('📬 Sending notification to next driver:', nextDriver._id);
 
       // Update trip with new current driver
-      await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
-        currentDriverId: nextDriver._id,
-        notificationSentAt: new Date(),
-      });
+      // ✅ CRITICAL: Only update if trip is still pending (not cancelled)
+      const updateResult = await this.combinedTripModel.findOneAndUpdate(
+        {
+          _id: combinedTripId,
+          status: { $ne: 'cancelled' }, // Only update if NOT cancelled
+        },
+        {
+          currentDriverId: nextDriver._id,
+          notificationSentAt: new Date(),
+        },
+        { new: true }
+      );
+      
+      if (!updateResult) {
+        console.log('⚠️ [Retry] Trip was cancelled or no longer exists - aborting driver notification');
+        console.log('🚫 NOT creating ride request for driver:', nextDriver._id);
+        return; // Early return - trip was cancelled
+      }
 
       // Get customerId from trip
       const customerId = trip.customerId && trip.customerId[0] ? trip.customerId[0] : null;
@@ -1605,9 +1659,17 @@ export class CombinedTripsService implements OnModuleInit {
       
       // ✅ CRITICAL: Check if trip is already cancelled
       const existingTrip = await this.combinedTripModel.findById(tripIdObj);
-      if (existingTrip?.status === 'cancelled' && updateData.status && updateData.status !== 'cancelled') {
-        console.error('❌ Cannot change status of cancelled trip:', tripId);
-        throw new BadRequestException('Cannot change status of a cancelled trip');
+      if (existingTrip?.status === 'cancelled') {
+        // ✅ BLOCK ALL updates to cancelled trips (except re-confirming cancellation)
+        const isCancellationUpdate = updateData.status === 'cancelled' || 
+                                      updateData.cancelledAt || 
+                                      updateData.cancellationBy;
+        
+        if (!isCancellationUpdate) {
+          console.error('❌ Cannot update cancelled trip:', tripId);
+          console.error('❌ Attempted update:', Object.keys(updateData));
+          throw new BadRequestException('Cannot update a cancelled trip. Trip was cancelled and is immutable.');
+        }
       }
       
       const updatedTrip = await this.combinedTripModel.findByIdAndUpdate(
