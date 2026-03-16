@@ -24,7 +24,7 @@ export default function WalletManagement() {
   const { addNotification } = useNotification()
 
   // Helper functions to check transaction types
-  const isDeposit = (type: string) => type === 'deposit' || type === 'topup'
+  const isDeposit = (type: string) => type === 'deposit' || type === 'topup' || type === 'top_up'
   const isWithdrawal = (type: string) => type === 'withdraw' || type === 'withdrawal'
   
   // Helper to normalize status (backend uses 'completed', frontend uses 'success')
@@ -403,7 +403,7 @@ export default function WalletManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {(() => {
-                        // Check for customer first
+                        // Check for customerId/driverId first (old format)
                         const customer = (transaction as any).customerId
                         if (typeof customer === 'object' && customer !== null) {
                           return (
@@ -423,7 +423,6 @@ export default function WalletManagement() {
                           )
                         }
                         
-                        // Check for driver
                         const driver = (transaction as any).driverId
                         if (typeof driver === 'object' && driver !== null) {
                           return (
@@ -439,6 +438,54 @@ export default function WalletManagement() {
                                   <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Tài xế</span>
                                 </div>
                                 <div className="text-xs text-slate-500 dark:text-slate-400">{driver.email}</div>
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        // Check for userId with userType (new format)
+                        const userId = (transaction as any).userId
+                        const userType = (transaction as any).userType
+                        
+                        // If userId is populated (object)
+                        if (typeof userId === 'object' && userId !== null) {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <img
+                                className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                                src={`https://i.pravatar.cc/150?u=${userId.email || userId._id}`}
+                                alt={userId.firstName}
+                              />
+                              <div>
+                                <div className="font-semibold text-slate-900 dark:text-white text-sm">
+                                  {userId.firstName} {userId.lastName}
+                                  {userType === 'driver' && (
+                                    <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Tài xế</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{userId.email}</div>
+                              </div>
+                            </div>
+                          )
+                        }
+                        
+                        // If userId exists but not populated (string ID)
+                        if (userId && typeof userId === 'string') {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-slate-500 text-lg">
+                                  {userType === 'driver' ? 'local_taxi' : 'person'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-900 dark:text-white text-sm">
+                                  {userType === 'driver' ? 'Tài xế' : 'Khách hàng'}
+                                  {userType === 'driver' && (
+                                    <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Tài xế</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">{userId}</div>
                               </div>
                             </div>
                           )
@@ -868,12 +915,24 @@ export default function WalletManagement() {
 
               {/* Customer/Driver Info */}
               {(() => {
+                // Check old format first
                 const customer = (selectedTransaction as any).customerId
                 const driver = (selectedTransaction as any).driverId
-                const user = customer || driver
-                const userType = customer ? 'khách hàng' : 'tài xế'
-                const userTypeBg = customer ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'
-                const userTypeText = customer ? 'text-blue-900' : 'text-purple-900'
+                let user = customer || driver
+                let userType = customer ? 'khách hàng' : (driver ? 'tài xế' : null)
+                
+                // Check new format with userId and userType
+                if (!user) {
+                  const userId = (selectedTransaction as any).userId
+                  const userTypeField = (selectedTransaction as any).userType
+                  if (typeof userId === 'object' && userId !== null) {
+                    user = userId
+                    userType = userTypeField === 'driver' ? 'tài xế' : 'khách hàng'
+                  }
+                }
+                
+                const userTypeBg = userType === 'khách hàng' ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'
+                const userTypeText = userType === 'khách hàng' ? 'text-blue-900' : 'text-purple-900'
                 
                 if (!user) return null
                 
@@ -881,7 +940,7 @@ export default function WalletManagement() {
                   <div className={`${userTypeBg} rounded-lg p-4 space-y-3 border`}>
                     <div className={`font-semibold ${userTypeText} mb-3 flex items-center gap-2`}>
                       <span className="material-symbols-outlined">
-                        {customer ? 'person' : 'local_taxi'}
+                        {userType === 'khách hàng' ? 'person' : 'local_taxi'}
                       </span>
                       Thông tin {userType}
                     </div>
