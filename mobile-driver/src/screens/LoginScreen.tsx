@@ -47,25 +47,9 @@ export default function LoginScreen({ navigation }: any) {
 
     dispatch(loginStart())
     try {
-      console.log('🔓 LoginScreen - Calling loginAPI with:', phoneEmail)
       const response = await loginAPI(phoneEmail, password)
-      console.log('🔓 LoginScreen - Got response:', response)
-      console.log('🔓 LoginScreen - Access token:', response.accessToken)
-
-      // Verify token was saved to AsyncStorage
-      const AsyncStorage = require('@react-native-async-storage/async-storage').default
-      const savedToken = await AsyncStorage.getItem('token')
-      console.log('🔓 LoginScreen - Token saved to AsyncStorage:', !!savedToken)
-      console.log('🔓 LoginScreen - Saved token value:', savedToken ? savedToken.substring(0, 30) + '...' : 'null')
-
-      if (!savedToken) {
-        console.error('🔓 LoginScreen - WARNING: Token was not saved to AsyncStorage!')
-      }
-
       dispatch(loginSuccess({ token: response.accessToken, user: response.user }))
-      console.log('🔓 LoginScreen - loginSuccess dispatched')
     } catch (err: any) {
-      console.log('🔓 LoginScreen - Error caught:', err.response?.data?.message || err.message)
       const errorMessage = err.response?.data?.message || 'Đăng nhập thất bại'
       dispatch(loginFailure(errorMessage))
       Alert.alert('Lỗi', errorMessage)
@@ -76,19 +60,21 @@ export default function LoginScreen({ navigation }: any) {
     navigation?.navigate('Register')
   }
 
+  const handleForgotPassword = () => {
+    navigation?.navigate('ForgotPassword')
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <View style={styles.logoBg}>
-              <Image
-                source={require('../assets/fire-logo.png')}
-                style={{ width: 45, height: 45 }}
-                resizeMode="contain"
-              />
-            </View>
+            <Image
+              source={require('../assets/fire-logo.png')}
+              style={{ width: 39, height: 39 }}
+              resizeMode="contain"
+            />
             <Text style={styles.appName}>firego</Text>
           </View>
         </View>
@@ -190,7 +176,7 @@ export default function LoginScreen({ navigation }: any) {
               </View>
               <Text style={styles.checkboxLabel}>Ghi nhớ tôi</Text>
             </TouchableOpacity>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={handleForgotPassword}>
               <Text style={styles.forgotLink}>Quên mật khẩu?</Text>
             </TouchableOpacity>
           </View>
@@ -217,44 +203,11 @@ export default function LoginScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        {/* Social Login Divider */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Hoặc tiếp tục với</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        {/* Social Buttons */}
-        <View style={styles.socialContainer}>
-          <TouchableOpacity style={styles.socialButton}>
-            <MaterialIcons name="mail" size={24} color="#4285F4" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
-            <MaterialIcons name="apple" size={24} color="#000000" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
-            <MaterialIcons name="public" size={24} color="#1877F2" />
-          </TouchableOpacity>
-        </View>
-
         {/* Sign Up Link */}
         <View style={styles.signupContainer}>
           <Text style={styles.signupText}>Chưa có tài khoản? </Text>
           <TouchableOpacity onPress={handleGoToRegister}>
             <Text style={styles.signupLink}>Đăng ký tài xế</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer Links */}
-        <View style={styles.footerLinks}>
-          <TouchableOpacity>
-            <Text style={styles.footerLink}>Điều khoản</Text>
-          </TouchableOpacity>
-          <TouchableOpacity>
-            <Text style={styles.footerLink}>Bảo mật</Text>
-          </TouchableOpacity>
-          <TouchableOpacity>
-            <Text style={styles.footerLink}>Trợ giúp</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -280,26 +233,18 @@ const styles = StyleSheet.create({
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  logoBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: `${COLORS.primary}20`,
-    justifyContent: 'center',
-    alignItems: 'center',
+    gap: 4,
   },
   appName: {
-    fontSize: 30,
-    fontWeight: '700',
-    letterSpacing: -0.5,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -1,
     color: '#FF6B35',
   },
 
   bannerContainer: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 6,
   },
   banner: {
     height: 260,
@@ -447,42 +392,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    gap: 12,
-    backgroundColor: COLORS.darkBg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  dividerText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-  },
-  socialContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-    backgroundColor: COLORS.darkBg,
-  },
-  socialButton: {
-    width: 60,
-    height: 52,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.darkCard,
-  },
+  
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -500,16 +410,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.primary,
   },
-  footerLinks: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 28,
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-    backgroundColor: COLORS.darkBg,
-  },
-  footerLink: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
+  
 })

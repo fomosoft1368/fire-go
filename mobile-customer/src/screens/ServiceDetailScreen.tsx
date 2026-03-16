@@ -30,20 +30,37 @@ export default function ServiceDetailScreen() {
         if (isInitial) setLoading(true)
         const data = await hourlyServiceService.getServiceDetail(serviceId)
 
-        // Hardcode worker data for testing
-        const mockData = {
-          ...data,
-          worker: {
-            id: 'worker-001',
-            name: 'Nguyễn Thị Hoa',
-            avatar: 'https://via.placeholder.com/56x56?text=Hoa',
+        console.log('[ServiceDetail] Raw data from API:', data)
+
+        // Transform data - driver info is returned at top level (from workerId population)
+        let transformedData = { ...data }
+
+        // Lấy driver info từ top-level fields của service
+        const hasDriverInfo = data.firstName && data.lastName
+
+        if (hasDriverInfo) {
+          transformedData.worker = {
+            _id: data.workerId,
+            name: `${data.firstName} ${data.lastName}`,
+            avatar: data.avatar || 'https://via.placeholder.com/64x64?text=Avatar',
+            rating: data.averageRating || 4.9,
+            ratings: data.totalRides || 0,
+            phone: data.phone,
+          }
+          console.log('[ServiceDetail] Worker info extracted:', transformedData.worker)
+        } else {
+          // Fallback nếu không có driver info
+          transformedData.worker = {
+            _id: data.workerId,
+            name: 'Nhân viên',
+            avatar: 'https://via.placeholder.com/64x64?text=Avatar',
             rating: 4.9,
-            ratings: 128,
-          },
+            ratings: 0,
+          }
+          console.log('[ServiceDetail] Using fallback worker placeholder')
         }
 
-        setService(mockData)
-        console.log('[ServiceDetail] Service loaded:', mockData)
+        setService(transformedData)
       } catch (err: any) {
         console.error('[ServiceDetail] Error fetching service:', err)
       } finally {
@@ -55,9 +72,11 @@ export default function ServiceDetailScreen() {
       // Initial fetch
       fetchServiceDetail(true)
 
-      // Polling for updates every 5 seconds (but don't show loading)
-      const interval = setInterval(() => fetchServiceDetail(false), 5000)
-      return () => clearInterval(interval)
+      // Polling only for pending/confirmed status
+      let interval: any = null
+      return () => {
+        if (interval) clearInterval(interval)
+      }
     }
   }, [serviceId])
 
@@ -79,6 +98,8 @@ export default function ServiceDetailScreen() {
             estimatedPrice: service.estimatedPrice,
             address: service.address,
             selectedDate: service.selectedDate,
+            month: service.month,
+            year: service.year,
             selectedTime: service.selectedTime,
             services: service.services || [],
           },
@@ -170,12 +191,12 @@ export default function ServiceDetailScreen() {
               <Text style={styles.etaLabel}>Thời gian làm việc</Text>
               <Text style={styles.etaTime}>{service.selectedTime}</Text>
               <Text style={styles.etaDate}>
-                {new Date(service.selectedDate).toLocaleDateString('vi-VN', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                {service.year && service.month
+                  ? new Date(service.year, service.month - 1, service.selectedDate).toLocaleDateString(
+                      'vi-VN',
+                      { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+                    )
+                  : 'N/A'}
               </Text>
             </View>
             <View style={styles.progressBadge}>

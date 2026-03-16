@@ -111,7 +111,7 @@ const MainNavigator = () => {
           return <MaterialIcons name={iconName} size={size} color={color} />
         },
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarInactiveTintColor: '#65686C',
         tabBarStyle: {
           backgroundColor: '#fff',
         },

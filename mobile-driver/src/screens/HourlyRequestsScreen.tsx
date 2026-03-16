@@ -112,20 +112,6 @@ export default function HourlyRequestsScreen({ navigation }: any) {
       activeOpacity={0.7}
     >
       <View style={styles.cardHeader}>
-        <View style={styles.customerInfo}>
-          {/* <Image
-            source={{
-              uri: item.customerId.avatar || 'https://via.placeholder.com/48x48?text=Avatar',
-            }}
-            style={styles.avatar}
-          /> */}
-          <View style={styles.customerDetails}>
-            {/* <Text style={styles.customerName}>
-              {item.customerId.firstName} {item.customerId.lastName}
-            </Text> */}
-            {/* <Text style={styles.customerPhone}>{item.customerId.phone}</Text> */}
-          </View>
-        </View>
         <View style={styles.priceTag}>
           <Text style={styles.priceText}>
             {(item.estimatedPrice / 1000).toFixed(0)}k

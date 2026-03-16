@@ -49,6 +49,7 @@ import NotificationScreen from './src/screens/Notification'
 import NotificationDetailScreen from './src/screens/NotificationDetail'
 import TermsOfServiceScreen from './src/screens/TermsOfServiceScreen'
 import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen'
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen'
 //
 
 
@@ -101,7 +102,7 @@ const MainNavigator = () => (
         return <MaterialIcons name={iconName} size={size} color={color} />
       },
       tabBarActiveTintColor: COLORS.primary,
-      tabBarInactiveTintColor: COLORS.textSecondary,
+      tabBarInactiveTintColor: '#65686C',
       tabBarStyle: {
       backgroundColor: '#fff',
       },
@@ -361,6 +362,13 @@ console.log('[App] Fetching user profile with token...')
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       console.log('[App] AppState changed to:', nextAppState)
       
+      // Check if token still exists before making API calls
+      const token = await AsyncStorage.getItem('token')
+      if (!token) {
+        console.log('[App] ⚠️ Token not found, skipping AppState API call')
+        return
+      }
+      
       if (nextAppState === 'active') {
         // App came to foreground - set driver online
         console.log('[App] App is now active, setting driver online...')
@@ -386,6 +394,13 @@ console.log('[App] Fetching user profile with token...')
     // This ensures we always have a heartbeat within the 2-minute timeout
     const heartbeatInterval = setInterval(async () => {
       try {
+        // Check if token still exists before heartbeat
+        const token = await AsyncStorage.getItem('token')
+        if (!token) {
+          console.log('[App] ⚠️ Token not found, skipping heartbeat')
+          return
+        }
+        
         await driverService.sendHeartbeat()
         console.log('[App] 💓 Heartbeat sent')
       } catch (error) {
@@ -399,9 +414,20 @@ console.log('[App] Fetching user profile with token...')
       clearInterval(heartbeatInterval)
       
       // Important: Set driver offline when app is closed/killed
+      // But only if token still exists (user might have logged out)
       console.log('[App] App is unmounting, setting driver offline...')
-      driverService.setOnlineStatus(false).catch((error) => {
-        console.error('[App] ❌ Failed to set offline on unmount:', error.message)
+      
+      AsyncStorage.getItem('token').then((token) => {
+        if (!token) {
+          console.log('[App] ✅ Token already cleared, skipping offline request')
+          return
+        }
+        
+        driverService.setOnlineStatus(false).catch((error) => {
+          console.error('[App] ❌ Failed to set offline on unmount:', error.message)
+        })
+      }).catch((err) => {
+        console.error('[App] Error checking token:', err.message)
       })
     }
   }, [isAuthenticated])
@@ -609,6 +635,11 @@ console.log('[App] Fetching user profile with token...')
             name="Register"
             component={RegisterScreen}
             options={{ animationEnabled: false }}
+          />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+            options={{ animationEnabled: true }}
           />
         </>
       )}
