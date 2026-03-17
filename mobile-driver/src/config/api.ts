@@ -6,4 +6,4 @@
 // Real device: IP của máy trên mạng LAN (vd: 192.168.1.16)
 // Set REACT_APP_API_URL in .env file
 
-export const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'
+export const API_URL = process.env.REACT_APP_API_URL || 'http://107.150.62.252/api'

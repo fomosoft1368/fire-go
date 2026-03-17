@@ -883,13 +883,13 @@ export default function App() {
 
         let endpoint = ''
         if (dataType === 'combined_trip') {
-          endpoint = `http://192.168.1.18:3000/api/combined-trips/${dataId}`
+          endpoint = `${API_BASE_URL}/combined-trips/${dataId}`
           console.log('[App] 📡 Fetching full combined trip data for:', dataId)
         } else if (dataType === 'ride') {
-          endpoint = `http://192.168.1.18:3000/api/rides/${dataId}`
+          endpoint = `${API_BASE_URL}/rides/${dataId}`
           console.log('[App] 📡 Fetching full ride data for:', dataId)
         } else if (dataType === 'delivery') {
-          endpoint = `http://192.168.1.18:3000/api/deliveries/${dataId}`
+          endpoint = `${API_BASE_URL}/deliveries/${dataId}`
           console.log('[App] 📡 Fetching full delivery data for:', dataId)
         }
 
