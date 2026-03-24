@@ -6,14 +6,30 @@ const API_URL = API_BASE_URL
 
 const login = async (email: string, password: string) => {
   try {
-    console.log('📱 Mobile - Login attempt with:', email)
-    const response = await axios.post(`${API_URL}/auth/login`, {
+    const apiUrl = `${API_URL}/auth/login`
+    console.log('\n========== 🔐 DRIVER LOGIN REQUEST START ==========')
+    console.log('📍 API URL:', apiUrl)
+    console.log('🌐 BASE_URL:', API_URL)
+    console.log('👤 Email:', email)
+    console.log('🔑 Password length:', password.length)
+    console.log('📦 Request body:', JSON.stringify({ email, password: '***' }, null, 2))
+    console.log('📅 Timestamp:', new Date().toISOString())
+    console.log('🔧 Method: POST')
+    console.log('📋 Headers:', JSON.stringify({ 'Content-Type': 'application/json' }, null, 2))
+    console.log('==========================================\n')
+    
+    const response = await axios.post(apiUrl, {
       email,
       password,
     })
 
-    console.log('📱 Mobile - Login response:', response.data)
-    console.log('📱 Mobile - Access token:', response.data.accessToken)
+    console.log('\n========== ✅ DRIVER LOGIN SUCCESS ==========')
+    console.log('📊 Status:', response.status)
+    console.log('📋 Response headers:', JSON.stringify(response.headers, null, 2))
+    console.log('📦 Response data keys:', Object.keys(response.data))
+    console.log('👤 User:', response.data.user?.email || 'N/A')
+    console.log('🎫 Token length:', response.data.accessToken?.length || 0)
+    console.log('==========================================\n')
 
     if (response.data.accessToken) {
       await AsyncStorage.setItem('token', response.data.accessToken)
@@ -21,9 +37,31 @@ const login = async (email: string, password: string) => {
 
     return response.data
   } catch (error: any) {
-    console.log('📱 Mobile - Login error status:', error.response?.status)
-    console.log('📱 Mobile - Login error data:', error.response?.data)
-    console.log('📱 Mobile - Login error message:', error.message)
+    console.error('\n========== ❌ DRIVER LOGIN ERROR ==========')
+    console.error('🚨 Error type:', error.constructor.name)
+    console.error('💬 Error message:', error.message)
+    
+    if (error.response) {
+      // Server responded with error
+      console.error('📊 Response status:', error.response.status)
+      console.error('📋 Response headers:', JSON.stringify(error.response.headers, null, 2))
+      console.error('💬 Response data:', JSON.stringify(error.response.data, null, 2))
+    } else if (error.request) {
+      // Request was made but no response
+      console.error('📡 No response received')
+      console.error('🔌 Request details:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        timeout: error.config?.timeout
+      })
+      console.error('🌐 Network error - možná server is down or unreachable')
+    } else {
+      // Something else happened
+      console.error('⚠️ Unexpected error:', error.message)
+    }
+    
+    console.error('📚 Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2))
+    console.error('==========================================\n')
     throw error
   }
 }

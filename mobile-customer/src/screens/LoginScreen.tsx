@@ -23,7 +23,7 @@ import {
 } from '../redux/slices/authSlice'
 import { authService } from '../services/authService'
 import type { RootState } from '../redux/store'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { COLORS, SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
 
 const { width, height } = Dimensions.get('window')
 
@@ -73,15 +73,9 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     dispatch(loginStart())
     try {
-      // Logout first to clear old token/user data
       await authService.logout()
-      console.log('[LoginScreen] Logged out, cleared old token')
-
-      // Pass identifier (email or phone) to login
       const response = await authService.login(loginIdentifier, loginPassword)
-      console.log('[LoginScreen] Login success, dispatching loginSuccess')
       dispatch(loginSuccess({ token: response.token, user: response.user }))
-      console.log('[LoginScreen] Redux state updated with new token')
     } catch (err: any) {
       const errorMessage = err.message || 'Đăng nhập thất bại'
       dispatch(loginFailure(errorMessage))

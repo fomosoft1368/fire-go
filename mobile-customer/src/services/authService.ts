@@ -28,9 +28,17 @@ export const authService = {
   // Login with identifier (email or phone) and password
   async login(identifier: string, password: string): Promise<LoginResponse> {
     try {
-      console.log('[Auth] Login attempt:', { identifier, apiUrl: API_BASE_URL })
+      const apiUrl = `${API_BASE_URL}/customers/login`
+      console.log('\n========== 🔐 LOGIN REQUEST START ==========')
+      console.log('📍 API URL:', apiUrl)
+      console.log('🌐 BASE_URL:', API_BASE_URL)
+      console.log('👤 Identifier:', identifier)
+      console.log('🔑 Password length:', password.length)
+      console.log('📦 Request body:', JSON.stringify({ identifier, password: '***' }, null, 2))
+      console.log('📅 Timestamp:', new Date().toISOString())
+      console.log('==========================================\n')
       
-      const response = await fetch(`${API_BASE_URL}/customers/login`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -38,7 +46,10 @@ export const authService = {
         body: JSON.stringify({ identifier, password }),
       })
 
-      console.log('[Auth] Login response status:', response.status)
+      console.log('\n========== 📡 LOGIN RESPONSE RECEIVED ==========')
+      console.log('📊 Status:', response.status, response.statusText)
+      console.log('📋 Headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2))
+      console.log('==========================================\n')
 
       if (!response.ok) {
         let errorData: any
@@ -47,12 +58,19 @@ export const authService = {
         } catch {
           errorData = { message: `HTTP ${response.status}` }
         }
-        console.error('[Auth] Login error:', errorData)
+        console.error('\n========== ❌ LOGIN ERROR ==========')
+        console.error('🚫 Status:', response.status)
+        console.error('💬 Error data:', JSON.stringify(errorData, null, 2))
+        console.error('==========================================\n')
         throw new Error(errorData.message || 'Đăng nhập thất bại')
       }
 
       const data = await response.json()
-      console.log('[Auth] Login success:', { userId: data.user.id })
+      console.log('\n========== ✅ LOGIN SUCCESS ==========')
+      console.log('👤 User ID:', data.user.id)
+      console.log('📧 Email:', data.user.email)
+      console.log('🎫 Token length:', data.accessToken?.length)
+      console.log('==========================================\n')
 
       // Store tokens and user info
       await AsyncStorage.setItem(TOKEN_KEY, data.accessToken)
@@ -81,7 +99,21 @@ export const authService = {
         user,
       }
     } catch (error: any) {
-      console.error('[Auth] Login failed:', error.message || error)
+      console.error('\n========== ❌ LOGIN EXCEPTION ==========')
+      console.error('🚨 Error type:', error.constructor.name)
+      console.error('💬 Error message:', error.message)
+      
+      if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
+        console.error('🌐 Network request failed - cannot reach server')
+        console.error('📍 Check if:', {
+          'Server is running': 'pm2 status',
+          'Correct IP/URL': API_BASE_URL,
+          'Firewall allows connection': 'Windows Firewall + Cloud provider',
+        })
+      }
+      
+      console.error('📚 Full error stack:', error.stack)
+      console.error('==========================================\n')
       throw error
     }
   },

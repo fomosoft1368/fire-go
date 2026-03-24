@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useRoute } from '@react-navigation/native'
+import { useRoute, useFocusEffect } from '@react-navigation/native'
 import { MaterialIcons } from '@expo/vector-icons'
 import * as Location from 'expo-location'
 import { useSelector } from 'react-redux'
@@ -78,6 +78,8 @@ export default function FindingRideScreen({ navigation }: any) {
     premium: Math.round(totalFare * 1.6),
   })
   const [tripExpiredAt, setTripExpiredAt] = useState<Date | null>(null) // ⏱️ Track trip expiry time
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [forceUpdateCounter, setForceUpdateCounter] = useState(0) // 🔄 Force re-render for countdown updates (calls to setForceUpdateCounter trigger re-renders)
 
   // 🔍 DEBUG: Log vehicle prices whenever they change
   useEffect(() => {
@@ -90,7 +92,7 @@ export default function FindingRideScreen({ navigation }: any) {
     })
   }, [vehiclePrices, interProvincialRoute])
 
-  // ⏱️ Countdown timer to update remaining time display
+  // ⏱️ Countdown timer — update every 1 second for real-time display (survives app exit via AsyncStorage)
   useEffect(() => {
     if (!tripExpiredAt || !creatingNewTrip) return
 
@@ -98,11 +100,13 @@ export default function FindingRideScreen({ navigation }: any) {
       const remaining = Math.ceil((tripExpiredAt.getTime() - Date.now()) / 60000)
       if (remaining <= 0) {
         console.log('[FindingRideScreen] ⏰ Countdown reached 0 - auto-cancelling')
-        handleCancelTrip()
+        clearInterval(intervalId)
+        performTripCancellation(false)
+        return
       }
-      // Force re-render to update countdown text
-      setTripExpiredAt(new Date(tripExpiredAt.getTime()))
-    }, 30000) // Update every 30 seconds
+      // Force re-render without mutating tripExpiredAt (to avoid effect re-trigger)
+      setForceUpdateCounter(prev => prev + 1)
+    }, 1000) // Update every 1 second for smooth countdown
 
     return () => clearInterval(intervalId)
   }, [tripExpiredAt, creatingNewTrip])
@@ -137,6 +141,20 @@ export default function FindingRideScreen({ navigation }: any) {
       }
     }
   }, [])
+
+  // 🔄 Detect when screen refocuses after navigating away (e.g., user selects a different ride)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[FindingRideScreen] 🔍 Screen refocused - checking if modal needs reset')
+      
+      // If modal is open (creating new trip), verify it's still valid
+      if (creatingNewTrip && newTripId) {
+        console.log('[FindingRideScreen] Modal currently open with trip:', newTripId)
+        // Keep the modal open - user might just be browsing before confirming
+        return
+      }
+    }, [creatingNewTrip, newTripId])
+  )
 
   // Calculate fare independently if not provided by params
   useEffect(() => {
@@ -308,9 +326,57 @@ export default function FindingRideScreen({ navigation }: any) {
         
         // Check if trip expired
         if (now > expiryDate) {
-          console.log('[FindingRideScreen] ⏰ Pending trip expired - clearing storage')
+          console.log('[FindingRideScreen] ⏰ Pending trip expired - syncing with backend...')
+          
+          // 🔄 Try to cancel on backend to sync state
+          try {
+            const token = await AsyncStorage.getItem('authToken')
+            if (token) {
+              const response = await fetch(`${API_BASE_URL}/combined-trips/${pendingTripId}/cancel`, {
+                method: 'PATCH',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              })
+
+              if (response.ok) {
+                console.log('[FindingRideScreen] ✅ Backend trip cancelled successfully on restart')
+              } else {
+                const errorData = await response.json()
+                console.warn('[FindingRideScreen] ⚠️ Backend cancel failed:', errorData)
+                // Continue cleanup anyway - trip expired locally
+              }
+            }
+          } catch (apiError: any) {
+            console.warn('[FindingRideScreen] ⚠️ Error calling backend cancel:', apiError.message)
+            // Continue cleanup anyway - trip expired locally
+          }
+          
+          // 1️⃣ Clear AsyncStorage
           await AsyncStorage.removeItem('pendingTripId')
           await AsyncStorage.removeItem('pendingTripExpiry')
+          
+          // 2️⃣ Reset all state variables
+          setNewTripId(null)
+          setTripExpiredAt(null)
+          setCreatingNewTrip(false)
+          setForceUpdateCounter(0)
+          closeVehicleModal()
+          
+          // 3️⃣ Stop any polling if running
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          
+          // 4️⃣ Show alert to user (delay slightly to ensure state is settled)
+          setTimeout(() => {
+            Alert.alert(
+              'Chuyến đi hết hạn',
+              'Chuyến đi của bạn đã hết hạn 15 phút. Vui lòng tạo chuyến mới.',
+              [{ text: 'OK', onPress: () => console.log('[FindingRideScreen] User dismissed expired trip alert') }]
+            )
+          }, 100)
           return
         }
         
@@ -380,19 +446,89 @@ export default function FindingRideScreen({ navigation }: any) {
           }
           setCreatingNewTrip(false)
           setNewTripId(null)
+          setTripExpiredAt(null)
           closeVehicleModal()
           
-          // Show message if cancelled by system (timeout)
+          // Trip timed out by system (auto-cancel) — no manual confirm required
           if ((tripData as any).cancellationBy === 'system') {
-            Alert.alert(
-              'Hết thời gian chờ',
-              'Không tìm thấy tài xế sau 15 phút. Vui lòng thử lại.',
-              [{ text: 'OK' }]
-            )
+            console.log('[FindingRideScreen] ⏰ Trip timed out by system, auto-cancel completed')
+          }
+        } else if (tripData.status !== 'pending') {
+          // 🔍 Trip status is something unexpected (not pending/accepted/cancelled)
+          console.log('[FindingRideScreen] ⚠️ Unexpected trip status:', tripData.status, '- stopping scan')
+          
+          // Clear AsyncStorage
+          await AsyncStorage.removeItem('pendingTripId')
+          await AsyncStorage.removeItem('pendingTripExpiry')
+          
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          
+          setCreatingNewTrip(false)
+          setNewTripId(null)
+          setTripExpiredAt(null)
+          closeVehicleModal()
+        }
+      } catch (error: any) {
+        console.error('[FindingRideScreen] ❌ Error polling trip status:', error)
+        
+        // 🔍 Check if trip no longer exists (404, deleted, etc.)
+        const errorMessage = (error?.message || error?.response?.data?.message || '').toLowerCase()
+        const errorStatus = error?.response?.status
+        
+        const isNotFound = 
+          errorStatus === 404 || 
+          errorMessage.includes('not found') || 
+          errorMessage.includes('combined trip not found') ||
+          errorMessage.includes('trip not found')
+        
+        const isExpired = 
+          errorMessage.includes('expired') || 
+          errorMessage.includes('timeout')
+        
+        console.log('[FindingRideScreen] 🔍 Error detection:', { errorStatus, errorMessage, isNotFound, isExpired })
+        
+        if (isNotFound || isExpired) {
+          console.log('[FindingRideScreen] 🚫 Trip no longer exists or expired - stopping scan')
+          
+          // Clear AsyncStorage
+          await AsyncStorage.removeItem('pendingTripId')
+          await AsyncStorage.removeItem('pendingTripExpiry')
+          
+          // Stop polling
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+            console.log('[FindingRideScreen] ✅ Polling stopped')
+          }
+          
+          // Reset modal state
+          if (isMountedRef.current) {
+            console.log('[FindingRideScreen] 🔄 Resetting modal state...')
+            setCreatingNewTrip(false)
+            setNewTripId(null)
+            setTripExpiredAt(null)
+            closeVehicleModal()
+            
+            // Alert user (with small delay to ensure state is settled)
+            setTimeout(() => {
+              if (isMountedRef.current) {
+                console.log('[FindingRideScreen] 📢 Showing alert to user')
+                Alert.alert(
+                  'Chuyến đi không tồn tại',
+                  isExpired 
+                    ? 'Chuyến đi của bạn đã hết hạn.' 
+                    : 'Chuyến đi đã bị xóa hoặc không còn khả dụng.',
+                  [{ text: 'OK' }]
+                )
+              }
+            }, 100)
+          } else {
+            console.log('[FindingRideScreen] ⚠️ Component unmounted, skipping state reset')
           }
         }
-      } catch (error) {
-        console.error('[FindingRideScreen] ❌ Error polling trip status:', error)
       }
     }, 1000) // Poll every 1 second
   }
@@ -512,6 +648,9 @@ export default function FindingRideScreen({ navigation }: any) {
       useNativeDriver: true,
     }).start(() => {
       setShowVehicleModal(false)
+      // 🔄 Reset to default vehicle type when closing modal
+      setSelectedVehicleType('basic')
+      console.log('[FindingRideScreen] Modal closed - resetting vehicle selection to basic')
     })
   }
 
@@ -648,6 +787,71 @@ export default function FindingRideScreen({ navigation }: any) {
     }
   }
 
+  const performTripCancellation = async (showAlert: boolean = true) => {
+    console.log('[FindingRideScreen] 🚫 performTripCancellation', {
+      tripId: newTripId,
+      showAlert,
+      creatingNewTrip,
+    })
+
+    if (!creatingNewTrip) {
+      console.warn('[FindingRideScreen] ⚠️ Cancellation called but creatingNewTrip is false')
+      return
+    }
+
+    if (!newTripId) {
+      console.warn('[FindingRideScreen] ⚠️ No trip ID to cancel')
+      if (showAlert) Alert.alert('Lỗi', 'Không tìm thấy chuyến đi để hủy')
+      return
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('authToken')
+      if (!token) {
+        console.error('[FindingRideScreen] ❌ No auth token found')
+        if (showAlert) Alert.alert('Lỗi', 'Vui lòng đăng nhập lại')
+        return
+      }
+
+      const response = await fetch(`${API_BASE_URL}/combined-trips/${newTripId}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('[FindingRideScreen] ❌ Cancel failed:', errorData)
+        if (showAlert) Alert.alert('Lỗi', errorData.message || 'Không thể hủy chuyến đi')
+        return
+      }
+
+      // Success: cleanup state + storage + intervals
+      await AsyncStorage.removeItem('pendingTripId')
+      await AsyncStorage.removeItem('pendingTripExpiry')
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+
+      setCreatingNewTrip(false)
+      setNewTripId(null)
+      setTripExpiredAt(null)
+      closeVehicleModal()
+
+      if (showAlert) {
+        Alert.alert('Đã hủy', 'Chuyến đi đã được hủy thành công')
+      }
+
+    } catch (error: any) {
+      console.error('[FindingRideScreen] ❌ Error cancelling trip:', error)
+      if (showAlert) {
+        Alert.alert('Lỗi', 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.')
+      }
+    }
+  }
+
   const handleCancelTrip = async () => {
     console.log('[FindingRideScreen] 🚫 Cancel trip requested, tripId:', newTripId)
 
@@ -666,56 +870,7 @@ export default function FindingRideScreen({ navigation }: any) {
           text: 'Hủy chuyến',
           style: 'destructive',
           onPress: async () => {
-            try {
-              console.log('[FindingRideScreen] User confirmed cancellation')
-
-              const token = await AsyncStorage.getItem('authToken')
-              if (!token) {
-                console.error('[FindingRideScreen] ❌ No auth token found')
-                Alert.alert('Lỗi', 'Vui lòng đăng nhập lại')
-                return
-              }
-
-              console.log('[FindingRideScreen] Calling cancel API:', `${API_BASE_URL}/combined-trips/${newTripId}/cancel`)
-
-              const response = await fetch(`${API_BASE_URL}/combined-trips/${newTripId}/cancel`, {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                },
-              })
-
-              console.log('[FindingRideScreen] Cancel response status:', response.status)
-
-              if (response.ok) {
-                console.log('[FindingRideScreen] ✅ Trip cancelled successfully')
-
-                // ✅ Clear AsyncStorage
-                await AsyncStorage.removeItem('pendingTripId')
-                await AsyncStorage.removeItem('pendingTripExpiry')
-                console.log('[FindingRideScreen] 🗑️ Cleared pending trip from AsyncStorage')
-
-                // Clear polling interval
-                if (pollIntervalRef.current) {
-                  clearInterval(pollIntervalRef.current)
-                  pollIntervalRef.current = null
-                  console.log('[FindingRideScreen] Polling stopped')
-                }
-
-                setCreatingNewTrip(false)
-                setNewTripId(null)
-                setTripExpiredAt(null)
-                closeVehicleModal()
-                Alert.alert('Đã hủy', 'Chuyến đi đã được hủy thành công')
-              } else {
-                const errorData = await response.json()
-                console.error('[FindingRideScreen] ❌ Cancel failed:', errorData)
-                Alert.alert('Lỗi', errorData.message || 'Không thể hủy chuyến đi')
-              }
-            } catch (error: any) {
-              console.error('[FindingRideScreen] ❌ Error cancelling trip:', error)
-              Alert.alert('Lỗi', 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.')
-            }
+            await performTripCancellation(true)
           },
         },
       ]
@@ -730,6 +885,16 @@ export default function FindingRideScreen({ navigation }: any) {
       dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
       hasInterProvincialRoute: !!interProvincialRoute,
     })
+    
+    // 🔄 Reset modal state when user selects a different ride
+    if (creatingNewTrip) {
+      console.log('[FindingRideScreen] Closing modal and resetting state before navigating to new ride')
+      setCreatingNewTrip(false)
+      setNewTripId(null)
+      setTripExpiredAt(null)
+      closeVehicleModal()
+    }
+    
     navigation.navigate('RideDetailRequest', {
       combinedTripId: trip._id,
       ride: trip,

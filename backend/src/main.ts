@@ -52,6 +52,7 @@ async function bootstrap() {
     process.env.CORS_LOCAL_NETWORK_1,
     process.env.CORS_LOCAL_NETWORK_2,
     process.env.CORS_ANDROID_EMULATOR,
+    process.env.CORS_WEB_ADMIN_SERVER,
   ].filter(Boolean); // Remove undefined values
 
   app.enableCors({

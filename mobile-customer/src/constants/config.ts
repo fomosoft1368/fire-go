@@ -41,7 +41,7 @@ export const FONT_SIZES = {
 // - iOS Simulator: use 127.0.0.1 or localhost
 // - Physical Device: use your machine's IP (192.168.x.x)
 // Set REACT_APP_API_URL in .env file
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://107.150.62.252/api'
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.firego.vn/api'
 
 // API timeout in milliseconds (30 seconds for physical devices)
 export const API_TIMEOUT = 30000

@@ -34,6 +34,7 @@
     },
     "android": {
       "package": "com.firego.driver",
+      
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -52,7 +53,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "bdea14d4-b412-4138-b679-ca769138e1ec"
+        "projectId": "befe6cf1-a80d-4ba6-884b-4b0ab74eff44"
       }
     }
   }
