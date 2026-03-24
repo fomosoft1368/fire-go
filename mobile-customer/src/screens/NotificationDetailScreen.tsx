@@ -30,7 +30,7 @@ const NotificationDetailScreen = () => {
   const route = useRoute()
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
-  
+
   const { notification, onDelete } = route.params as RouteParams
   const [deleting, setDeleting] = useState(false)
 
@@ -69,7 +69,7 @@ const NotificationDetailScreen = () => {
     Alert.alert('Xóa thông báo', 'Bạn có chắc chắn muốn xóa thông báo này?', [
       {
         text: 'Hủy',
-        onPress: () => {},
+        onPress: () => { },
         style: 'cancel',
       },
       {
@@ -129,14 +129,14 @@ const NotificationDetailScreen = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header Gradient */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.headerButton}
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thông báo</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={handleShare}
           style={styles.headerButton}
         >
@@ -144,23 +144,23 @@ const NotificationDetailScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         {/* Notification Icon Card */}
         <View style={[styles.iconCard, { backgroundColor: getNotificationColor() + '15' }]}>
-          <View 
+          <View
             style={[
-              styles.iconContainer, 
+              styles.iconContainer,
               { backgroundColor: getNotificationColor() }
             ]}
           >
-            <MaterialIcons 
-              name={getNotificationIcon() as any} 
-              size={40} 
-              color="#fff" 
+            <MaterialIcons
+              name={getNotificationIcon() as any}
+              size={40}
+              color="#fff"
             />
           </View>
         </View>
@@ -230,13 +230,13 @@ const NotificationDetailScreen = () => {
                         },
                       ]}
                     >
-                      <Ionicons 
+                      <Ionicons
                         name={
                           channel.toLowerCase() === 'push'
                             ? 'notifications'
                             : channel.toLowerCase() === 'email'
-                            ? 'mail'
-                            : 'chat-bubble'
+                              ? 'mail'
+                              : 'chat-bubble'
                         }
                         size={14}
                         color={getNotificationColor()}
@@ -260,7 +260,7 @@ const NotificationDetailScreen = () => {
               onPress={() => {
                 const url = notification.actionUrl
                 if (url?.startsWith('http')) {
-                  Linking.openURL(url).catch(() => 
+                  Linking.openURL(url).catch(() =>
                     Alert.alert('Lỗi', 'Không thể mở liên kết')
                   )
                 } else {

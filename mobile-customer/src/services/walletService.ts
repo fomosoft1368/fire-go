@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-
-const API_BASE_URL = 'http://192.168.1.16:3000/api'
+import { API_BASE_URL } from '../constants'
 
 export interface Transaction {
   _id: string
@@ -144,7 +143,7 @@ export const walletService = {
         const errorText = await response.text()
         console.error('[Wallet] ❌ HTTP Error:', response.status)
         console.error('[Wallet] ❌ Error body:', errorText)
-        
+
         try {
           const error = JSON.parse(errorText)
           throw new Error(error.message || `HTTP ${response.status}`)
@@ -196,7 +195,7 @@ export const walletService = {
         const errorText = await response.text()
         console.error('[Wallet] ❌ HTTP Error:', response.status)
         console.error('[Wallet] ❌ Error body:', errorText)
-        
+
         try {
           const error = JSON.parse(errorText)
           throw new Error(error.message || `HTTP ${response.status}`)
@@ -416,7 +415,7 @@ export const walletService = {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.message || 'Không thể hủy yêu cầu rút tiền')

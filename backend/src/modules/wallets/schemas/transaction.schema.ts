@@ -58,7 +58,7 @@ export class Transaction {
   userType: UserType;
 
   // User references
-  @Prop({ type: Types.ObjectId, ref: 'User' })
+  @Prop({ type: Types.ObjectId })
   userId?: Types.ObjectId
 
   @Prop({ type: Types.ObjectId, ref: 'Customer' })

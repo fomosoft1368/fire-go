@@ -958,7 +958,7 @@ export class WalletsService {
       filter.type = type.toUpperCase()
     }
 
-    return this.transactionModel
+    const transactions = await this.transactionModel
       .find(filter)
       .populate('customerId', 'firstName lastName email phone')
       .populate('driverId', 'firstName lastName email phone')
@@ -966,11 +966,31 @@ export class WalletsService {
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
+
+    // Dynamically populate userId based on userType
+    for (const transaction of transactions) {
+      if (transaction.userId && transaction.userType) {
+        const modelName = transaction.userType === 'customer' ? 'Customer' : 'Driver'
+        const populated = await this.transactionModel
+          .findById(transaction._id)
+          .populate({
+            path: 'userId',
+            model: modelName,
+            select: 'firstName lastName email phone'
+          })
+          .lean()
+        if (populated?.userId) {
+          transaction.userId = populated.userId
+        }
+      }
+    }
+
+    return transactions
   }
 
   async getAllTransactions(limit: number = 100): Promise<TransactionDocument[]> {
     // Get all transactions in processing states (pending, processing, transferring, success, failed)
-    return this.transactionModel
+    const transactions = await this.transactionModel
       .find({
         status: {
           $in: [
@@ -988,6 +1008,26 @@ export class WalletsService {
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean()
+
+    // Dynamically populate userId based on userType
+    for (const transaction of transactions) {
+      if (transaction.userId && transaction.userType) {
+        const modelName = transaction.userType === 'customer' ? 'Customer' : 'Driver'
+        const populated = await this.transactionModel
+          .findById(transaction._id)
+          .populate({
+            path: 'userId',
+            model: modelName,
+            select: 'firstName lastName email phone'
+          })
+          .lean()
+        if (populated?.userId) {
+          transaction.userId = populated.userId
+        }
+      }
+    }
+
+    return transactions
   }
 
   generateEMVQRCode(accountNo: string, amount: number, description: string): { qrData: string } {

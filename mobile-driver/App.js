@@ -59,12 +59,12 @@ const Tab = createBottomTabNavigator()
 
 const HomeTabStackNavigator = () => {
   return (
-    <Stack.Navigator 
+    <Stack.Navigator
       screenOptions={{ headerShown: false }}
       navigationOptions={{ tabBarVisible: false }}
     >
-      <Stack.Screen 
-        name="HomeScreenMain" 
+      <Stack.Screen
+        name="HomeScreenMain"
         component={HomeScreen}
         options={{
           tabBarVisible: false,
@@ -73,7 +73,7 @@ const HomeTabStackNavigator = () => {
       <Stack.Screen
         name="MapScreen"
         component={MapScreen}
-        options={{ 
+        options={{
           animationEnabled: true,
           tabBarVisible: false,
         }}
@@ -104,7 +104,7 @@ const MainNavigator = () => (
       tabBarActiveTintColor: COLORS.primary,
       tabBarInactiveTintColor: '#65686C',
       tabBarStyle: {
-      backgroundColor: '#fff',
+        backgroundColor: '#fff',
       },
       tabBarLabelStyle: {
         fontSize: 11,
@@ -295,20 +295,20 @@ const RootNavigator = () => {
         const token = await AsyncStorage.getItem('token')
         console.log('[App] Token exists:', !!token)
         console.log('[App] Token value:', token ? `${token.substring(0, 30)}...` : 'null')
-        
+
         if (token) {
           // Get user profile using token
           const authService = require('./src/services/authService')
           try {
-console.log('[App] Fetching user profile with token...')
+            console.log('[App] Fetching user profile with token...')
             const user = await authService.getCurrentUser()
             console.log('[App] User restored successfully:', user ? `${user.email || user.phone}` : 'null')
-            
+
             if (user) {
               // Restore auth state
               console.log('[App] Dispatching loginSuccess to restore session')
               dispatch(loginSuccess({ token, user }))
-              
+
               // Wait a bit for Redux to update, then set driver online
               // Use setTimeout to ensure token is available in interceptor
               setTimeout(async () => {
@@ -361,14 +361,14 @@ console.log('[App] Fetching user profile with token...')
 
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       console.log('[App] AppState changed to:', nextAppState)
-      
+
       // Check if token still exists before making API calls
       const token = await AsyncStorage.getItem('token')
       if (!token) {
         console.log('[App] ⚠️ Token not found, skipping AppState API call')
         return
       }
-      
+
       if (nextAppState === 'active') {
         // App came to foreground - set driver online
         console.log('[App] App is now active, setting driver online...')
@@ -400,7 +400,7 @@ console.log('[App] Fetching user profile with token...')
           console.log('[App] ⚠️ Token not found, skipping heartbeat')
           return
         }
-        
+
         await driverService.sendHeartbeat()
         console.log('[App] 💓 Heartbeat sent')
       } catch (error) {
@@ -412,17 +412,17 @@ console.log('[App] Fetching user profile with token...')
     return () => {
       subscription.remove()
       clearInterval(heartbeatInterval)
-      
+
       // Important: Set driver offline when app is closed/killed
       // But only if token still exists (user might have logged out)
       console.log('[App] App is unmounting, setting driver offline...')
-      
+
       AsyncStorage.getItem('token').then((token) => {
         if (!token) {
           console.log('[App] ✅ Token already cleared, skipping offline request')
           return
         }
-        
+
         driverService.setOnlineStatus(false).catch((error) => {
           console.error('[App] ❌ Failed to set offline on unmount:', error.message)
         })
@@ -442,9 +442,8 @@ console.log('[App] Fetching user profile with token...')
     const pollPendingRequests = async () => {
       console.log('🔥 POLLING START - Code version: 3.0 (combined + regular rides)')
       console.log('👤 User from Redux:', user?.id || 'NULL')
-      
+
       try {
-        const API_URL = 'http://192.168.1.16:3000/api'
         const token = await AsyncStorage.getItem('token')
         if (!token) {
           console.warn('[App] ⚠️ No auth token, skipping poll')
@@ -456,8 +455,8 @@ console.log('[App] Fetching user profile with token...')
         // ============================================================
         try {
           console.log('[App] 🔄 Polling regular rides assignment requests...')
-          const rideResponse = await fetch(`${API_URL}/rides/assignment-requests/pending`, {
-            headers: { 
+          const rideResponse = await fetch(`${API_BASE_URL}/rides/assignment-requests/pending`, {
+            headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             }
@@ -498,21 +497,21 @@ console.log('[App] Fetching user profile with token...')
 
           try {
             const driverId = user?.id
-            const endpoint = driverId 
-              ? `${API_URL}/combined-trips/${trip._id}/requests?driverId=${driverId}`
-              : `${API_URL}/combined-trips/${trip._id}/requests`
-            
+            const endpoint = driverId
+              ? `${API_BASE_URL}/combined-trips/${trip._id}/requests?driverId=${driverId}`
+              : `${API_BASE_URL}/combined-trips/${trip._id}/requests`
+
             console.log('[App] 🔗 Polling combined trip endpoint:', endpoint)
-            
+
             const response = await fetch(endpoint, {
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
               }
             })
 
             console.log('[App] 📡 Response status:', response.status)
-            
+
             if (!response.ok) {
               console.warn('[App] ⚠️ Response not OK, skipping...')
               continue
@@ -546,8 +545,8 @@ console.log('[App] Fetching user profile with token...')
         // ============================================================
         try {
           console.log('[App] 🔄 Polling delivery assignment requests...')
-          const deliveryResponse = await fetch(`${API_URL}/deliveries/assignment-requests/pending`, {
-            headers: { 
+          const deliveryResponse = await fetch(`${API_BASE_URL}/deliveries/assignment-requests/pending`, {
+            headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             }
@@ -658,7 +657,7 @@ export default function App() {
   const [timeoutSeconds, setTimeoutSeconds] = useState(45) // ✅ Dynamic timeout from backend (default 45s)
   const navigationRef = useRef(null)
   const lastRequestIdRef = useRef(null)  // ✅ Track last request ID to avoid reset countdown
-  
+
   // 🔥 NEW: Request queue to prevent modal override
   const [requestQueue, setRequestQueue] = useState([])
   const requestQueueRef = useRef([])
@@ -667,12 +666,12 @@ export default function App() {
   // ✅ Setup assignment request polling with store subscription
   useEffect(() => {
     let unsubscribe
-    
+
     const startPolling = () => {
       const state = store.getState()
       const user = state.auth.user
       const driverId = user?._id || user?.id
-      
+
       if (!driverId) {
         console.log('[App] ⏭️ Skip polling - no driverId yet')
         return
@@ -685,17 +684,17 @@ export default function App() {
         console.log('[App] 📦 Request data:', request)
         console.log('[App] 📦 Request rideId data:', request.rideId)
         console.log('[App] 📦 Request deliveryId data:', request.deliveryId)
-        
+
         // ✅ Check if this is a NEW request (different from last one)
         const isNewRequest = lastRequestIdRef.current !== request._id
         lastRequestIdRef.current = request._id
 
         // 🔥 Check if rideId is a POPULATED OBJECT with distance/duration
-        const rideHasFullData = request.rideId && typeof request.rideId === 'object' && 
+        const rideHasFullData = request.rideId && typeof request.rideId === 'object' &&
           request.rideId.distance !== undefined && request.rideId.duration !== undefined
 
         // 🔥 Check if deliveryId is a POPULATED OBJECT with distance/duration
-        const deliveryHasFullData = request.deliveryId && typeof request.deliveryId === 'object' && 
+        const deliveryHasFullData = request.deliveryId && typeof request.deliveryId === 'object' &&
           request.deliveryId.distance !== undefined && request.deliveryId.duration !== undefined
 
         console.log('[App] 🔍 rideHasFullData:', rideHasFullData, 'rideId type:', typeof request.rideId)
@@ -884,20 +883,20 @@ export default function App() {
 
         let endpoint = ''
         if (dataType === 'combined_trip') {
-          endpoint = `http://192.168.1.16:3000/api/combined-trips/${dataId}`
+          endpoint = `${API_BASE_URL}/combined-trips/${dataId}`
           console.log('[App] 📡 Fetching full combined trip data for:', dataId)
         } else if (dataType === 'ride') {
-          endpoint = `http://192.168.1.16:3000/api/rides/${dataId}`
+          endpoint = `${API_BASE_URL}/rides/${dataId}`
           console.log('[App] 📡 Fetching full ride data for:', dataId)
         } else if (dataType === 'delivery') {
-          endpoint = `http://192.168.1.16:3000/api/deliveries/${dataId}`
+          endpoint = `${API_BASE_URL}/deliveries/${dataId}`
           console.log('[App] 📡 Fetching full delivery data for:', dataId)
         }
 
         console.log('[App] 🔗 Fetch endpoint:', endpoint)
 
         const response = await fetch(endpoint, {
-          headers: { 
+          headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
@@ -914,7 +913,7 @@ export default function App() {
 
         const data = await response.json()
         console.log('[App] ✅ Data fetched successfully')
-        
+
         // Extract relevant fields based on type
         let pickupAddress = ''
         let dropoffAddress = ''
@@ -985,7 +984,7 @@ export default function App() {
             console.warn('[App] ⚠️ Previous request state is null, cannot update')
             return prev
           }
-          
+
           // ⭐ CRITICAL: For combined trips, preserve original request.fare (customer's price)
           // DO NOT overwrite with totalFare from trip (driver's initial price)
           const updatedData = {
@@ -1002,7 +1001,7 @@ export default function App() {
             pickupCoordinates: prev.pickupCoordinates || data.pickupLocation?.coordinates || data.pickupCoordinates,
             dropoffCoordinates: prev.dropoffCoordinates || data.deliveryLocation?.coordinates || data.deliveryCoordinates || data.dropoffLocation?.coordinates || data.dropoffCoordinates,
           }
-          
+
           // ONLY update fare for regular rides/delivery, NOT for combined trips
           if (dataType !== 'combined_trip') {
             updatedData.fare = fare
@@ -1010,7 +1009,7 @@ export default function App() {
           } else {
             console.log('[App] ⚠️ Preserved original request.fare for combined trip:', prev.fare)
           }
-          
+
           console.log('[App] 📦 Final updated request data:', {
             pickupAddress: updatedData.pickupAddress?.substring(0, 50),
             dropoffAddress: updatedData.dropoffAddress?.substring(0, 50),
@@ -1019,7 +1018,7 @@ export default function App() {
             duration: updatedData.duration,
             source: 'fetchFullRequestData'
           })
-          
+
           return updatedData
         })
 
@@ -1061,7 +1060,7 @@ export default function App() {
 
     const nextRequest = requestQueueRef.current.shift() // Remove first item
     setRequestQueue([...requestQueueRef.current]) // Update state
-    
+
     console.log('[App] 📬 Showing next request from queue:', {
       requestId: nextRequest._id,
       queueLength: requestQueueRef.current.length,
@@ -1071,7 +1070,7 @@ export default function App() {
     // Show modal with next request
     setAssignmentRequest(nextRequest)
     setShowAssignmentModal(true)
-    
+
     // Lock modal with next request ref
     currentRequestIdRef.current = nextRequest._id
 
@@ -1204,7 +1203,7 @@ export default function App() {
       const tripId = assignmentRequest.combinedTripId?._id || assignmentRequest.combinedTripId
       const fallbackRideId = assignmentRequest.rideId?._id || assignmentRequest.rideId
       const fallbackDeliveryId = assignmentRequest.deliveryId?._id || assignmentRequest.deliveryId
-      
+
       // 🔥 CRITICAL: Check trip status from backend BEFORE accepting
       console.log('[App] 🔍 Checking trip status before accept...', {
         type: requestType,
@@ -1224,7 +1223,7 @@ export default function App() {
 
       if (!statusCheck.valid) {
         console.error('[App] ⛔ Cannot accept: Trip status invalid:', statusCheck)
-        
+
         // 🔥 CRITICAL: Auto-reject the request to prevent it from showing again
         console.log('[App] 🗑️ Auto-rejecting invalid request to prevent re-showing...')
         try {
@@ -1238,7 +1237,7 @@ export default function App() {
         } catch (rejectError) {
           console.error('[App] ⚠️ Failed to auto-reject, but continuing...', rejectError)
         }
-        
+
         Alert.alert(
           'Không thể nhận cuốc',
           statusCheck.message || 'Chuyến đi không khả dụng. Vui lòng thử lại.',
@@ -1253,13 +1252,13 @@ export default function App() {
       }
 
       console.log('[App] ✅ Status valid, proceeding to accept:', statusCheck.status)
-      
+
       console.log('[App] ✅ Accepting assignment request:', {
         requestId: assignmentRequest._id,
         type: requestType,
         tripId: tripId
       })
-      
+
       const result = await assignmentRequestPollingService.acceptRequest(
         assignmentRequest._id,
         requestType,
@@ -1267,10 +1266,10 @@ export default function App() {
       )
 
       console.log('[App] ✅ Request accepted successfully:', result)
-      
+
       // ✅ Determine navigation ID BEFORE clearing state
       let navigationId = result?._id
-      
+
       if (requestType === 'delivery') {
         navigationId = navigationId || fallbackDeliveryId
       } else if (requestType === 'rideshare') {
@@ -1278,7 +1277,7 @@ export default function App() {
       } else {
         navigationId = navigationId || fallbackRideId
       }
-      
+
       // NOW close modal and reset state
       currentRequestIdRef.current = null
       setShowAssignmentModal(false)
@@ -1291,14 +1290,14 @@ export default function App() {
         console.error('[App] ❌ navigationRef not available')
         return
       }
-      
+
       if (requestType === 'delivery') {
         console.log('[App] 🚀 Navigating to ActiveDelivery with id:', navigationId)
         navigationRef.current.navigate('ActiveDelivery', { deliveryId: navigationId })
         Alert.alert('Thành công', 'Bạn đã nhận đơn giao hàng!')
       } else if (requestType === 'rideshare') {
         console.log('[App] 🚀 Navigating to ActiveRideScreen with combinedTripId:', navigationId)
-        navigationRef.current.navigate('ActiveRideScreen', { 
+        navigationRef.current.navigate('ActiveRideScreen', {
           combinedTripId: navigationId, // ✅ Chỉ truyền combinedTripId cho rideshare
           sourceType: 'combined_trip',
         })
@@ -1311,13 +1310,13 @@ export default function App() {
     } catch (error) {
       console.error('[App] ❌ Error accepting assignment:', error)
       console.error('[App] ❌ Error message:', error?.message)
-      
+
       // 🔥 CRITICAL: Auto-reject the request to prevent it from showing again
       console.log('[App] 🗑️ Auto-rejecting failed request to prevent re-showing...')
       try {
         const requestType = assignmentRequest?.type || 'ride'
         const tripId = assignmentRequest?.combinedTripId?._id || assignmentRequest?.combinedTripId
-        
+
         await assignmentRequestPollingService.rejectRequest(
           assignmentRequest._id,
           requestType,
@@ -1328,7 +1327,7 @@ export default function App() {
       } catch (rejectError) {
         console.error('[App] ⚠️ Failed to auto-reject after error, but continuing...', rejectError)
       }
-      
+
       // ✅ Close modal anyway on error
       currentRequestIdRef.current = null
       setShowAssignmentModal(false)
@@ -1361,7 +1360,7 @@ export default function App() {
     try {
       const requestType = assignmentRequest.type || 'ride'
       const tripId = assignmentRequest.combinedTripId?._id || assignmentRequest.combinedTripId
-      
+
       console.log('[App] ❌ Rejecting assignment request:', {
         requestId: assignmentRequest._id,
         type: requestType,
@@ -1369,14 +1368,14 @@ export default function App() {
         status: assignmentRequest.status,
         timestamp: new Date().toISOString(),
       })
-      
+
       await assignmentRequestPollingService.rejectRequest(
         assignmentRequest._id,
         requestType,
         tripId,
         'Driver rejected'
       )
-      
+
       console.log('[App] ✅ Request rejected successfully')
 
       // Close modal and reset state
@@ -1390,7 +1389,7 @@ export default function App() {
       console.error('[App] ❌ Error rejecting assignment:', error)
       console.error('[App] ❌ Error message:', error?.message)
       console.error('[App] ❌ Error stack:', error?.stack?.substring(0, 300))
-      
+
       // ✅ Close modal anyway on error
       currentRequestIdRef.current = null
       setShowAssignmentModal(false)
@@ -1405,7 +1404,7 @@ export default function App() {
     <Provider store={store}>
       <NavigationContainer ref={navigationRef}>
         <RootNavigator />
-        
+
         {/* Global Assignment Request Modal */}
         <AssignmentRequestModal
           visible={showAssignmentModal}
@@ -1414,7 +1413,7 @@ export default function App() {
           onReject={handleRejectAssignment}
           countdown={countdown}
           timeoutSeconds={timeoutSeconds}
-          driverTypes={store.getState().auth.user?.driverTypes|| ['rideshare']}
+          driverTypes={store.getState().auth.user?.driverTypes || ['rideshare']}
         />
       </NavigationContainer>
     </Provider>

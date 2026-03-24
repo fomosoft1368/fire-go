@@ -56,7 +56,9 @@ export class PricingService {
     // ✅ Tính giá RIÊNG cho TỪNG NGƯỜI
     dto.passengers.forEach((passenger, index) => {
       // BƯỚC 1: Tính raw_price cho NGƯỜI NÀY
-      const rawPrice = passenger.distance * vehicleConfig.pricePerKm + vehicleConfig.baseFee;
+      // ✨ SỬ DỤNG PROGRESSIVE PRICING (Tính cộng dồn theo từng khoảng)
+      const distancePrice = this.calculateProgressiveDistancePrice(passenger.distance, vehicleConfig);
+      const rawPrice = distancePrice + vehicleConfig.baseFee;
 
       // BƯỚC 2: Tính base_price
       // ✅ Dùng peakMultiplier đã lưu (1.0, 1.3, 1.5), KHÔNG check lại time
@@ -73,6 +75,7 @@ export class PricingService {
 
       console.log(`  [Passenger ${index + 1}]:`, {
         distance: passenger.distance + 'km',
+        distancePrice: distancePrice + 'đ', // ✨ Log progressive price
         isPeakTime: passenger.isPeakTime,
         peakMultiplier: actualMultiplier,
         rawPrice,
@@ -121,6 +124,106 @@ export class PricingService {
         discountRate: Math.round(discountRate * 100),
       },
     };
+  }
+
+  /**
+   * ✨ TÍNH GIÁ CỘNG DỒN THEO KHOẢNG CÁCH (Progressive Pricing)
+   * 
+   * Ví dụ: Đi 54km với config:
+   * - 0-10km: 12,000đ/km
+   * - 10-50km: 6,000đ/km  
+   * - 50-100km: 5,000đ/km
+   * 
+   * Tính toán:
+   * - 10km đầu: 10 × 12,000 = 120,000đ
+   * - 40km tiếp: 40 × 6,000 = 240,000đ
+   * - 4km cuối: 4 × 5,000 = 20,000đ
+   * → Tổng: 380,000đ
+   */
+  private calculateProgressiveDistancePrice(distance: number, vehicleConfig: any): number {
+    console.log('\n📏 [Progressive Distance Pricing - Backend]');
+    console.log('  Distance:', distance, 'km');
+    console.log('  Vehicle:', vehicleConfig.type, '-', vehicleConfig.name);
+    
+    // Kiểm tra có distanceRanges không
+    if (!vehicleConfig.distanceRanges || vehicleConfig.distanceRanges.length === 0) {
+      console.log('  ⚠️ No distance ranges configured');
+      const totalPrice = distance * vehicleConfig.pricePerKm;
+      console.log('  → Using default price:', vehicleConfig.pricePerKm, 'đ/km');
+      console.log('  → Total:', totalPrice, 'đ');
+      return totalPrice;
+    }
+
+    // Sắp xếp ranges theo minKm tăng dần
+    const sortedRanges = [...vehicleConfig.distanceRanges].sort((a, b) => a.minKm - b.minKm);
+    
+    console.log('  Available ranges:');
+    sortedRanges.forEach((range, idx) => {
+      const maxDisplay = range.maxKm === -1 ? '∞' : range.maxKm;
+      console.log(`    ${idx + 1}. ${range.minKm}-${maxDisplay}km: ${range.pricePerKm}đ/km`);
+    });
+
+    let totalPrice = 0;
+    let coveredDistance = 0; // Km đã tính
+    
+    console.log('\n  Progressive calculation:');
+
+    for (const range of sortedRanges) {
+      // Nếu đã đủ km rồi thì stop
+      if (coveredDistance >= distance) break;
+      
+      const rangeStart = range.minKm;
+      const rangeEnd = range.maxKm === -1 ? Infinity : range.maxKm;
+      
+      // Skip range nếu chưa đến
+      if (distance <= rangeStart) continue;
+      
+      // Tính km trong range này
+      const startKmInRange = Math.max(rangeStart, coveredDistance);
+      const endKmInRange = Math.min(rangeEnd, distance);
+      const distanceInRange = endKmInRange - startKmInRange;
+      
+      if (distanceInRange <= 0) continue;
+      
+      const priceForRange = distanceInRange * range.pricePerKm;
+      totalPrice += priceForRange;
+      coveredDistance += distanceInRange;
+      
+      const maxDisplay = range.maxKm === -1 ? '∞' : range.maxKm;
+      console.log(`    • ${rangeStart}-${maxDisplay}km: ${distanceInRange.toFixed(1)}km × ${range.pricePerKm}đ = ${priceForRange}đ`);
+    }
+    
+    console.log(`  ✅ Total distance price: ${totalPrice}đ (covered ${coveredDistance}km)`);
+    return totalPrice;
+  }
+
+  /**
+   * ✨ LẤY GIÁ MỖI KM DỰA TRÊN KHOẢNG CÁCH (DEPRECATED - giữ lại cho backward compatibility)
+   * Nếu có distanceRanges, tìm range phù hợp
+   * Nếu không có, dùng pricePerKm mặc định
+   */
+  private getPricePerKmForDistance(distance: number, vehicleConfig: any): number {
+    // Kiểm tra có distanceRanges không
+    if (!vehicleConfig.distanceRanges || vehicleConfig.distanceRanges.length === 0) {
+      // Không có ranges, dùng giá cố định
+      return vehicleConfig.pricePerKm;
+    }
+
+    // Tìm range phù hợp với distance
+    const matchingRange = vehicleConfig.distanceRanges.find((range: any) => {
+      const minKm = range.minKm || 0;
+      const maxKm = range.maxKm === -1 ? Infinity : range.maxKm; // -1 = vô hạn
+      return distance >= minKm && distance <= maxKm;
+    });
+
+    if (matchingRange) {
+      console.log(`  [Distance Range] ${distance}km → ${matchingRange.minKm}-${matchingRange.maxKm === -1 ? '∞' : matchingRange.maxKm}km: ${matchingRange.pricePerKm}đ/km`);
+      return matchingRange.pricePerKm;
+    }
+
+    // Không tìm thấy range phù hợp, dùng giá mặc định
+    console.warn(`  [Distance Range] No matching range for ${distance}km, using default: ${vehicleConfig.pricePerKm}đ/km`);
+    return vehicleConfig.pricePerKm;
   }
 
   /**
@@ -208,6 +311,7 @@ export class PricingService {
           baseFee: 15000,
           pricePerKm: 1500,
           minimumFare: 20000,
+          distanceRanges: [], // Empty by default, admin can add via UI
         },
         {
           type: 'sedan',
@@ -215,6 +319,7 @@ export class PricingService {
           baseFee: 20000,
           pricePerKm: 2000,
           minimumFare: 30000,
+          distanceRanges: [],
         },
         {
           type: 'suv',
@@ -222,6 +327,7 @@ export class PricingService {
           baseFee: 25000,
           pricePerKm: 2500,
           minimumFare: 40000,
+          distanceRanges: [],
         },
         {
           type: 'truck',
@@ -229,6 +335,7 @@ export class PricingService {
           baseFee: 30000,
           pricePerKm: 3000,
           minimumFare: 50000,
+          distanceRanges: [],
         },
       ],
       peakMultiplier: 1.2,
@@ -447,6 +554,217 @@ export class PricingService {
     };
   }
   // ============ END LÁI XE HỘ ============
+
+  // ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Route Methods ============
+  /**
+   * Tính khoảng cách giữa 2 điểm theo công thức Haversine (km)
+   */
+  private calculateHaversineDistance(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ): number {
+    const R = 6371; // Bán kính trái đất (km)
+    const dLat = this.toRadians(lat2 - lat1);
+    const dLng = this.toRadians(lng2 - lng1);
+    
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRadians(lat1)) *
+        Math.cos(this.toRadians(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    
+    return distance;
+  }
+
+  private toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
+  }
+
+  /**
+   * Kiểm tra xem điểm có nằm trong bán kính của location không
+   */
+  private isPointInRadius(
+    pointLat: number,
+    pointLng: number,
+    centerLat: number,
+    centerLng: number,
+    radiusKm: number,
+  ): boolean {
+    const distance = this.calculateHaversineDistance(
+      pointLat,
+      pointLng,
+      centerLat,
+      centerLng,
+    );
+    return distance <= radiusKm;
+  }
+
+  /**
+   * Tìm các chuyến đi liên tỉnh phù hợp với điểm đón và điểm đến
+   */
+  async findMatchingInterProvincialRoutes(
+    pickupLat: number,
+    pickupLng: number,
+    dropoffLat: number,
+    dropoffLng: number,
+    vehicleType: string,
+  ): Promise<any[]> {
+    const config = await this.getConfig();
+    const routes = config.interProvincialRoutes || [];
+
+    console.log('\n🚍 [Inter-Provincial] Finding matching routes:', {
+      pickup: { lat: pickupLat, lng: pickupLng },
+      dropoff: { lat: dropoffLat, lng: dropoffLng },
+      vehicleType,
+      totalRoutes: routes.length,
+    });
+
+    // Lọc routes phù hợp
+    const matchingRoutes = routes.filter((route: any) => {
+      // Kiểm tra route có active không
+      if (!route.isActive) {
+        console.log(`  ⏭️  Skip route ${route.name}: Inactive`);
+        return false;
+      }
+
+      // Kiểm tra vehicle type
+      if (route.vehicleType !== vehicleType) {
+        console.log(`  ⏭️  Skip route ${route.name}: Wrong vehicle type (need ${vehicleType}, got ${route.vehicleType})`);
+        return false;
+      }
+
+      // Kiểm tra pickup có trong vùng origin không
+      const pickupInOrigin = this.isPointInRadius(
+        pickupLat,
+        pickupLng,
+        route.origin.coordinates.lat,
+        route.origin.coordinates.lng,
+        route.origin.radius,
+      );
+
+      if (!pickupInOrigin) {
+        const distanceToOrigin = this.calculateHaversineDistance(
+          pickupLat,
+          pickupLng,
+          route.origin.coordinates.lat,
+          route.origin.coordinates.lng,
+        );
+        console.log(`  ⏭️  Skip route ${route.name}: Pickup too far from origin (${distanceToOrigin.toFixed(1)}km > ${route.origin.radius}km)`);
+        return false;
+      }
+
+      // Kiểm tra dropoff có trong vùng destination không
+      const dropoffInDestination = this.isPointInRadius(
+        dropoffLat,
+        dropoffLng,
+        route.destination.coordinates.lat,
+        route.destination.coordinates.lng,
+        route.destination.radius,
+      );
+
+      if (!dropoffInDestination) {
+        const distanceToDestination = this.calculateHaversineDistance(
+          dropoffLat,
+          dropoffLng,
+          route.destination.coordinates.lat,
+          route.destination.coordinates.lng,
+        );
+        console.log(`  ⏭️  Skip route ${route.name}: Dropoff too far from destination (${distanceToDestination.toFixed(1)}km > ${route.destination.radius}km)`);
+        return false;
+      }
+
+      console.log(`  ✅ Match found: ${route.name} (${route.fixedPrice.toLocaleString()}đ)`);
+      return true;
+    });
+
+    console.log(`\n🎯 [Inter-Provincial] Found ${matchingRoutes.length} matching routes\n`);
+    return matchingRoutes;
+  }
+
+  /**
+   * Tính giá cho chuyến đi liên tỉnh
+   * CHỈ áp dụng giảm giá ghép xe, KHÔNG áp dụng peak multiplier
+   */
+  async calculateInterProvincialPrice(
+    routeId: string,
+    totalPassengers: number,
+  ): Promise<{
+    routeInfo: any;
+    fixedPrice: number;
+    discountRate: number;
+    finalPrice: number;
+    pricePerPerson: number;
+  }> {
+    const config = await this.getConfig();
+    const route = config.interProvincialRoutes?.find((r: any) => r.id === routeId);
+
+    if (!route) {
+      throw new Error(`Inter-provincial route ${routeId} not found`);
+    }
+
+    console.log('\n💰 ============ TÍNH GIÁ LIÊN TỈNH ============');
+    console.log('  Route:', route.name);
+    console.log('  Giá cố định:', route.fixedPrice.toLocaleString(), 'đ');
+    console.log('  Số người ghép:', totalPassengers);
+    console.log('========================================\n');
+
+    // Tìm discount rate theo số người
+    const discountConfig = config.carpoolDiscounts.find(
+      (d) => d.passengers === totalPassengers,
+    );
+    const discountRate = discountConfig ? discountConfig.discount / 100 : 0;
+
+    console.log('📊 [BƯỚC 1] Giá cố định (fixed price):');
+    console.log('  Công thức: Giá route cố định (KHÔNG tính theo km)');
+    console.log('  → Fixed price:', route.fixedPrice.toLocaleString(), 'đ');
+
+    console.log('\n📊 [BƯỚC 2] Giảm giá ghép xe:');
+    console.log('  Số người:', totalPassengers);
+    console.log('  Giảm giá:', Math.round(discountRate * 100) + '%');
+    console.log('  Công thức:', route.fixedPrice.toLocaleString(), '× (1 -', discountRate + ')');
+
+    // Tính giá sau giảm
+    const finalPrice = Math.round(route.fixedPrice * (1 - discountRate));
+    console.log('  → Giá sau giảm:', finalPrice.toLocaleString(), 'đ');
+
+    // Tính giá trung bình mỗi người (để hiển thị)
+    const pricePerPerson = Math.round(finalPrice / totalPassengers);
+
+    console.log('\n🎯 ============ KẾT QUẢ CUỐI CÙNG ============');
+    console.log('  💵 TỔNG GIÁ:', finalPrice.toLocaleString(), 'đ');
+    console.log('  💵 TRUNG BÌNH MỖI NGƯỜI:', pricePerPerson.toLocaleString(), 'đ');
+    console.log('\n  Chi tiết:');
+    console.log('    • Giá cố định:', route.fixedPrice.toLocaleString(), 'đ');
+    if (discountRate > 0) {
+      console.log('    • Giảm giá ghép xe:', '-' + Math.round(discountRate * 100) + '%');
+    }
+    console.log('    • Giá cuối:', finalPrice.toLocaleString(), 'đ');
+    console.log('    • ⚠️  KHÔNG áp dụng giờ cao điểm');
+    console.log('    • ⚠️  KHÔNG tính theo km');
+    console.log('============================================\n');
+
+    return {
+      routeInfo: {
+        id: route.id,
+        name: route.name,
+        origin: route.origin,
+        destination: route.destination,
+        vehicleType: route.vehicleType,
+        estimatedDuration: route.estimatedDuration,
+      },
+      fixedPrice: route.fixedPrice,
+      discountRate: Math.round(discountRate * 100),
+      finalPrice,
+      pricePerPerson,
+    };
+  }
+  // ============ END CHUYẾN ĐI LIÊN TỈNH ============
 
   // ============ TOPUP DISCOUNT Methods ============
   async updateTopupDiscount(

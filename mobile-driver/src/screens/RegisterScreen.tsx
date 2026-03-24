@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
 import { loginStart, loginSuccess, loginFailure } from '../redux/slices/authSlice'
 import type { RootState } from '../redux/store'
+import { API_BASE_URL } from '../constants/config'
 
 const COLORS = {
   primary: '#FF6B35',
@@ -227,7 +228,6 @@ export default function RegisterScreen({ navigation }: any) {
       }
 
       // Call registration API
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.16:3000/api'
       console.log('🚀 Calling API:', `${API_BASE_URL}/drivers`)
       console.log('📤 Registration Data:', registrationData)
 
@@ -255,7 +255,7 @@ export default function RegisterScreen({ navigation }: any) {
       }
 
       setIsLoading(false)
-      
+
       Alert.alert(
         'Đăng ký thành công!',
         'Tài khoản của bạn đang chờ duyệt. Vui lòng chờ admin duyệt hồ sơ của bạn.\n\nBạn sẽ nhận được thông báo khi hồ sơ được duyệt.',
@@ -270,9 +270,9 @@ export default function RegisterScreen({ navigation }: any) {
       )
     } catch (err: any) {
       setIsLoading(false)
-      
+
       let errorMessage = 'Lỗi không xác định'
-      
+
       if (err.name === 'AbortError') {
         errorMessage = 'Kết nối quá chậm (timeout 30 giây). Vui lòng kiểm tra kết nối mạng và thử lại.'
       } else if (err instanceof TypeError) {
@@ -280,7 +280,7 @@ export default function RegisterScreen({ navigation }: any) {
       } else {
         errorMessage = err.message
       }
-      
+
       console.log('❌ Error:', errorMessage)
       Alert.alert('Lỗi đăng ký', errorMessage)
     }

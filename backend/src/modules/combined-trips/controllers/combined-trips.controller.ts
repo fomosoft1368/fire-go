@@ -18,6 +18,7 @@ import { CombinedTrip, CombinedTripStatus } from '../schemas/combined-trip.schem
 import { JwtAuthGuard } from '../../../modules/auth/guards/jwt-auth.guard';
 import { RideRequest, RequestStatus } from '../schemas/ride-request.schema';
 import { Driver } from '../../drivers/schemas/driver.schema';
+import { DriversService } from '../../drivers/drivers.service';
 import { Types } from 'mongoose';
 import { PricingConfig } from '../../pricing/pricing-config.schema';
 
@@ -30,6 +31,7 @@ export class CombinedTripsController {
     @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTrip>,
     @InjectModel(Driver.name) private driverModel: Model<Driver>,
     @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
+    private readonly driversService: DriversService,
   ) {}
 
   /**
@@ -121,9 +123,14 @@ export class CombinedTripsController {
       }
 
       // Create combined trip from customer
+      // ⏱️ Set 15-minute timeout for customer-created trips
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+      console.log('[CombinedTripsController] 🕐 Setting trip expiry:', expiresAt.toISOString());
+      
       const trip = await this.combinedTripsService.createCustomerCombinedTrip({
         ...requestDto,
         customerId: new Types.ObjectId(customerId),
+        expiresAt, // ✅ Add 15-minute timeout
       });
 
       // 🔧 REMOVED DUPLICATE LOG - already logged in service at line 495
@@ -180,11 +187,49 @@ export class CombinedTripsController {
         throw new BadRequestException('You are not authorized to cancel this trip');
       }
 
-      // Update trip status to cancelled
-      const updatedTrip = await this.combinedTripsService.update(tripId, {
-        status: CombinedTripStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancelledBy: 'customer',
+      console.log('🚫 [CancelTrip] Cancelling trip:', {
+        tripId,
+        customerId,
+        currentStatus: trip.status,
+        existingCancelledAt: trip.cancelledAt,
+      });
+
+      // ✅ CRITICAL: Use atomic update to prevent race conditions
+      // Only update if status is NOT already cancelled
+      const updatedTrip = await this.combinedTripModel.findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(tripId),
+          status: { $ne: CombinedTripStatus.CANCELLED }, // Only update if not already cancelled
+        },
+        {
+          $set: {
+            status: CombinedTripStatus.CANCELLED,
+            cancelledAt: new Date(),
+            cancellationBy: 'customer',
+          }
+        },
+        { new: true }
+      ).populate('customerId', 'firstName lastName phone')
+        .populate('driverId', 'firstName lastName phone vehicleModel vehiclePlate');
+
+      if (!updatedTrip) {
+        // Trip was already cancelled or doesn't exist
+        const existingTrip = await this.combinedTripModel.findById(tripId);
+        if (existingTrip?.status === CombinedTripStatus.CANCELLED) {
+          return {
+            success: true,
+            trip: existingTrip,
+            message: 'Chuyến đi đã được hủy trước đó',
+          };
+        }
+        throw new BadRequestException('Không thể hủy chuyến đi');
+      }
+
+      console.log('✅ [CancelTrip] Trip cancelled successfully:', {
+        tripId,
+        newStatus: updatedTrip?.status,
+        cancelledAt: updatedTrip?.cancelledAt,
+        cancellationBy: updatedTrip?.cancellationBy,
       });
 
       
@@ -821,6 +866,7 @@ export class CombinedTripsController {
       customerId: string;
       seats: number;
       fare: number;
+      baseFare?: number; // 🚍 NEW: Base fare (TRƯỚC discount)
       pickupAddress: string;
       dropoffAddress: string;
       pickupCoordinates: [number, number];
@@ -828,6 +874,7 @@ export class CombinedTripsController {
       distance: number;
       isPeakTime?: boolean;
       peakMultiplier?: number;
+      hasFixedPrice?: boolean;  // 🚍 NEW: Inter-provincial fixed price flag
     },
   ) {
     try {
@@ -837,6 +884,7 @@ export class CombinedTripsController {
       console.log('🆔 [createCombinedTripRequest] REQUEST ID:', uid);
       console.log('📍 Creating request for combined trip:', combinedTripId);
       console.log('👤 Customer ID:', body.customerId);
+      console.log('🚍 Has Fixed Price:', body.hasFixedPrice ? 'YES (Inter-provincial)' : 'NO (Distance-based)');
       console.log('═══════════════════════════════════════════════════════════');
 
       const combinedTripIdObj = new Types.ObjectId(combinedTripId);
@@ -876,6 +924,14 @@ export class CombinedTripsController {
       const driverIdToUse = combinedTrip.driverId;
       console.log('✅ [', uid, '] Trip has driverId:', driverIdToUse);
 
+      console.log('💰 [', uid, '] Pricing info:', {
+        fare: body.fare,
+        baseFare: body.baseFare,
+        hasFixedPrice: body.hasFixedPrice,
+        isPeakTime: body.isPeakTime,
+        peakMultiplier: body.peakMultiplier,
+      });
+
       // ✅ Check if customer already has active trip
       const activeCustomerTrip = await this.combinedTripsService.getCombinedTripsModel().findOne({
         customerId: customerIdObj,
@@ -913,7 +969,9 @@ export class CombinedTripsController {
         dropoffCoordinates: body.dropoffCoordinates,
         distance: body.distance,
         fare: body.fare,
+        baseFare: body.baseFare || body.fare, // 🚍 NEW: Base fare (fallback to fare if not provided)
         seats: body.seats,
+        hasFixedPrice: body.hasFixedPrice ?? false, // 🚍 NEW: Mark fixed price requests
         isPeakTime: body.isPeakTime ?? false, // ✅ Save peak time status
         peakMultiplier: body.peakMultiplier ?? 1.0, // ✅ Save multiplier (1.0, 1.3, 1.5)
         status: 'pending',
@@ -925,6 +983,8 @@ export class CombinedTripsController {
       console.log('✅ [', uid, '] RideRequest created in DB:', {
         requestId: newRequest._id,
         driverId: newRequest.driverId,
+        fare: newRequest.fare,
+        hasFixedPrice: newRequest.hasFixedPrice,
         status: newRequest.status,
         expiresAt: newRequest.expiresAt,
         expiresIn: '45 seconds',
@@ -1035,21 +1095,61 @@ export class CombinedTripsController {
         throw new BadRequestException('Trip not found');
       }
 
+      // ✅ CRITICAL: Check if trip is cancelled - do NOT accept
+      if (trip.status === CombinedTripStatus.CANCELLED) {
+        console.error('❌ [acceptRequest] Trip is CANCELLED - cannot accept');
+        throw new BadRequestException('Chuyến đi đã bị hủy');
+      }
+
      
       // Determine what to do based on request type
       if (request.createdBy === 'customer' && !trip.driverId) {
         // Case 1: Customer created new trip, driver accepting → Add driver to trip
        
         
-        // ✅ Check if driver already has an active trip
-        const activeDriverTrip = await this.combinedTripsService.getCombinedTripsModel().findOne({
-          driverId: request.driverId,
-          status: { $in: ['pending', 'accepted', 'in_progress'] },
-        });
-
-        if (activeDriverTrip) {
-          throw new BadRequestException('Tài xế đang có chuyến đi đang hoạt động.');
+        // ✅ Check if driver is busy with ANY service (rides, delivery, combined-trips, hourly-services)
+        const busyDriverIds = await this.driversService.getBusyDriverIds();
+        if (busyDriverIds.includes(request.driverId.toString())) {
+          throw new BadRequestException('Tài xế đang bận với một dịch vụ khác.');
         }
+
+        // ✅ CRITICAL: Check driver wallet balance BEFORE accepting request
+        // Calculate commission that will be deducted from driver wallet
+        const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+        const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80%
+        const platformCommission = Math.round((request.fare * (100 - driverShare)) / 100);
+        
+        // Get driver's current wallet balance
+        const driver = await this.driverModel.findById(request.driverId);
+        if (!driver) {
+          throw new BadRequestException('Tài xế không tồn tại');
+        }
+        
+        const driverWalletBalance = driver.walletBalance || 0;
+        
+        console.log('[acceptRequest] 💰 Wallet check (Case 1):', {
+          driverId: request.driverId.toString(),
+          fare: request.fare,
+          driverShare: `${driverShare}%`,
+          platformCommission,
+          driverWalletBalance,
+          isEnough: driverWalletBalance >= platformCommission,
+        });
+        
+        // ✅ CRITICAL: Prevent accepting if wallet balance is insufficient
+        if (driverWalletBalance < platformCommission) {
+          console.error('[acceptRequest] ❌ Insufficient wallet balance:', {
+            required: platformCommission,
+            available: driverWalletBalance,
+            shortage: platformCommission - driverWalletBalance,
+          });
+          
+          throw new BadRequestException(
+            `Số dư ví không đủ để nhận chuyến này. Cần ${platformCommission.toLocaleString()}đ, hiện có ${driverWalletBalance.toLocaleString()}đ. Vui lòng nạp thêm ${(platformCommission - driverWalletBalance).toLocaleString()}đ.`
+          );
+        }
+        
+        console.log('[acceptRequest] ✅ Wallet balance sufficient (Case 1), proceeding...');
 
         // Update request status
         await this.rideRequestModel.findByIdAndUpdate(
@@ -1067,20 +1167,67 @@ export class CombinedTripsController {
           throw new BadRequestException(`Không đủ ghế trống. Còn ${trip.availableSeats} ghế, yêu cầu ${seatsToDeduct} ghế`);
         }
 
-        // Add driver to trip AND deduct seats
-        const updatedTrip = await this.combinedTripsService.getCombinedTripsModel().findByIdAndUpdate(
-          combinedTripId,
+        // ✅ CRITICAL: Add driver to trip AND deduct seats - ONLY if not cancelled
+        const updatedTrip = await this.combinedTripsService.getCombinedTripsModel().findOneAndUpdate(
+          {
+            _id: new Types.ObjectId(combinedTripId),
+            status: { $ne: CombinedTripStatus.CANCELLED }, // ✅ Only update if not cancelled
+          },
           { 
-            status: CombinedTripStatus.ACCEPTED,
-            driverId: request.driverId,
+            $set: {
+              status: CombinedTripStatus.ACCEPTED,
+              driverId: request.driverId,
+            },
             $inc: { availableSeats: -seatsToDeduct }, // ✅ Trừ seats
           },
           { new: true },
         );
+        
+        if (!updatedTrip) {
+          throw new BadRequestException('Chuyến đi đã bị hủy hoặc không còn khả dụng');
+        }
 
       } else if (request.createdBy === 'customer' && trip.driverId) {
         // Case 2: Customer joining existing trip → Add customer to trip
         
+
+        // ✅ CRITICAL: Check driver wallet balance BEFORE accepting request
+        // Calculate commission that will be deducted from driver wallet
+        const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+        const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80%
+        const platformCommission = Math.round((request.fare * (100 - driverShare)) / 100);
+        
+        // Get driver's current wallet balance
+        const driver = await this.driverModel.findById(trip.driverId);
+        if (!driver) {
+          throw new BadRequestException('Tài xế không tồn tại');
+        }
+        
+        const driverWalletBalance = driver.walletBalance || 0;
+        
+        console.log('[acceptRequest] 💰 Wallet check:', {
+          driverId: trip.driverId.toString(),
+          fare: request.fare,
+          driverShare: `${driverShare}%`,
+          platformCommission,
+          driverWalletBalance,
+          isEnough: driverWalletBalance >= platformCommission,
+        });
+        
+        // ✅ CRITICAL: Prevent accepting if wallet balance is insufficient
+        if (driverWalletBalance < platformCommission) {
+          console.error('[acceptRequest] ❌ Insufficient wallet balance:', {
+            required: platformCommission,
+            available: driverWalletBalance,
+            shortage: platformCommission - driverWalletBalance,
+          });
+          
+          throw new BadRequestException(
+            `Số dư ví không đủ để nhận chuyến này. Cần ${platformCommission.toLocaleString()}đ, hiện có ${driverWalletBalance.toLocaleString()}đ. Vui lòng nạp thêm ${(platformCommission - driverWalletBalance).toLocaleString()}đ.`
+          );
+        }
+        
+        console.log('[acceptRequest] ✅ Wallet balance sufficient, proceeding with accept...');
 
         // Update request status
         await this.rideRequestModel.findByIdAndUpdate(
@@ -1104,11 +1251,19 @@ export class CombinedTripsController {
           throw new BadRequestException(`Không đủ ghế trống. Còn ${trip.availableSeats} ghế, yêu cầu ${seatsToDeduct} ghế`);
         }
         
-        const updatedTrip = await this.combinedTripsService.getCombinedTripsModel().findByIdAndUpdate(
-          combinedTripId,
+        // ✅ CRITICAL: Only update if not cancelled
+        const updatedTrip = await this.combinedTripsService.getCombinedTripsModel().findOneAndUpdate(
+          {
+            _id: new Types.ObjectId(combinedTripId),
+            status: { $ne: CombinedTripStatus.CANCELLED },
+          },
           { $inc: { availableSeats: -seatsToDeduct } },
-          { new: true }, // ✅ Return updated document
+          { new: true },
         );
+        
+        if (!updatedTrip) {
+          throw new BadRequestException('Chuyến đi đã bị hủy hoặc không còn khả dụng');
+        }
         
 
         // Sau khi thêm người ghép mới, cập nhật lại giá cho tất cả khách chưa hoàn thành
@@ -1120,6 +1275,41 @@ export class CombinedTripsController {
         // Other cases (driver-created trips, etc.)
        
         
+        // ✅ Check if driver is busy with ANY service
+        if (request.driverId) {
+          const busyDriverIds = await this.driversService.getBusyDriverIds();
+          if (busyDriverIds.includes(request.driverId.toString())) {
+            throw new BadRequestException('Tài xế đang bận với một dịch vụ khác.');
+          }
+        }
+        
+        // ✅ CRITICAL: Check driver wallet balance if driver is accepting
+        if (request.driverId) {
+          const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+          const driverShare = pricingConfigs?.[0]?.driverShare || 80;
+          const platformCommission = Math.round((request.fare * (100 - driverShare)) / 100);
+          
+          const driver = await this.driverModel.findById(request.driverId);
+          if (!driver) {
+            throw new BadRequestException('Tài xế không tồn tại');
+          }
+          
+          const driverWalletBalance = driver.walletBalance || 0;
+          
+          console.log('[acceptRequest] 💰 Wallet check (Other case):', {
+            driverId: request.driverId.toString(),
+            fare: request.fare,
+            platformCommission,
+            driverWalletBalance,
+          });
+          
+          if (driverWalletBalance < platformCommission) {
+            throw new BadRequestException(
+              `Số dư ví không đủ để nhận chuyến này. Cần ${platformCommission.toLocaleString()}đ, hiện có ${driverWalletBalance.toLocaleString()}đ.`
+            );
+          }
+        }
+        
         // Update request status
         await this.rideRequestModel.findByIdAndUpdate(
           requestId,
@@ -1127,14 +1317,19 @@ export class CombinedTripsController {
           { new: true },
         );
 
-        // ✅ CRITICAL FIX: Always update driverId when driver accepts
+        // ✅ CRITICAL FIX: Always update driverId when driver accepts - ONLY if not cancelled
         // This handles driver rotation case (driver 1 timeout → driver 2 accept)
         if (request.driverId) {
-          await this.combinedTripsService.getCombinedTripsModel().findByIdAndUpdate(
-            combinedTripId,
+          const tripUpdate = await this.combinedTripsService.getCombinedTripsModel().findOneAndUpdate(
+            {
+              _id: new Types.ObjectId(combinedTripId),
+              status: { $ne: CombinedTripStatus.CANCELLED },
+            },
             { 
-              status: CombinedTripStatus.ACCEPTED,
-              driverId: request.driverId, // ✅ Always update to new accepting driver
+              $set: {
+                status: CombinedTripStatus.ACCEPTED,
+                driverId: request.driverId, // ✅ Always update to new accepting driver
+              }
             },
           );
         }
@@ -1454,11 +1649,20 @@ export class CombinedTripsController {
           });
           console.log(`[CombinedTripsController] ✅ All passengers completed, set driver ${driverId} back to available`);
           
-          // Also update combined trip status to completed
-          await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
-            status: CombinedTripStatus.COMPLETED,
-            completedAt: new Date(),
-          });
+          // ✅ CRITICAL: Only update to COMPLETED if trip is not already CANCELLED
+          // Use atomic update to prevent overriding cancelled status
+          await this.combinedTripModel.findOneAndUpdate(
+            {
+              _id: new Types.ObjectId(combinedTripId),
+              status: { $ne: CombinedTripStatus.CANCELLED }, // Don't override cancelled
+            },
+            {
+              $set: {
+                status: CombinedTripStatus.COMPLETED,
+                completedAt: new Date(),
+              }
+            }
+          );
         }
       }
 
@@ -1592,6 +1796,32 @@ export class CombinedTripsController {
 
       if (!trip) {
         throw new BadRequestException('Trip not found');
+      }
+
+      // ⏱️ Check if customer-created trip has expired (15 minutes timeout)
+      if (
+        trip.createdBy === 'customer' &&
+        trip.status === 'pending' &&
+        trip.expiresAt &&
+        new Date() > new Date(trip.expiresAt)
+      ) {
+        console.log('[CombinedTripsController] ⏰ Trip expired - auto-cancelling:', {
+          tripId: combinedTripId,
+          expiresAt: trip.expiresAt,
+          now: new Date().toISOString(),
+        });
+
+        // Auto-cancel expired trip
+        await this.combinedTripModel.findByIdAndUpdate(combinedTripId, {
+          status: CombinedTripStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationReason: 'Không tìm thấy tài xế sau 15 phút',
+          cancellationBy: 'system',
+        });
+
+        // Return updated trip status
+        const cancelledTrip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
+        return cancelledTrip;
       }
 
       console.log('[CombinedTripsController] ✅ Trip status:', trip.status);

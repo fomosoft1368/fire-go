@@ -23,12 +23,20 @@ export default function WalletManagement() {
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'processing' | 'transferring' | 'success' | 'failed'>('all')
   const { addNotification } = useNotification()
 
+  // Helper functions to check transaction types
+  const isDeposit = (type: string) => type === 'deposit' || type === 'topup' || type === 'top_up'
+  const isWithdrawal = (type: string) => type === 'withdraw' || type === 'withdrawal'
+  
+  // Helper to normalize status (backend uses 'completed', frontend uses 'success')
+  const isCompleted = (status: string) => status === 'completed' || status === 'success'
+  const isFailed = (status: string) => status === 'failed' || status === 'cancelled'
+
   const stats = {
     pendingDeposits: transactions
-      .filter(t => t.type === 'deposit' && t.status === 'pending')
+      .filter(t => isDeposit(t.type) && t.status === 'pending')
       .reduce((sum, t) => sum + t.amount, 0),
     pendingWithdrawals: transactions
-      .filter(t => (t.type === 'withdraw' || t.type === 'withdrawal') && t.status === 'pending')
+      .filter(t => isWithdrawal(t.type) && t.status === 'pending')
       .reduce((sum, t) => sum + Math.abs(t.amount), 0),
     totalPending: transactions
       .filter(t => t.status === 'pending')
@@ -44,14 +52,24 @@ export default function WalletManagement() {
       setLoading(true)
       let response
       
-      if (activeTab === 'all' || activeTab === 'pending') {
-        // "Tất cả" tab = only PENDING transactions
+      if (activeTab === 'pending') {
+        // Only "Chờ duyệt" tab = only PENDING transactions
         response = await walletService.getPendingTransactions(undefined, 100)
+      } else if (activeTab === 'all') {
+        // Tab "Tất cả" = show ALL transactions
+        response = await walletService.getAllTransactions(100)
       } else {
-        // For processing, transferring, success, failed - filter from all
+        // For processing, transferring, success, failed, cancelled - filter from all
         response = await walletService.getAllTransactions(100)
         let data = response.data || []
-        data = data.filter(t => t.status === activeTab)
+        
+        // Map 'success' tab to both 'success' and 'completed' status
+        if (activeTab === 'success') {
+          data = data.filter(t => t.status === 'success' || t.status === 'completed')
+        } else {
+          data = data.filter(t => t.status === activeTab)
+        }
+        
         setTransactions(data)
         return
       }
@@ -97,49 +115,6 @@ export default function WalletManagement() {
 
   const filteredTransactions = getFilteredTransactions()
 
-  const handleApprove = async (transaction: Transaction) => {
-    try {
-      setLoading(true)
-      if (transaction.type === 'deposit') {
-        await walletService.approveDeposit(transaction._id)
-        addNotification({
-          id: `success-${Date.now()}`,
-          type: 'other',
-          title: 'Thành công',
-          message: 'Duyệt nạp tiền thành công',
-          timestamp: new Date().toISOString(),
-          read: false,
-          priority: 'normal',
-        })
-      } else if (transaction.type === 'withdraw' || transaction.type === 'withdrawal') {
-        await walletService.approveWithdraw(transaction._id)
-        addNotification({
-          id: `success-${Date.now()}`,
-          type: 'other',
-          title: 'Thành công',
-          message: 'Duyệt rút tiền thành công',
-          timestamp: new Date().toISOString(),
-          read: false,
-          priority: 'normal',
-        })
-      }
-      loadTransactions()
-    } catch (error: any) {
-      console.error('[WalletManagement] Approve error:', error)
-      addNotification({
-        id: `error-${Date.now()}`,
-        type: 'other',
-        title: 'Lỗi',
-        message: error.message || 'Lỗi duyệt giao dịch',
-        timestamp: new Date().toISOString(),
-        read: false,
-        priority: 'high',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleRejectClick = (transaction: Transaction) => {
     setSelectedTransaction(transaction)
     setRejectReason('')
@@ -180,7 +155,7 @@ export default function WalletManagement() {
 
     try {
       setLoading(true)
-      if (selectedTransaction.type === 'deposit') {
+      if (isDeposit(selectedTransaction.type)) {
         await walletService.rejectDeposit(selectedTransaction._id, rejectReason)
         addNotification({
           id: `success-${Date.now()}`,
@@ -191,7 +166,7 @@ export default function WalletManagement() {
           read: false,
           priority: 'normal',
         })
-      } else if (selectedTransaction.type === 'withdraw' || selectedTransaction.type === 'withdrawal') {
+      } else if (isWithdrawal(selectedTransaction.type)) {
         await walletService.rejectWithdraw(selectedTransaction._id, rejectReason)
         addNotification({
           id: `success-${Date.now()}`,
@@ -428,7 +403,7 @@ export default function WalletManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {(() => {
-                        // Check for customer first
+                        // Check for customerId/driverId first (old format)
                         const customer = (transaction as any).customerId
                         if (typeof customer === 'object' && customer !== null) {
                           return (
@@ -448,7 +423,6 @@ export default function WalletManagement() {
                           )
                         }
                         
-                        // Check for driver
                         const driver = (transaction as any).driverId
                         if (typeof driver === 'object' && driver !== null) {
                           return (
@@ -468,17 +442,65 @@ export default function WalletManagement() {
                             </div>
                           )
                         }
+
+                        // Check for userId with userType (new format)
+                        const userId = (transaction as any).userId
+                        const userType = (transaction as any).userType
+                        
+                        // If userId is populated (object)
+                        if (typeof userId === 'object' && userId !== null) {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <img
+                                className="size-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                                src={`https://i.pravatar.cc/150?u=${userId.email || userId._id}`}
+                                alt={userId.firstName}
+                              />
+                              <div>
+                                <div className="font-semibold text-slate-900 dark:text-white text-sm">
+                                  {userId.firstName} {userId.lastName}
+                                  {userType === 'driver' && (
+                                    <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Tài xế</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{userId.email}</div>
+                              </div>
+                            </div>
+                          )
+                        }
+                        
+                        // If userId exists but not populated (string ID)
+                        if (userId && typeof userId === 'string') {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-slate-500 text-lg">
+                                  {userType === 'driver' ? 'local_taxi' : 'person'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-900 dark:text-white text-sm">
+                                  {userType === 'driver' ? 'Tài xế' : 'Khách hàng'}
+                                  {userType === 'driver' && (
+                                    <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">Tài xế</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">{userId}</div>
+                              </div>
+                            </div>
+                          )
+                        }
                         
                         return <span className="text-slate-500">-</span>
                       })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold ${
-                        transaction.type === 'deposit' 
+                        isDeposit(transaction.type)
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
                           : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                       }`}>
-                        {transaction.type === 'deposit' ? 'Nạp tiền' : 'Rút tiền'}
+                        {isDeposit(transaction.type) ? 'Nạp tiền' : 'Rút tiền'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
@@ -506,49 +528,29 @@ export default function WalletManagement() {
                           ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                           : transaction.status === 'transferring'
                           ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                          : transaction.status === 'success'
+                          : isCompleted(transaction.status)
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
                           : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                       }`}>
                         <span className="material-symbols-outlined text-sm align-middle">
-                          {transaction.status === 'pending' ? 'pending' : transaction.status === 'processing' ? 'schedule' : transaction.status === 'transferring' ? 'send' : transaction.status === 'success' ? 'check_circle' : 'cancel'}
+                          {transaction.status === 'pending' ? 'pending' : transaction.status === 'processing' ? 'schedule' : transaction.status === 'transferring' ? 'send' : isCompleted(transaction.status) ? 'check_circle' : 'cancel'}
                         </span>
-                        {transaction.status === 'pending' ? 'Chờ duyệt' : transaction.status === 'processing' ? 'Đang xử lý' : transaction.status === 'transferring' ? 'Đang chuyển' : transaction.status === 'success' ? 'Thành công' : 'Thất bại'}
+                        {transaction.status === 'pending' ? 'Chờ duyệt' : transaction.status === 'processing' ? 'Đang xử lý' : transaction.status === 'transferring' ? 'Đang chuyển' : isCompleted(transaction.status) ? 'Thành công' : 'Thất bại'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {transaction.type === 'deposit' ? (
-                        // DEPOSIT: Simple approve/reject
-                        transaction.status === 'pending' ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium text-xs transition-colors"
-                              onClick={() => handleApprove(transaction)}
-                            >
-                              <span className="material-symbols-outlined text-base align-middle">check</span>
-                              Duyệt
-                            </button>
-                            <button
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 font-medium text-xs transition-colors"
-                              onClick={() => handleRejectClick(transaction)}
-                            >
-                              <span className="material-symbols-outlined text-base align-middle">close</span>
-                              Từ chối
-                            </button>
-                            <button
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 font-medium text-xs transition-colors"
-                              onClick={() => {
-                                setSelectedTransaction(transaction)
-                                setDetailModalVisible(true)
-                              }}
-                            >
-                              <span className="material-symbols-outlined text-base align-middle">info</span>
-                              Chi tiết
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-slate-500 text-xs">-</span>
-                        )
+                      {isDeposit(transaction.type) ? (
+                        // DEPOSIT: Only view details, no status update workflow
+                        <button
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 font-medium text-xs transition-colors"
+                          onClick={() => {
+                            setSelectedTransaction(transaction)
+                            setDetailModalVisible(true)
+                          }}
+                        >
+                          <span className="material-symbols-outlined text-base align-middle">info</span>
+                          Chi tiết
+                        </button>
                       ) : (
                         // WITHDRAW: Status workflow + reject
                         <>
@@ -601,7 +603,7 @@ export default function WalletManagement() {
                                 </button>
                               </>
                             )}
-                            {(transaction.status === 'success' || transaction.status === 'failed') && (
+                            {(isCompleted(transaction.status) || isFailed(transaction.status)) && (
                               <span className="text-slate-500 text-xs">-</span>
                             )}
                           </div>
@@ -651,7 +653,7 @@ export default function WalletManagement() {
                   <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                     <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Loại</p>
                     <p className="text-base font-bold text-slate-900">
-                      {selectedTransaction.type === 'deposit' ? 'Nạp tiền' : 'Rút tiền'}
+                      {isDeposit(selectedTransaction.type) ? 'Nạp tiền' : 'Rút tiền'}
                     </p>
                   </div>
                   <div className="bg-red-50 rounded-lg p-4 border border-red-200">
@@ -695,7 +697,7 @@ export default function WalletManagement() {
 
         {/* Status Update Modal */}
         <Modal
-          title="Cập nhật trạng thái rút tiền"
+          title={selectedTransaction ? (isDeposit(selectedTransaction.type) ? 'Cập nhật trạng thái nạp tiền' : 'Cập nhật trạng thái rút tiền') : 'Cập nhật trạng thái'}
           open={statusModalVisible}
           onOk={() => {
             console.log('[StatusModal] OK clicked, newStatus:', newStatus)
@@ -768,7 +770,9 @@ export default function WalletManagement() {
               <div>
                 <label className="block font-semibold text-slate-900 mb-3 text-sm">
                   {selectedTransaction.status === 'pending' 
-                    ? 'Duyệt lệnh rút tiền (chuyển sang Đang xử lý):'
+                    ? (isDeposit(selectedTransaction.type) 
+                        ? 'Duyệt lệnh nạp tiền (chuyển sang Đang xử lý):' 
+                        : 'Duyệt lệnh rút tiền (chuyển sang Đang xử lý):')
                     : 'Chọn trạng thái tiếp theo:'}
                 </label>
                 <div className="grid grid-cols-1 gap-3">
@@ -805,10 +809,18 @@ export default function WalletManagement() {
                           </p>
                           <p className="text-xs text-slate-600 mt-1">
                             {status === 'processing' && (selectedTransaction.status === 'pending' 
-                              ? 'Hệ thống sẽ duyệt lệnh rút tiền của khách hàng'
-                              : 'Xác nhận đã nhận lệnh rút tiền')}
-                            {status === 'transferring' && 'Đang chuyển tiền cho khách hàng'}
-                            {status === 'success' && 'Hoàn thành chuyển tiền'}
+                              ? (isDeposit(selectedTransaction.type)
+                                  ? 'Hệ thống sẽ duyệt lệnh nạp tiền của khách hàng'
+                                  : 'Hệ thống sẽ duyệt lệnh rút tiền của khách hàng')
+                              : (isDeposit(selectedTransaction.type)
+                                  ? 'Xác nhận đã nhận lệnh nạp tiền'
+                                  : 'Xác nhận đã nhận lệnh rút tiền'))}
+                            {status === 'transferring' && (isDeposit(selectedTransaction.type)
+                              ? 'Đang nạp tiền cho khách hàng'
+                              : 'Đang chuyển tiền cho khách hàng')}
+                            {status === 'success' && (isDeposit(selectedTransaction.type)
+                              ? 'Hoàn thành nạp tiền'
+                              : 'Hoàn thành chuyển tiền')}
                           </p>
                         </div>
                       </div>
@@ -861,10 +873,10 @@ export default function WalletManagement() {
                     <p className="text-xs font-semibold text-orange-100 uppercase tracking-wider mb-3">Loại giao dịch</p>
                     <div className="flex items-center gap-2">
                       <span className="material-symbols-outlined text-3xl text-white">
-                        {selectedTransaction.type === 'deposit' ? 'account_balance_wallet' : 'payments'}
+                        {isDeposit(selectedTransaction.type) ? 'account_balance_wallet' : 'payments'}
                       </span>
                       <p className="text-lg font-bold text-white">
-                        {selectedTransaction.type === 'deposit' ? 'Nạp tiền' : 'Rút tiền'}
+                        {isDeposit(selectedTransaction.type) ? 'Nạp tiền' : 'Rút tiền'}
                       </p>
                     </div>
                   </div>
@@ -880,7 +892,7 @@ export default function WalletManagement() {
                     <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Trạng thái</p>
                     <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-bold ${walletService.getStatusColor(selectedTransaction.status)} w-full justify-center`}>
                       <span className="material-symbols-outlined text-base">
-                        {selectedTransaction.status === 'pending' ? 'pending' : selectedTransaction.status === 'processing' ? 'schedule' : selectedTransaction.status === 'transferring' ? 'send' : selectedTransaction.status === 'success' ? 'check_circle' : 'cancel'}
+                        {selectedTransaction.status === 'pending' ? 'pending' : selectedTransaction.status === 'processing' ? 'schedule' : selectedTransaction.status === 'transferring' ? 'send' : isCompleted(selectedTransaction.status) ? 'check_circle' : 'cancel'}
                       </span>
                       {walletService.getStatusLabel(selectedTransaction.status)}
                     </span>
@@ -903,12 +915,24 @@ export default function WalletManagement() {
 
               {/* Customer/Driver Info */}
               {(() => {
+                // Check old format first
                 const customer = (selectedTransaction as any).customerId
                 const driver = (selectedTransaction as any).driverId
-                const user = customer || driver
-                const userType = customer ? 'khách hàng' : 'tài xế'
-                const userTypeBg = customer ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'
-                const userTypeText = customer ? 'text-blue-900' : 'text-purple-900'
+                let user = customer || driver
+                let userType = customer ? 'khách hàng' : (driver ? 'tài xế' : null)
+                
+                // Check new format with userId and userType
+                if (!user) {
+                  const userId = (selectedTransaction as any).userId
+                  const userTypeField = (selectedTransaction as any).userType
+                  if (typeof userId === 'object' && userId !== null) {
+                    user = userId
+                    userType = userTypeField === 'driver' ? 'tài xế' : 'khách hàng'
+                  }
+                }
+                
+                const userTypeBg = userType === 'khách hàng' ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'
+                const userTypeText = userType === 'khách hàng' ? 'text-blue-900' : 'text-purple-900'
                 
                 if (!user) return null
                 
@@ -916,7 +940,7 @@ export default function WalletManagement() {
                   <div className={`${userTypeBg} rounded-lg p-4 space-y-3 border`}>
                     <div className={`font-semibold ${userTypeText} mb-3 flex items-center gap-2`}>
                       <span className="material-symbols-outlined">
-                        {customer ? 'person' : 'local_taxi'}
+                        {userType === 'khách hàng' ? 'person' : 'local_taxi'}
                       </span>
                       Thông tin {userType}
                     </div>
@@ -941,7 +965,7 @@ export default function WalletManagement() {
               
 
               {/* Bank Info for Withdraw */}
-              {(selectedTransaction.type === 'withdraw' || selectedTransaction.type === 'withdrawal') && (
+              {isWithdrawal(selectedTransaction.type) && (
                 <div className="bg-green-50 rounded-lg p-4 space-y-3 border border-green-200">
                   <div className="font-semibold text-green-900 mb-3 flex items-center gap-2">
                     <span className="material-symbols-outlined">account_balance</span>

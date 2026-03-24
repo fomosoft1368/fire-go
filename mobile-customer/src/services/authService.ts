@@ -1,8 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { User, LoginResponse, ApiResponse } from '../types'
+import { API_BASE_URL } from '../constants'
 
-// Update API_BASE_URL to your backend URL (use 10.0.2.2 for Android emulator, localhost for iOS)
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.16:3000/api'
 const TOKEN_KEY = 'authToken'
 const REFRESH_TOKEN_KEY = 'refreshToken'
 const USER_KEY = 'user'
@@ -10,17 +9,17 @@ const USER_KEY = 'user'
 // Helper to normalize Vietnamese phone numbers
 const normalizePhoneNumber = (phone: string): string => {
   let normalized = phone.replace(/\D/g, '')
-  
+
   // If starts with 84, it's already international format
   if (normalized.startsWith('84')) {
     return '+' + normalized
   }
-  
+
   // If starts with 0, remove it and add country code
   if (normalized.startsWith('0')) {
     return '+84' + normalized.substring(1)
   }
-  
+
   // Otherwise assume it's missing country code
   return '+84' + normalized
 }
@@ -29,9 +28,17 @@ export const authService = {
   // Login with identifier (email or phone) and password
   async login(identifier: string, password: string): Promise<LoginResponse> {
     try {
-      console.log('[Auth] Login attempt:', { identifier, apiUrl: API_BASE_URL })
-      
-      const response = await fetch(`${API_BASE_URL}/customers/login`, {
+      const apiUrl = `${API_BASE_URL}/customers/login`
+      console.log('\n========== 🔐 LOGIN REQUEST START ==========')
+      console.log('📍 API URL:', apiUrl)
+      console.log('🌐 BASE_URL:', API_BASE_URL)
+      console.log('👤 Identifier:', identifier)
+      console.log('🔑 Password length:', password.length)
+      console.log('📦 Request body:', JSON.stringify({ identifier, password: '***' }, null, 2))
+      console.log('📅 Timestamp:', new Date().toISOString())
+      console.log('==========================================\n')
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -39,7 +46,10 @@ export const authService = {
         body: JSON.stringify({ identifier, password }),
       })
 
-      console.log('[Auth] Login response status:', response.status)
+      console.log('\n========== 📡 LOGIN RESPONSE RECEIVED ==========')
+      console.log('📊 Status:', response.status, response.statusText)
+      console.log('📋 Headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2))
+      console.log('==========================================\n')
 
       if (!response.ok) {
         let errorData: any
@@ -48,17 +58,24 @@ export const authService = {
         } catch {
           errorData = { message: `HTTP ${response.status}` }
         }
-        console.error('[Auth] Login error:', errorData)
+        console.error('\n========== ❌ LOGIN ERROR ==========')
+        console.error('🚫 Status:', response.status)
+        console.error('💬 Error data:', JSON.stringify(errorData, null, 2))
+        console.error('==========================================\n')
         throw new Error(errorData.message || 'Đăng nhập thất bại')
       }
 
       const data = await response.json()
-      console.log('[Auth] Login success:', { userId: data.user.id })
+      console.log('\n========== ✅ LOGIN SUCCESS ==========')
+      console.log('👤 User ID:', data.user.id)
+      console.log('📧 Email:', data.user.email)
+      console.log('🎫 Token length:', data.accessToken?.length)
+      console.log('==========================================\n')
 
       // Store tokens and user info
       await AsyncStorage.setItem(TOKEN_KEY, data.accessToken)
       await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
-      
+
       const user: User = {
         id: data.user.id,
         firstName: data.user.firstName,
@@ -74,7 +91,7 @@ export const authService = {
         dateOfBirth: data.user.dateOfBirth,
         preferredDriverGender: data.user.preferredDriverGender,
       }
-      
+
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
 
       return {
@@ -82,7 +99,21 @@ export const authService = {
         user,
       }
     } catch (error: any) {
-      console.error('[Auth] Login failed:', error.message || error)
+      console.error('\n========== ❌ LOGIN EXCEPTION ==========')
+      console.error('🚨 Error type:', error.constructor.name)
+      console.error('💬 Error message:', error.message)
+
+      if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
+        console.error('🌐 Network request failed - cannot reach server')
+        console.error('📍 Check if:', {
+          'Server is running': 'pm2 status',
+          'Correct IP/URL': API_BASE_URL,
+          'Firewall allows connection': 'Windows Firewall + Cloud provider',
+        })
+      }
+
+      console.error('📚 Full error stack:', error.stack)
+      console.error('==========================================\n')
       throw error
     }
   },
@@ -96,12 +127,12 @@ export const authService = {
   ): Promise<LoginResponse> {
     try {
       console.log('[Auth] Register attempt:', { firstName, email, phone: phone.replace(/\d(?=\d{4})/g, '*'), apiUrl: API_BASE_URL })
-      
+
       // Split name into firstName and lastName
       const nameParts = firstName.split(' ')
       const lastNameOrFull = nameParts.length > 1 ? nameParts.pop() : ''
       const finalFirstName = nameParts.join(' ') || firstName
-      
+
       // Normalize phone number to Vietnam format
       const normalizedPhone = normalizePhoneNumber(phone)
       console.log('[Auth] Normalized phone:', normalizedPhone)
@@ -216,7 +247,7 @@ export const authService = {
   async updateProfile(userId: string, updateData: any): Promise<User> {
     try {
       console.log('[Auth] Update profile attempt:', { userId, updateData: { ...updateData, password: undefined } })
-      
+
       const token = await this.getToken()
       if (!token) {
         throw new Error('No auth token found')
@@ -284,4 +315,5 @@ export const authService = {
       console.error('[Auth] Get user ID failed:', error.message || error)
       throw error
     }
-  },}
+  },
+}

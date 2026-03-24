@@ -44,6 +44,7 @@ export default function RideDetailRequestScreen() {
   const params = route.params as any
   const combinedTripId = params?.combinedTripId ?? ''
   const ride = params?.ride ?? null
+  const interProvincialRoute = params?.interProvincialRoute ?? null  // 🔥 NEW: Fixed-price route
 
   // Get customer's pickup/dropoff coordinates from params (NOT from ride object)
   const pickupCoordinates = params?.pickupCoordinates ?? ride?.pickupCoordinates ?? [105.8542, 21.0285]
@@ -51,10 +52,19 @@ export default function RideDetailRequestScreen() {
   const pickupAddress = params?.pickupAddress ?? ride?.pickupAddress ?? ''
   const dropoffAddress = params?.dropoffAddress ?? ride?.dropoffAddress ?? ''
 
+  // 🔍 Debug params
+  console.log('[RideDetailRequestScreen] 🔍 PARAMS RECEIVED:', {
+    combinedTripId,
+    pickupAddress,
+    dropoffAddress,
+    interProvincialRoute: interProvincialRoute ? `${interProvincialRoute.name} - ${interProvincialRoute.fixedPrice}đ` : 'None',
+  })
+
   const [requesting, setRequesting] = useState(false)
   const [requestStatus, setRequestStatus] = useState<'pending' | 'accepted' | 'rejected' | null>(null)
   const [selectedSeats, setSelectedSeats] = useState<number[]>([])
   const [customerFare, setCustomerFare] = useState<number | null>(null)
+  const [customerBaseFare, setCustomerBaseFare] = useState<number | null>(null) // 🚍 NEW: Base fare (before discount)
   const [customerDistance, setCustomerDistance] = useState<number | null>(null)
   const [calculatingFare, setCalculatingFare] = useState(false)
   const [tripData, setTripData] = useState(ride) // ✅ Store ride data in state for updates
@@ -128,10 +138,51 @@ export default function RideDetailRequestScreen() {
       try {
         setCalculatingFare(true)
         console.log('[RideDetailRequestScreen] Calculating customer fare:', {
+          hasInterProvincialRoute: !!interProvincialRoute,
+          fixedPrice: interProvincialRoute?.fixedPrice,
           pickup: pickupCoordinates,
           dropoff: dropoffCoordinates,
           selectedSeatsCount: selectedSeats.length,
         })
+
+        // 🔥 PRIORITY 1: If this is an inter-provincial route with FIXED PRICE
+        if (interProvincialRoute && interProvincialRoute.fixedPrice) {
+          console.log('[RideDetailRequestScreen] 🚍 Using FIXED PRICE from inter-provincial route')
+          
+          // ✅ Tính discount dựa trên SỐ GHẾ ĐƯỢC CHỌN (không phụ thuộc bookedSeatsCount)
+          // Ví dụ: Người đầu tiên chọn 2 ghế → 2 người → 15% discount
+          const totalPassengers = bookedSeatsCount + selectedSeats.length
+          
+          console.log('[RideDetailRequestScreen] 🎫 Selected seats:', selectedSeats.length, '| Booked seats:', bookedSeatsCount, '| Total:', totalPassengers)
+          
+          // Calculate discount based on total passengers (same logic as distance-based)
+          const discountRate = totalPassengers === 1 ? 0 : totalPassengers === 2 ? 0.15 : totalPassengers === 3 ? 0.25 : 0.30
+          
+          // 🚍 BASE FARE: Giá gốc TRƯỚC discount (cho tất cả ghế)
+          const customerTotalBaseFare = interProvincialRoute.fixedPrice * selectedSeats.length
+          
+          // Fixed price per person with discount
+          const pricePerPerson = Math.round(interProvincialRoute.fixedPrice * (1 - discountRate))
+          
+          // Total for all selected seats AFTER discount
+          const customerTotalFare = pricePerPerson * selectedSeats.length
+          
+          setCustomerBaseFare(customerTotalBaseFare) // 🚍 NEW: Save base fare
+          setCustomerFare(customerTotalFare)
+          
+          console.log('[RideDetailRequestScreen] Fixed price calculation:', {
+            fixedPrice: interProvincialRoute.fixedPrice,
+            totalPassengers,
+            discountRate: `${discountRate * 100}%`,
+            pricePerPerson,
+            selectedSeatsCount: selectedSeats.length,
+            customerTotalBaseFare, // 🚍 NEW
+            customerTotalFare,
+          })
+          
+          setCalculatingFare(false)
+          return
+        }
 
         // Get route from customer's pickup to dropoff
         // ✅ Use combinedTripsService for rideshare (with waypoints optimization)
@@ -161,14 +212,20 @@ export default function RideDetailRequestScreen() {
         const distanceKm = distance > 500 ? distance / 1000 : distance
         setCustomerDistance(distanceKm)
 
-        // ✅ NGHIỆP VỤ GIẢM GIÁ:
-        // - Nếu xe đang có 1 người, mình chọn 1 ghế → TỔNG 2 NGƯỜI → giảm 10% cho MỖI NGƯỜI
-        // - Nếu xe đang có 1 người, mình chọn 2 ghế → TỔNG 3 NGƯỜI → giảm 15% cho MỖI NGƯỜI
-        // - Nếu xe đang có 2 người, mình chọn 2 ghế → TỔNG 4 NGƯỜI → giảm 20% cho MỖI NGƯỜI
+        // ✅ NGHIỆP VỤ GIẢM GIÁ: Discount dựa trên SỐ GHẾ ĐƯỢC CHỌN
+        // Ví dụ: 
+        // - Người đầu tiên chọn 2 ghế → 2 người → 15% discount ✅
+        // - Người đầu tiên chọn 3 ghế → 3 người → 25% discount ✅
+        // - Có 1 người đã book + chọn thêm 1 ghế → 2 người → 15% discount ✅
         
-        // ✅ TỔNG SỐ NGƯỜI trong xe = người đã đặt + 1 (mình)
-        // KHÔNG tính theo số ghế đang chọn, vì 1 người có thể đặt nhiều ghế!
+        // ✅ TỔNG SỐ NGƯỜI trong xe = người đã đặt + số ghế đang chọn
         const totalPassengers = bookedSeatsCount + selectedSeats.length
+        
+        console.log('[RideDetailRequestScreen] 🎫 DISCOUNT CALCULATION:')
+        console.log('  → bookedSeatsCount:', bookedSeatsCount)
+        console.log('  → selectedSeats.length:', selectedSeats.length)
+        console.log('  → totalPassengers:', totalPassengers)
+        console.log('  → Discount will be:', totalPassengers === 1 ? '0%' : totalPassengers === 2 ? '15%' : totalPassengers === 3 ? '25%' : '30%')
         
         // Get vehicle type from ride (default to 'sedan' if not available)
         // Valid types: 'sedan', 'suv', 'truck'
@@ -177,10 +234,10 @@ export default function RideDetailRequestScreen() {
         console.log('[RideDetailRequestScreen] Pricing calculation:', {
           distanceKm,
           vehicleType,
-          bookedSeatsCount, // 
+          bookedSeatsCount, // Số ghế đã đặt
           selectedSeatsCount: selectedSeats.length, // Số ghế đang chọn
           totalPassengers, // ← TỔNG SỐ NGƯỜI (quyết định % discount)
-          discountWillBe: totalPassengers === 2 ? '10%' : totalPassengers === 3 ? '15%' : totalPassengers === 4 ? '20%' : '0%',
+          discountWillBe: totalPassengers === 1 ? '0%' : totalPassengers === 2 ? '15%' : totalPassengers === 3 ? '25%' : totalPassengers === 4 ? '30%' : '30%',
         })
 
         // ✅ Tính giá cho KHÁCH NÀY với discount theo TỔNG SỐ NGƯỜI trong xe
@@ -192,6 +249,9 @@ export default function RideDetailRequestScreen() {
           undefined  // ✅ Không truyền multiplier (để tự động lấy từ config)
         )
        
+        // 🚍 BASE FARE: Giá gốc TRƯỚC discount (sau peak multiplier)
+        const customerTotalBaseFare = fareBreakdown.basePrice * selectedSeats.length
+        
         // ✅ GIÁ CHO MỖI GHẾ = finalPrice (đã bao gồm discount theo totalPassengers)
         // Ví dụ: 
         // - 1 người trong xe + mình chọn 1 ghế = 2 người → discount 10%
@@ -199,6 +259,7 @@ export default function RideDetailRequestScreen() {
         // Giá cho KHÁCH NÀY = giá mỗi ghế × số ghế đã chọn
         const customerTotalFare = fareBreakdown.finalPrice * selectedSeats.length
       
+        setCustomerBaseFare(customerTotalBaseFare) // 🚍 NEW: Save base fare
         setCustomerFare(customerTotalFare)
 
         console.log('[RideDetailRequestScreen] Customer fare calculated:', {
@@ -211,7 +272,7 @@ export default function RideDetailRequestScreen() {
           totalPassengers, // Tổng số người trong xe
           selectedSeatsCount: selectedSeats.length, // Số ghế khách chọn
           customerTotalFare, // = finalPrice × số ghế
-          explanation: `${bookedSeatsCount} người đã đặt + ${selectedSeats.length} ghế chọn = ${totalPassengers} người → giảm ${fareBreakdown.discountApplied}%`,
+          explanation: `${bookedSeatsCount} ghế đã đặt + ${selectedSeats.length} ghế chọn = ${totalPassengers} người → giảm ${fareBreakdown.discountApplied}%`,
         })
       } catch (error) {
         console.error('[RideDetailRequestScreen] Error calculating fare:', error)
@@ -225,7 +286,7 @@ export default function RideDetailRequestScreen() {
     if (pickupCoordinates && dropoffCoordinates && ride && selectedSeats.length > 0) {
       calculateCustomerFare()
     }
-   }, [pickupCoordinates, dropoffCoordinates, ride, selectedSeats, bookedSeatsCount])
+   }, [pickupCoordinates, dropoffCoordinates, ride, selectedSeats, bookedSeatsCount, interProvincialRoute])
 
   useEffect(() => {
     return () => {
@@ -309,22 +370,64 @@ export default function RideDetailRequestScreen() {
       const fareToUse = customerFare || ride.totalFare
       const distanceToUse = customerDistance || ride.distance
 
-      // ✅ Tính lại fare để lấy peakMultiplier (cần gửi lên backend)
-      const fareBreakdownForRequest = await calculateFare(
-        distanceToUse,
-        tripData.vehicleType || tripData.driverId?.vehicleType || 'sedan',
-        bookedSeatsCount + selectedSeats.length,
-        undefined,
-        undefined
-      )
+      // 🚍 CRITICAL: Nếu là chuyến liên tỉnh với FIXED PRICE → KHÔNG tính lại fare theo distance
+      let isPeakTime = false
+      let peakMultiplier = 1.0
 
-      console.log('💰 [RideDetailRequestScreen] Fare to send to backend:', {
-        customerFare,
-        selectedSeatsCount: selectedSeats.length,
-        fareToUse, // ← Đây là GIÁ TỔNG cho tất cả ghế
-        isPeakTime: fareBreakdownForRequest.isPeakTime,
-        peakMultiplier: fareBreakdownForRequest.peakMultiplier,
-        note: 'customerFare = pricePerSeat × selectedSeats, KHÔNG nhân lại!'
+      // 🔍 DEBUG: Check interProvincialRoute trước khi gửi request
+      console.log('\n🔍 ============ DEBUG INTER-PROVINCIAL ROUTE ============')
+      console.log('Has interProvincialRoute?', !!interProvincialRoute)
+      console.log('interProvincialRoute:', JSON.stringify(interProvincialRoute, null, 2))
+      console.log('Fixed price:', interProvincialRoute?.fixedPrice)
+      console.log('Route name:', interProvincialRoute?.name)
+      console.log('Condition check: interProvincialRoute && interProvincialRoute.fixedPrice =', !!(interProvincialRoute && interProvincialRoute.fixedPrice))
+      console.log('======================================================\n')
+
+      if (interProvincialRoute && interProvincialRoute.fixedPrice) {
+        console.log('\n🚍 ============ CHUYẾN LIÊN TỈNH - SENDING REQUEST ============')
+        console.log('✅ Using FIXED PRICE:', interProvincialRoute.fixedPrice.toLocaleString(), 'đ')
+        console.log('✅ Customer fare (with discount):', fareToUse.toLocaleString(), 'đ')
+        console.log('✅ Selected seats:', selectedSeats.length)
+        console.log('⚠️  NO peak multiplier for inter-provincial routes')
+        console.log('⚠️  isPeakTime = false, peakMultiplier = 1.0')
+        console.log('=========================================================\n')
+        
+        // Fixed price routes KHÔNG áp dụng peak multiplier
+        isPeakTime = false
+        peakMultiplier = 1.0
+      } else {
+        // Distance-based pricing: Tính lại fare để lấy peakMultiplier
+        console.log('\n💰 ============ DISTANCE-BASED PRICING - SENDING REQUEST ============')
+        const fareBreakdownForRequest = await calculateFare(
+          distanceToUse,
+          tripData.vehicleType || tripData.driverId?.vehicleType || 'sedan',
+          bookedSeatsCount + selectedSeats.length,
+          undefined,
+          undefined
+        )
+
+        isPeakTime = fareBreakdownForRequest.isPeakTime
+        peakMultiplier = fareBreakdownForRequest.peakMultiplier
+
+        console.log('✅ Customer fare (with discount + peak):', fareToUse.toLocaleString(), 'đ')
+        console.log('✅ Distance:', distanceToUse.toFixed(2), 'km')
+        console.log('✅ isPeakTime:', isPeakTime)
+        console.log('✅ peakMultiplier:', peakMultiplier)
+        console.log('====================================================================\n')
+      }
+
+      console.log('📤 [RideDetailRequestScreen] Payload to backend:', {
+        combinedTripId,
+        customerId: user.id,
+        pickupAddress,
+        dropoffAddress,
+        distance: distanceToUse,
+        fare: fareToUse,
+        baseFare: customerBaseFare, // 🚍 NEW
+        requestedSeats: selectedSeats.length,
+        isPeakTime,
+        peakMultiplier,
+        hasInterProvincialRoute: !!interProvincialRoute,
       })
         
       // Create combined trip request
@@ -336,10 +439,12 @@ export default function RideDetailRequestScreen() {
         pickupCoordinates,
         dropoffCoordinates,
         distanceToUse,
-        fareToUse, // ✅ GIÁ TỔNG, đã bao gồm tất cả ghế
+        fareToUse, // ✅ GIÁ TỔNG (fixed price hoặc distance-based)
         selectedSeats.length,
-        fareBreakdownForRequest.isPeakTime, // ✅ Boolean
-        fareBreakdownForRequest.peakMultiplier // ✅ 1.0, 1.3, hoặc 1.5
+        isPeakTime, // ✅ false cho inter-provincial, calculated cho distance-based
+        peakMultiplier, // ✅ 1.0 cho inter-provincial, calculated cho distance-based
+        !!interProvincialRoute, // 🚍 true nếu là tuyến liên tỉnh, false nếu tính theo km
+        customerBaseFare || fareToUse, // 🚍 NEW: Base fare (fallback to fareToUse if not calculated)
       )
 
     

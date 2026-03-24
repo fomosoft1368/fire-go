@@ -7,6 +7,7 @@ import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignm
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService as DriverSearchConfigService } from '../../config/config.service';
 import { ServiceType } from '../../config/schemas/driver-search-config.schema';
+import { DriversService } from '../../drivers/drivers.service';
 
 interface DriverScore {
   driver: DriverDocument;
@@ -30,6 +31,7 @@ export class AutoAssignService {
     @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
     private eventEmitter: EventEmitter2,
     private driverSearchConfigService: DriverSearchConfigService,
+    private driversService: DriversService,
   ) {}
 
   /**
@@ -411,13 +413,8 @@ export class AutoAssignService {
    * Lấy danh sách tài xế sẵn có
    */
   private async getAvailableDrivers(ride: RideDocument): Promise<DriverDocument[]> {
-    // Tìm các ride đang active để exclude drivers đang có cuốc
-    const activeRides = await this.rideModel.find({
-      status: { $in: ['accepted', 'in_progress', 'assigned'] },
-      driverId: { $exists: true, $ne: null },
-    }).select('driverId');
-
-    const busyDriverIds = activeRides.map(r => r.driverId?.toString()).filter(Boolean);
+    // ✅ Get ALL busy driver IDs across ALL services (rides, delivery, combined-trips, hourly-services)
+    const busyDriverIds = await this.driversService.getBusyDriverIds();
 
     // Xác định loại driver cần tìm dựa vào rideType của ride
     let requiredDriverType: string;
@@ -431,6 +428,7 @@ export class AutoAssignService {
     }
 
     this.logger.log(`[AutoAssignService] Looking for drivers with type: ${requiredDriverType} for ride type: ${ride.rideType}`);
+    this.logger.log(`[AutoAssignService] Excluding ${busyDriverIds.length} busy drivers (across all services)`);
 
     // FIX: Query should consider both status='online' OR isOnline=true
     // AND filter by driverTypes array
@@ -442,7 +440,7 @@ export class AutoAssignService {
       isAcceptingRides: true,
       isSuspended: false,
       currentLocation: { $exists: true }, // Có vị trí hiện tại
-      _id: { $nin: busyDriverIds }, // Không có trong danh sách đang bận
+      _id: { $nin: busyDriverIds }, // ✅ Không có trong danh sách đang bận (bất kỳ service nào)
       driverTypes: { $in: [requiredDriverType] }, // Tìm tài xế có requiredDriverType trong array driverTypes
     });
 
@@ -450,7 +448,7 @@ export class AutoAssignService {
       total: drivers.length,
       busyCount: busyDriverIds.length,
       requiredType: requiredDriverType,
-      query: 'status=online OR isOnline=true AND driverTypes includes requiredType',
+      query: 'status=online OR isOnline=true AND driverTypes includes requiredType AND NOT busy in ANY service',
     });
 
     return drivers;

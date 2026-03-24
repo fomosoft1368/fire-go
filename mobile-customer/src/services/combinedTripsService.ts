@@ -113,14 +113,20 @@ export const combinedTripsService = {
     seats: number = 1,
     isPeakTime: boolean = false,
     peakMultiplier: number = 1.0,
+    hasFixedPrice: boolean = false,  // 🚍 NEW: Inter-provincial fixed price flag
+    baseFare: number = 0, // 🚍 NEW: Base fare (before discount)
   ) {
     try {
       console.log('[CombinedTripsService] Creating combined trip request:', {
         combinedTripId,
         customerId,
         pickupAddress,
+        fare,
+        baseFare, // 🚍 Log base fare
+        seats,
         isPeakTime,
         peakMultiplier,
+        hasFixedPrice,  // 🚍 Log fixed price flag
       })
 
       const token = await AsyncStorage.getItem('authToken')
@@ -138,6 +144,7 @@ export const combinedTripsService = {
           customerId,
           seats,
           fare,
+          baseFare, // 🚍 Send base fare to backend
           pickupAddress,
           dropoffAddress,
           pickupCoordinates,
@@ -145,6 +152,7 @@ export const combinedTripsService = {
           distance,
           isPeakTime,
           peakMultiplier,
+          hasFixedPrice,  // 🚍 Send fixed price flag to backend
         }),
       })
 

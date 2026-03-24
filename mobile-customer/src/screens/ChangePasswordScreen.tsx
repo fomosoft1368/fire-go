@@ -13,7 +13,7 @@ import {
   Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
+import { COLORS, SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
 import { authService } from '../services/authService'
 
 interface ChangePasswordScreenProps {
@@ -97,28 +97,28 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
     } else if (formData.newPassword !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp'
     }
-    
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
-    
+
   const handleChangePassword = async () => {
     if (!validateForm()) {
       Alert.alert('Lỗi', 'Vui lòng kiểm tra lại thông tin')
       return
     }
-    
+
     try {
       setLoading(true)
-      
+
       // Call API to change password
       const token = await authService.getToken()
       console.log('[ChangePassword] Token from storage:', token ? `${token.substring(0, 50)}...` : 'null')
-      
+
       if (!token) {
         throw new Error('No auth token found')
       }
-      
+
       // Try to decode token to see role
       try {
         const parts = token.split('.')
@@ -129,11 +129,11 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
       } catch (e) {
         console.log('[ChangePassword] Could not decode token:', e)
       }
-    
-      const url = `${process.env.REACT_APP_API_URL || 'http://192.168.1.16:3000/api'}/customers/change-password`
+
+      const url = `${API_BASE_URL}/customers/change-password`
       console.log('[ChangePassword] Request URL:', url)
       console.log('[ChangePassword] Authorization:', `Bearer ${token.substring(0, 20)}...`)
-      
+
       const response = await fetch(url, {
         method: 'PATCH',
         headers: {
@@ -145,7 +145,7 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
           newPassword: formData.newPassword,
         }),
       })
-      
+
       console.log('[ChangePassword] Response status:', response.status)
       console.log('[ChangePassword] Response URL:', response.url)
       console.log('[ChangePassword] Response headers:', {
@@ -195,90 +195,90 @@ export default function ChangePasswordScreen({ navigation }: ChangePasswordScree
         >
           {/* Info Section */}
           <View style={styles.infoSection}>
-          <MaterialIcons name="info" size={20} color={COLORS.primary} />
-          <Text style={styles.infoText}>
-            Để bảo mật tài khoản, hãy sử dụng mật khẩu mạnh gồm chữ cái, số và ký tự đặc biệt
-          </Text>
-        </View>
+            <MaterialIcons name="info" size={20} color={COLORS.primary} />
+            <Text style={styles.infoText}>
+              Để bảo mật tài khoản, hãy sử dụng mật khẩu mạnh gồm chữ cái, số và ký tự đặc biệt
+            </Text>
+          </View>
 
-        {/* Form */}
-        <View style={styles.formContainer}>
-          <PasswordInput
-            label="Mật khẩu hiện tại"
-            value={formData.currentPassword}
-            onChangeText={(text) =>
-              setFormData({ ...formData, currentPassword: text })
-            }
-            placeholder="Nhập mật khẩu hiện tại"
-            isVisible={showPasswords.current}
-            onToggleVisibility={() =>
-              setShowPasswords({
-                ...showPasswords,
-                current: !showPasswords.current,
-              })
-            }
-            error={errors.currentPassword}
-          />
+          {/* Form */}
+          <View style={styles.formContainer}>
+            <PasswordInput
+              label="Mật khẩu hiện tại"
+              value={formData.currentPassword}
+              onChangeText={(text) =>
+                setFormData({ ...formData, currentPassword: text })
+              }
+              placeholder="Nhập mật khẩu hiện tại"
+              isVisible={showPasswords.current}
+              onToggleVisibility={() =>
+                setShowPasswords({
+                  ...showPasswords,
+                  current: !showPasswords.current,
+                })
+              }
+              error={errors.currentPassword}
+            />
 
-          <PasswordInput
-            label="Mật khẩu mới"
-            value={formData.newPassword}
-            onChangeText={(text) =>
-              setFormData({ ...formData, newPassword: text })
-            }
-            placeholder="Nhập mật khẩu mới"
-            isVisible={showPasswords.new}
-            onToggleVisibility={() =>
-              setShowPasswords({
-                ...showPasswords,
-                new: !showPasswords.new,
-              })
-            }
-            error={errors.newPassword}
-          />
+            <PasswordInput
+              label="Mật khẩu mới"
+              value={formData.newPassword}
+              onChangeText={(text) =>
+                setFormData({ ...formData, newPassword: text })
+              }
+              placeholder="Nhập mật khẩu mới"
+              isVisible={showPasswords.new}
+              onToggleVisibility={() =>
+                setShowPasswords({
+                  ...showPasswords,
+                  new: !showPasswords.new,
+                })
+              }
+              error={errors.newPassword}
+            />
 
-          <PasswordInput
-            label="Xác nhận mật khẩu"
-            value={formData.confirmPassword}
-            onChangeText={(text) =>
-              setFormData({ ...formData, confirmPassword: text })
-            }
-            placeholder="Xác nhận mật khẩu mới"
-            isVisible={showPasswords.confirm}
-            onToggleVisibility={() =>
-              setShowPasswords({
-                ...showPasswords,
-                confirm: !showPasswords.confirm,
-              })
-            }
-            error={errors.confirmPassword}
-          />
-        </View>
+            <PasswordInput
+              label="Xác nhận mật khẩu"
+              value={formData.confirmPassword}
+              onChangeText={(text) =>
+                setFormData({ ...formData, confirmPassword: text })
+              }
+              placeholder="Xác nhận mật khẩu mới"
+              isVisible={showPasswords.confirm}
+              onToggleVisibility={() =>
+                setShowPasswords({
+                  ...showPasswords,
+                  confirm: !showPasswords.confirm,
+                })
+              }
+              error={errors.confirmPassword}
+            />
+          </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.cancelButtonText}>Hủy</Text>
-          </TouchableOpacity>
+          {/* Action Buttons */}
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.cancelButtonText}>Hủy</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.saveButton,
-              loading && styles.saveButtonDisabled,
-            ]}
-            onPress={handleChangePassword}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.saveButtonText}>Lưu mật khẩu mới</Text>
-            )}          </TouchableOpacity>
-        </View>
-      </ScrollView>
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                loading && styles.saveButtonDisabled,
+              ]}
+              onPress={handleChangePassword}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveButtonText}>Lưu mật khẩu mới</Text>
+              )}          </TouchableOpacity>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )

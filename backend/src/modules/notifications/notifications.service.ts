@@ -36,6 +36,8 @@ export class NotificationsService {
       .find({
         $or: [
           { userId: userObjectId },
+          { driverId: userObjectId }, // Support driver notifications
+          { customerId: userObjectId }, // Support customer notifications
           { userId: broadcastId }, // Broadcast to all admins
         ],
         isActive: true,
@@ -46,13 +48,15 @@ export class NotificationsService {
   }
 
   async findUnread(userId: string): Promise<NotificationDocument[]> {
-    // Admins see both personal notifications AND broadcast notifications (000000000000000000000000)
+    // Support admins, drivers, and customers
     const userObjectId = new Types.ObjectId(userId);
     const broadcastId = new Types.ObjectId('000000000000000000000000');
     
     return this.notificationModel.find({
       $or: [
         { userId: userObjectId },
+        { driverId: userObjectId }, // Support driver notifications
+        { customerId: userObjectId }, // Support customer notifications
         { userId: broadcastId }, // Broadcast to all admins
       ],
       isRead: false,
@@ -67,6 +71,8 @@ export class NotificationsService {
     return this.notificationModel.countDocuments({
       $or: [
         { userId: userObjectId },
+        { driverId: userObjectId }, // Support driver notifications
+        { customerId: userObjectId }, // Support customer notifications
         { userId: broadcastId }, // Broadcast to all admins
       ],
       isRead: false,
@@ -96,8 +102,17 @@ export class NotificationsService {
   }
 
   async markAllAsRead(userId: string): Promise<any> {
+    const userObjectId = new Types.ObjectId(userId);
+    
     return this.notificationModel.updateMany(
-      { userId: new Types.ObjectId(userId), isRead: false },
+      { 
+        $or: [
+          { userId: userObjectId },
+          { driverId: userObjectId }, // Support driver notifications
+          { customerId: userObjectId }, // Support customer notifications
+        ],
+        isRead: false 
+      },
       {
         isRead: true,
         readAt: new Date(),

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { API_BASE_URL } from '../services/api';
 
 interface RideMapProps {
   pickupCoords?: [number, number];
@@ -234,7 +235,7 @@ const RideMap: React.FC<RideMapProps> = ({
           console.log('🔍 Fetching route from backend (ORS proxy)...');
           
           const response = await fetch(
-            `http://localhost:3000/api/rides/directions?startLng=${originLng}&startLat=${originLat}&endLng=${destLng}&endLat=${destLat}`
+            `${API_BASE_URL}/rides/directions?startLng=${originLng}&startLat=${originLat}&endLng=${destLng}&endLat=${destLat}`
           );
           
           if (!response.ok) {

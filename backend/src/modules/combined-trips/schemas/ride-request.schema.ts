@@ -48,6 +48,12 @@ export class RideRequest extends Document {
   @Prop({ type: Number })
   fare?: number
   
+  @Prop({ type: Number })
+  baseFare?: number // 🔥 NEW: Giá gốc TRƯỚC khi áp dụng carpool discount (để tính lại khi có người ghép)
+  
+  @Prop({ type: Boolean, default: false })
+  hasFixedPrice?: boolean  // 🔥 NEW: Mark inter-provincial fixed price requests
+  
   @Prop({ type: Boolean, default: false })
   isPeakTime: boolean
 

@@ -35,6 +35,9 @@ import FindingRideModal from '../components/FindingRideModal'
 import { rideService } from '../services/rideService'
 import { combinedTripsService } from '../services/combinedTripsService'
 import { mapsService } from '../services/mapsService'
+import { pricingService } from '../services/pricingService'
+import { calculateInterProvincialFare } from '../utils/pricing'
+import type { InterProvincialRoute } from '../types'
 
 const { height } = Dimensions.get('window')
 interface RideSharingProps {
@@ -102,6 +105,11 @@ export default function RideSharing(props?: RideSharingProps) {
   const [isRecalculatingRoute, setIsRecalculatingRoute] = useState(false)
   const locationWatcherRef = useRef<any>(null)
   const recalculateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Routes State ============
+  const [interProvincialRoutes, setInterProvincialRoutes] = useState<InterProvincialRoute[]>([])
+  const [selectedRoute, setSelectedRoute] = useState<InterProvincialRoute | null>(null)
+  const [isSearchingRoutes, setIsSearchingRoutes] = useState(false)
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -554,10 +562,84 @@ export default function RideSharing(props?: RideSharingProps) {
         routeCount: routeCoordinates.length,
         fare: fareEstimate?.totalFare
       });
+
+      // ✨ TỰ ĐỘNG TÌM CHUYẾN LIÊN TỈNH PHÙ HỢP
+      await searchInterProvincialRoutes(startCoords, endCoords);
     } catch (error: any) {
       console.error('[RideSharing] Route calculation error:', error);
       Alert.alert('Lỗi', error.message || 'Không thể tính toán tuyến đường');
       return null;
+    }
+  };
+
+  /**
+   * ✨ TÌM CHUYẾN ĐI LIÊN TỈNH PHÙ HỢP
+   */
+  const searchInterProvincialRoutes = async (
+    pickup: [number, number],
+    dropoff: [number, number]
+  ) => {
+    try {
+      setIsSearchingRoutes(true);
+      console.log('\n🚍 ============ TÌM CHUYẾN LIÊN TỈNH ============');
+      console.log('📍 Pickup coordinates:', {
+        lat: pickup[1].toFixed(4),
+        lng: pickup[0].toFixed(4),
+      });
+      console.log('📍 Dropoff coordinates:', {
+        lat: dropoff[1].toFixed(4),
+        lng: dropoff[0].toFixed(4),
+      });
+      console.log('🚗 Vehicle type: sedan');
+      console.log('================================================\n');
+
+      const routes = await pricingService.findInterProvincialRoutes(
+        pickup[1], // lat
+        pickup[0], // lng
+        dropoff[1],
+        dropoff[0],
+        'sedan' // Default vehicle type
+      );
+
+      console.log('\n📊 ============ KẾT QUẢ TÌM KIẾM ============');
+      console.log(`✅ Tìm thấy ${routes.length} chuyến phù hợp`);
+      
+      if (routes.length > 0) {
+        console.log('\n🎯 Danh sách chuyến xe:');
+        routes.forEach((route, index) => {
+          console.log(`  ${index + 1}. ${route.name}`);
+          console.log(`     - Giá: ${route.fixedPrice?.toLocaleString()}đ`);
+          console.log(`     - Từ: ${route.origin?.name}`);
+          console.log(`     - Đến: ${route.destination?.name}`);
+          console.log(`     - Bán kính đón: ${route.origin?.radius}km`);
+          console.log(`     - Bán kính trả: ${route.destination?.radius}km`);
+        });
+      } else {
+        console.log('⚠️ Không tìm thấy chuyến liên tỉnh phù hợp');
+        console.log('💡 Có thể do:');
+        console.log('   - Điểm đón/đến nằm ngoài bán kính của các chuyến đã cấu hình');
+        console.log('   - Chưa có chuyến liên tỉnh nào trong hệ thống');
+        console.log('   - Chuyến liên tỉnh đang bị tắt (inactive)');
+      }
+      console.log('============================================\n');
+
+      setInterProvincialRoutes(routes);
+      
+      // ⚠️ KHÔNG tự động chọn route - để user tự chọn hoặc bỏ qua
+      // Clear selection để user có thể dùng distance-based pricing nếu muốn
+      setSelectedRoute(null);
+      console.log(`ℹ️ Found ${routes.length} inter-provincial routes - user can choose or skip`);
+    } catch (error) {
+      console.error('\n❌ ============ LỖI TÌM CHUYẾN ============');
+      console.error('Error:', error);
+      if (error instanceof Error) {
+        console.error('Message:', error.message);
+        console.error('Stack:', error.stack);
+      }
+      console.error('=========================================\n');
+      setInterProvincialRoutes([]);
+    } finally {
+      setIsSearchingRoutes(false);
     }
   };
 
@@ -611,8 +693,8 @@ export default function RideSharing(props?: RideSharingProps) {
         dropoffAddress: dropoffLocation,
       })
 
-      // Navigate to FindingRideScreen
-      navigation.navigate('FindingRideScreen', {
+      // ✨ Prepare navigation params with inter-provincial route if selected
+      const navParams: any = {
         distance: routeInfo.distance,
         duration: routeInfo.duration,
         startLng: pickupCoordinates[0],
@@ -621,7 +703,27 @@ export default function RideSharing(props?: RideSharingProps) {
         endLat: dropoffCoordinates[1],
         pickupAddress: pickupLocation,
         dropoffAddress: dropoffLocation,
-      })
+      };
+
+      // Add inter-provincial route info if selected
+      console.log('\n🔍 [RideSharing] Checking selectedRoute before navigation...');
+      console.log('selectedRoute:', selectedRoute ? JSON.stringify(selectedRoute, null, 2) : 'null');
+      console.log('Has selectedRoute?', !!selectedRoute);
+      
+      if (selectedRoute) {
+        console.log('🚍 [RideSharing] ✅ PASSING inter-provincial route to FindingRideScreen:', selectedRoute.name, '-', selectedRoute.fixedPrice.toLocaleString(), 'đ');
+        navParams.interProvincialRoute = selectedRoute;
+      } else {
+        console.log('⚠️ [RideSharing] NO inter-provincial route selected - will use distance-based pricing');
+      }
+
+      console.log('\n📤 [RideSharing] Final navParams:', {
+        ...navParams,
+        interProvincialRoute: navParams.interProvincialRoute ? `${navParams.interProvincialRoute.name} - ${navParams.interProvincialRoute.fixedPrice}đ` : 'None',
+      });
+
+      // Navigate to FindingRideScreen
+      navigation.navigate('FindingRideScreen', navParams)
 
       setIsLoading(false)
     } catch (error: any) {
@@ -1156,6 +1258,127 @@ export default function RideSharing(props?: RideSharingProps) {
                 </View>
               </View> */}
             {/* </View> */}
+
+            {/* ============ CHUYẾN LIÊN TỈNH - INTER-PROVINCIAL ROUTES ============ */}
+            {isSearchingRoutes && (
+              <View style={styles.routesSearching}>
+                <ActivityIndicator size="small" color="#FF6B00" />
+                <Text style={styles.routesSearchingText}>Đang tìm chuyến liên tỉnh...</Text>
+              </View>
+            )}
+
+            {!isSearchingRoutes && interProvincialRoutes.length > 0 && (
+              <View style={styles.routesContainer}>
+                <View style={styles.routesHeader}>
+                  <MaterialCommunityIcons name="truck-fast" size={20} color="#FF6B00" />
+                  <Text style={styles.routesHeaderText}>Chuyến đi liên tỉnh có sẵn</Text>
+                  <View style={styles.routesBadge}>
+                    <Text style={styles.routesBadgeText}>{interProvincialRoutes.length}</Text>
+                  </View>
+                </View>
+                <Text style={styles.routesSubtitle}>
+                  Giá cố định - Không tính theo km - Không tăng giờ cao điểm
+                </Text>
+
+                {interProvincialRoutes.map((route) => {
+                  const isSelected = selectedRoute?.id === route.id;
+                  return (
+                    <TouchableOpacity
+                      key={route.id}
+                      style={[
+                        styles.routeCard,
+                        isSelected && styles.routeCardSelected,
+                      ]}
+                      onPress={() => {
+                        // ✅ Toggle behavior: click để chọn/bỏ chọn
+                        if (isSelected) {
+                          // Bỏ chọn - dùng distance-based pricing
+                          setSelectedRoute(null);
+                          console.log('❌ Deselected inter-provincial route - using distance-based pricing');
+                        } else {
+                          // Chọn route này
+                          setSelectedRoute(route);
+                          console.log('✅ Selected inter-provincial route:', route.name);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      {/* Header */}
+                      <View style={styles.routeCardHeader}>
+                        <View style={styles.routeCardTitle}>
+                          <MaterialIcons
+                            name="travel-explore"
+                            size={24}
+                            color={isSelected ? '#FF6B00' : '#6B7280'}
+                          />
+                          <Text
+                            style={[
+                              styles.routeCardName,
+                              isSelected && styles.routeCardNameSelected,
+                            ]}
+                          >
+                            {route.name}
+                          </Text>
+                        </View>
+                        {isSelected && (
+                          <MaterialIcons name="check-circle" size={24} color="#10B981" />
+                        )}
+                      </View>
+
+                      {/* Origin → Destination */}
+                      <View style={styles.routeCardLocations}>
+                        <View style={styles.routeCardLocation}>
+                          <MaterialIcons name="location-on" size={16} color="#10B981" />
+                          <Text style={styles.routeCardLocationText}>
+                            {route.origin.city}, {route.origin.province}
+                          </Text>
+                        </View>
+                        <MaterialIcons name="arrow-forward" size={16} color="#9CA3AF" />
+                        <View style={styles.routeCardLocation}>
+                          <MaterialIcons name="flag" size={16} color="#EF4444" />
+                          <Text style={styles.routeCardLocationText}>
+                            {route.destination.city}, {route.destination.province}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Pricing Info */}
+                      <View style={styles.routeCardPricing}>
+                        <View style={styles.routeCardPriceRow}>
+                          <Text style={styles.routeCardPriceLabel}>Giá cố định:</Text>
+                          <Text style={styles.routeCardPriceValue}>
+                            {route.fixedPrice.toLocaleString()}đ
+                          </Text>
+                        </View>
+                        {passengerCount > 1 && (
+                          <View style={styles.routeCardDiscountRow}>
+                            <MaterialIcons name="people" size={14} color="#10B981" />
+                            <Text style={styles.routeCardDiscountText}>
+                              Giảm giá ghép {passengerCount} người
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Description */}
+                      {route.description && (
+                        <Text style={styles.routeCardDescription}>{route.description}</Text>
+                      )}
+
+                      {/* Estimated Duration */}
+                      {route.estimatedDuration && (
+                        <View style={styles.routeCardDuration}>
+                          <MaterialIcons name="schedule" size={14} color="#6B7280" />
+                          <Text style={styles.routeCardDurationText}>
+                            Thời gian dự kiến: ~{route.estimatedDuration} phút
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             {/* Route Map & Info */}
             {routeInfo && (
@@ -1707,6 +1930,154 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 1.5,
     backgroundColor: '#D1D5DB',
+  },
+  // ============ CHUYẾN LIÊN TỈNH - Inter-Provincial Routes Styles ============
+  routesSearching: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  routesSearchingText: {
+    fontSize: 14,
+    color: '#92400E',
+    fontWeight: '500',
+  },
+  routesContainer: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FBBF24',
+  },
+  routesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  routesHeaderText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+    flex: 1,
+  },
+  routesBadge: {
+    backgroundColor: '#FF6B00',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  routesBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  routesSubtitle: {
+    fontSize: 11,
+    color: '#92400E',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  routeCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  routeCardSelected: {
+    borderColor: '#FF6B00',
+    backgroundColor: '#FFF7ED',
+  },
+  routeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  routeCardTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  routeCardName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  routeCardNameSelected: {
+    color: '#FF6B00',
+  },
+  routeCardLocations: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+  },
+  routeCardLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  routeCardLocationText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  routeCardPricing: {
+    marginBottom: 8,
+  },
+  routeCardPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  routeCardPriceLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  routeCardPriceValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FF6B00',
+  },
+  routeCardDiscountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  routeCardDiscountText: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  routeCardDescription: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    marginBottom: 6,
+  },
+  routeCardDuration: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  routeCardDurationText: {
+    fontSize: 11,
+    color: '#6B7280',
   },
 })
 // 00',

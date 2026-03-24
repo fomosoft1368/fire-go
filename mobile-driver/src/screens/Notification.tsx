@@ -46,20 +46,23 @@ export default function NotificationScreen({ navigation }: any) {
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true)
+      console.log('🔍 Fetching notifications with token:', token ? 'Token exists' : 'No token')
       const response = await notificationService.getNotifications(50, 0)
+      console.log('📥 Notifications response:', JSON.stringify(response, null, 2))
       const data = (response.data || []).sort((a: ApiNotification, b: ApiNotification) => {
         const dateA = new Date(a.sentAt || a.createdAt || 0).getTime()
         const dateB = new Date(b.sentAt || b.createdAt || 0).getTime()
         return dateB - dateA
       })
+      console.log('✅ Sorted notifications count:', data.length)
       setNotifications(data)
     } catch (error) {
-      console.error('Fetch notifications error:', error)
+      console.error('❌ Fetch notifications error:', error)
       Alert.alert('Lỗi', 'Không thể tải thông báo')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [token])
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -68,7 +71,7 @@ export default function NotificationScreen({ navigation }: any) {
     } catch (error) {
       console.error('Fetch unread count error:', error)
     }
-  }, [])
+  }, [token])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -78,6 +81,25 @@ export default function NotificationScreen({ navigation }: any) {
       setRefreshing(false)
     }
   }, [fetchNotifications, fetchUnreadCount])
+
+  const handleNotificationPress = async (item: ApiNotification) => {
+    // Mark as read if unread
+    if (!item.isRead) {
+      await handleMarkAsRead(item._id)
+    }
+    
+    // Navigate to detail screen
+    navigation?.navigate('NotificationDetail' as never, {
+      notification: {
+        id: item._id,
+        type: item.type,
+        title: item.title,
+        message: item.message,
+        time: formatDate(item.sentAt || item.createdAt),
+        details: item.description,
+      }
+    } as never)
+  }
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
@@ -221,7 +243,7 @@ export default function NotificationScreen({ navigation }: any) {
           !item.isRead && styles.notificationCardUnread,
           { borderLeftColor: colors.icon },
         ]}
-        onPress={() => !item.isRead && handleMarkAsRead(item._id)}
+        onPress={() => handleNotificationPress(item)}
         onLongPress={() => handleDeleteNotification(item._id)}
         activeOpacity={0.7}
       >
@@ -304,7 +326,11 @@ export default function NotificationScreen({ navigation }: any) {
           renderItem={({ item: section }) => (
             <View>
               {renderSectionHeader({ section })}
-              {section.data.map(notif => renderNotificationItem({ item: notif }))}
+              {section.data.map(notif => (
+                <View key={notif._id}>
+                  {renderNotificationItem({ item: notif })}
+                </View>
+              ))}
             </View>
           )}
           keyExtractor={(_, index) => `section-${index}`}

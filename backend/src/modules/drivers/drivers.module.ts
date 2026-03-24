@@ -20,6 +20,7 @@ import { CombinedTrip, CombinedTripSchema } from '../combined-trips/schemas/comb
 import { RideRequest, RideRequestSchema } from '../combined-trips/schemas/ride-request.schema';
 import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
+import { HourlyService, HourlyServiceSchema } from '../hourly-services/schemas/hourly-service.schema';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.sc
       { name: RideRequest.name, schema: RideRequestSchema },
       { name: Delivery.name, schema: DeliverySchema },
       { name: PricingConfig.name, schema: PricingConfigSchema },
+      { name: HourlyService.name, schema: HourlyServiceSchema },
     ]),
     MulterModule.register({
       dest: './uploads/driver-documents',

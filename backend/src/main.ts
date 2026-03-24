@@ -20,10 +20,10 @@ async function bootstrap() {
         authorization: req.headers.authorization ? `${req.headers.authorization.substring(0, 50)}...` : 'missing',
       });
     }
-    
+
     // Intercept response to log it
     const originalSend = res.send;
-    res.send = function(data) {
+    res.send = function (data) {
       if (req.path.includes('/change-password') || req.path === '/api/customers/change-password') {
         console.log('[HTTP Response] Response for', req.path, ':', {
           statusCode: res.statusCode,
@@ -32,7 +32,7 @@ async function bootstrap() {
       }
       return originalSend.call(this, data);
     };
-    
+
     next();
   });
 
@@ -44,6 +44,17 @@ async function bootstrap() {
   app.use(require('express').urlencoded({ limit: '50mb', extended: true }));
 
   // Enable CORS
+  const corsOrigins = [
+    process.env.CORS_WEB_ADMIN_VITE,
+    process.env.CORS_WEB_ADMIN_ALT,
+    process.env.CORS_MOBILE_CUSTOMER,
+    process.env.CORS_MOBILE_CUSTOMER_ALT,
+    process.env.CORS_LOCAL_NETWORK_1,
+    process.env.CORS_LOCAL_NETWORK_2,
+    process.env.CORS_ANDROID_EMULATOR,
+    process.env.CORS_WEB_ADMIN_SERVER,
+  ].filter(Boolean); // Remove undefined values
+
   app.enableCors({
     origin: [
       'http://localhost:5173',   // Web Admin (Vite)

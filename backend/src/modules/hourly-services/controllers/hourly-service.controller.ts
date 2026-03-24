@@ -19,11 +19,15 @@ import {
   GetPricingDto,
 } from '../dto/create-hourly-service.dto'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { DriversService } from '../../drivers/drivers.service'
 
 @Controller('hourly-services')
 @UseGuards(JwtAuthGuard)
 export class HourlyServiceController {
-  constructor(private readonly hourlyServiceService: HourlyServiceService) {}
+  constructor(
+    private readonly hourlyServiceService: HourlyServiceService,
+    private readonly driversService: DriversService,
+  ) {}
 
   /**
    * Create new hourly service
@@ -244,6 +248,15 @@ export class HourlyServiceController {
         return {
           success: false,
           message: 'Worker ID is required',
+        }
+      }
+
+      // ✅ Check if driver is busy with ANY service
+      const busyDriverIds = await this.driversService.getBusyDriverIds()
+      if (busyDriverIds.includes(workerId)) {
+        return {
+          success: false,
+          message: 'Tài xế đang bận với một dịch vụ khác. Vui lòng chọn tài xế khác.',
         }
       }
 

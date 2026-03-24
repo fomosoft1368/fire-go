@@ -10,6 +10,7 @@ import {
   ImageBackground,
   SafeAreaView,
   Image,
+  Platform,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { MaterialIcons } from '@expo/vector-icons'
@@ -17,7 +18,8 @@ import { useDispatch, useSelector } from 'react-redux'
 import { loginStart, loginSuccess, loginFailure } from '../redux/slices/authSlice'
 import { login as loginAPI } from '../services/authService'
 import type { RootState } from '../redux/store'
-
+import { API_BASE_URL } from '../constants/config'
+import { KeyboardAvoidingView } from 'react-native'
 const COLORS = {
   primary: '#FF6B35',
   white: '#ffffff',
@@ -36,6 +38,7 @@ export default function LoginScreen({ navigation }: any) {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+
   const dispatch = useDispatch()
   const { isLoading, error } = useSelector((state: RootState) => state.auth)
 
@@ -50,7 +53,7 @@ export default function LoginScreen({ navigation }: any) {
       const response = await loginAPI(phoneEmail, password)
       dispatch(loginSuccess({ token: response.accessToken, user: response.user }))
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Đăng nhập thất bại'
+      const errorMessage = err.response?.data?.message || err.message || 'Đăng nhập thất bại'
       dispatch(loginFailure(errorMessage))
       Alert.alert('Lỗi', errorMessage)
     }
@@ -399,7 +402,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -417,5 +419,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.primary,
   },
-  
 })

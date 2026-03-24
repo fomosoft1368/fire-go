@@ -70,7 +70,13 @@ export class NotificationsController {
     @Query('limit') limit: number = 20,
     @Query('skip') skip: number = 0,
   ) {
-    return this.notificationsService.findByUserId(req.user.id, limit, skip);
+    const notifications = await this.notificationsService.findByUserId(req.user.id, limit, skip);
+    const total = await this.notificationsService.getUnreadCount(req.user.id);
+    return {
+      data: notifications,
+      total: notifications.length,
+      unreadCount: total,
+    };
   }
 
   @Get(':id')

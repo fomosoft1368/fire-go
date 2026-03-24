@@ -112,6 +112,113 @@ class PricingService {
     this.cachedConfig = null
     this.lastFetch = 0
   }
+
+  // ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Routes ============
+  /**
+   * Tìm các chuyến đi liên tỉnh phù hợp với điểm đón và điểm đến
+   */
+  async findInterProvincialRoutes(
+    pickupLat: number,
+    pickupLng: number,
+    dropoffLat: number,
+    dropoffLng: number,
+    vehicleType: string
+  ): Promise<any[]> {
+    try {
+      console.log('\n🌐 ============ CALLING API ============')
+      console.log('📍 API URL:', `${API_BASE_URL}/pricing/interprovincial/find`)
+      console.log('📦 Request body:', {
+        pickupLat,
+        pickupLng,
+        dropoffLat,
+        dropoffLng,
+        vehicleType,
+      })
+
+      const url = `${API_BASE_URL}/pricing/interprovincial/find`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pickupLat,
+          pickupLng,
+          dropoffLat,
+          dropoffLng,
+          vehicleType,
+        }),
+      })
+
+      console.log('📡 Response status:', response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ API Error:', errorText)
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`)
+      }
+
+      const data = await response.json()
+      console.log('📊 API Response:', JSON.stringify(data, null, 2))
+      console.log(`✅ Received ${data.routes?.length || 0} routes from API`)
+      console.log('====================================\n')
+      
+      return data.routes || []
+    } catch (error) {
+      console.error('\n❌ ============ API ERROR ============')
+      console.error('[PricingService] Error finding inter-provincial routes:', error)
+      if (error instanceof Error) {
+        console.error('Error message:', error.message)
+        console.error('Error stack:', error.stack)
+      }
+      console.error('====================================\n')
+      return []
+    }
+  }
+
+  /**
+   * Tính giá cho chuyến đi liên tỉnh
+   */
+  async calculateInterProvincialPrice(
+    routeId: string,
+    totalPassengers: number
+  ): Promise<{
+    routeInfo: any
+    fixedPrice: number
+    discountRate: number
+    finalPrice: number
+    pricePerPerson: number
+  } | null> {
+    try {
+      console.log('\n💰 [Inter-Provincial] Calculating price...')
+      console.log('  Route ID:', routeId)
+      console.log('  Passengers:', totalPassengers)
+
+      const url = `${API_BASE_URL}/pricing/interprovincial/calculate`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          routeId,
+          totalPassengers,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log('\n✅ Price calculated:', data.finalPrice?.toLocaleString() + 'đ\n')
+      
+      return data
+    } catch (error) {
+      console.error('[PricingService] Error calculating inter-provincial price:', error)
+      return null
+    }
+  }
 }
 
 export const pricingService = new PricingService()

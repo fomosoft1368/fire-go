@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 export interface PeakHour {
   id: string;
@@ -15,12 +15,20 @@ export interface CarpoolDiscount {
   discount: number;
 }
 
+export interface DistanceRange {
+  id: string;
+  minKm: number;
+  maxKm: number; // -1 = vô hạn (Infinity)
+  pricePerKm: number;
+}
+
 export interface VehicleTypePrice {
   type: string;
   name: string;
   baseFee: number;
   pricePerKm: number;
   minimumFare: number;
+  distanceRanges?: DistanceRange[]; // ✨ NEW: Giá theo khoảng cách
 }
 
 // ============ GIAO HÀNG - Delivery Config Types ============
@@ -55,6 +63,29 @@ export interface HireDriverPricing {
   description?: string;
 }
 
+// ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Route Types ============
+export interface InterProvincialRoute {
+  id: string;
+  name: string;
+  origin: {
+    city: string;
+    province: string;
+    coordinates: { lat: number; lng: number };
+    radius: number;
+  };
+  destination: {
+    city: string;
+    province: string;
+    coordinates: { lat: number; lng: number };
+    radius: number;
+  };
+  fixedPrice: number;
+  vehicleType: string;
+  isActive: boolean;
+  description?: string;
+  estimatedDuration?: number;
+}
+
 export interface PricingConfig {
   _id?: string;
   vehicleTypes: VehicleTypePrice[];
@@ -69,6 +100,8 @@ export interface PricingConfig {
   deliveryVehicleTypes?: DeliveryVehicleType[];
   // ============ LÁI XE HỘ ============
   hireDriverPricing?: HireDriverPricing[];
+  // ============ CHUYẾN ĐI LIÊN TỈNH ============
+  interProvincialRoutes?: InterProvincialRoute[];
   updatedAt?: string;
 }
 
@@ -85,7 +118,7 @@ class PricingService {
   async getConfig(): Promise<PricingConfig> {
     try {
       const response = await axios.get(
-        `${API_URL}/api/pricing/config`,
+        `${API_URL}/pricing/config`,
         this.getAuthHeaders()
       );
       return response.data;
@@ -98,7 +131,7 @@ class PricingService {
   async updateConfig(config: Partial<PricingConfig>): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}/api/pricing/config`,
+        `${API_URL}/pricing/config`,
         config,
         this.getAuthHeaders()
       );
@@ -112,7 +145,7 @@ class PricingService {
   async resetToDefaults(): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}/api/pricing/config/reset`,
+        `${API_URL}/pricing/config/reset`,
         {},
         this.getAuthHeaders()
       );
@@ -127,7 +160,7 @@ class PricingService {
   async updateDeliveryGoodsTypes(goodsTypes: DeliveryGoodsType[]): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}/api/pricing/config/delivery/goods-types`,
+        `${API_URL}=/pricing/config/delivery/goods-types`,
         { goodsTypes },
         this.getAuthHeaders()
       );
@@ -141,7 +174,7 @@ class PricingService {
   async updateDeliveryWeightRanges(weightRanges: DeliveryWeightRange[]): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}/api/pricing/config/delivery/weight-ranges`,
+        `${API_URL}=/pricing/config/delivery/weight-ranges`,
         { weightRanges },
         this.getAuthHeaders()
       );
@@ -155,7 +188,7 @@ class PricingService {
   async updateDeliveryVehicleTypes(vehicleTypes: DeliveryVehicleType[]): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}/api/pricing/config/delivery/vehicle-types`,
+        `${API_URL}=/pricing/config/delivery/vehicle-types`,
         { vehicleTypes },
         this.getAuthHeaders()
       );
@@ -170,7 +203,7 @@ class PricingService {
   async updateHireDriverPricing(hireDriverPricing: HireDriverPricing[]): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}/api/pricing/config/hire-driver`,
+        `${API_URL}=/pricing/config/hire-driver`,
         { hireDriverPricing },
         this.getAuthHeaders()
       );
@@ -178,6 +211,18 @@ class PricingService {
     } catch (error) {
       console.error('Error updating hire driver pricing:', error);
       throw error;
+    }
+  }
+
+  // ============ DRIVER SEARCH CONFIG - Get search radius ============
+  async getDriverSearchConfig(serviceType: string = 'rideshare'): Promise<{ searchRadiusMeters: number }> {
+    try {
+      const response = await axios.get(`${API_URL}=/config/driver-search/${serviceType}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching driver search config:', error);
+      // Return default if API fails
+      return { searchRadiusMeters: 10000 };
     }
   }
 }

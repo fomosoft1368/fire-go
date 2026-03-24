@@ -63,7 +63,6 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   }
 
 
-
   const handleAcceptRide = async () => {
     if (!user || !user.id) {
       Alert.alert('Lỗi', 'Không tìm thấy thông tin tài xế. Vui lòng đăng nhập lại.')
@@ -78,9 +77,9 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
         throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
       }
 
-      const API_URL = 'http://192.168.1.16:3000/api'
+      const API_BASE_URL = 'http://192.168.1.16:3000/api'
 
-      const response = await fetch(`${API_URL}/rides/${rideId}/accept`, {
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}/accept`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

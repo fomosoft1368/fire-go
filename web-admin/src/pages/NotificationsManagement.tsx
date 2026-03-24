@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_BASE_URL } from '../services/api';
 import Layout from '../components/Layout';
 
 interface Driver {
@@ -60,8 +61,6 @@ const NotificationsManagement: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
-  const API_BASE = 'http://localhost:3000';
-
   // Search recipients
   const handleSearch = async (query: string) => {
     if (!query || query.length < 2) {
@@ -72,8 +71,8 @@ const NotificationsManagement: React.FC = () => {
 
     try {
       const endpoint = recipientType === 'driver' 
-        ? `${API_BASE}/api/drivers/search`
-        : `${API_BASE}/api/customers/search`;
+        ? `${API_BASE_URL}/drivers/search`
+        : `${API_BASE_URL}/customers/search`;
       
       const response = await axios.get(endpoint, {
         params: { q: query },
@@ -120,7 +119,7 @@ const NotificationsManagement: React.FC = () => {
       if (description) payload.description = description;
       if (actionUrl) payload.actionUrl = actionUrl;
 
-      await axios.post(`${API_BASE}/api/notifications/send`, payload, {
+      await axios.post(`${API_BASE_URL}/notifications/send`, payload, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
 
@@ -160,7 +159,7 @@ const NotificationsManagement: React.FC = () => {
       };
       if (type) params.type = type;
 
-      const response = await axios.get(`${API_BASE}/api/notifications/admin/all`, {
+      const response = await axios.get(`${API_BASE_URL}/notifications/admin/all`, {
         params,
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });

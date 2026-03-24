@@ -20,6 +20,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import * as Location from 'expo-location'
 import * as ImagePicker from 'expo-image-picker'
 import { COLORS } from '../constants'
+import { API_BASE_URL } from '../constants/config'
 import MapViewComponent from '../components/MapView'
 import { mapsService } from '../services/mapsService'
 import { vehicleConditionService } from '../services/vehicleConditionService'
@@ -90,15 +91,15 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             onPanResponderRelease: (_, gestureState) => {
                 bottomSheetHeight.flattenOffset()
                 const currentHeight = lastGestureDy.current - gestureState.dy
-                
+
                 // Tính threshold (giữa MIN và MAX)
                 const threshold = (MIN_HEIGHT + MAX_HEIGHT) / 2
-                
+
                 // Snap tới MIN hoặc MAX dựa vào vị trí hiện tại
                 const toValue = currentHeight > threshold ? MAX_HEIGHT : MIN_HEIGHT
-                
+
                 lastGestureDy.current = toValue
-                
+
                 Animated.spring(bottomSheetHeight, {
                     toValue,
                     useNativeDriver: false,
@@ -186,8 +187,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
     const fetchRideDetail = async () => {
         setLoading(true)
         try {
-            const API_URL = 'http://192.168.1.16:3000/api'
-            const response = await fetch(`${API_URL}/rides/${rideId}`)
+            const response = await fetch(`${API_BASE_URL}/rides/${rideId}`)
 
             if (!response.ok) {
                 throw new Error('Failed to fetch ride details')
@@ -304,8 +304,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             const token = await AsyncStorage.getItem('token')
             if (!token) return
 
-            const API_URL = 'http://192.168.1.16:3000/api'
-            const response = await fetch(`${API_URL}/messages/ride/${rideId}/unread-count`, {
+            const response = await fetch(`${API_BASE_URL}/messages/ride/${rideId}/unread-count`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
 
@@ -331,7 +330,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
 
     const handleChat = () => {
         if (!navigation) return
-        
+
         navigation.navigate('ChatScreen', {
             customer: {
                 id: customer?._id,
@@ -410,7 +409,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         setUpdating(true)
         try {
             console.log(`📤 Uploading ${vehiclePhotos.length} images...`)
-            
+
             // Upload ảnh lên server (lưu base64 trong MongoDB)
             const result = await vehicleConditionService.uploadVehicleCondition(
                 rideId,
@@ -419,12 +418,12 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             )
 
             console.log('✅ Vehicle condition saved:', result)
-            
+
             setTripStatus('vehicle-condition-checked')
             setShowVehicleCheckModal(false)
-            
+
             Alert.alert(
-                'Thành công', 
+                'Thành công',
                 `Đã lưu ${vehiclePhotos.length} ảnh kiểm tra xe.\nSẵn sàng bắt đầu chuyến đi.`
             )
         } catch (error: any) {
@@ -445,10 +444,9 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                 throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
             }
 
-            const API_URL = 'http://192.168.1.16:3000/api'
             console.log('🚗 Starting trip:', rideId)
 
-            const response = await fetch(`${API_URL}/rides/${rideId}/start`, {
+            const response = await fetch(`${API_BASE_URL}/rides/${rideId}/start`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -489,11 +487,10 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                 throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
             }
 
-            const API_URL = 'http://192.168.1.16:3000/api'
             console.log('🏁 Completing trip:', rideId)
             console.log('🔍 Current ride status:', ride?.status)
 
-            const response = await fetch(`${API_URL}/rides/${rideId}/complete`, {
+            const response = await fetch(`${API_BASE_URL}/rides/${rideId}/complete`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',

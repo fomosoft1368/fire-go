@@ -82,4 +82,47 @@ export class PricingController {
     return this.pricingService.updateHireDriverPricing(body.hireDriverPricing);
   }
   // ============ END LÁI XE HỘ ============
+
+  // ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Route APIs ============
+  /**
+   * Tìm các chuyến đi liên tỉnh phù hợp với điểm đón và điểm đến
+   * Public endpoint - không cần auth
+   */
+  @Post('interprovincial/find')
+  async findInterProvincialRoutes(
+    @Body() body: {
+      pickupLat: number;
+      pickupLng: number;
+      dropoffLat: number;
+      dropoffLng: number;
+      vehicleType: string;
+    },
+  ): Promise<{ routes: any[] }> {
+    const routes = await this.pricingService.findMatchingInterProvincialRoutes(
+      body.pickupLat,
+      body.pickupLng,
+      body.dropoffLat,
+      body.dropoffLng,
+      body.vehicleType,
+    );
+    return { routes };
+  }
+
+  /**
+   * Tính giá cho chuyến đi liên tỉnh
+   * Public endpoint - không cần auth
+   */
+  @Post('interprovincial/calculate')
+  async calculateInterProvincialPrice(
+    @Body() body: {
+      routeId: string;
+      totalPassengers: number;
+    },
+  ): Promise<any> {
+    return this.pricingService.calculateInterProvincialPrice(
+      body.routeId,
+      body.totalPassengers,
+    );
+  }
+  // ============ END CHUYẾN ĐI LIÊN TỈNH ============
 }
