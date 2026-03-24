@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-const API_BASE_URL = 'http://192.168.1.18:3000/api'
+const API_BASE_URL = 'http://192.168.1.16:3000/api'
 
 export interface PaymentMethod {
   _id: string

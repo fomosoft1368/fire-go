@@ -227,7 +227,7 @@ export default function RegisterScreen({ navigation }: any) {
       }
 
       // Call registration API
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.16:3000/api'
       console.log('🚀 Calling API:', `${API_BASE_URL}/drivers`)
       console.log('📤 Registration Data:', registrationData)
 

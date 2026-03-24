@@ -7,11 +7,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  ScrollView,
   ImageBackground,
   SafeAreaView,
   Image,
 } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
 import { loginStart, loginSuccess, loginFailure } from '../redux/slices/authSlice'
@@ -66,7 +66,14 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        extraHeight={276}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
@@ -210,7 +217,7 @@ export default function LoginScreen({ navigation }: any) {
             <Text style={styles.signupLink}>Đăng ký tài xế</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   )
 }

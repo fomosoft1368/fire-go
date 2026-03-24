@@ -82,7 +82,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
       const token = await AsyncStorage.getItem('token')
       if (!token) return
 
-      const API_URL = 'http://192.168.1.18:3000/api'
+      const API_URL = 'http://192.168.1.16:3000/api'
       const response = await fetch(`${API_URL}/messages/ride/${rideId}/unread-count`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -104,7 +104,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
     const fetchRideStatus = async () => {
       try {
-        const API_URL = 'http://192.168.1.18:3000/api'
+        const API_URL = 'http://192.168.1.16:3000/api'
         const url = `${API_URL}/rides/${rideId}`
         
         const response = await fetch(url)
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#1a202c',
+    backgroundColor: '#fff',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingTop: 12,
@@ -552,12 +552,12 @@ const styles = StyleSheet.create({
   driverName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    color: '#000',
     marginBottom: 4,
   },
   carInfo: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: '#666',
     marginBottom: 4,
   },
   ratingRow: {
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#666',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -612,13 +612,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   routeSection: {
-    backgroundColor: '#374151',
+    backgroundColor: '#f5f5f5',
     borderRadius: 16,
     padding: 16,
     marginHorizontal: SPACING.lg,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#e0e0e0',
   },
   routeItem: {
     flexDirection: 'row',
@@ -649,14 +649,14 @@ const styles = StyleSheet.create({
   routeLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: '#999',
     marginBottom: 4,
     letterSpacing: 0.5,
   },
   routeAddress: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#000',
     marginBottom: 2,
   },
   routeTime: {

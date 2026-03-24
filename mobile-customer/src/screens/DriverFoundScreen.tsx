@@ -109,7 +109,7 @@ export default function DriverFoundScreen() {
         const minTranslate = 0 // Fully expanded
         const maxTranslate = EXPANDED_HEIGHT - COLLAPSED_HEIGHT // Collapsed
         const calculatedY = lastGestureY.current + newY
-        
+
         // Clamp the value
         if (calculatedY < minTranslate) {
           translateY.setValue(minTranslate - lastGestureY.current)
@@ -122,17 +122,17 @@ export default function DriverFoundScreen() {
       onPanResponderRelease: (_, gestureState) => {
         translateY.flattenOffset()
         const currentY = lastGestureY.current + gestureState.dy
-        
+
         // 2 states: expanded (0) and collapsed (EXPANDED_HEIGHT - COLLAPSED_HEIGHT)
         const expandedY = 0
         const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
         const threshold = collapsedY / 2
-        
+
         // Simple snap logic: snap to nearest state
         const targetY = currentY < threshold ? expandedY : collapsedY
-        
+
         lastGestureY.current = targetY
-        
+
         Animated.spring(translateY, {
           toValue: targetY,
           useNativeDriver: true,
@@ -146,9 +146,9 @@ export default function DriverFoundScreen() {
   // Helper function to snap to specific state - 2 states only
   const snapToState = (state: 'expanded' | 'collapsed') => {
     const targetY = state === 'expanded' ? 0 : EXPANDED_HEIGHT - COLLAPSED_HEIGHT
-    
+
     lastGestureY.current = targetY
-    
+
     Animated.spring(translateY, {
       toValue: targetY,
       useNativeDriver: true,
@@ -170,7 +170,7 @@ export default function DriverFoundScreen() {
     console.log('[DriverFoundScreen] 🚀 Initializing trip loading and polling...')
     loadTripDetails()
     loadDriverLocation() // Load location immediately on mount
-    
+
     // ✅ CRITICAL: More aggressive polling for real-time updates
     // Poll trip status every 1.5 seconds for faster updates
     pollingInterval.current = setInterval(() => {
@@ -212,11 +212,11 @@ export default function DriverFoundScreen() {
     }
 
     // ✅ CRITICAL: Skip polling for synthetic/fallback requests
-    const isSyntheticRequest = rideRequest._id.startsWith('synthetic_') || 
-                               rideRequest._id.startsWith('userapi_') ||
-                               rideRequest._id.startsWith('fromtrip_') ||
-                               rideRequest._id.startsWith('fallback-')
-    
+    const isSyntheticRequest = rideRequest._id.startsWith('synthetic_') ||
+      rideRequest._id.startsWith('userapi_') ||
+      rideRequest._id.startsWith('fromtrip_') ||
+      rideRequest._id.startsWith('fallback-')
+
     if (isSyntheticRequest) {
       console.log('[DriverFoundScreen] ⚠️ Skipping status poll for synthetic request:', {
         requestId: rideRequest._id,
@@ -241,13 +241,13 @@ export default function DriverFoundScreen() {
         rideRequestId: rideRequest._id,
         currentStatus: rideRequest?.status,
       })
-      
+
       try {
         const response = await combinedTripsService.getCombinedTripRequestStatus(
           combinedTripId,
           rideRequest._id
         )
-        
+
         // ✅ ENHANCED DEBUG: Log full response to see what backend returns
         console.log(`[DriverFoundScreen] 📡 Status Poll #${pollCount} - Full backend response:`, {
           success: !!response,
@@ -260,14 +260,14 @@ export default function DriverFoundScreen() {
           fullBackendResponse: response,
           pollTimestamp: new Date().toISOString(),
         })
-        
+
         if (response?.status && response.status !== rideRequest?.status) {
           console.log(`[DriverFoundScreen] 🔄 Status Poll #${pollCount} - STATUS CHANGED:`, {
             oldStatus: rideRequest?.status,
             newStatus: response?.status,
             shouldUpdate: true,
           })
-          
+
           setRideRequest((prev: any) => {
             console.log('[DriverFoundScreen] ✅ REQUEST STATUS UPDATED!', {
               oldStatus: prev?.status,
@@ -281,11 +281,11 @@ export default function DriverFoundScreen() {
               status: response.status, // Ensure status is updated
             }
           })
-          
+
           // ✅ CRITICAL: Also reload trip data when status changes for complete sync
           console.log('[DriverFoundScreen] 🔄 Status changed, reloading full trip data for consistency...')
           setTimeout(() => loadTripDetails(), 100) // Small delay to avoid race conditions
-          
+
           // Handle status changes with navigation or alerts
           if (response?.status === 'completed') {
             console.log('🏁 Trip completed - navigating to rating screen')
@@ -345,7 +345,7 @@ export default function DriverFoundScreen() {
       hasDriverlocation: !!driverLocation,
       driverCoords: driverLocation?.coordinates,
     })
-    
+
     // ✅ CRITICAL: Call loadRoute immediately when status is in_progress
     // Don't wait for driverLocation - it will be used from current state
     // Map will show polyline even if driver location is still updating
@@ -364,7 +364,7 @@ export default function DriverFoundScreen() {
 
       // Fetch CombinedTrip details (driver, locations, route)
       const trip = await combinedTripsService.getCombinedTripDetail(combinedTripId)
-      
+
       // Fetch RideRequest for this customer (status, fare, seats)
       // RideRequest contains customer's specific booking info
       let request = null
@@ -372,7 +372,7 @@ export default function DriverFoundScreen() {
         // Get all ride requests for this combined trip
         console.log('[DriverFoundScreen] Starting to fetch requests for trip:', combinedTripId)
         const requests = await combinedTripsService.getCombinedTripRequests(combinedTripId)
-        
+
         console.log('[DriverFoundScreen] All RideRequests fetched:', {
           count: requests?.length || 0,
           rawRequests: requests, // Log full object
@@ -405,7 +405,7 @@ export default function DriverFoundScreen() {
 
         if (currentUserId && Array.isArray(requests) && requests.length > 0) {
           console.log('[DriverFoundScreen] Starting to match', requests.length, 'requests')
-          
+
           // ✅ CRITICAL DEBUG: Show filtering process step by step
           console.log('[DriverFoundScreen] 🔍 FILTERING DEBUG - Before active filter:', {
             allRequests: requests.map((r: any) => ({
@@ -415,10 +415,10 @@ export default function DriverFoundScreen() {
               isActiveStatus: ['pending', 'accepted', 'arrived_at_pickup', 'in_progress', 'completed'].includes(r.status),
             })),
           })
-          
+
           // ✅ IMPORTANT: Only find ACTIVE requests (pending/accepted/in_progress)
           // Filter out timeout/rejected requests to avoid showing old driver data
-          const activeRequests = requests.filter((r: any) => 
+          const activeRequests = requests.filter((r: any) =>
             ['pending', 'accepted', 'arrived_at_pickup', 'in_progress', 'completed'].includes(r.status)
           )
           console.log('[DriverFoundScreen] 🔍 FILTERING DEBUG - After active filter:', {
@@ -431,7 +431,7 @@ export default function DriverFoundScreen() {
               customerId: r.customerId?._id || r.customerId,
             })),
           })
-          
+
           request = activeRequests.find((req: any) => {
             const reqCustomerId = req.customerId?._id || req.customerId
             const isMatch = String(reqCustomerId) === String(currentUserId)
@@ -448,7 +448,7 @@ export default function DriverFoundScreen() {
             })
             return isMatch
           })
-          
+
           // ✅ CRITICAL DEBUG: Log the final selected request
           console.log('[DriverFoundScreen] 🎯 FINAL SELECTED REQUEST:', {
             currentUserId,
@@ -485,11 +485,11 @@ export default function DriverFoundScreen() {
               emptyArray: Array.isArray(requests) && requests.length === 0,
             },
           })
-          
+
           // ✅ CRITICAL FALLBACK: If no requests found, try alternative method
           if (Array.isArray(requests) && requests.length === 0 && currentUserId) {
             console.log('[DriverFoundScreen] 🔧 EMERGENCY FALLBACK - No requests from API, trying direct database query...')
-            
+
             // Try direct query to backend for this specific user's request
             try {
               // Use the user API to get current user's active requests
@@ -500,9 +500,9 @@ export default function DriverFoundScreen() {
                   'Authorization': `Bearer ${await AsyncStorage.getItem('authToken')}`,
                 },
               })
-              
+
               console.log('[DriverFoundScreen] 🔧 Direct API response status:', userResponse.status)
-              
+
               if (userResponse.ok) {
                 const userTrips = await userResponse.json()
                 console.log('[DriverFoundScreen] 🆘 Direct user query result:', {
@@ -510,7 +510,7 @@ export default function DriverFoundScreen() {
                   userTrips: userTrips?.slice(0, 2), // Log first 2 trips
                   combinedTripId: combinedTripId,
                 })
-                
+
                 // Find trip matching current combinedTripId
                 const matchingTrip = userTrips?.find((trip: any) => String(trip._id) === String(combinedTripId))
                 if (matchingTrip) {
@@ -523,7 +523,7 @@ export default function DriverFoundScreen() {
                     hasRequest: !!matchingTrip.request,
                     rideRequests: matchingTrip.rideRequests,
                   })
-                  
+
                   // ✅ CRITICAL: This API returns trip WITH customer's RideRequest data embedded
                   // Fields like requestStatus, customerFare, customerSeats come from RideRequest
                   // ⚠️ IMPORTANT: Only create request if we have a valid requestId from backend
@@ -547,7 +547,7 @@ export default function DriverFoundScreen() {
                   } else {
                     console.log('[DriverFoundScreen] ⚠️ No valid requestId found - cannot create request object')
                   }
-                  
+
                   // console.log('[DriverFoundScreen] ✅ FALLBACK SUCCESS - Created request from user API:', {
                   //   requestId: request._id,
                   //   status: request.status,
@@ -560,7 +560,7 @@ export default function DriverFoundScreen() {
               } else {
                 const errorText = await userResponse.text()
                 console.error('[DriverFoundScreen] 🔧 Direct API error:', userResponse.status, errorText)
-                
+
                 // Try alternative: get combined trip directly
                 console.log('[DriverFoundScreen] 🔧 Trying direct combined trip API...')
                 const directTripResponse = await fetch(`${API_BASE_URL}/combined-trips/${combinedTripId}`, {
@@ -570,7 +570,7 @@ export default function DriverFoundScreen() {
                     'Authorization': `Bearer ${await AsyncStorage.getItem('authToken')}`,
                   },
                 })
-                
+
                 if (directTripResponse.ok) {
                   const combinedTripData = await directTripResponse.json()
                   console.log('[DriverFoundScreen] 🔧 Direct combined trip result:', {
@@ -579,19 +579,19 @@ export default function DriverFoundScreen() {
                     hasRideRequests: !!combinedTripData.rideRequests,
                     rideRequestsCount: combinedTripData.rideRequests?.length || 0,
                   })
-                  
+
                   // Find matching ride request
-                  const matchingRequest = combinedTripData.rideRequests?.find((req: any) => 
+                  const matchingRequest = combinedTripData.rideRequests?.find((req: any) =>
                     String(req.customerId) === String(currentUserId)
                   )
-                  
+
                   if (matchingRequest) {
                     console.log('[DriverFoundScreen] 🎯 Found matching request from direct trip API:', {
                       requestId: matchingRequest._id,
                       status: matchingRequest.status,
                       customerId: matchingRequest.customerId,
                     })
-                    
+
                     request = {
                       _id: matchingRequest._id,
                       combinedTripId: combinedTripId,
@@ -608,7 +608,7 @@ export default function DriverFoundScreen() {
                       updatedAt: matchingRequest.updatedAt || new Date().toISOString(),
                       driverId: trip?.driverId?._id,
                     }
-                    
+
                     console.log('[DriverFoundScreen] ✅ FALLBACK SUCCESS - Created request from direct trip API:', {
                       requestId: request._id,
                       status: request.status,
@@ -620,7 +620,7 @@ export default function DriverFoundScreen() {
             } catch (apiError) {
               console.warn('[DriverFoundScreen] 🔧 Direct API fallback failed:', apiError)
             }
-            
+
             // If still no request, create synthetic one as last resort
             if (!request) {
               console.log('[DriverFoundScreen] 🆘 Last resort: Creating synthetic request...')
@@ -650,19 +650,19 @@ export default function DriverFoundScreen() {
             }
           } else {
             // Normal fallback: use first ACTIVE request if no user ID available
-            const activeRequests = requests?.filter((r: any) => 
+            const activeRequests = requests?.filter((r: any) =>
               ['pending', 'accepted', 'arrived_at_pickup', 'in_progress', 'completed'].includes(r?.status)
             ) || []
             request = activeRequests?.[0] || null
           }
-          
+
           console.log('[DriverFoundScreen] 🔄 FALLBACK REQUEST SELECTION:', {
             reason: !currentUserId ? 'no user ID' : !Array.isArray(requests) ? 'requests not array' : 'empty requests',
             requestStatus: request?.status,
             requestId: request?._id,
             currentUserId,
             requestsCount: requests?.length || 0,
-            activeRequestsCount: requests?.filter?.((r: any) => 
+            activeRequestsCount: requests?.filter?.((r: any) =>
               ['pending', 'accepted', 'arrived_at_pickup', 'in_progress', 'completed'].includes(r?.status)
             )?.length || 0,
             selectedRequest: request ? {
@@ -697,26 +697,26 @@ export default function DriverFoundScreen() {
         requestDriverId: request?.driverId,
         tripDriverId: trip?.driverId?._id,
       })
-      
+
       // ✅ CRITICAL: Ensure CombinedTrip shows correct driver from active request
       // Backend should update CombinedTrip.driverId when request accepted, but add safety check
-      if (request?.driverId && trip?.driverId?._id && 
-          String(request.driverId) !== String(trip.driverId._id)) {
+      if (request?.driverId && trip?.driverId?._id &&
+        String(request.driverId) !== String(trip.driverId._id)) {
         console.warn('[DriverFoundScreen] ⚠️ Driver ID mismatch! Request driver:', request.driverId, 'vs Trip driver:', trip.driverId._id)
         console.warn('[DriverFoundScreen] Using trip driver (should be updated by backend)')
       }
-      
+
       setTripData(trip)
       setRideRequest(request)
       setLoading(false)
       setError(null)
     } catch (err: any) {
       console.error('Error loading trip details:', err)
-      
+
       // ✅ Handle 404 - Trip not found (deleted or doesn't exist)
       if (err.message?.includes('not found') || err.message?.includes('404')) {
         console.log('[DriverFoundScreen] 🚨 Trip not found (404) - Stopping polling and navigating back')
-        
+
         // Clear polling intervals
         if (pollingInterval.current) {
           clearInterval(pollingInterval.current)
@@ -726,21 +726,21 @@ export default function DriverFoundScreen() {
           clearInterval(locationInterval.current)
           locationInterval.current = null
         }
-        
+
         // Show alert and navigate back
         Alert.alert(
           'Chuyến đi không tồn tại',
           'Chuyến đi đã bị hủy hoặc không còn tồn tại trong hệ thống.',
           [
-            { 
-              text: 'OK', 
+            {
+              text: 'OK',
               onPress: () => navigation.navigate('Home')
             }
           ]
         )
         return
       }
-      
+
       setError(err.message || 'Failed to load trip details')
       setLoading(false)
     }
@@ -770,7 +770,7 @@ export default function DriverFoundScreen() {
       // PRIORITY 2: Fetch from dedicated endpoint if tripData location is not available
       console.log('[DriverFoundScreen] Fetching location from dedicated endpoint...')
       const response = await combinedTripsService.getDriverLocation(combinedTripId)
-      
+
       console.log('[DriverFoundScreen] Full driver location response:', {
         response,
         currentLocation: response?.currentLocation,
@@ -803,14 +803,14 @@ export default function DriverFoundScreen() {
       })
     } catch (err: any) {
       console.error('Error loading driver location:', err)
-      
+
       // ✅ Handle 404 - Trip not found
       if (err.message?.includes('not found') || err.message?.includes('404')) {
         console.log('[DriverFoundScreen] 🚨 Trip not found in driver location - skipping location update')
         // Don't clear intervals here - let loadTripDetails handle it
         return
       }
-      
+
       // Fallback to tripData location on error
       if (tripData?.driverId?.currentLocation?.coordinates) {
         const [lng, lat] = tripData.driverId.currentLocation.coordinates
@@ -829,16 +829,16 @@ export default function DriverFoundScreen() {
         combinedTripId,
         tripStatus: rideRequest?.status || tripData?.status,
       })
-      
+
       // Use customer's dropoff coordinates from RideRequest
       const customerDropoffCoords = rideRequest?.dropoffCoordinates || tripData?.dropoffLocation?.coordinates
       const customerPickupCoords = rideRequest?.pickupCoordinates || tripData?.pickupLocation?.coordinates
-      
+
       // ✅ CRITICAL FIX: Use pickup location as fallback when driver GPS not ready
       // Driver is usually near pickup when status just changed to in_progress
       // This ensures OSRM always gets valid coordinates instead of [0, 0]
       const driverCoords = driverLocation?.coordinates || customerPickupCoords || [0, 0]
-      
+
       console.log('[DriverFoundScreen] 🗺️ Loading route with data:', {
         combinedTripId,
         hasDriverLocation: !!driverLocation,
@@ -849,7 +849,7 @@ export default function DriverFoundScreen() {
         rideRequestDropoff: rideRequest?.dropoffCoordinates,
         tripDataDropoff: tripData?.dropoffLocation?.coordinates,
       })
-      
+
       // ✅ Validate dropoff coordinates (critical)
       if (!customerDropoffCoords || !Array.isArray(customerDropoffCoords) || customerDropoffCoords.length < 2) {
         console.warn('[DriverFoundScreen] ❌ VALIDATION FAILED: Invalid customer dropoff coordinates:', {
@@ -860,11 +860,11 @@ export default function DriverFoundScreen() {
         })
         return
       }
-      
+
       // Extract coordinates
       const [driverLng, driverLat] = driverCoords
       const [customerLng, customerLat] = customerDropoffCoords
-      
+
       // ✅ CRITICAL FIX: Skip OSRM call ONLY if coordinates are truly invalid [0, 0]
       // AND we couldn't get pickup location fallback
       if ((driverLng === 0 && driverLat === 0) && (!customerPickupCoords)) {
@@ -876,10 +876,10 @@ export default function DriverFoundScreen() {
         })
         return
       }
-      
+
       // ✅ Validate numeric values
-      if (typeof driverLng !== 'number' || typeof driverLat !== 'number' || 
-          typeof customerLng !== 'number' || typeof customerLat !== 'number') {
+      if (typeof driverLng !== 'number' || typeof driverLat !== 'number' ||
+        typeof customerLng !== 'number' || typeof customerLat !== 'number') {
         console.warn('[DriverFoundScreen] ❌ Non-numeric coordinates:', {
           driverLng: typeof driverLng,
           driverLat: typeof driverLat,
@@ -888,7 +888,7 @@ export default function DriverFoundScreen() {
         })
         return
       }
-      
+
       if (isNaN(driverLng) || isNaN(driverLat) || isNaN(customerLng) || isNaN(customerLat)) {
         console.warn('[DriverFoundScreen] ❌ NaN coordinates:', {
           driverLng,
@@ -905,7 +905,7 @@ export default function DriverFoundScreen() {
         callTimestamp: new Date().toISOString(),
         usingFallbackLocation: !driverLocation && !!customerPickupCoords,
       })
-      
+
       // Fetch route from OSRM - from driver location to CUSTOMER's dropoff
       // ✅ Use combinedTripsService for rideshare (with waypoints optimization)
       const directions = await combinedTripsService.getDirections(
@@ -946,42 +946,42 @@ export default function DriverFoundScreen() {
   const handleCall = () => {
     if (tripData?.driverId?.phoneNumber) {
       Alert.alert('Gọi tài xế', `Gọi đến ${tripData.driverId.phoneNumber}?`, [
-        { text: 'Hủy', onPress: () => {}, style: 'cancel' },
+        { text: 'Hủy', onPress: () => { }, style: 'cancel' },
         { text: 'Gọi', onPress: () => console.log('Call driver') },
       ])
     }
   }
 
- const handleChat = () => {
-  if (tripData?.driverId && combinedTripId) {
-    navigation.navigate('ChatScreen', {
-      driver: {
-        id: tripData.driverId._id,
-        name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
-        avatar: tripData.driverId.avatar || '',
-        rating: tripData.driverId.rating || 5,
-        totalRides: tripData.driverId.totalRides || 0,
-        carType: tripData.driverId.carType || 'Unknown',
-        licensePlate: tripData.driverId.licensePlate || '',
-        carColor: tripData.driverId.carColor || '',
-        distance: tripData.driverId.distance || 0,
-        eta: tripData.driverId.eta || 0,
-        phone: tripData.driverId.phone,
-        email: tripData.driverId.email,
-      },
-      // ✅ FIX: Gửi combinedTripId thay vì rideRequest._id
-      rideId: combinedTripId,
-      // ✅ FIX: Thêm tripType để ChatScreen biết loại trip
-      
-    })
+  const handleChat = () => {
+    if (tripData?.driverId && combinedTripId) {
+      navigation.navigate('ChatScreen', {
+        driver: {
+          id: tripData.driverId._id,
+          name: `${tripData.driverId.firstName} ${tripData.driverId.lastName}`,
+          avatar: tripData.driverId.avatar || '',
+          rating: tripData.driverId.rating || 5,
+          totalRides: tripData.driverId.totalRides || 0,
+          carType: tripData.driverId.carType || 'Unknown',
+          licensePlate: tripData.driverId.licensePlate || '',
+          carColor: tripData.driverId.carColor || '',
+          distance: tripData.driverId.distance || 0,
+          eta: tripData.driverId.eta || 0,
+          phone: tripData.driverId.phone,
+          email: tripData.driverId.email,
+        },
+        // ✅ FIX: Gửi combinedTripId thay vì rideRequest._id
+        rideId: combinedTripId,
+        // ✅ FIX: Thêm tripType để ChatScreen biết loại trip
+
+      })
+    }
   }
-}
 
   const handleCancelTrip = async () => {
     // ✅ Chỉ cho phép hủy khi status = 'accepted' hoặc 'pending'
     if (rideRequest?.status !== 'accepted' && rideRequest?.status !== 'pending') {
       Alert.alert(
-        'Không thể hủy', 
+        'Không thể hủy',
         rideRequest?.status === 'arrived_at_pickup' || rideRequest?.status === 'in_progress'
           ? 'Tài xế đã đến hoặc đang di chuyển, không thể hủy chuyến'
           : 'Chuyến đi không thể hủy ở trạng thái hiện tại'
@@ -990,18 +990,18 @@ export default function DriverFoundScreen() {
     }
 
     Alert.alert('Hủy chuyến đi', 'Bạn có chắc chắn muốn hủy chuyến đi này?', [
-      { text: 'Không', onPress: () => {}, style: 'cancel' },
+      { text: 'Không', onPress: () => { }, style: 'cancel' },
       {
         text: 'Hủy chuyến',
         onPress: async () => {
           try {
             // ✅ CRITICAL: Validate request ID before calling API
             // Check if it's a synthetic/fake ID that was created as fallback
-            const isSyntheticId = rideRequest?._id?.startsWith?.('synthetic_') || 
-                                  rideRequest?._id?.startsWith?.('fromtrip_') || 
-                                  rideRequest?._id?.startsWith?.('userapi_') ||
-                                  rideRequest?._id?.startsWith?.('fallback-')
-            
+            const isSyntheticId = rideRequest?._id?.startsWith?.('synthetic_') ||
+              rideRequest?._id?.startsWith?.('fromtrip_') ||
+              rideRequest?._id?.startsWith?.('userapi_') ||
+              rideRequest?._id?.startsWith?.('fallback-')
+
             if (isSyntheticId) {
               console.error('[handleCancelTrip] Cannot cancel with synthetic ID:', rideRequest._id)
               Alert.alert(
@@ -1014,12 +1014,12 @@ export default function DriverFoundScreen() {
               )
               return
             }
-            
+
             // ✅ CRITICAL: Check trip type to call correct API
             // - If tripType = 'combined_trip' OR createdBy = 'customer' → Combined trip (ghép xe)
             // - If createdBy = 'driver' OR no tripType → Regular ride (chuyến đi thông thường)
             const isCombinedTrip = rideRequest?.tripType === 'combined_trip' || tripData?.createdBy === 'customer'
-            
+
             console.log('[handleCancelTrip] Cancelling trip:', {
               tripId: combinedTripId || tripData?._id,
               requestId: rideRequest?._id,
@@ -1036,9 +1036,9 @@ export default function DriverFoundScreen() {
                 Alert.alert('Lỗi', 'Không tìm thấy thông tin chuyến đi')
                 return
               }
-              
+
               await combinedTripsService.cancelRideRequest(combinedTripId, rideRequest._id)
-              
+
               Alert.alert('Thành công', 'Chuyến đi đã bị hủy. Ghế của bạn đã được hoàn lại.', [
                 { text: 'OK', onPress: () => navigation.navigate('Home') }
               ])
@@ -1049,16 +1049,16 @@ export default function DriverFoundScreen() {
                 Alert.alert('Lỗi', 'Không tìm thấy thông tin chuyến đi')
                 return
               }
-              
+
               await rideService.cancelRide(rideId, 'customer', 'Khách hàng hủy chuyến')
-              
+
               Alert.alert('Thành công', 'Chuyến đi đã bị hủy.', [
                 { text: 'OK', onPress: () => navigation.navigate('Home') }
               ])
             }
           } catch (err: any) {
             console.error('[handleCancelTrip] Error:', err)
-            
+
             // ✅ Handle specific error cases
             if (err.message?.includes('not found') || err.message?.includes('404')) {
               Alert.alert(
@@ -1124,14 +1124,14 @@ export default function DriverFoundScreen() {
     vehiclePlate: 'N/A',
     phoneNumber: 'N/A',
   }
-  
+
   // Use RideRequest status (customer's booking status) instead of CombinedTrip status
   // ✅ CRITICAL: RideRequest.status reflects customer's actual position in the trip
   // This status comes from backend RideRequest collection, NOT CombinedTrip
   const tripStatus = rideRequest?.status || 'pending'
   const statusLabel = getStatusLabel(tripStatus)
   const estimatedTime = getEstimatedTime(tripStatus)
-  
+
   // ✅ DEBUG: Add detailed logging to see what's happening with status
   console.log('[DriverFoundScreen] ✅ STATUS DEBUG - Current status analysis:', {
     rideRequest: rideRequest ? {
@@ -1153,7 +1153,7 @@ export default function DriverFoundScreen() {
       locationPolling: locationInterval.current ? 'active' : 'inactive',
     },
   })
-  
+
   // Debug log
   if (tripData) {
     console.log('[DriverFoundScreen] Rendering with status:', {
@@ -1165,16 +1165,16 @@ export default function DriverFoundScreen() {
       rideRequestStatus: rideRequest?.status,
     })
   }
-  
+
   // Use driver location if available (real-time), else use stored coordinates
   const displayDriverLocation = driverLocation || tripData?.driverId?.currentLocation
-  
+
   // ✅ Check if this is a synthetic/fallback request (invalid for API calls)
-  const isSyntheticRequest = rideRequest?._id?.startsWith?.('synthetic_') || 
-                             rideRequest?._id?.startsWith?.('fromtrip_') || 
-                             rideRequest?._id?.startsWith?.('userapi_') ||
-                             rideRequest?._id?.startsWith?.('fallback-')
-  
+  const isSyntheticRequest = rideRequest?._id?.startsWith?.('synthetic_') ||
+    rideRequest?._id?.startsWith?.('fromtrip_') ||
+    rideRequest?._id?.startsWith?.('userapi_') ||
+    rideRequest?._id?.startsWith?.('fallback-')
+
   if (isSyntheticRequest) {
     console.warn('[DriverFoundScreen] ⚠️ SYNTHETIC REQUEST DETECTED:', {
       requestId: rideRequest._id,
@@ -1182,7 +1182,7 @@ export default function DriverFoundScreen() {
       shouldReload: true,
     })
   }
-  
+
   // ✅ Use customer's pickup/dropoff from RideRequest, NOT driver's route from CombinedTrip
   const pickupCoords = rideRequest?.pickupCoordinates || tripData?.pickupLocation?.coordinates || [105.8542, 21.0285]
   const dropoffCoords = rideRequest?.dropoffCoordinates || tripData?.dropoffLocation?.coordinates || [105.8542, 21.0285]
@@ -1235,7 +1235,7 @@ export default function DriverFoundScreen() {
       latitude: dropoffCoords[1],
       longitude: dropoffCoords[0],
     }
-    
+
     // Extract polyline from route data if available
     if (routeData?.features?.[0]?.geometry?.coordinates) {
       mapRouteCoordinates = routeData.features[0].geometry.coordinates.map(
@@ -1271,9 +1271,7 @@ export default function DriverFoundScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
-      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.card} />
-
+    <View style={[styles.container, { backgroundColor: colors.card }]}>
       {/* Map Container - Full Screen */}
       <View style={styles.mapContainer}>
         {/* Map - Updates based on trip status */}
@@ -1285,46 +1283,24 @@ export default function DriverFoundScreen() {
           markers={
             validDriverLocation?.coordinates
               ? [
-                  {
-                    id: 'driver',
-                    latitude: validDriverLocation.coordinates[1],
-                    longitude: validDriverLocation.coordinates[0],
-                    title: 'Tài xế',
-                    description: 'Vị trí tài xế',
-                  },
-                ]
+                {
+                  id: 'driver',
+                  latitude: validDriverLocation.coordinates[1],
+                  longitude: validDriverLocation.coordinates[0],
+                  title: 'Tài xế',
+                  description: 'Vị trí tài xế',
+                },
+              ]
               : []
           }
         />
-
-        {/* Top Gradient Overlay */}
-        <LinearGradient
-          colors={['rgba(19,19,21,0.9)', 'rgba(19,19,21,0)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.mapOverlayTop}
-        />
-
-        {/* Top Navigation Bar */}
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.topBarButton}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back" size={24} color="white" />
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => navigation.goBack()}>
+            <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
           </TouchableOpacity>
-          <View style={styles.topBarCenter}>
-            <Text style={styles.topBarTitle}>Ghép xe - Chuyến đi #{tripId?.slice?.(-5)?.toUpperCase?.() || 'N/A'}</Text>
-            <Text style={styles.topBarSubtitle}>{statusLabel}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.topBarButton}
-            onPress={() => Alert.alert('Trợ giúp', 'Liên hệ với hỗ trợ khách hàng')}
-          >
-            <MaterialIcons name="help" size={24} color="white" />
-          </TouchableOpacity>
+          <Text style={styles.logoText}>firego</Text>
         </View>
-
         {/* Share Button - Floating */}
         <View style={styles.shareButtonContainer}>
           <TouchableOpacity
@@ -1365,7 +1341,7 @@ export default function DriverFoundScreen() {
                 const currentY = lastGestureY.current
                 const expandedY = 0
                 const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
-                
+
                 if (Math.abs(currentY - collapsedY) < Math.abs(currentY - expandedY)) {
                   snapToState('expanded')
                 } else {
@@ -1376,227 +1352,227 @@ export default function DriverFoundScreen() {
               <View style={[styles.dragHandleBar, { backgroundColor: colors.border }]} />
             </TouchableOpacity>
           </View>
- <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-          <View style={styles.handleBar} />
-        </View>
+          <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
+            <View style={styles.handleBar} />
+          </View>
           <ScrollView
             ref={scrollViewRef}
             style={styles.bottomSheetContent}
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-          {/* Status Header - DYNAMIC */}
-         
-          <View style={styles.statusHeader}>
-            <View>
-              <Text style={[styles.statusTitle, { color: colors.text }]}>{statusLabel}</Text>
-              <View style={styles.estimatedTimeRow}>
-                <MaterialIcons name="schedule" size={18} color="#FF6B00" />
-                <Text style={styles.estimatedTime}>{estimatedTime}</Text>
+            {/* Status Header - DYNAMIC */}
+
+            <View style={styles.statusHeader}>
+              <View>
+                <Text style={[styles.statusTitle, { color: colors.text }]}>{statusLabel}</Text>
+                <View style={styles.estimatedTimeRow}>
+                  <MaterialIcons name="schedule" size={18} color="#FF6B00" />
+                  <Text style={styles.estimatedTime}>{estimatedTime}</Text>
+                </View>
+              </View>
+
+              {/* Carpool Visualizer */}
+              <View style={styles.carpoolVisualizer}>
+                <Text style={styles.carpoolLabel}>Ghép xe</Text>
+                <View style={styles.avatarGroup}>
+                  <View style={[styles.avatarSmall, { backgroundColor: colors.border }]}>
+                    <Text style={styles.avatarText}>Tôi</Text>
+                  </View>
+                  <View style={[styles.avatarSmall, { backgroundColor: '#FF6B00', marginLeft: -8 }]}>
+                    <Text style={styles.avatarTextWhite}>K2</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.avatarSmall,
+                      {
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.5,
+                        borderStyle: 'dashed',
+                        borderColor: colors.border,
+                        marginLeft: -8,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="add" size={14} color={colors.border} />
+                  </View>
+                </View>
               </View>
             </View>
 
-            {/* Carpool Visualizer */}
-            <View style={styles.carpoolVisualizer}>
-              <Text style={styles.carpoolLabel}>Ghép xe</Text>
-              <View style={styles.avatarGroup}>
-                <View style={[styles.avatarSmall, { backgroundColor: colors.border }]}>
-                  <Text style={styles.avatarText}>Tôi</Text>
-                </View>
-                <View style={[styles.avatarSmall, { backgroundColor: '#FF6B00', marginLeft: -8 }]}>
-                  <Text style={styles.avatarTextWhite}>K2</Text>
-                </View>
-                <View
-                  style={[
-                    styles.avatarSmall,
-                    {
-                      backgroundColor: 'transparent',
-                      borderWidth: 1.5,
-                      borderStyle: 'dashed',
-                      borderColor: colors.border,
-                      marginLeft: -8,
-                    },
-                  ]}
-                >
-                  <MaterialIcons name="add" size={14} color={colors.border} />
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* Driver & Vehicle Profile - Premium Design */}
-          <View style={styles.driverCardWrapper}>
-            <LinearGradient
-              colors={['#FF6B00', '#FF8534']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.driverCard}
-            >
-              <View style={styles.driverCardContent}>
-                <View style={styles.driverAvatar}>
-                  <LinearGradient
-                    colors={['#FFFFFF', '#F8F9FA']}
-                    style={styles.avatarPlaceholder}
-                  >
-                    <MaterialIcons name="person" size={32} color="#FF6B00" />
-                  </LinearGradient>
-                  <LinearGradient
-                    colors={['#FFD700', '#FFA500']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.ratingBadge}
-                  >
-                    <MaterialIcons name="star" size={12} color="white" />
-                    <Text style={styles.ratingText}>
-                      {(driver.averageRating || driver.rating || 5).toFixed(1)}
-                    </Text>
-                  </LinearGradient>
-                </View>
-
-                <View style={styles.driverInfo}>
-                  <View style={styles.driverNameRow}>
-                    <Text style={styles.driverName}>
-                      {driver.firstName} {driver.lastName}
-                    </Text>
-                    <LinearGradient
-                      colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.15)']}
-                      style={styles.firegoBadge}
-                    >
-                      <MaterialIcons name="verified" size={12} color="white" />
-                      <Text style={styles.firegoBadgeText}>Pro</Text>
-                    </LinearGradient>
-                  </View>
-                  <View style={styles.vehicleInfoRow}>
-                    <MaterialIcons name="directions-car" size={14} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.vehicleInfo}>
-                      {driver.vehicleModel || 'Xe'} • {driver.vehicleColor || 'N/A'}
-                    </Text>
-                  </View>
-                  <View style={styles.plateContainer}>
-                    <MaterialIcons name="confirmation-number" size={14} color="rgba(255,255,255,0.9)" />
-                    <Text style={styles.plateNumber}>{driver.vehiclePlate || 'N/A'}</Text>
-                  </View>
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
-
-          {/* Action Buttons - Premium Design */}
-          <View style={styles.actionButtonsGrid}>
-            <TouchableOpacity
-              style={styles.actionButtonWrapper}
-              onPress={handleChat}
-              activeOpacity={0.8}
-            >
+            {/* Driver & Vehicle Profile - Premium Design */}
+            <View style={styles.driverCardWrapper}>
               <LinearGradient
                 colors={['#FF6B00', '#FF8534']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.actionButton}
+                style={styles.driverCard}
               >
-                <View style={styles.iconCircle}>
-                  <MaterialIcons name="chat-bubble" size={22} color="white" />
+                <View style={styles.driverCardContent}>
+                  <View style={styles.driverAvatar}>
+                    <LinearGradient
+                      colors={['#FFFFFF', '#F8F9FA']}
+                      style={styles.avatarPlaceholder}
+                    >
+                      <MaterialIcons name="person" size={32} color="#FF6B00" />
+                    </LinearGradient>
+                    <LinearGradient
+                      colors={['#FFD700', '#FFA500']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.ratingBadge}
+                    >
+                      <MaterialIcons name="star" size={12} color="white" />
+                      <Text style={styles.ratingText}>
+                        {(driver.averageRating || driver.rating || 5).toFixed(1)}
+                      </Text>
+                    </LinearGradient>
+                  </View>
+
+                  <View style={styles.driverInfo}>
+                    <View style={styles.driverNameRow}>
+                      <Text style={styles.driverName}>
+                        {driver.firstName} {driver.lastName}
+                      </Text>
+                      <LinearGradient
+                        colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.15)']}
+                        style={styles.firegoBadge}
+                      >
+                        <MaterialIcons name="verified" size={12} color="white" />
+                        <Text style={styles.firegoBadgeText}>Pro</Text>
+                      </LinearGradient>
+                    </View>
+                    <View style={styles.vehicleInfoRow}>
+                      <MaterialIcons name="directions-car" size={14} color="rgba(255,255,255,0.9)" />
+                      <Text style={styles.vehicleInfo}>
+                        {driver.vehicleModel || 'Xe'} • {driver.vehicleColor || 'N/A'}
+                      </Text>
+                    </View>
+                    <View style={styles.plateContainer}>
+                      <MaterialIcons name="confirmation-number" size={14} color="rgba(255,255,255,0.9)" />
+                      <Text style={styles.plateNumber}>{driver.vehiclePlate || 'N/A'}</Text>
+                    </View>
+                  </View>
                 </View>
-                <Text style={styles.actionButtonText}>Nhắn tin</Text>
-                <View style={styles.notificationDot} />
               </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionButtonWrapper}
-              onPress={handleCall}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.actionButton, styles.actionButtonOutline]}>
-                <View style={[styles.iconCircle, styles.iconCircleOutline]}>
-                  <MaterialIcons name="call" size={22} color="#FF6B00" />
-                </View>
-                <Text style={[styles.actionButtonText, { color: '#FF6B00' }]}>Gọi điện</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Secondary Action - Cancel */}
-          {/* ✅ Hiển thị nút hủy khi status = 'pending' hoặc 'accepted' */}
-          {(rideRequest?.status === 'pending' || rideRequest?.status === 'accepted') && (
-            <TouchableOpacity
-              style={styles.cancelButtonWrapper}
-              onPress={handleCancelTrip}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.cancelButton, { backgroundColor: colors.card }]}>
-                <MaterialIcons name="cancel" size={20} color="#EF4444" />
-                <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-          
-          {/* ✅ Hiển thị thông báo khi không thể hủy */}
-          {(rideRequest?.status === 'arrived_at_pickup' || rideRequest?.status === 'in_progress') && (
-            <View style={styles.cannotCancelNotice}>
-              <MaterialIcons name="info" size={16} color={colors.textSecondary} />
-              <Text style={[styles.cannotCancelText, { color: colors.textSecondary }]}>
-                Tài xế đã đến điểm đón, không thể hủy chuyến
-              </Text>
             </View>
-          )}
 
-          {/* Trip Details - Premium Design */}
-          <View style={[styles.tripDetailsCard, { backgroundColor: colors.card }]}>
-            <View style={styles.tripDetailsHeader}>
-              <MaterialIcons name="receipt-long" size={20} color="#FF6B00" />
-              <Text style={[styles.tripDetailsTitle, { color: colors.text }]}>Chi tiết chuyến đi</Text>
-            </View>
-            <View style={styles.tripDetailsContent}>
-              <View style={styles.tripDetailRow}>
-                <View style={styles.tripDetailLeft}>
-                  <View style={styles.iconBadge}>
-                    <MaterialIcons name="group" size={16} color="#FF6B00" />
-                  </View>
-                  <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Loại xe</Text>
-                </View>
-                <Text style={[styles.tripDetailValue, { color: colors.text }]}>Ghép xe</Text>
-              </View>
-              <View style={[styles.divider, { backgroundColor: '#FF6B00' }]} />
-              <View style={styles.tripDetailRow}>
-                <View style={styles.tripDetailLeft}>
-                  <View style={styles.iconBadge}>
-                    <MaterialIcons name="payments" size={16} color="#FF6B00" />
-                  </View>
-                  <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Giá cước</Text>
-                </View>
+            {/* Action Buttons - Premium Design */}
+            <View style={styles.actionButtonsGrid}>
+              <TouchableOpacity
+                style={styles.actionButtonWrapper}
+                onPress={handleChat}
+                activeOpacity={0.8}
+              >
                 <LinearGradient
                   colors={['#FF6B00', '#FF8534']}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.fareTag}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.actionButton}
                 >
-                  <Text style={styles.fareText}>
-                    ₫{(rideRequest?.fare || 0).toLocaleString()}
-                  </Text>
-                </LinearGradient>
-              </View>
-              <View style={[styles.divider, { backgroundColor: '#FF6B00' }]} />
-              <View style={styles.tripDetailRow}>
-                <View style={styles.tripDetailLeft}>
-                  <View style={styles.iconBadge}>
-                    <MaterialIcons name="straighten" size={16} color="#FF6B00" />
+                  <View style={styles.iconCircle}>
+                    <MaterialIcons name="chat-bubble" size={22} color="white" />
                   </View>
-                  <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Quãng đường</Text>
+                  <Text style={styles.actionButtonText}>Nhắn tin</Text>
+                  <View style={styles.notificationDot} />
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionButtonWrapper}
+                onPress={handleCall}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.actionButton, styles.actionButtonOutline]}>
+                  <View style={[styles.iconCircle, styles.iconCircleOutline]}>
+                    <MaterialIcons name="call" size={22} color="#FF6B00" />
+                  </View>
+                  <Text style={[styles.actionButtonText, { color: '#FF6B00' }]}>Gọi điện</Text>
                 </View>
-                <Text style={[styles.tripDetailValue, { color: colors.text, fontWeight: '700' }]}>
-                  {(tripData?.distance || 0).toFixed(1)} km
+              </TouchableOpacity>
+            </View>
+
+            {/* Secondary Action - Cancel */}
+            {/* ✅ Hiển thị nút hủy khi status = 'pending' hoặc 'accepted' */}
+            {(rideRequest?.status === 'pending' || rideRequest?.status === 'accepted') && (
+              <TouchableOpacity
+                style={styles.cancelButtonWrapper}
+                onPress={handleCancelTrip}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.cancelButton, { backgroundColor: colors.card }]}>
+                  <MaterialIcons name="cancel" size={20} color="#EF4444" />
+                  <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* ✅ Hiển thị thông báo khi không thể hủy */}
+            {(rideRequest?.status === 'arrived_at_pickup' || rideRequest?.status === 'in_progress') && (
+              <View style={styles.cannotCancelNotice}>
+                <MaterialIcons name="info" size={16} color={colors.textSecondary} />
+                <Text style={[styles.cannotCancelText, { color: colors.textSecondary }]}>
+                  Tài xế đã đến điểm đón, không thể hủy chuyến
                 </Text>
               </View>
-            </View>
-          </View>
+            )}
 
-          {/* Spacer */}
-          <View style={{ height: SPACING.xl }} />
-        </ScrollView>
-      </LinearGradient>
+            {/* Trip Details - Premium Design */}
+            <View style={[styles.tripDetailsCard, { backgroundColor: colors.card }]}>
+              <View style={styles.tripDetailsHeader}>
+                <MaterialIcons name="receipt-long" size={20} color="#FF6B00" />
+                <Text style={[styles.tripDetailsTitle, { color: colors.text }]}>Chi tiết chuyến đi</Text>
+              </View>
+              <View style={styles.tripDetailsContent}>
+                <View style={styles.tripDetailRow}>
+                  <View style={styles.tripDetailLeft}>
+                    <View style={styles.iconBadge}>
+                      <MaterialIcons name="group" size={16} color="#FF6B00" />
+                    </View>
+                    <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Loại xe</Text>
+                  </View>
+                  <Text style={[styles.tripDetailValue, { color: colors.text }]}>Ghép xe</Text>
+                </View>
+                <View style={[styles.divider, { backgroundColor: '#FF6B00' }]} />
+                <View style={styles.tripDetailRow}>
+                  <View style={styles.tripDetailLeft}>
+                    <View style={styles.iconBadge}>
+                      <MaterialIcons name="payments" size={16} color="#FF6B00" />
+                    </View>
+                    <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Giá cước</Text>
+                  </View>
+                  <LinearGradient
+                    colors={['#FF6B00', '#FF8534']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.fareTag}
+                  >
+                    <Text style={styles.fareText}>
+                      ₫{(rideRequest?.fare || 0).toLocaleString()}
+                    </Text>
+                  </LinearGradient>
+                </View>
+                <View style={[styles.divider, { backgroundColor: '#FF6B00' }]} />
+                <View style={styles.tripDetailRow}>
+                  <View style={styles.tripDetailLeft}>
+                    <View style={styles.iconBadge}>
+                      <MaterialIcons name="straighten" size={16} color="#FF6B00" />
+                    </View>
+                    <Text style={[styles.tripDetailLabel, { color: colors.textSecondary }]}>Quãng đường</Text>
+                  </View>
+                  <Text style={[styles.tripDetailValue, { color: colors.text, fontWeight: '700' }]}>
+                    {(tripData?.distance || 0).toFixed(1)} km
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Spacer */}
+            <View style={{ height: SPACING.xl }} />
+          </ScrollView>
+        </LinearGradient>
       </Animated.View>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -1627,17 +1603,34 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
-    paddingTop: SPACING.lg,
+    paddingTop: 40,
   },
-  topBarButton: {
-    width: 40,
-    height: 40,
+  header: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  logoText: {
+    fontSize: 30,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    color: '#FF6B00',
   },
   topBarCenter: {
     flex: 1,

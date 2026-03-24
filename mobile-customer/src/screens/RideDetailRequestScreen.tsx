@@ -447,7 +447,7 @@ export default function RideDetailRequestScreen() {
   const seatsState = getSeatsState()
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
+    <View style={[styles.container, { backgroundColor: colors.card }]}>
       <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.card} />
 
       {!ride ? (
@@ -476,9 +476,9 @@ export default function RideDetailRequestScreen() {
               />
               
               {/* Fixed Top App Bar - Overlay on Map */}
-              <View style={[styles.topAppBar, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-                <TouchableOpacity onPress={handleCancel} style={styles.backButtonTopBar}>
-                  <MaterialIcons name="arrow-back" size={24} color="white" />
+              <View style={[styles.topAppBar]}>
+                <TouchableOpacity onPress={handleCancel} style={styles.backButton}>
+                  <MaterialIcons name="arrow-back" size={24} color="#FF6B00"/>
                 </TouchableOpacity>
                 <Text style={styles.topBarTitle}>Chi tiết chuyến đi</Text>
                 <View style={{ width: 40 }} />
@@ -866,7 +866,7 @@ export default function RideDetailRequestScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -911,11 +911,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingTop: SPACING.sm,
   },
-  backButtonTopBar: {
-    width: 40,
-    height: 40,
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   topBarTitle: {
     fontSize: 16,

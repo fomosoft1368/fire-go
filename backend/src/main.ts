@@ -50,8 +50,8 @@ async function bootstrap() {
       'http://localhost:3001',   // Web Admin alternative
       'http://localhost:8081',   // Mobile Customer (Expo)
       'http://localhost:8082',   // Mobile Customer (Expo alternative)
-      'http://192.168.1.18:8081', // Mobile on local network
-      'http://192.168.1.18:8082', // Mobile on local network
+      'http://192.168.1.16:8081', // Mobile on local network
+      'http://192.168.1.16:8082', // Mobile on local network
       'http://10.0.2.2:3000',    // Android emulator
     ],
     credentials: true,
