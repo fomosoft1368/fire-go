@@ -1,110 +1,44 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Alert,
-  Modal,
-  FlatList,
-  Animated,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import MapView, { Marker, Polyline } from 'react-native-maps'
 import { useSelector } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { RootState } from '../redux/store'
 import { COLORS } from '../constants'
 import { API_BASE_URL } from '../constants/config'
 import MapViewComponent from '../components/MapView'
+import { BackButton } from '../components'
+
 interface RideDetailScreenProps {
   navigation: any
   route: any
 }
 
-interface Customer {
-  _id: string
-  name?: string
-  firstName?: string
-  lastName?: string
-  phone: string
-  rating: number
-  avatar?: string
-  address?: string
-}
-
 export default function RideDetailScreen({ navigation, route }: RideDetailScreenProps) {
   const { user } = useSelector((state: RootState) => state.auth)
   const [ride, setRide] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
-  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
-  const [showCustomerModal, setShowCustomerModal] = useState(false)
-  const [requestingCustomer, setRequestingCustomer] = useState<Customer | null>(null)
-  const [modalCountdown, setModalCountdown] = useState(60)
-  const [paramError, setParamError] = useState<string | null>(null)
-
-  const statusFadeAnim = useRef(new Animated.Value(0)).current
-  const mapRef = useRef<MapView>(null)
 
   // Lấy ride ID từ route params
   const rideId = route?.params?.rideId
-  React.useEffect(() => {
-    if (!rideId) {
-      setParamError('Không tìm thấy mã chuyến đi (rideId). Vui lòng quay lại và thử lại.')
-      setLoading(false)
-    }
-  }, [rideId])
 
   // Fetch ride detail từ API
   useEffect(() => {
     if (!rideId) return
-    console.log('🚗 RideDetailScreen - rideId:', rideId)
     fetchRideDetail()
   }, [rideId])
 
-  // Modal countdown
-  useEffect(() => {
-    if (!showCustomerModal) return
-    const timer = setInterval(() => {
-      setModalCountdown(prev => {
-        if (prev <= 1) {
-          setShowCustomerModal(false)
-          return 60
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [showCustomerModal])
 
-  // Setup passenger request listener when ride is in_progress
-  useEffect(() => {
-    if (ride?.status !== 'in_progress') return
-
-    // Simulate passenger request (in real app, use WebSocket or polling)
-    const timer = setTimeout(() => {
-      if (!showCustomerModal) {
-        setRequestingCustomer({
-          _id: 'customer-' + Date.now(),
-          name: 'Anh Minh',
-          phone: '0905 123 456',
-          rating: 4.8,
-          address: 'Tây Hồ, Hà Nội',
-        })
-        setShowCustomerModal(true)
-        setModalCountdown(60)
-      }
-    }, 3000)
-
-    return () => clearTimeout(timer)
-  }, [ride?.status, showCustomerModal])
 
   const fetchRideDetail = async () => {
-    setLoading(true)
     try {
       console.log('🚗 Fetching ride detail from:', `${API_BASE_URL}/rides/${rideId}`)
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
@@ -114,33 +48,19 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
         },
       })
 
-      console.log('📡 Response status:', response.status)
-
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('✅ Ride detail response:', data)
-      console.log('🔍 Ride status:', data.status)
-      console.log('🔍 Passengers:', data.customerId?.length || 0)
-      console.log('🔍 Remaining seats:', data.remainingSeats)
 
       if (!data || !data._id) {
         throw new Error('Invalid ride data received')
       }
 
       setRide(data)
-
-      // Mock current location for demo
-      if (data.status === 'in_progress') {
-        setCurrentLocation([data.pickupCoordinates[0], data.pickupCoordinates[1]])
-      }
     } catch (error: any) {
-      console.error('❌ Error fetching ride detail:', error.message)
       Alert.alert('Lỗi', `Không thể tải chi tiết chuyến đi: ${error.message}`)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -244,13 +164,11 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
       }
 
       const updated = await response.json()
-      console.log('✅ Ride accepted:', updated)
       setRide(updated)
 
       // Navigate to TripActivities after successfully accepting
       navigation.navigate('TripActivities', { rideId, isEdit: false })
     } catch (error: any) {
-      console.error('❌ Error accepting ride:', error.message)
       Alert.alert('Lỗi', error.message || 'Không thể nhận chuyến đi')
     } finally {
       setUpdating(false)
@@ -298,51 +216,16 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerId: requestingCustomer._id }),
       })
-
-      if (!response.ok) throw new Error(`Failed: ${response.status}`)
-
-      const updated = await response.json()
-      setRide(updated)
-      setShowCustomerModal(false)
-      setRequestingCustomer(null)
-      setModalCountdown(60)
-      Alert.alert('Thành công', 'Đã thêm khách hàng')
-    } catch (error: any) {
-      Alert.alert('Lỗi', error.message)
-    } finally {
-      setUpdating(false)
     }
   }
-
-  const handleRejectCustomer = () => {
-    setShowCustomerModal(false)
-    setRequestingCustomer(null)
-    setModalCountdown(60)
-  }
-
-  const handleGoBack = () => {
-    navigation?.goBack()
-  }
-
-  useEffect(() => {
-    Animated.timing(statusFadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start()
-  }, [ride?.status])
 
   return (
     <View style={styles.container}>
       <View style={StyleSheet.absoluteFillObject}>
-        <MapViewComponent
-          height={'100%'}
-        />
+        <MapViewComponent height={100} />
       </View>
       <View style={styles.header}>
-        <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={handleGoBack}>
-          <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
-        </TouchableOpacity>
+        <BackButton color="#FF6B00" elevated />
         <Text style={styles.logoText}>firego</Text>
       </View>
       <View style={styles.card}>
@@ -390,7 +273,7 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
             <View style={styles.detailsGrid}>
               <View style={styles.detailItem}>
                 <Text style={styles.detailLabel}>Giá cước</Text>
-                <Text style={styles.detailValue}>{ride?.price || '75.000'}đ</Text>
+                <Text style={styles.detailValue}>{ride?.price}đ</Text>
               </View>
               <View style={styles.detailItem}>
                 <Text style={styles.detailLabel}>Khoảng cách</Text>
@@ -484,18 +367,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     zIndex: 10,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
   },
   logoText: {
     fontSize: 30,

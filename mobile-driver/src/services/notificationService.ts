@@ -52,13 +52,13 @@ class NotificationService {
         },
         timeout: 10000,
       })
-      
+
       console.log('✅ Response received:', {
         status: response.status,
         dataLength: response.data?.data?.length || 0,
         total: response.data?.total || 0,
       })
-      
+
       return response.data
     } catch (error: any) {
       console.error('❌ Get notifications error:', {

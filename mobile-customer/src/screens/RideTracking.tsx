@@ -50,7 +50,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
   const [showChat, setShowChat] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null)
-  
+
   useEffect(() => {
     if (pickupCoords && dropoffCoords && routeCoordinates.length === 0) {
       fetchRouteFromPickupDropoff()
@@ -63,9 +63,9 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
     try {
       const pickupAddress = `${pickupCoords.latitude},${pickupCoords.longitude}`
       const dropoffAddress = `${dropoffCoords.latitude},${dropoffCoords.longitude}`
-      
+
       const routeInfo = await mapsService.getRouteInfo(pickupAddress, dropoffAddress)
-      
+
       if (routeInfo.routeCoordinates && routeInfo.routeCoordinates.length > 0) {
         setRouteCoordinates(routeInfo.routeCoordinates)
       }
@@ -76,7 +76,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
   const fetchUnreadCount = async () => {
     if (!rideId) return
-    
+
     try {
       const AsyncStorage = require('@react-native-async-storage/async-storage').default
       const token = await AsyncStorage.getItem('token')
@@ -85,7 +85,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
       const response = await fetch(`${API_BASE_URL}/messages/ride/${rideId}/unread-count`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      
+
       if (response.ok) {
         const result = await response.json()
         setUnreadCount(result.data?.unreadCount || 0)
@@ -104,12 +104,12 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
     const fetchRideStatus = async () => {
       try {
         const url = `${API_BASE_URL}/rides/${rideId}`
-        
+
         const response = await fetch(url)
-        
+
         if (response.ok) {
           const data = await response.json()
-          
+
           // Only update if data changed
           setRide(prevRide => {
             if (!prevRide || prevRide.status !== data.status || prevRide._id !== data._id) {
@@ -118,11 +118,11 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
             return prevRide
           })
           setLoading(false)
-          
+
           if (data.pickupLocation?.coordinates && data.pickupLocation.coordinates.length === 2) {
             const newPickupLat = data.pickupLocation.coordinates[1]
             const newPickupLng = data.pickupLocation.coordinates[0]
-            
+
             setPickupCoords(prev => {
               if (!prev || prev.latitude !== newPickupLat || prev.longitude !== newPickupLng) {
                 return { latitude: newPickupLat, longitude: newPickupLng }
@@ -140,14 +140,14 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
               return prev
             })
           }
-          
+
           // Navigate to rating screen when completed
           if (data.status === 'completed') {
-            navigation.replace('RatingDriver', { 
+            navigation.replace('RatingDriver', {
               rideId: data._id,
               driver: {
-                name: data.driverId?.firstName && data.driverId?.lastName 
-                  ? `${data.driverId.firstName} ${data.driverId.lastName}` 
+                name: data.driverId?.firstName && data.driverId?.lastName
+                  ? `${data.driverId.firstName} ${data.driverId.lastName}`
                   : 'Tài xế',
                 avatar: data.driverId?.avatar,
                 carType: data.driverId?.vehicleType,
@@ -159,7 +159,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
           // Update driver info if available
           if (data.driverId) {
             const driverData = Array.isArray(data.driverId) ? data.driverId[0] : data.driverId
-            
+
             if (typeof driverData === 'object') {
               setDriver(prev => {
                 const newId = driverData._id || driverData.id
@@ -169,7 +169,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
                 const newCarType = driverData.vehicleModel || driverData.vehicleType || 'Xe'
                 const newLicensePlate = driverData.vehiclePlate || driverData.licensePlate || ''
                 const newAvatar = driverData.avatar || 'https://via.placeholder.com/100'
-                
+
                 // Only update if there's actual change to avoid unnecessary re-renders
                 if (prev.id !== newId || prev.name !== newName || prev.rating !== newRating) {
                   return {
@@ -184,7 +184,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
                 }
                 return prev
               })
-              
+
               // Update driver location from currentLocation
               if (driverData.currentLocation?.coordinates && driverData.currentLocation.coordinates.length === 2) {
                 const newDriverLat = driverData.currentLocation.coordinates[1]
@@ -208,7 +208,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
     fetchRideStatus()
     fetchUnreadCount()
-    
+
     const interval = setInterval(() => {
       fetchRideStatus()
       fetchUnreadCount()
@@ -228,7 +228,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
   }
 
   const handleCancelRide = () => {
-    navigation?.navigate('CancelTripScreen', { 
+    navigation?.navigate('CancelTripScreen', {
       rideId: rideId,
       rideType: ride?.rideType || 'hire',
     })
@@ -240,7 +240,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
   const getStatusText = () => {
     if (!ride?.status) return 'Đang tải...'
-    
+
     switch (ride.status) {
       case 'pending':
       case 'finding_driver':
@@ -286,7 +286,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
           <Text style={styles.loadingText}>Đang tải thông tin chuyến đi...</Text>
         </View>
       )}
-      
+
       {/* Map */}
       <View style={StyleSheet.absoluteFillObject}>
         <MapViewComponent
@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#1a202c',
+    backgroundColor: '#fff',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingTop: 12,
@@ -550,12 +550,12 @@ const styles = StyleSheet.create({
   driverName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    color: '#000',
     marginBottom: 4,
   },
   carInfo: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: '#666',
     marginBottom: 4,
   },
   ratingRow: {
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#666',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -610,13 +610,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   routeSection: {
-    backgroundColor: '#374151',
+    backgroundColor: '#f5f5f5',
     borderRadius: 16,
     padding: 16,
     marginHorizontal: SPACING.lg,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#e0e0e0',
   },
   routeItem: {
     flexDirection: 'row',
@@ -647,14 +647,14 @@ const styles = StyleSheet.create({
   routeLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: '#999',
     marginBottom: 4,
     letterSpacing: 0.5,
   },
   routeAddress: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#000',
     marginBottom: 2,
   },
   routeTime: {
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
-    backButton: {
+  backButton: {
     width: 44,
     height: 44,
     borderRadius: 22,

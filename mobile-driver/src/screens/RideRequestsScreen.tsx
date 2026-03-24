@@ -73,19 +73,19 @@ export default function RideRequestsScreen({ navigation, route }: any) {
   const loadRequests = async () => {
     console.log('🚀 loadRequests() CALLED')
     console.log('📊 State:', { combinedTripId, rideId, sourceType, userId: user?.id })
-    
+
     setLoading(true)
     try {
       const tripId = combinedTripId || rideId
-      
+
       // Determine endpoint based on source type or ID
       let endpoint = `${API_BASE_URL}/rides/${tripId}/requests`
       if (sourceType === 'combined_trip' || combinedTripId) {
         endpoint = `${API_BASE_URL}/combined-trips/${tripId}/requests`
       }
-      
+
       console.log('📍 Loading requests from:', endpoint)
-      
+
       // Add driverId to query params for filtering
       const driverId = user?.id
       if (driverId && (sourceType === 'combined_trip' || combinedTripId)) {
@@ -95,15 +95,15 @@ export default function RideRequestsScreen({ navigation, route }: any) {
       } else {
         console.warn('⚠️ No driver ID found - requests may not be filtered')
       }
-      
+
       const token = await AsyncStorage.getItem('token')
-      const headers: any = { 
+      const headers: any = {
         'Content-Type': 'application/json',
       }
       if (token) {
         headers.Authorization = `Bearer ${token}`
       }
-      
+
       const response = await fetch(endpoint, {
         method: 'GET',
         headers,
@@ -128,15 +128,15 @@ export default function RideRequestsScreen({ navigation, route }: any) {
     setAccepting(requestId)
     try {
       const tripId = combinedTripId || rideId
-      
+
       // Determine endpoint based on source type
       let endpoint = `${API_BASE_URL}/rides/${tripId}/requests/${requestId}/accept`
       if (sourceType === 'combined_trip' || combinedTripId) {
         endpoint = `${API_BASE_URL}/combined-trips/${tripId}/requests/${requestId}/accept`
       }
-      
+
       console.log('📍 Accepting request:', endpoint)
-      
+
       const response = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -157,15 +157,15 @@ export default function RideRequestsScreen({ navigation, route }: any) {
     setRejecting(requestId)
     try {
       const tripId = combinedTripId || rideId
-      
+
       // Determine endpoint based on source type
       let endpoint = `${API_BASE_URL}/rides/${tripId}/requests/${requestId}/reject`
       if (sourceType === 'combined_trip' || combinedTripId) {
         endpoint = `${API_BASE_URL}/combined-trips/${tripId}/requests/${requestId}/reject`
       }
-      
+
       console.log('📍 Rejecting request:', endpoint)
-      
+
       const response = await fetch(endpoint, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -184,15 +184,15 @@ export default function RideRequestsScreen({ navigation, route }: any) {
 
   const handleStartRide = () => {
     const tripId = combinedTripId || rideId
-    
+
     // Pass both IDs and sourceType to ActiveRideScreen
     if (sourceType === 'combined_trip' || combinedTripId) {
-      navigation.navigate('ActiveRideScreen', { 
+      navigation.navigate('ActiveRideScreen', {
         combinedTripId: tripId,
         sourceType: 'combined_trip'
       })
     } else {
-      navigation.navigate('ActiveRideScreen', { 
+      navigation.navigate('ActiveRideScreen', {
         rideId: tripId
       })
     }

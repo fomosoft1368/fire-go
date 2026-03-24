@@ -9,17 +9,17 @@ const USER_KEY = 'user'
 // Helper to normalize Vietnamese phone numbers
 const normalizePhoneNumber = (phone: string): string => {
   let normalized = phone.replace(/\D/g, '')
-  
+
   // If starts with 84, it's already international format
   if (normalized.startsWith('84')) {
     return '+' + normalized
   }
-  
+
   // If starts with 0, remove it and add country code
   if (normalized.startsWith('0')) {
     return '+84' + normalized.substring(1)
   }
-  
+
   // Otherwise assume it's missing country code
   return '+84' + normalized
 }
@@ -37,7 +37,7 @@ export const authService = {
       console.log('📦 Request body:', JSON.stringify({ identifier, password: '***' }, null, 2))
       console.log('📅 Timestamp:', new Date().toISOString())
       console.log('==========================================\n')
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -75,7 +75,7 @@ export const authService = {
       // Store tokens and user info
       await AsyncStorage.setItem(TOKEN_KEY, data.accessToken)
       await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
-      
+
       const user: User = {
         id: data.user.id,
         firstName: data.user.firstName,
@@ -91,7 +91,7 @@ export const authService = {
         dateOfBirth: data.user.dateOfBirth,
         preferredDriverGender: data.user.preferredDriverGender,
       }
-      
+
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
 
       return {
@@ -102,7 +102,7 @@ export const authService = {
       console.error('\n========== ❌ LOGIN EXCEPTION ==========')
       console.error('🚨 Error type:', error.constructor.name)
       console.error('💬 Error message:', error.message)
-      
+
       if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
         console.error('🌐 Network request failed - cannot reach server')
         console.error('📍 Check if:', {
@@ -111,7 +111,7 @@ export const authService = {
           'Firewall allows connection': 'Windows Firewall + Cloud provider',
         })
       }
-      
+
       console.error('📚 Full error stack:', error.stack)
       console.error('==========================================\n')
       throw error
@@ -127,12 +127,12 @@ export const authService = {
   ): Promise<LoginResponse> {
     try {
       console.log('[Auth] Register attempt:', { firstName, email, phone: phone.replace(/\d(?=\d{4})/g, '*'), apiUrl: API_BASE_URL })
-      
+
       // Split name into firstName and lastName
       const nameParts = firstName.split(' ')
       const lastNameOrFull = nameParts.length > 1 ? nameParts.pop() : ''
       const finalFirstName = nameParts.join(' ') || firstName
-      
+
       // Normalize phone number to Vietnam format
       const normalizedPhone = normalizePhoneNumber(phone)
       console.log('[Auth] Normalized phone:', normalizedPhone)
@@ -247,7 +247,7 @@ export const authService = {
   async updateProfile(userId: string, updateData: any): Promise<User> {
     try {
       console.log('[Auth] Update profile attempt:', { userId, updateData: { ...updateData, password: undefined } })
-      
+
       const token = await this.getToken()
       if (!token) {
         throw new Error('No auth token found')
@@ -315,4 +315,5 @@ export const authService = {
       console.error('[Auth] Get user ID failed:', error.message || error)
       throw error
     }
-  },}
+  },
+}

@@ -29,12 +29,13 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Allow the app to access your location while using the app to track deliveries and show nearby orders",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow the app to access your location at all times to track your delivery and location history",
-        "NSLocationAlwaysUsageDescription": "Allow the app to access your location for delivery tracking"
-      }
+        "NSLocationAlwaysUsageDescription": "Allow the app to access your location for delivery tracking",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.firego.driver"
     },
     "android": {
       "package": "com.firego.driver",
-      
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",

@@ -527,7 +527,7 @@ export default function CreateRideScreen() {
 
       {/* Back Button */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: "#fff" }]} >
           <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
         </TouchableOpacity>
         <Text style={styles.logoText}>firego</Text>
@@ -804,18 +804,18 @@ const styles = StyleSheet.create({
         gap: 10,
         zIndex: 10,
     },
-    backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
-    },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
     logoText: {
         fontSize: 30,
         fontWeight: '700',

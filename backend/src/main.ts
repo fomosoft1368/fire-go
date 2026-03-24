@@ -20,10 +20,10 @@ async function bootstrap() {
         authorization: req.headers.authorization ? `${req.headers.authorization.substring(0, 50)}...` : 'missing',
       });
     }
-    
+
     // Intercept response to log it
     const originalSend = res.send;
-    res.send = function(data) {
+    res.send = function (data) {
       if (req.path.includes('/change-password') || req.path === '/api/customers/change-password') {
         console.log('[HTTP Response] Response for', req.path, ':', {
           statusCode: res.statusCode,
@@ -32,7 +32,7 @@ async function bootstrap() {
       }
       return originalSend.call(this, data);
     };
-    
+
     next();
   });
 

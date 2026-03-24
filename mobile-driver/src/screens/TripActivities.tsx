@@ -91,15 +91,15 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             onPanResponderRelease: (_, gestureState) => {
                 bottomSheetHeight.flattenOffset()
                 const currentHeight = lastGestureDy.current - gestureState.dy
-                
+
                 // Tính threshold (giữa MIN và MAX)
                 const threshold = (MIN_HEIGHT + MAX_HEIGHT) / 2
-                
+
                 // Snap tới MIN hoặc MAX dựa vào vị trí hiện tại
                 const toValue = currentHeight > threshold ? MAX_HEIGHT : MIN_HEIGHT
-                
+
                 lastGestureDy.current = toValue
-                
+
                 Animated.spring(bottomSheetHeight, {
                     toValue,
                     useNativeDriver: false,
@@ -330,7 +330,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
 
     const handleChat = () => {
         if (!navigation) return
-        
+
         navigation.navigate('ChatScreen', {
             customer: {
                 id: customer?._id,
@@ -409,7 +409,7 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         setUpdating(true)
         try {
             console.log(`📤 Uploading ${vehiclePhotos.length} images...`)
-            
+
             // Upload ảnh lên server (lưu base64 trong MongoDB)
             const result = await vehicleConditionService.uploadVehicleCondition(
                 rideId,
@@ -418,12 +418,12 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
             )
 
             console.log('✅ Vehicle condition saved:', result)
-            
+
             setTripStatus('vehicle-condition-checked')
             setShowVehicleCheckModal(false)
-            
+
             Alert.alert(
-                'Thành công', 
+                'Thành công',
                 `Đã lưu ${vehiclePhotos.length} ảnh kiểm tra xe.\nSẵn sàng bắt đầu chuyến đi.`
             )
         } catch (error: any) {

@@ -10,8 +10,11 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Share,
+  Animated,
+  Linking,
 } from 'react-native'
-import { MaterialIcons } from '@expo/vector-icons'
+import { MaterialIcons, Ionicons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS, COLORS_DARK, COLORS_LIGHT } from '../constants'
 import { notificationService } from '../services/notificationService'
 import type { Notification } from '../services/notificationService'
@@ -27,7 +30,7 @@ const NotificationDetailScreen = () => {
   const route = useRoute()
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
-  
+
   const { notification, onDelete } = route.params as RouteParams
   const [deleting, setDeleting] = useState(false)
 
@@ -66,7 +69,7 @@ const NotificationDetailScreen = () => {
     Alert.alert('Xóa thông báo', 'Bạn có chắc chắn muốn xóa thông báo này?', [
       {
         text: 'Hủy',
-        onPress: () => {},
+        onPress: () => { },
         style: 'cancel',
       },
       {
@@ -91,79 +94,205 @@ const NotificationDetailScreen = () => {
     ])
   }, [notification._id, onDelete, navigation])
 
+  const handleShare = useCallback(async () => {
+    try {
+      await Share.share({
+        message: `${notification.title}\n\n${notification.message}`,
+        title: notification.title,
+      })
+    } catch (error) {
+      console.error('Share error:', error)
+    }
+  }, [notification])
+
+  const getNotificationIcon = useCallback(() => {
+    const type = notification.type?.toLowerCase() || ''
+    if (type.includes('ride')) return 'directions-car'
+    if (type.includes('delivery')) return 'local-shipping'
+    if (type.includes('payment') || type.includes('payment')) return 'account-balance-wallet'
+    if (type.includes('rating')) return 'star'
+    if (type.includes('promotion')) return 'local-offer'
+    return 'notifications'
+  }, [notification.type])
+
+  const getNotificationColor = useCallback(() => {
+    const type = notification.type?.toLowerCase() || ''
+    if (type.includes('ride')) return '#3b82f6'
+    if (type.includes('delivery')) return '#10b981'
+    if (type.includes('payment')) return '#8b5cf6'
+    if (type.includes('promotion')) return '#f59e0b'
+    if (type.includes('rating')) return '#ec4899'
+    return '#6366f1'
+  }, [notification.type])
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header Gradient */}
+      <View style={[styles.header, { backgroundColor: colors.primary }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.headerButton}
+        >
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Chi tiết</Text>
-        <TouchableOpacity onPress={handleDelete} disabled={deleting}>
-          {deleting ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <MaterialIcons name="delete" size={24} color={colors.danger} />
-          )}
+        <Text style={styles.headerTitle}>Thông báo</Text>
+        <TouchableOpacity
+          onPress={handleShare}
+          style={styles.headerButton}
+        >
+          <Ionicons name="share-social" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={[styles.content, { backgroundColor: colors.card }]}>
-        <Text style={[styles.title, { color: colors.text }]}>{notification.title}</Text>
-        <Text style={[styles.time, { color: colors.textSecondary }]}>
-          {formatDate(notification.sentAt || notification.createdAt)}
-        </Text>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Notification Icon Card */}
+        <View style={[styles.iconCard, { backgroundColor: getNotificationColor() + '15' }]}>
+          <View
+            style={[
+              styles.iconContainer,
+              { backgroundColor: getNotificationColor() }
+            ]}
+          >
+            <MaterialIcons
+              name={getNotificationIcon() as any}
+              size={40}
+              color="#fff"
+            />
+          </View>
+        </View>
 
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        {/* Main Content Card */}
+        <View style={[styles.contentCard, { backgroundColor: colors.card }]}>
+          {/* Title & Status */}
+          <View style={styles.titleSection}>
+            <View style={styles.titleRow}>
+              <Text style={[styles.title, { color: colors.text, flex: 1 }]}>
+                {notification.title}
+              </Text>
+              {!notification.isRead && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>Mới</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.time, { color: colors.textSecondary }]}>
+              {formatDate(notification.sentAt || notification.createdAt)}
+            </Text>
+          </View>
 
-        <Text style={[styles.message, { color: colors.text }]}>{notification.message}</Text>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        {notification.description && (
-          <>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Chi tiết thêm</Text>
-            <Text style={[styles.description, { color: colors.text }]}>{notification.description}</Text>
-          </>
-        )}
+          {/* Message */}
+          <View style={styles.messageSection}>
+            <Text style={[styles.message, { color: colors.text }]}>
+              {notification.message}
+            </Text>
+          </View>
 
+          {/* Description */}
+          {notification.description && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={styles.descriptionSection}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                  📌 Chi tiết thêm
+                </Text>
+                <View style={[styles.descriptionBox, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.description, { color: colors.text }]}>
+                    {notification.description}
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* Channels */}
+          {notification.channels && notification.channels.length > 0 && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={styles.channelsSection}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                  📨 Kênh gửi
+                </Text>
+                <View style={styles.channelsContainer}>
+                  {notification.channels.map((channel, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.channelBadge,
+                        {
+                          backgroundColor: getNotificationColor() + '20',
+                          borderColor: getNotificationColor(),
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          channel.toLowerCase() === 'push'
+                            ? 'notifications'
+                            : channel.toLowerCase() === 'email'
+                              ? 'mail'
+                              : 'chat-bubble'
+                        }
+                        size={14}
+                        color={getNotificationColor()}
+                      />
+                      <Text style={[styles.channelText, { color: getNotificationColor() }]}>
+                        {channel}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
+        </View>
+
+        {/* Action Button */}
         {notification.actionUrl && (
           <>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primary }]}
+              style={[styles.actionButton, { backgroundColor: getNotificationColor() }]}
               onPress={() => {
-                Alert.alert('Thông báo', 'Mở URL: ' + notification.actionUrl)
+                const url = notification.actionUrl
+                if (url?.startsWith('http')) {
+                  Linking.openURL(url).catch(() =>
+                    Alert.alert('Lỗi', 'Không thể mở liên kết')
+                  )
+                } else {
+                  Alert.alert('Thông báo', 'Mở: ' + url)
+                }
               }}
             >
               <Text style={styles.actionButtonText}>Xem chi tiết</Text>
-              <MaterialIcons name="arrow-forward" size={18} color="#fff" />
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
             </TouchableOpacity>
           </>
         )}
 
-        {notification.channels && notification.channels.length > 0 && (
-          <>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Kênh gửi</Text>
-            <View style={styles.channelsContainer}>
-              {notification.channels.map((channel, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.channelBadge,
-                    {
-                      backgroundColor: colors.primaryLight,
-                      borderColor: colors.primary,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.channelText, { color: colors.primary }]}>
-                    {channel}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
+        {/* Delete Button */}
+        <TouchableOpacity
+          style={[styles.deleteButton, { borderColor: colors.danger }]}
+          onPress={handleDelete}
+          disabled={deleting}
+        >
+          {deleting ? (
+            <ActivityIndicator size="small" color={colors.danger} />
+          ) : (
+            <>
+              <MaterialIcons name="delete-outline" size={20} color={colors.danger} />
+              <Text style={[styles.deleteButtonText, { color: colors.danger }]}>
+                Xóa thông báo
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
   )
@@ -178,80 +307,208 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    paddingTop: 50,
+    paddingVertical: SPACING.lg,
+    paddingTop: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
+    color: '#fff',
+    letterSpacing: -0.3,
   },
-  content: {
+  scrollView: {
     flex: 1,
-    padding: SPACING.md,
+  },
+  scrollContent: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.lg,
+  },
+
+  // Icon Card
+  iconCard: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    borderRadius: 20,
+    marginBottom: SPACING.lg,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  // Content Card
+  contentCard: {
+    borderRadius: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+    marginBottom: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
+  // Title Section
+  titleSection: {
+    marginBottom: SPACING.md,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    marginBottom: SPACING.xs,
+    fontWeight: '800',
     lineHeight: 32,
+    letterSpacing: -0.5,
+  },
+  unreadBadge: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  unreadBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
   },
   time: {
     fontSize: 13,
-    marginBottom: SPACING.md,
+    fontWeight: '500',
+    letterSpacing: -0.2,
   },
-  divider: {
-    height: 1,
+
+  // Message Section
+  messageSection: {
     marginVertical: SPACING.md,
   },
   message: {
     fontSize: 15,
     lineHeight: 24,
-    marginBottom: SPACING.md,
+    letterSpacing: -0.2,
+    fontWeight: '500',
   },
-  label: {
+
+  // Description Section
+  descriptionSection: {
+    marginVertical: SPACING.md,
+  },
+  sectionLabel: {
     fontSize: 13,
-    fontWeight: '600',
-    marginBottom: SPACING.sm,
+    fontWeight: '700',
+    marginBottom: SPACING.md,
+    letterSpacing: -0.2,
+    textTransform: 'uppercase',
+  },
+  descriptionBox: {
+    borderRadius: 12,
+    padding: SPACING.md,
+    borderLeftWidth: 4,
   },
   description: {
     fontSize: 14,
     lineHeight: 20,
-    fontStyle: 'italic',
+    fontWeight: '500',
+    letterSpacing: -0.2,
   },
-  actionButton: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
+
+  // Channels Section
+  channelsSection: {
+    marginVertical: SPACING.md,
   },
   channelsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
-    marginBottom: SPACING.md,
   },
   channelBadge: {
-    borderRadius: BORDER_RADIUS.sm,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderWidth: 1,
+    flexDirection: 'row',
+    borderRadius: 12,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    gap: SPACING.xs,
   },
   channelText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
-  spacing: {
-    height: 30,
+
+  // Divider
+  divider: {
+    height: 1,
+    marginVertical: SPACING.md,
+  },
+
+  // Action Buttons
+  actionButton: {
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: -0.3,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    borderWidth: 2,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
+  deleteButtonText: {
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: -0.3,
+  },
+
+  // Spacing
+  bottomSpacing: {
+    height: 20,
   },
 })
 
