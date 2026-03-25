@@ -61,6 +61,8 @@ export interface HireDriverPricing {
   freeKm: number;
   pricePerExtraKm: number;
   description?: string;
+  depositMinKm?: number;    // Quãng đường tối thiểu để yêu cầu đặt cọc (km)
+  depositPercent?: number;  // Tỷ lệ tiền cọc (%)
 }
 
 // ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Route Types ============

@@ -139,6 +139,22 @@ export class Ride {
   @Prop()
   paidAt?: Date;
 
+  // Deposit (Đặt cọc) - for long-distance hire driver trips
+  @Prop({ default: 0 })
+  depositAmount: number; // Số tiền cọc đã trừ khỏi ví khách (VNĐ)
+
+  @Prop({ default: false })
+  depositPaid: boolean; // Đã trừ cọc khỏi ví chưa
+
+  @Prop({ default: false })
+  depositRefunded: boolean; // Đã hoàn cọc về ví chưa (khi cancel chưa có tài xế)
+
+  @Prop()
+  depositPaidAt?: Date; // Thời điểm trừ cọc
+
+  @Prop()
+  depositRefundedAt?: Date; // Thời điểm hoàn cọc
+
   // Ride details
   @Prop({ default: 4 })
   totalSeats: number;

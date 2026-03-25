@@ -19,6 +19,7 @@ export class RidesService {
     @InjectModel(Pricing.name) private pricingModel: Model<any>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
+    @InjectModel('Customer') private customerModel: Model<any>, // ✅ Inject Customer for wallet ops
     private eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => AutoAssignService))
     private autoAssignService: AutoAssignService,
@@ -143,6 +144,20 @@ export class RidesService {
       },
     });
 
+    // ✅ DEPOSIT LOGIC: Trừ cọ tiền từ ví khách nếu có đặt cọ
+    const depositAmount = createRideDto.depositAmount || 0;
+    if (depositAmount > 0 && customerId) {
+      const customer = await this.customerModel.findById(customerId);
+      if (!customer) throw new BadRequestException('Không tìm thấy tài khoản khách hàng');
+      if ((customer.walletBalance || 0) < depositAmount) {
+        throw new BadRequestException(
+          `Số dư ví không đủ. Cần ${depositAmount.toLocaleString('đ')}, hiện có ${(customer.walletBalance || 0).toLocaleString('đ')}. Vui lòng nạp thêm để đặt cọ.`
+        );
+      }
+      await this.customerModel.findByIdAndUpdate(customerId, { $inc: { walletBalance: -depositAmount } });
+      console.log(`[RidesService] 💸 Đã trừ tiền cọ ${depositAmount}đ từ ví khách ${customerId}`);
+    }
+
     const ride = await this.rideModel.create({
       ...createRideDto,
       rideType,
@@ -165,6 +180,11 @@ export class RidesService {
       dropoffWard: createRideDto.dropoffWard || dropoffLoc.ward,
       totalFare,
       status: RideStatus.PENDING,
+      // ✅ Deposit fields
+      depositAmount,
+      depositPaid: depositAmount > 0,
+      depositPaidAt: depositAmount > 0 ? new Date() : undefined,
+      depositRefunded: false,
     });
 
     // Extract driverId before populate
@@ -551,31 +571,35 @@ export class RidesService {
           completedRides: 1,
         },
       });
-      console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE status with isAvailable=true after ride completion`);
-      console.log(`[RidesService] 📊 Incremented totalRides and completedRides for driver ${driverId}`);
+      console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE status after ride completion`);
 
-      // ⭐ DEDUCT 20% commission from driver wallet (driverShare is 80%, platform takes 20%)
+      // ⭐ PAYMENT LOGIC - Có hỗ trợ tiền cọ
       try {
         const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
         const driverShare = pricingConfigs?.[0]?.driverShare || 80; // Default 80%
-        const platformCommission = Math.round((ride.totalFare * (100 - driverShare)) / 100);
 
-        console.log(`[RidesService] 💰 Wallet deduction:`, {
-          driverId: driverId.toString(),
-          totalFare: ride.totalFare,
+        const totalFare = ride.totalFare || 0;
+        const depositAmount = (ride as any).depositAmount || 0;
+        const remainingPayment = totalFare - depositAmount;
+        // Hoa hồng platform = tổng * (100 - driverShare)%
+        const platformCommission = Math.round((totalFare * (100 - driverShare)) / 100);
+
+        console.log(`[RidesService] 💰 Payment breakdown:`, {
+          tổngTiền: totalFare,
+          tiềnCọ: depositAmount,
+          cònLạiKháchTrả: remainingPayment,
           driverShare: `${driverShare}%`,
-          platformCommission: platformCommission,
+          hoa_hồng: platformCommission,
         });
 
-        // Deduct from driver wallet
+        // Trừ hoa hồng platform từ ví tài xế
         await this.driverModel.findByIdAndUpdate(driverId, {
           $inc: { walletBalance: -platformCommission },
         });
 
-        console.log(`[RidesService] ✅ Deducted ${platformCommission}đ from driver wallet (${100 - driverShare}% commission)`);
+        console.log(`[RidesService] ✅ Đã trừ hoa hồng ${platformCommission}đ từ ví tài xế (${100 - driverShare}%)`);
       } catch (walletError) {
-        console.warn(`[RidesService] ⚠️ Warning: Failed to deduct wallet commission:`, walletError.message);
-        // Don't fail the ride completion if wallet deduction fails
+        console.warn(`[RidesService] ⚠️ Không thể xử lý thanh toán:`, walletError.message);
       }
     }
 
@@ -621,7 +645,38 @@ export class RidesService {
         status: DriverStatus.ONLINE,
         isAvailable: true,
       });
-      console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE status with isAvailable=true after ride cancellation`);
+      console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE after cancellation`);
+    }
+
+    // ✅ DEPOSIT REFUND: Hoàn cọ nếu chưa có tài xế nhận và đã trừ cọ
+    const rideDeposit = (ride as any).depositAmount || 0;
+    const depositPaid = (ride as any).depositPaid || false;
+    const depositRefunded = (ride as any).depositRefunded || false;
+    const hasDriver = !!ride.driverId;
+
+    if (rideDeposit > 0 && depositPaid && !depositRefunded && !hasDriver) {
+      // Chưa có tài xế nhận → hoàn cọ 100%
+      const customerId = typeof ride.customerId === 'object' 
+        ? (ride.customerId as any)?._id?.toString() 
+        : (ride.customerId as any)?.toString();
+      if (customerId) {
+        await this.customerModel.findByIdAndUpdate(customerId, { 
+          $inc: { walletBalance: rideDeposit } 
+        });
+        console.log(`[RidesService] 💰 Đã hoàn cọ ${rideDeposit}đ về ví khách ${customerId} (chưa có tài xế nhận)`);
+      }
+      return this.rideModel.findByIdAndUpdate(
+        rideId,
+        {
+          status: RideStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationBy,
+          cancellationReason: reason,
+          depositRefunded: true,
+          depositRefundedAt: new Date(),
+        },
+        { new: true },
+      );
     }
 
     return this.rideModel.findByIdAndUpdate(

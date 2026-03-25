@@ -82,7 +82,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   // Navigation
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
 
-  // Lấy user từ redux
+  // Láº¥y user tá»« redux
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -105,6 +105,15 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [isLoadingCurrentLocation, setIsLoadingCurrentLocation] = useState(true)
+  // ====== DEPOSIT (Cá»ŒC) STATES ======
+  const [depositMinKm, setDepositMinKm] = useState(50)         // km // km tối thiểu bắt đặt cọc
+  const [depositPercent, setDepositPercent] = useState(30)     // % tiền cọc
+  const [depositAmount, setDepositAmount] = useState(0)        // Số tiền cọc (VNĐ)
+  const [needsDeposit, setNeedsDeposit] = useState(false)      // Có cần đặt cọc không
+  const [depositAgreed, setDepositAgreed] = useState(false)    // Khách đã tick đồng ý
+  const [walletBalance, setWalletBalance] = useState<number | null>(null) // Số dư ví
+
+  // ====================================
 
   // Draggable Bottom Sheet
   const screenHeight = Dimensions.get('window').height
@@ -226,10 +235,10 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       clearTimeout(pickupSearchTimeout)
     }
 
-    // Chỉ search nếu text >= 5 ký tự
+    // Chá»‰ search náº¿u text >= 5 kÃ½ tá»±
     if (text.trim().length >= 5) {
       setShowPickupSuggestions(true)
-      // Debounce 800ms để giảm request
+      // Debounce 800ms Ä‘á»ƒ giáº£m request
       const timeout = setTimeout(async () => {
         try {
           console.log('[Search] Pickup search for:', text)
@@ -242,7 +251,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       }, 800)
       setPickupSearchTimeout(timeout)
     } else {
-      // Xóa suggestions nếu text < 5 ký tự
+      // XÃ³a suggestions náº¿u text < 5 kÃ½ tá»±
       setPickupSuggestions([])
       if (text.trim().length === 0) {
         setShowPickupSuggestions(false)
@@ -258,10 +267,10 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       clearTimeout(dropoffSearchTimeout)
     }
 
-    // Chỉ search nếu text >= 3 ký tự
+    // Chá»‰ search náº¿u text >= 3 kÃ½ tá»±
     if (text.trim().length >= 3) {
       setShowDropoffSuggestions(true)
-      // Debounce 500ms để giảm request
+      // Debounce 500ms Ä‘á»ƒ giáº£m request
       const timeout = setTimeout(async () => {
         try {
           console.log('[Search] Dropoff search for:', text)
@@ -275,7 +284,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       }, 500)
       setDropoffSearchTimeout(timeout)
     } else {
-      // Xóa suggestions nếu text < 3 ký tự
+      // XÃ³a suggestions náº¿u text < 3 kÃ½ tá»±
       setDropoffSuggestions([])
       if (text.trim().length === 0) {
         setShowDropoffSuggestions(false)
@@ -308,32 +317,32 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     const initializePickupLocation = async () => {
       setIsLoadingCurrentLocation(true)
       try {
-        console.log('[HireDriverScreen] 📍 Requesting location permission...')
+        console.log('[HireDriverScreen] ðŸ“ Requesting location permission...')
         const { status } = await Location.requestForegroundPermissionsAsync()
 
         if (status !== 'granted') {
-          console.log('[HireDriverScreen] ⚠️ Location permission denied')
+          console.log('[HireDriverScreen] âš ï¸ Location permission denied')
           setIsLoadingCurrentLocation(false)
           return
         }
 
-        console.log('[HireDriverScreen] ✅ Getting current position...')
+        console.log('[HireDriverScreen] âœ… Getting current position...')
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         })
 
         const { latitude, longitude } = location.coords
-        console.log('[HireDriverScreen] 📍 Current position:', { latitude, longitude })
+        console.log('[HireDriverScreen] ðŸ“ Current position:', { latitude, longitude })
 
         // Reverse geocode to get address
         const address = await mapsService.reverseGeocode(latitude, longitude)
-        console.log('[HireDriverScreen] 🏠 Address from coordinates:', address)
+        console.log('[HireDriverScreen] ðŸ  Address from coordinates:', address)
 
         setPickupLocation(address)
       } catch (error) {
-        console.error('[HireDriverScreen] ❌ Error getting location:', error)
+        console.error('[HireDriverScreen] âŒ Error getting location:', error)
         // Fallback to default location
-        setPickupLocation('Hà Nội, Việt Nam')
+        setPickupLocation('HÃ  Ná»™i, Viá»‡t Nam')
       } finally {
         setIsLoadingCurrentLocation(false)
       }
@@ -347,20 +356,20 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     setShowScheduleModal(false)
   }
 
-  // Polling để lấy thông tin tài xế khi driver nhận cuốc
+  // Polling Ä‘á»ƒ láº¥y thÃ´ng tin tÃ i xáº¿ khi driver nháº­n cuá»‘c
   useEffect(() => {
     if (!isSearching || !rideId) {
       return
     }
 
-    console.log('[HireDriverScreen] 🔄 Starting polling for rideId:', rideId)
+    console.log('[HireDriverScreen] ðŸ”„ Starting polling for rideId:', rideId)
 
     const pollInterval = setInterval(async () => {
       try {
         const token = await AsyncStorage.getItem('token')
         const rideData = await rideService.getRideById(rideId, token || undefined)
 
-        console.log('[HireDriverScreen] 📊 Polling result:', {
+        console.log('[HireDriverScreen] ðŸ“Š Polling result:', {
           hasDriverId: !!rideData?.driverId,
           driverType: typeof rideData?.driverId,
         })
@@ -372,7 +381,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         const driverData = rideData.driverId
 
         if (driverData && typeof driverData === 'object' && driverData._id) {
-          console.log('[HireDriverScreen] ✅ Driver found!', driverData._id)
+          console.log('[HireDriverScreen] âœ… Driver found!', driverData._id)
 
           // Extract driver location
           let driverLat = 21.0285 // Default Hanoi
@@ -380,12 +389,12 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
           if (driverData.currentLocation?.coordinates) {
             driverLat = driverData.currentLocation.coordinates[1]
             driverLng = driverData.currentLocation.coordinates[0]
-            console.log('[HireDriverScreen] 📍 Driver location:', { lat: driverLat, lng: driverLng })
+            console.log('[HireDriverScreen] ðŸ“ Driver location:', { lat: driverLat, lng: driverLng })
           }
 
           setDriver({
             id: driverData._id,
-            name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim() || 'Tài xế',
+            name: `${driverData.firstName || ''} ${driverData.lastName || ''}`.trim() || 'Tài Xế',
             avatar: `https://i.pravatar.cc/150?u=${driverData._id}`,
             rating: driverData.averageRating || 4.8,
             totalRides: driverData.totalRides || 0,
@@ -414,7 +423,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
           clearInterval(pollInterval)
         }
       } catch (error) {
-        console.error('[HireDriverScreen] ❌ Polling error:', error)
+        console.error('[HireDriverScreen] âŒ Polling error:', error)
       }
     }, 2000)
 
@@ -424,6 +433,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
   useEffect(() => {
     // Không tính lại nếu đang tìm tài xế hoặc tài xế đã được tìm thấy
+
     if (isSearching || driverFound) {
       return
     }
@@ -441,7 +451,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     return () => clearTimeout(timer)
   }, [pickupLocation, dropoffLocation, carType, isSearching, driverFound])
 
-  // Tính giá cước khi có đủ thông tin
+  // TÃ­nh giÃ¡ cÆ°á»›c khi cÃ³ Ä‘á»§ thÃ´ng tin
   const calculateEstimate = async () => {
     if (!pickupLocation.trim() || !dropoffLocation.trim()) {
       return
@@ -449,102 +459,144 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
     setCalculating(true)
     try {
-      console.log('[HireDriverScreen] 🚗 ===== BẮT ĐẦU TÍNH GIÁ =====')
-      console.log('[HireDriverScreen] 📍 Input:', {
+      console.log('[HireDriverScreen] ðŸš— ===== Báº®T Äáº¦U TÃNH GIÃ =====')
+      console.log('[HireDriverScreen] ðŸ“ Input:', {
         pickup: pickupLocation,
         dropoff: dropoffLocation,
         carType,
       })
 
       const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
-      console.log('[HireDriverScreen] 🗺️ Route info:', {
+      console.log('[HireDriverScreen] ðŸ—ºï¸ Route info:', {
         distance: route.distance + ' km',
-        duration: route.duration + ' phút',
+        duration: route.duration + ' phÃºt',
         pickup: route.pickup?.formattedAddress,
         dropoff: route.dropoff?.formattedAddress,
       })
       setRouteInfo(route)
 
-      // ============ LÁI XE HỘ - Tính giá theo nghiệp vụ phí mở cửa + km miễn phí ============
-      console.log('[HireDriverScreen] 💰 Calling calculateHireDriverFare with:', {
+      // ============ LÃI XE Há»˜ - TÃ­nh giÃ¡ theo nghiá»‡p vá»¥ phÃ­ má»Ÿ cá»­a + km miá»…n phÃ­ ============
+      console.log('[HireDriverScreen] ðŸ’° Calling calculateHireDriverFare with:', {
         distance: route.distance,
         carType,
       })
 
       const fare = await calculateHireDriverFare(route.distance, carType)
 
-      console.log('[HireDriverScreen] ✅ Hire Driver Fare calculated:', {
-        total: fare.total + 'đ',
-        openingFee: fare.openingFee + 'đ',
+      console.log('[HireDriverScreen] âœ… Hire Driver Fare calculated:', {
+        total: fare.total + 'Ä‘',
+        openingFee: fare.openingFee + 'Ä‘',
         freeKm: fare.freeKm + 'km',
         extraKm: fare.extraKm + 'km',
-        extraKmFee: fare.extraKmFee + 'đ',
-        pricePerExtraKm: fare.pricePerExtraKm + 'đ/km',
-        breakdown: `${fare.openingFee}đ + ${fare.extraKm}km × ${fare.pricePerExtraKm}đ = ${fare.total}đ`,
+        extraKmFee: fare.extraKmFee + 'Ä‘',
+        pricePerExtraKm: fare.pricePerExtraKm + 'Ä‘/km',
+        breakdown: `${fare.openingFee}Ä‘ + ${fare.extraKm}km Ã— ${fare.pricePerExtraKm}Ä‘ = ${fare.total}Ä‘`,
       })
 
       setFareEstimate(fare)
 
-      console.log('[HireDriverScreen] 🎯 TỔNG KẾT:', {
-        distance: route.distance + ' km',
-        finalPrice: fare.total + 'đ',
-        formula: route.distance <= fare.freeKm
-          ? `Trong ${fare.freeKm}km miễn phí → Chỉ tính phí mở cửa ${fare.openingFee}đ`
-          : `${fare.openingFee}đ + (${route.distance} - ${fare.freeKm})km × ${fare.pricePerExtraKm}đ/km = ${fare.total}đ`,
-      })
-      console.log('[HireDriverScreen] ===== KẾT THÚC TÍNH GIÁ =====\n')
+      // ====== DEPOSIT: Cáº­p nháº­t tÃ¬nh tráº¡ng Ä‘áº·t cá»c sau khi tÃ­nh giÃ¡ ======
+      try {
+        const token = await AsyncStorage.getItem('token')
+        // Fetch deposit config vÃ  sá»‘ dÆ° vÃ­ cá»§a khÃ¡ch
+        const [configRes, walletRes] = await Promise.all([
+          fetch(`${require('../constants/config').API_BASE_URL}/pricing/config`, {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+          fetch(`${require('../constants/config').API_BASE_URL}/customers/me/wallet`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          }),
+        ])
+        if (configRes.ok) {
+          const config = await configRes.json()
+          // Láº¥y config lÃ¡i xe há»™ theo loáº¡i xe Ä‘ang chá»n
+          const hireConfig = (config?.hireDriverPricing || []).find((h: any) => h.vehicleType === carType) ||
+            (config?.hireDriverPricing || [])[0]
+          const minKm = hireConfig?.depositMinKm ?? 50
+          const percent = hireConfig?.depositPercent ?? 30
+          setDepositMinKm(minKm)
+          setDepositPercent(percent)
 
-      // Thông báo nếu đang dùng mock data
+          if (route.distance >= minKm) {
+            const calcDeposit = Math.round((fare.total * percent) / 100)
+            setDepositAmount(calcDeposit)
+            setNeedsDeposit(true)
+            setDepositAgreed(false) // Reset khi tÃ­nh láº¡i
+          } else {
+            setDepositAmount(0)
+            setNeedsDeposit(false)
+            setDepositAgreed(false)
+          }
+        }
+        if (walletRes.ok) {
+          const w = await walletRes.json()
+          setWalletBalance(w?.walletBalance ?? w?.balance ?? null)
+        }
+      } catch (depErr) {
+        console.log('[HireDriverScreen] Deposit config fetch error (non-critical):', depErr)
+      }
+      // =============================================================
+
+      console.log('[HireDriverScreen] ðŸŽ¯ Tá»”NG Káº¾T:', {
+        distance: route.distance + ' km',
+        finalPrice: fare.total + 'Ä‘',
+        formula: route.distance <= fare.freeKm
+          ? `Trong ${fare.freeKm}km miá»…n phÃ­ â†’ Chá»‰ tÃ­nh phÃ­ má»Ÿ cá»­a ${fare.openingFee}Ä‘`
+          : `${fare.openingFee}Ä‘ + (${route.distance} - ${fare.freeKm})km Ã— ${fare.pricePerExtraKm}Ä‘/km = ${fare.total}Ä‘`,
+      })
+      console.log('[HireDriverScreen] ===== Káº¾T THÃšC TÃNH GIÃ =====\n')
+
+      // ThÃ´ng bÃ¡o náº¿u Ä‘ang dÃ¹ng mock data
       if (route.isMockData) {
         Alert.alert(
-          '⚠️ Chế độ Demo',
-          'Hiện đang sử dụng dữ liệu giả lập.\n\nĐể sử dụng Google Maps thật, vui lòng cấu hình API key trong file .env',
+          'âš ï¸ Cháº¿ Ä‘á»™ Demo',
+          'Hiá»‡n Ä‘ang sá»­ dá»¥ng dá»¯ liá»‡u giáº£ láº­p.\n\nÄá»ƒ sá»­ dá»¥ng Google Maps tháº­t, vui lÃ²ng cáº¥u hÃ¬nh API key trong file .env',
           [{ text: 'OK' }]
         )
       }
     } catch (err: any) {
       console.error('[HireDriverScreen] Calculate error:', err)
-      Alert.alert('Lỗi', err.message || 'Không thể tính toán tuyến đường')
+      Alert.alert('Lá»—i', err.message || 'KhÃ´ng thá»ƒ tÃ­nh toÃ¡n tuyáº¿n Ä‘Æ°á»ng')
     } finally {
       setCalculating(false)
     }
   }
 
-  // Validation và tạo cuốc xe
+  // Validation vÃ  táº¡o cuá»‘c xe
   const handleCreateRide = async () => {
-    // Kiểm tra đăng nhập
+    // Kiá»ƒm tra Ä‘Äƒng nháº­p
     if (!user) {
-      Alert.alert('Yêu cầu đăng nhập', 'Bạn cần đăng nhập để đặt xe!')
+      Alert.alert('YÃªu cáº§u Ä‘Äƒng nháº­p', 'Báº¡n cáº§n Ä‘Äƒng nháº­p Ä‘á»ƒ Ä‘áº·t xe!')
       return
     }
 
-    // Validation các trường bắt buộc
+    // Validation cÃ¡c trÆ°á»ng báº¯t buá»™c
     if (!pickupLocation.trim()) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đón!')
+      Alert.alert('Thiáº¿u thÃ´ng tin', 'Vui lÃ²ng nháº­p Ä‘iá»ƒm Ä‘Ã³n!')
       return
     }
 
     if (!dropoffLocation.trim()) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đến!')
+      Alert.alert('Thiáº¿u thÃ´ng tin', 'Vui lÃ²ng nháº­p Ä‘iá»ƒm Ä‘áº¿n!')
       return
     }
 
     if (!licensePlate.trim()) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập biển số xe!')
+      Alert.alert('Thiáº¿u thÃ´ng tin', 'Vui lÃ²ng nháº­p biá»ƒn sá»‘ xe!')
       return
     }
 
-    // Nếu chưa tính giá, tính trước
+    // Náº¿u chÆ°a tÃ­nh giÃ¡, tÃ­nh trÆ°á»›c
     if (!routeInfo || !fareEstimate) {
       Alert.alert(
-        'Chưa tính giá',
-        'Vui lòng nhấn "Tính giá" trước khi đặt xe!',
+        'ChÆ°a tÃ­nh giÃ¡',
+        'Vui lÃ²ng nháº¥n "TÃ­nh giÃ¡" trÆ°á»›c khi Ä‘áº·t xe!',
         [
           {
-            text: 'Tính giá ngay',
+            text: 'TÃ­nh giÃ¡ ngay',
             onPress: calculateEstimate,
           },
-          { text: 'Hủy', style: 'cancel' },
+          { text: 'Há»§y', style: 'cancel' },
         ]
       )
       return
@@ -552,6 +604,35 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
     setLoading(true)
     try {
+      // ====== DEPOSIT WALLET CHECK ======
+      if (needsDeposit) {
+        if (!depositAgreed) {
+          Alert.alert(
+            '⚠️ Chưa đồng ý đặt cọc',
+            `Chuyến đi trên ${depositMinKm}km yêu cầu đặt cọc ${depositPercent}% (${depositAmount.toLocaleString('vi-VN')}đ). Vui lòng tick chấp nhận.`,
+            [{ text: 'OK' }]
+          )
+          setLoading(false)
+          return
+        }
+
+        // Kiểm tra số dư ví
+        if (walletBalance !== null && walletBalance < depositAmount) {
+          Alert.alert(
+            '❌ Ví không đủ tiền',
+            `Tiền cọc yêu cầu: ${depositAmount.toLocaleString('vi-VN')}đ
+Số dư hiện tại: ${walletBalance.toLocaleString('vi-VN')}đ
+Cần nạp thêm: ${(depositAmount - walletBalance).toLocaleString('vi-VN')}đ
+
+Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
+            [{ text: 'OK' }]
+          )
+          setLoading(false)
+          return
+        }
+      }
+      // ==================================
+
       const rideData: CreateRideDto = {
         rideType: 'hire',
         pickupAddress: routeInfo.pickup.formattedAddress,
@@ -566,17 +647,20 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         ],
         distance: routeInfo.distance,
         duration: routeInfo.duration,
-        baseFare: fareEstimate.total, // Tổng giá lái xe hộ
-        distanceFare: fareEstimate.extraKmFee, // Phí vượt km
-        timeFare: 0, // Không tính theo thời gian
-        surgePricing: 0, // Lái xe hộ không có peak pricing
+        baseFare: fareEstimate.total, // Tá»•ng giÃ¡ lÃ¡i xe há»™
+        distanceFare: fareEstimate.extraKmFee, // PhÃ­ vÆ°á»£t km
+        timeFare: 0, // KhÃ´ng tÃ­nh theo thá»i gian
+        surgePricing: 0, // LÃ¡i xe há»™ khÃ´ng cÃ³ peak pricing
         carType,
         licensePlate,
         transmission,
         driverNote,
         isScheduled,
         scheduledTime: isScheduled ? scheduledDateTime.toISOString() : undefined,
-        autoAssign: true, // Luôn tự động chỉ định tài xế
+        autoAssign: true, // LuÃ´n tá»± Ä‘á»™ng chá»‰ Ä‘á»‹nh tÃ i xáº¿
+        depositAmount: needsDeposit ? depositAmount : 0, // âœ… Gá»­i tiá»n cá»c
+        isScheduled,
+        scheduledTime: isScheduled ? scheduledDateTime.toISOString() : undefined,
       }
 
       console.log('[HireDriverScreen] Creating ride with data:', rideData)
@@ -628,6 +712,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         fareEstimate={fareEstimate}
         pickupAddress={pickupLocation}
         dropoffAddress={dropoffLocation}
+        depositAmount={needsDeposit ? depositAmount : 0}
         colors={colors}
         onCancel={resetRideState}
       />
@@ -1028,12 +1113,123 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
                     />
                   </View>
                 </View>
+
+                {/* ====== DEPOSIT BANNER + CHECKBOX ====== */}
+                {needsDeposit && fareEstimate && (
+                  <View style={depositStyles.container}>
+                    {/* Banner cảnh báo */}
+                    <View style={depositStyles.banner}>
+                      <MaterialIcons name="info" size={20} color="#b45309" />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={depositStyles.bannerTitle}>
+                          📍 Chuyến đi xa (từ {depositMinKm}km) — Yêu cầu đặt cọc
+                        </Text>
+                        <Text style={depositStyles.bannerDesc}>
+                          Đặt cọc {depositPercent}% sẽ được trừ khỏi ví ngay khi bạn nhấn “Tìm tài xế”.
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Bảng chi tiết số tiền */}
+                    <View style={depositStyles.breakdown}>
+                      <View style={depositStyles.row}>
+                        <Text style={depositStyles.rowLabel}>💰 Tổng tiền chuyến</Text>
+                        <Text style={depositStyles.rowValue}>
+                          {formatCurrency(fareEstimate.total)}
+                        </Text>
+                      </View>
+
+                      <View style={depositStyles.row}>
+                        <Text style={[depositStyles.rowLabel, { color: '#16a34a' }]}>
+                          🔒 Tiền cọc ({depositPercent}%)
+                        </Text>
+                        <Text style={[depositStyles.rowValue, { color: '#16a34a', fontWeight: '700' }]}>
+                          {formatCurrency(depositAmount)}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={[
+                          depositStyles.row,
+                          { borderTopWidth: 1, borderTopColor: '#fed7aa', paddingTop: 8, marginTop: 4 },
+                        ]}
+                      >
+                        <Text style={[depositStyles.rowLabel, { color: '#FF6B00', fontWeight: '700' }]}>
+                          💵 Còn lại khách trả sau
+                        </Text>
+                        <Text
+                          style={[
+                            depositStyles.rowValue,
+                            { color: '#FF6B00', fontWeight: '700', fontSize: 16 },
+                          ]}
+                        >
+                          {formatCurrency(fareEstimate.total - depositAmount)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Số dư ví */}
+                    {walletBalance !== null && (
+                      <Text
+                        style={[
+                          depositStyles.walletText,
+                          walletBalance < depositAmount
+                            ? { color: '#dc2626' }
+                            : { color: '#16a34a' },
+                        ]}
+                      >
+                        {walletBalance < depositAmount
+                          ? `❌ Ví hiện có ${formatCurrency(walletBalance)} — không đủ đặt cọc!`
+                          : `✅ Ví hiện có ${formatCurrency(walletBalance)} — đủ đặt cọc`}
+                      </Text>
+                    )}
+
+                    {/* Checkbox đồng ý */}
+                    <TouchableOpacity
+                      style={depositStyles.checkboxRow}
+                      onPress={() => setDepositAgreed(!depositAgreed)}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        style={[
+                          depositStyles.checkbox,
+                          depositAgreed && {
+                            backgroundColor: '#FF6B00',
+                            borderColor: '#FF6B00',
+                          },
+                        ]}
+                      >
+                        {depositAgreed && (
+                          <MaterialIcons name="check" size={14} color="#fff" />
+                        )}
+                      </View>
+
+                      <Text style={depositStyles.checkboxLabel}>
+                        Tôi đồng ý đặt cọc{' '}
+                        <Text style={{ fontWeight: '700', color: '#FF6B00' }}>
+                          {formatCurrency(depositAmount)}
+                        </Text>{' '}
+                        sẽ bị trừ từ ví ngay lập tức.
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Ghi chú hoàn cọc */}
+                    <Text style={depositStyles.refundNote}>
+                      ℹ️ Tiền cọc sẽ được hoàn lại nếu chưa có tài xế nào nhận chuyến.
+                    </Text>
+                  </View>
+                )}
+                {/* ====================================== */}
+
                 <View style={styles.bottomAction} pointerEvents="auto">
                   <TouchableOpacity
-                    style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
+                    style={[
+                      styles.confirmButton,
+                      (loading || (needsDeposit && !depositAgreed) || (needsDeposit && walletBalance !== null && walletBalance < depositAmount)) && styles.confirmButtonDisabled
+                    ]}
                     onPress={handleCreateRide}
                     activeOpacity={0.8}
-                    disabled={loading}
+                    disabled={loading || (needsDeposit && !depositAgreed) || (needsDeposit && walletBalance !== null && walletBalance < depositAmount)}
                   >
                     {loading ? (
                       <>
@@ -1042,7 +1238,12 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
                       </>
                     ) : (
                       <>
-                        <Text style={styles.confirmButtonText}>Tìm tài xế ngay</Text>
+                        <Text style={styles.confirmButtonText}>
+                          {needsDeposit && !depositAgreed
+                            ? `Cần xác nhận đặt cọc ${depositPercent}% trước`
+                            : 'Tìm tài xế ngay'
+                          }
+                        </Text>
                         <MaterialIcons name="arrow-forward" size={20} color="#fff" />
                       </>
                     )}
@@ -1420,4 +1621,44 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FF6B00',
   },
+})
+// ====== DEPOSIT STYLES ======
+const depositStyles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 12,
+    borderRadius: 16,
+    backgroundColor: '#fffbeb',
+    borderWidth: 1.5,
+    borderColor: '#fcd34d',
+    overflow: 'hidden',
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fef3c7',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#fcd34d',
+  },
+  bannerTitle: { fontSize: 14, fontWeight: '700', color: '#92400e', marginBottom: 2 },
+  bannerDesc: { fontSize: 12, color: '#b45309', lineHeight: 16 },
+  breakdown: { padding: 12, gap: 8 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowLabel: { fontSize: 13, color: '#374151', fontWeight: '500' },
+  rowValue: { fontSize: 14, color: '#374151', fontWeight: '600' },
+  walletText: { fontSize: 12, fontWeight: '600', paddingHorizontal: 12, paddingBottom: 8 },
+  checkboxRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 10, gap: 10,
+    borderTopWidth: 1, borderTopColor: '#fcd34d', backgroundColor: '#fffbeb',
+  },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2,
+    borderColor: '#d1d5db', backgroundColor: '#fff',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  checkboxLabel: { flex: 1, fontSize: 13, color: '#374151', lineHeight: 18 },
+  refundNote: { fontSize: 11, color: '#6b7280', paddingHorizontal: 12, paddingBottom: 12, fontStyle: 'italic' },
 })

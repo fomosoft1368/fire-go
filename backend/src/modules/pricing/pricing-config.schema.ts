@@ -135,6 +135,12 @@ export class HireDriverPricing {
 
   @Prop()
   description?: string; // Mô tả (optional)
+
+  @Prop({ default: 50 })
+  depositMinKm: number; // Quãng đường tối thiểu để yêu cầu đặt cọc (km), mặc định 50km
+
+  @Prop({ default: 30 })
+  depositPercent: number; // Tỷ lệ tiền cọc (%), mặc định 30%
 }
 // ============ END LÁI XE HỘ ============
 

@@ -23,6 +23,7 @@ import { DriverSearchConfigModule } from '../config/config.module'
       { name: AssignmentRequest.name, schema: AssignmentRequestSchema },
       { name: Driver.name, schema: DriverSchema },
       { name: 'PricingConfig', schema: PricingConfigSchema },
+      { name: 'Customer', schema: require('../customers/schemas/customer.schema').CustomerSchema }, // ✅ For deposit wallet ops
     ]),
     MulterModule.register({
       dest: './uploads',

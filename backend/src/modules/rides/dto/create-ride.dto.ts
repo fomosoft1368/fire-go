@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsArray, IsOptional, Min, Max, IsEnum, IsBoolean, IsDateString } from 'class-validator';
+﻿import { IsString, IsNumber, IsArray, IsOptional, Min, Max, IsEnum, IsBoolean, IsDateString } from 'class-validator';
 
 export enum CarType {
   SEDAN = 'sedan',
@@ -13,8 +13,8 @@ export enum TransmissionType {
 }
 
 export enum RideType {
-  SHARE = 'share', // Ghép xe
-  HIRE = 'hire',   // Lái xe hộ
+  SHARE = 'share', // GhÃ©p xe
+  HIRE = 'hire',   // LÃ¡i xe há»™
 }
 
 export class CreateRideDto {
@@ -91,12 +91,12 @@ export class CreateRideDto {
   @Min(1)
   passengers?: number;
 
-  // Ride type - share hoặc hire
+  // Ride type - share hoáº·c hire
   @IsOptional()
   @IsEnum(RideType)
   rideType?: RideType;
 
-  // Fields for "Hire Driver" feature - chỉ bắt buộc khi rideType = 'hire'
+  // Fields for "Hire Driver" feature - chá»‰ báº¯t buá»™c khi rideType = 'hire'
   @IsOptional()
   @IsEnum(CarType)
   carType?: CarType;
@@ -128,5 +128,20 @@ export class CreateRideDto {
 
   @IsOptional()
   @IsBoolean()
-  autoAssign?: boolean; // Tự động chỉ định tài xế
+  autoAssign?: boolean; // Tá»± Ä‘á»™ng chá»‰ Ä‘á»‹nh tÃ i xáº¿
+
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  depositAmount?: number; // Ti\u1ec1n c\u1ecdc (VN\u0110) - d\u00f9ng cho l\u00e1i xe h\u1ed9 qu\u00e3ng \u0111\u01b0\u1eddng xa
+
+  @IsOptional()
+  @IsBoolean()
+  isScheduled?: boolean; // \u0110\u1eb7t l\u1ecbch tr\u01b0\u1edbc
+
+  @IsOptional()
+  @IsDateString()
+  scheduledTime?: string; // Th\u1eddi gian \u0111\u1eb7t l\u1ecbch tr\u01b0\u1edbc
 }
+
