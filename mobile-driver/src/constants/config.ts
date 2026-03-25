@@ -10,7 +10,7 @@ export const DEBOUNCE_DELAY = 500
 // - iOS Simulator: 127.0.0.1 or localhost
 // - Physical Device: Your machine's IP (192.168.x.x)
 // Set REACT_APP_API_URL in .env file
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.firego.vn/api'
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.18:3000/api'
 
 export const DEFAULT_FONT_FAMILY = {
   regular: 'System',

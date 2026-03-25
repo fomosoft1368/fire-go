@@ -586,27 +586,12 @@ export class CombinedTripsController {
 
       console.log(`[CombinedTripsController] 🕰️ Found ${expiredRequests.length} expired requests for this driver`)
 
-      // Auto-reject expired requests and trigger finding next driver
-      for (const expiredReq of expiredRequests) {
-        console.log(`[CombinedTripsController] ⏰ Auto-rejecting expired request: ${expiredReq._id}`)
-        
-        await this.rideRequestModel.findByIdAndUpdate(expiredReq._id, {
-          status: 'rejected',
-        })
-        
-        // Trigger finding next driver for that trip
-        const combinedTripId = expiredReq.combinedTripId.toString()
-        const trip = await this.combinedTripsService.findById(combinedTripId)
-        if (trip && trip.status === 'pending') {
-          const pickupCoordinates = trip.pickupLocation?.coordinates as [number, number]
-          if (pickupCoordinates) {
-            console.log(`[CombinedTripsController] 🔄 Finding next driver for trip: ${combinedTripId}`)
-            // Call asynchronously
-            this.combinedTripsService.findAndNotifyDrivers(combinedTripId, pickupCoordinates).catch(err => {
-              console.error('❌ Error finding next driver:', err)
-            })
-          }
-        }
+      // ⛔ REMOVED: Auto-reject + findAndNotifyDrivers was called here but caused a race condition:
+      // Driver 2's polling (every 1s) would detect Driver 1's expired request, then call findAndNotifyDrivers
+      // WHILE Driver 2 was still processing the accept of Request #2 → creating Request #3 → modal shows again with 70s.
+      // The timeout checker (startTimeoutChecker, every 5s) is the single source of truth for this logic.
+      if (expiredRequests.length > 0) {
+        console.log(`[CombinedTripsController] ⏰ Found ${expiredRequests.length} expired requests for driver ${driverId} - handled by server timeout checker`);
       }
 
       // Get active pending requests for this driver
@@ -620,7 +605,9 @@ export class CombinedTripsController {
         .select('_id combinedTripId tripType createdBy customerId driverId status seats notes fare pickupAddress dropoffAddress pickupCoordinates dropoffCoordinates distance duration isPeakTime peakMultiplier createdAt updatedAt expiresAt +fare') // ⭐ CRITICAL: Include fare field EXPLICITLY with + prefix to force include
         .populate({
           path: 'combinedTripId',
-          select: '_id pickupLocation dropoffLocation distance duration status -totalFare -estimatedPrice -fare', // ⭐ EXPLICITLY EXCLUDE: totalFare, estimatedPrice, fare - DO NOT return pricing from trip
+          // ✅ FIX: Only use inclusion fields. MongoDB forbids mixing inclusion and exclusion (-field) in same projection.
+          // We only need location/routing data from the trip, NOT pricing (fare/totalFare/estimatedPrice).
+          select: '_id pickupLocation dropoffLocation distance duration status pickupAddress dropoffAddress',
           populate: {
             path: 'driverId',
             select: 'firstName lastName phone avatar rating currentLocation',
@@ -1378,7 +1365,7 @@ export class CombinedTripsController {
       if (trip && trip.pickupLocation?.coordinates) {
         const pickupCoordinates = trip.pickupLocation.coordinates as [number, number];
         
-        // Wait 5 seconds before sending to next driver (give time for UI to update)
+        // Send to next driver after 2s (was 5s - reduced for faster chain)
         setTimeout(() => {
  
           this.combinedTripsService.findAndNotifyDrivers(combinedTripId, pickupCoordinates)

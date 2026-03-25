@@ -1949,14 +1949,14 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                       )}
 
                       {/* End Trip Button - Premium Design */}
-                      {ride?.customerId && ride.customerId.length > 0 && ride.status !== 'completed' && (
+                      {ride?.customerId && ride.customerId.length > 0 && ride.status !== 'completed' && allPassengersCompleted() && (
                         <TouchableOpacity
                           onPress={handleCompleteRide}
-                          disabled={!allPassengersCompleted() || ride.status === 'completed' || updating}
+                          disabled={updating}
                           activeOpacity={0.8}
                         >
                           <LinearGradient
-                            colors={allPassengersCompleted() && ride.status !== 'completed' ? ['#10b981', '#059669'] : ['#f1f5f9', '#e2e8f0']}
+                            colors={['#10b981', '#059669']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={[styles.actionBtn, styles.endTripBtn]}
@@ -1965,10 +1965,10 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                               <MaterialIcons
                                 name="stop-circle"
                                 size={22}
-                                color={allPassengersCompleted() && ride.status !== 'completed' ? "#fff" : "#94a3b8"}
+                                color="#fff"
                               />
                             </View>
-                            <Text style={[styles.actionBtnText, allPassengersCompleted() && ride.status !== 'completed' && { color: '#fff' }]}>
+                            <Text style={[styles.actionBtnText, { color: '#fff' }]}>
                               Kết thúc chuyến đi
                             </Text>
                           </LinearGradient>
@@ -2463,10 +2463,10 @@ const styles = StyleSheet.create({
     padding: 24,
     marginBottom: 20,
     borderWidth: 2,
-    borderColor: '#ffffffc4',
+    borderColor: '#fdfcfbc4',
     overflow: 'hidden',
     backgroundColor: '#FFFBF5',
-    shadowColor: '#FF6B00',
+    shadowColor: '#f17a03ff',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -2508,12 +2508,12 @@ const styles = StyleSheet.create({
     padding: 20,
     marginRight: 16,
     borderWidth: 2,
-    borderColor: 'rgb(253, 252, 251)',
+    borderColor: 'rgba(248, 126, 4, 1)',
     flexDirection: 'row',
     gap: 16,
     opacity: 0.5,
     backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    shadowColor: '#faf7f6',
+    shadowColor: '#fca505ff',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -2522,9 +2522,9 @@ const styles = StyleSheet.create({
   passengerCardItemActive: {
     opacity: 1,
     borderWidth: 3,
-    borderColor: '#fcfaf9',
+    borderColor: '#fd9a04ff',
     backgroundColor: '#fff',
-    shadowColor: '#f1f1f1',
+    shadowColor: '#f89602ff',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
@@ -2558,8 +2558,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: 'rgba(255, 107, 0, 0.2)',
-    shadowColor: '#FF6B00',
+    borderColor: 'rgba(250, 248, 247, 1)',
+    shadowColor: '#f07e0cff',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -2684,8 +2684,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    paddingVertical: 18,
-    paddingHorizontal: 28,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 16,
     shadowColor: '#10b981',
     shadowOffset: { width: 0, height: 4 },

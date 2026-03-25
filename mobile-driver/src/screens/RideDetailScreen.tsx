@@ -26,6 +26,8 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const { user } = useSelector((state: RootState) => state.auth)
   const [ride, setRide] = useState<any>(null)
   const [updating, setUpdating] = useState(false)
+  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
+  const [requestingCustomer, setRequestingCustomer] = useState<any>(null)
 
   // Lấy ride ID từ route params
   const rideId = route?.params?.rideId
@@ -216,8 +218,14 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerId: requestingCustomer._id }),
       })
+      if (!response.ok) throw new Error(`Failed: ${response.status}`)
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể thêm khách hàng')
+    } finally {
+      setUpdating(false)
     }
   }
+
 
   return (
     <View style={styles.container}>

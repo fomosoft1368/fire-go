@@ -128,12 +128,22 @@ export default function RideSharing(props?: RideSharingProps) {
         translateY.setOffset(lastGestureDy.current)
         translateY.setValue(0)
       },
+      // onPanResponderMove: (_, gestureState) => {
+      //   // Limit dragging within bounds
+      //   const newValue = gestureState.dy
+      //   if (newValue >= 0 && lastGestureDy.current + newValue <= screenHeight - minHeight) {
+      //     translateY.setValue(newValue)
+      //   }
+      // },
       onPanResponderMove: (_, gestureState) => {
-        // Limit dragging within bounds
-        const newValue = gestureState.dy
-        if (newValue >= 0 && lastGestureDy.current + newValue <= screenHeight - minHeight) {
-          translateY.setValue(newValue)
-        }
+        const newY = lastGestureDy.current + gestureState.dy
+
+        const clamped = Math.max(
+          screenHeight - maxHeight,
+          Math.min(newY, screenHeight - minHeight)
+        )
+
+        translateY.setValue(clamped - lastGestureDy.current)
       },
       onPanResponderRelease: (_, gestureState) => {
         translateY.flattenOffset()
@@ -603,7 +613,7 @@ export default function RideSharing(props?: RideSharingProps) {
 
       console.log('\n📊 ============ KẾT QUẢ TÌM KIẾM ============');
       console.log(`✅ Tìm thấy ${routes.length} chuyến phù hợp`);
-      
+
       if (routes.length > 0) {
         console.log('\n🎯 Danh sách chuyến xe:');
         routes.forEach((route, index) => {
@@ -624,7 +634,7 @@ export default function RideSharing(props?: RideSharingProps) {
       console.log('============================================\n');
 
       setInterProvincialRoutes(routes);
-      
+
       // ⚠️ KHÔNG tự động chọn route - để user tự chọn hoặc bỏ qua
       // Clear selection để user có thể dùng distance-based pricing nếu muốn
       setSelectedRoute(null);
@@ -709,7 +719,7 @@ export default function RideSharing(props?: RideSharingProps) {
       console.log('\n🔍 [RideSharing] Checking selectedRoute before navigation...');
       console.log('selectedRoute:', selectedRoute ? JSON.stringify(selectedRoute, null, 2) : 'null');
       console.log('Has selectedRoute?', !!selectedRoute);
-      
+
       if (selectedRoute) {
         console.log('🚍 [RideSharing] ✅ PASSING inter-provincial route to FindingRideScreen:', selectedRoute.name, '-', selectedRoute.fixedPrice.toLocaleString(), 'đ');
         navParams.interProvincialRoute = selectedRoute;
@@ -1170,7 +1180,7 @@ export default function RideSharing(props?: RideSharingProps) {
                   <MaterialIcons name="check-circle" size={18} color="#10b981" />
                   <Text style={styles.selectedLocationsTitle}>Chi tiết hành trình</Text>
                 </View>
-                
+
                 {/* Pickup Location */}
                 <View style={styles.locationDetailItem}>
                   <View style={styles.locationDetailIconContainer}>
@@ -1235,7 +1245,7 @@ export default function RideSharing(props?: RideSharingProps) {
                 />
               </View> */}
 
-              {/* <View style={[styles.passengerWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+            {/* <View style={[styles.passengerWrapper, { backgroundColor: colors.card, borderColor: colors.warning }]}>
                 <Text style={[styles.passengerLabel, { color: colors.textSecondary }]}>Số khách</Text>
                 <View style={styles.passengerControls}>
                   <TouchableOpacity

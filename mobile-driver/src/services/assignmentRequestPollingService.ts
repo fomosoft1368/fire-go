@@ -6,9 +6,22 @@ const API_URL = API_BASE_URL
 class AssignmentRequestPollingService {
   private intervalId: NodeJS.Timeout | null = null
   private isPolling = false
-  private pollingInterval = 1000 // Poll every 1 second (was 3000)
+  private isPaused = false // 🛑 Pause polling during modal activity to prevent race conditions
+  private pollingInterval = 1000 // Poll every 1 second
   private onRequestCallback: ((request: any) => void) | null = null
   private driverId: string | null = null
+
+  /** Pause polling (call when modal is shown or accept/reject in progress) */
+  pausePolling() {
+    this.isPaused = true
+    console.log('[AssignmentPolling] ⏸️ Polling paused (modal active)')
+  }
+
+  /** Resume polling (call after modal closes) */
+  resumePolling() {
+    this.isPaused = false
+    console.log('[AssignmentPolling] ▶️ Polling resumed')
+  }
 
   /**
    * Bắt đầu polling để check assignment requests
@@ -53,6 +66,11 @@ class AssignmentRequestPollingService {
    * Check for pending assignment requests (rides, deliveries, and combined trips)
    */
   private async checkForRequests() {
+    // 🛑 Skip if paused (modal is active - prevents race condition during accept/reject)
+    if (this.isPaused) {
+      console.log('[AssignmentPolling] ⏸️ Paused - skipping check')
+      return
+    }
     try {
       const token = await AsyncStorage.getItem('token')
       if (!token) {
@@ -259,7 +277,7 @@ class AssignmentRequestPollingService {
       return { status, valid: true }
     } catch (error) {
       console.error(`[AssignmentPolling] ❌ Error checking ${type} status:`, error)
-      return { status: 'error', valid: false, message: error.message }
+      return { status: 'error', valid: false, message: (error as Error).message }
     }
   }
 

@@ -69,7 +69,7 @@ export default function TripsScreen() {
     try {
       setLoading(true)
       setError(null)
-      
+
       if (!user?.id) {
         console.warn('⚠️ No user ID available')
         setError('Chưa đăng nhập')
@@ -77,7 +77,7 @@ export default function TripsScreen() {
       }
 
       console.log('📱 Fetching trips with filter:', activeFilter, 'userId:', user.id)
-      
+
       // Fetch trips from all sources - pass driverId for backend filtering
       const [allRides, allCombinedTrips, allDeliveries, allHourlyServices] = await Promise.all([
         driverService.getCompletedTrips(user.id),
@@ -122,7 +122,7 @@ export default function TripsScreen() {
       console.log('✅ My deliveries:', myDeliveries.length)
       console.log('✅ My hourly services:', myHourlyServices.length)
       console.log('✅ Total my trips:', allTripsData.length)
-      
+
       // STRICT filter: ONLY trips where I am THE driver
       // For combined trips: customer creates trip -> driverId is NULL
       //                     driver accepts -> driverId is SET to driver's ID
@@ -134,22 +134,22 @@ export default function TripsScreen() {
         const tripDriverId = typeof driverField === 'string' ? driverField : driverField?._id
         // MUST have driverId/workerId AND must match current user
         const isMyTrip = tripDriverId && String(tripDriverId) === String(user.id)
-        
+
         if (!isMyTrip) {
           console.warn(`⚠️ Trip ${trip._id} filtered out - driverId/workerId: ${tripDriverId}, user: ${user.id}, sourceType: ${trip.sourceType}`)
         }
         return isMyTrip
       })
-      
+
       console.log('✅ After client-side filter:', filteredTripsData.length)
-      console.log('🔍 Trips sourceType check:', filteredTripsData.map(t => ({ 
-        id: t._id, 
+      console.log('🔍 Trips sourceType check:', filteredTripsData.map(t => ({
+        id: t._id,
         sourceType: t.sourceType,
         status: t.status,
         driverId: typeof t.driverId === 'string' ? t.driverId : t.driverId?._id,
         workerId: typeof t.workerId === 'string' ? t.workerId : t.workerId?._id
       })))
-      
+
       // Format dữ liệu từ API thành Trip interface
       const formattedTrips = (Array.isArray(filteredTripsData) ? filteredTripsData : []).map((ride: any) => {
         // Safely handle distance - could be number, string, or undefined
@@ -203,10 +203,10 @@ export default function TripsScreen() {
       const today = new Date()
       const yesterday = new Date(today)
       yesterday.setDate(yesterday.getDate() - 1)
-      
+
       // Format time
       const time = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-      
+
       // Format date prefix
       if (date.toDateString() === today.toDateString()) {
         return `Hôm nay ${time}`
@@ -264,7 +264,7 @@ export default function TripsScreen() {
     }
 
     const config = statusConfig[trip.status] || { label: trip.status || 'Không xác định', color: '#64748b', icon: 'help' }
-    
+
     // Get sourceType with default fallback
     const tripSourceType = trip.sourceType || 'ride'
 
@@ -272,40 +272,40 @@ export default function TripsScreen() {
     const canDelete = trip.status === 'completed' || trip.status === 'cancelled'
 
     const handleViewDetails = () => {
-      console.log('📍 View trip details:', { 
-        tripId: trip.id || trip._id, 
-        sourceType: trip.sourceType 
+      console.log('📍 View trip details:', {
+        tripId: trip.id || trip._id,
+        sourceType: trip.sourceType
       })
-      
+
       // Get sourceType with default fallback
       const tripSourceType = trip.sourceType || 'ride'
-      
+
       // Navigate based on trip type
       if (tripSourceType === 'combined_trip') {
         // Xe ghép -> ActiveRideScreen
         // @ts-ignore
-        navigation.navigate('ActiveRideScreen', { 
+        navigation.navigate('ActiveRideScreen', {
           combinedTripId: trip.id || trip._id,
           sourceType: 'combined_trip'
         })
       } else if (tripSourceType === 'delivery') {
-        // Giao hàng -> DeliveryDetailScreen
+        // Giao hàng -> ActiveDelivery
         // @ts-ignore
-        navigation.navigate('DeliveryDetailScreen', { 
+        navigation.navigate('ActiveDelivery', {
           deliveryId: trip.id || trip._id,
           sourceType: 'delivery'
         })
       } else if (tripSourceType === 'hourly') {
         // Làm sạch theo giờ -> ActiveHourlyService
         // @ts-ignore
-        navigation.navigate('ActiveHourlyService', { 
+        navigation.navigate('ActiveHourlyService', {
           serviceId: trip.id || trip._id,
           sourceType: 'hourly'
         })
       } else {
         // Lái xe hộ -> TripActivities
         // @ts-ignore
-        navigation.navigate('TripActivities', { 
+        navigation.navigate('TripActivities', {
           rideId: trip.id || trip._id,
           sourceType: 'ride'
         })
@@ -313,8 +313,8 @@ export default function TripsScreen() {
     }
 
     return (
-      <TouchableOpacity 
-        key={trip.id || trip._id} 
+      <TouchableOpacity
+        key={trip.id || trip._id}
         style={styles.tripCard}
         onPress={handleViewDetails}
         activeOpacity={0.7}
@@ -338,7 +338,7 @@ export default function TripsScreen() {
           styles.tripTypeBadge,
           { backgroundColor: tripSourceType === 'combined_trip' ? '#10b981' : tripSourceType === 'delivery' ? '#f59e0b' : tripSourceType === 'hourly' ? '#8b5cf6' : '#6366f1' }
         ]}>
-          <MaterialIcons 
+          <MaterialIcons
             name={tripSourceType === 'combined_trip' ? 'group' : tripSourceType === 'delivery' ? 'local-shipping' : tripSourceType === 'hourly' ? 'cleaning-services' : 'drive-eta'}
             size={14}
             color="#fff"
@@ -373,9 +373,9 @@ export default function TripsScreen() {
                   <Text style={styles.locationText} numberOfLines={1}>{trip.pickupLocation}</Text>
                 </View>
               </View>
-              
+
               <View style={styles.locationConnector} />
-              
+
               <View style={styles.locationRow}>
                 <View style={styles.locationIconWrapper}>
                   <MaterialIcons name="location-on" size={20} color="#FF6B00" />
@@ -397,7 +397,7 @@ export default function TripsScreen() {
             </View>
             <Text style={styles.infoText}>{trip.distance}</Text>
           </View>
-          
+
           <View style={styles.infoItem}>
             <View style={styles.infoIconBox}>
               <MaterialIcons name="schedule" size={18} color="#64748b" />
@@ -412,7 +412,7 @@ export default function TripsScreen() {
             <MaterialIcons name={config.icon} size={16} color={config.color} />
             <Text style={[styles.statusChipText, { color: config.color }]}>{config.label}</Text>
           </View>
-          
+
           <View style={styles.amountBox}>
             <Text style={styles.amountLabel}>Thu nhập</Text>
             <Text style={styles.amountValue}>{trip.amount.toLocaleString('vi-VN')}đ</Text>
@@ -460,45 +460,45 @@ export default function TripsScreen() {
 
         {/* Filter Tabs */}
         <View style={styles.filterContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.filterTab, activeFilter === 'all' && styles.filterTabActive]}
             onPress={() => setActiveFilter('all')}
             activeOpacity={0.7}
           >
-            <MaterialIcons 
-              name="apps" 
-              size={20} 
-              color={activeFilter === 'all' ? '#fff' : '#64748b'} 
+            <MaterialIcons
+              name="apps"
+              size={20}
+              color={activeFilter === 'all' ? '#fff' : '#64748b'}
             />
             <Text style={[styles.filterTabText, activeFilter === 'all' && styles.filterTabTextActive]}>
               Tất cả
             </Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.filterTab, activeFilter === 'completed' && styles.filterTabActive]}
             onPress={() => setActiveFilter('completed')}
             activeOpacity={0.7}
           >
-            <MaterialIcons 
-              name="check-circle" 
-              size={20} 
-              color={activeFilter === 'completed' ? '#fff' : '#64748b'} 
+            <MaterialIcons
+              name="check-circle"
+              size={20}
+              color={activeFilter === 'completed' ? '#fff' : '#64748b'}
             />
             <Text style={[styles.filterTabText, activeFilter === 'completed' && styles.filterTabTextActive]}>
               Hoàn thành
             </Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.filterTab, activeFilter === 'upcoming' && styles.filterTabActive]}
             onPress={() => setActiveFilter('upcoming')}
             activeOpacity={0.7}
           >
-            <MaterialIcons 
-              name="schedule" 
-              size={20} 
-              color={activeFilter === 'upcoming' ? '#fff' : '#64748b'} 
+            <MaterialIcons
+              name="schedule"
+              size={20}
+              color={activeFilter === 'upcoming' ? '#fff' : '#64748b'}
             />
             <Text style={[styles.filterTabText, activeFilter === 'upcoming' && styles.filterTabTextActive]}>
               Sắp tới
