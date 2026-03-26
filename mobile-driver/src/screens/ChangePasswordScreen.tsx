@@ -16,7 +16,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
-import { authService } from '../services/authService'
+import { changePassword } from '../services/authService'
 
 type RootStackParamList = {
   ChangePassword: undefined
@@ -88,11 +88,7 @@ const ChangePasswordScreen: FC<Props> = ({ navigation }) => {
 
     setIsLoading(true)
     try {
-      const response = await authService.changePassword({
-        currentPassword: formData.currentPassword,
-        newPassword: formData.newPassword,
-        confirmPassword: formData.confirmPassword,
-      })
+      const response = await changePassword(formData.currentPassword, formData.newPassword)
 
       if (response.success) {
         Alert.alert('Thành công', 'Đổi mật khẩu thành công!', [

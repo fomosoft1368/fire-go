@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { pricingService, PricingConfig as PricingConfigType, PeakHour, CarpoolDiscount, VehicleTypePrice, DeliveryGoodsType, DeliveryWeightRange, DeliveryVehicleType, DistanceRange } from '../services/pricingService'
+import { pricingService, PricingConfig as PricingConfigType, PeakHour, CarpoolDiscount, VehicleTypePrice, DeliveryGoodsType, DeliveryWeightRange, DeliveryVehicleType, DistanceRange, HireDriverPricing } from '../services/pricingService'
 import Layout from '../components/Layout'
 import PlacesAutocomplete from '../components/PlacesAutocomplete'
 
@@ -31,20 +31,12 @@ export default function PricingConfigPage() {
   const [deliveryWeightRanges, setDeliveryWeightRanges] = useState<DeliveryWeightRange[]>([])
   const [deliveryVehicleTypes, setDeliveryVehicleTypes] = useState<DeliveryVehicleType[]>([])
 
-  // ============ LÁI XE HỘ - Hire Driver State ============
-  interface HireDriverPricing {
-    vehicleType: string
-    name: string
-    openingFee: number
-    freeKm: number
-    pricePerExtraKm: number
-    description?: string
-  }
+  // ============ LÁI XE HỘ - Hire Driver State (type from pricingService) ============
   const [hireDriverPricing, setHireDriverPricing] = useState<HireDriverPricing[]>([
-    { vehicleType: 'bike', name: 'Xe máy', openingFee: 50000, freeKm: 5, pricePerExtraKm: 5000 },
-    { vehicleType: 'sedan', name: 'Sedan (4-5 chỗ)', openingFee: 100000, freeKm: 10, pricePerExtraKm: 10000 },
-    { vehicleType: 'suv', name: 'SUV (7 chỗ)', openingFee: 150000, freeKm: 10, pricePerExtraKm: 15000 },
-    { vehicleType: 'truck', name: 'Truck (Bán tải)', openingFee: 200000, freeKm: 10, pricePerExtraKm: 20000 },
+    { vehicleType: 'bike', name: 'Xe máy', openingFee: 50000, freeKm: 5, pricePerExtraKm: 5000, depositMinKm: 50, depositPercent: 30 },
+    { vehicleType: 'sedan', name: 'Sedan (4-5 chỗ)', openingFee: 100000, freeKm: 10, pricePerExtraKm: 10000, depositMinKm: 50, depositPercent: 30 },
+    { vehicleType: 'suv', name: 'SUV (7 chỗ)', openingFee: 150000, freeKm: 10, pricePerExtraKm: 15000, depositMinKm: 50, depositPercent: 30 },
+    { vehicleType: 'truck', name: 'Truck (Bán tải)', openingFee: 200000, freeKm: 10, pricePerExtraKm: 20000, depositMinKm: 50, depositPercent: 30 },
   ])
 
   // ============ CHUYẾN ĐI LIÊN TỈNH - Inter-Provincial Routes State ============
@@ -106,9 +98,13 @@ export default function PricingConfigPage() {
       setDeliveryWeightRanges(config.deliveryWeightRanges || [])
       setDeliveryVehicleTypes(config.deliveryVehicleTypes || [])
 
-      // ============ LÁI XE HỘ - Load Hire Driver Config ============
+      // ============ LÁI XE HỘ - Load Hire Driver Config + fill deposit defaults ============
       if (config.hireDriverPricing && config.hireDriverPricing.length > 0) {
-        setHireDriverPricing(config.hireDriverPricing)
+        setHireDriverPricing(config.hireDriverPricing.map(h => ({
+          ...h,
+          depositMinKm: h.depositMinKm ?? 50,
+          depositPercent: h.depositPercent ?? 30,
+        })))
       }
 
       // ============ CHUYẾN ĐI LIÊN TỈNH - Load Inter-Provincial Routes ============
@@ -894,6 +890,12 @@ export default function PricingConfigPage() {
                       <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
                         Phí vượt (VND/km)
                       </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-amber-600">
+                        Đặt cọ từ (km)
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase text-amber-600">
+                        Tỷ lệ cọ (%)
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
                         Mô tả
                       </th>
@@ -941,8 +943,40 @@ export default function PricingConfigPage() {
                             className="w-32 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-white"
                           />
                         </td>
+                        {/* ✅ CỘT ĐẸT CỤC MỚI */}
+                        <td className="px-4 py-4">
+                          <input
+                            type="number"
+                            value={pricing.depositMinKm ?? 50}
+                            onChange={(e) => {
+                              const updated = [...hireDriverPricing]
+                              updated[index].depositMinKm = Number(e.target.value)
+                              setHireDriverPricing(updated)
+                            }}
+                            className="w-24 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-600 rounded text-sm text-slate-900 dark:text-white font-semibold"
+                            title="Quãng đường tối thiểu để yêu cầu đặt cọ"
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <input
+                            type="number"
+                            value={pricing.depositPercent ?? 30}
+                            min={0}
+                            max={100}
+                            onChange={(e) => {
+                              const updated = [...hireDriverPricing]
+                              updated[index].depositPercent = Number(e.target.value)
+                              setHireDriverPricing(updated)
+                            }}
+                            className="w-20 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-600 rounded text-sm text-slate-900 dark:text-white font-semibold"
+                            title="Tỷ lệ tiền cọ (%)"
+                          />
+                        </td>
                         <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-400">
-                          Phí {pricing.openingFee.toLocaleString()}đ (bao gồm {pricing.freeKm}km), vượt {pricing.pricePerExtraKm.toLocaleString()}đ/km
+                          Phí {pricing.openingFee.toLocaleString()}đ (bao gồm {pricing.freeKm}km), vượt {pricing.pricePerExtraKm.toLocaleString()}đ/km.
+                          <span className="ml-1 text-amber-600 font-medium">
+                            Cọ {pricing.depositPercent ?? 30}% khi ≥ {pricing.depositMinKm ?? 50}km.
+                          </span>
                         </td>
                       </tr>
                     ))}

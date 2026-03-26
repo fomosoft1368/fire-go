@@ -12,6 +12,11 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { RootState } from '../redux/store'
+<<<<<<< HEAD
+=======
+import { COLORS } from '../constants'
+import { API_BASE_URL } from '../constants/config'
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
 import MapViewComponent from '../components/MapView'
 import { BackButton } from '../components'
 
@@ -24,6 +29,8 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
   const { user } = useSelector((state: RootState) => state.auth)
   const [ride, setRide] = useState<any>(null)
   const [updating, setUpdating] = useState(false)
+  const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
+  const [requestingCustomer, setRequestingCustomer] = useState<any>(null)
 
   // Lấy ride ID từ route params
   const rideId = route?.params?.rideId
@@ -38,8 +45,13 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
 
   const fetchRideDetail = async () => {
     try {
+<<<<<<< HEAD
       const API_URL = 'http://192.168.1.16:3000/api'
       const response = await fetch(`${API_URL}/rides/${rideId}`, {
+=======
+      console.log('🚗 Fetching ride detail from:', `${API_BASE_URL}/rides/${rideId}`)
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -62,6 +74,76 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     }
   }
 
+<<<<<<< HEAD
+=======
+  const handleStartRide = async () => {
+    Alert.alert(
+      'Bắt đầu chuyến',
+      'Bạn muốn bắt đầu chuyến đi?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Bắt đầu',
+          onPress: async () => {
+            setUpdating(true)
+            try {
+              const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'in_progress' }),
+              })
+
+              if (!response.ok) throw new Error(`Failed: ${response.status}`)
+
+              const updated = await response.json()
+              setRide(updated)
+              setCurrentLocation([updated.pickupCoordinates[0], updated.pickupCoordinates[1]])
+              Alert.alert('Thành công', 'Chuyến đi đã bắt đầu')
+            } catch (error: any) {
+              Alert.alert('Lỗi', error.message)
+            } finally {
+              setUpdating(false)
+            }
+          },
+        },
+      ]
+    )
+  }
+
+  const handleCompleteRide = () => {
+    Alert.alert(
+      'Hoàn thành chuyến',
+      'Bạn đã hoàn thành chuyến đi?',
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hoàn thành',
+          onPress: async () => {
+            setUpdating(true)
+            try {
+              const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'completed' }),
+              })
+
+              if (!response.ok) throw new Error(`Failed: ${response.status}`)
+
+              const updated = await response.json()
+              setRide(updated)
+              Alert.alert('Thành công', 'Chuyến đã hoàn thành')
+              navigation.goBack()
+            } catch (error: any) {
+              Alert.alert('Lỗi', error.message)
+            } finally {
+              setUpdating(false)
+            }
+          },
+        },
+      ]
+    )
+  }
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
 
   const handleAcceptRide = async () => {
     if (!user || !user.id) {
@@ -77,7 +159,12 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
         throw new Error('Không tìm thấy token. Vui lòng đăng nhập lại.')
       }
 
+<<<<<<< HEAD
       const API_BASE_URL = 'http://192.168.1.16:3000/api'
+=======
+      console.log('🚗 Accepting ride:', { rideId, driverId: user.id })
+      console.log('🔑 Using token:', token.substring(0, 20) + '...')
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
 
       const response = await fetch(`${API_BASE_URL}/rides/${rideId}/accept`, {
         method: 'PATCH',
@@ -116,8 +203,12 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
           onPress: async () => {
             setUpdating(true)
             try {
+<<<<<<< HEAD
               const API_URL = 'http://192.168.1.16:3000/api'
               const response = await fetch(`${API_URL}/rides/${rideId}`, {
+=======
+              const response = await fetch(`${API_BASE_URL}/rides/${rideId}`, {
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'cancelled' }),
@@ -138,6 +229,25 @@ export default function RideDetailScreen({ navigation, route }: RideDetailScreen
     )
   }
 
+<<<<<<< HEAD
+=======
+  const handleAcceptCustomer = async () => {
+    if (!requestingCustomer) return
+    try {
+      setUpdating(true)
+      const response = await fetch(`${API_BASE_URL}/rides/${rideId}/add-passenger`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: requestingCustomer._id }),
+      })
+      if (!response.ok) throw new Error(`Failed: ${response.status}`)
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể thêm khách hàng')
+    } finally {
+      setUpdating(false)
+    }
+  }
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
 
 
   return (

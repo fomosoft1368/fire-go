@@ -1296,7 +1296,7 @@ export default function DriverFoundScreen() {
         />
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={[styles.backButton, { backgroundColor: "#fff" }]} onPress={() => navigation.navigate('Home' as never)}>
             <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
           </TouchableOpacity>
           <Text style={styles.logoText}>firego</Text>

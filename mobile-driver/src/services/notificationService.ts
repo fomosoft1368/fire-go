@@ -34,18 +34,16 @@ class NotificationService {
     this.token = token
   }
 
-  async getNotifications(limit: number = 20, skip: number = 0, type?: string) {
+  async getNotifications(limit: number = 50, skip: number = 0, type?: string) {
     try {
       const params: any = { limit, skip }
       if (type) params.type = type
 
-      console.log('📡 Calling /notifications with:', {
-        url: `${API_BASE_URL}/notifications`,
-        params,
-        hasToken: !!this.token,
-      })
+      console.log('📡 Calling GET /notifications/driver with:', { params, hasToken: !!this.token })
 
-      const response = await axiosInstance.post(`/notifications`, {}, {
+      // ✅ Use dedicated driver endpoint that strictly filters by driverId
+      // Old: POST /notifications used $or[userId, driverId, customerId] → returned unrelated notifications
+      const response = await axiosInstance.get(`/notifications/driver`, {
         params,
         headers: {
           Authorization: `Bearer ${this.token}`,
@@ -66,7 +64,6 @@ class NotificationService {
         response: error.response?.data,
         status: error.response?.status,
       })
-      // Return empty response instead of throwing
       return { data: [], total: 0 }
     }
   }

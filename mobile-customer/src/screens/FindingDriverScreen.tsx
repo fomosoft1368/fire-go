@@ -9,6 +9,7 @@ interface FindingDriverScreenProps {
   fareEstimate?: any
   pickupAddress: string
   dropoffAddress: string
+  depositAmount?: number // Tiền cọc (nếu có)
   colors: {
     bg: string
     bgSecondary: string
@@ -24,9 +25,13 @@ export default function FindingDriverScreen({
   fareEstimate,
   pickupAddress,
   dropoffAddress,
+  depositAmount = 0,
   colors,
   onCancel,
 }: FindingDriverScreenProps) {
+  const hasDeposit = depositAmount > 0
+  const totalFare = fareEstimate?.total || fareEstimate?.finalPrice || 0
+  const remainingPayment = hasDeposit ? totalFare - depositAmount : totalFare
   return (
     <View style={styles.findingContainer}>
       <View style={StyleSheet.absoluteFillObject}>
@@ -126,31 +131,61 @@ export default function FindingDriverScreen({
             </View>
           </View>
 
-          {/* Trip Info */}
+          {/* Trip Info + Deposit Breakdown */}
           {fareEstimate && (
             <View style={styles.tripInfoSection}>
               <View style={styles.sectionHeader}>
-                <MaterialIcons name="info-outline" size={20} color="#9CA3AF" />
-                <Text style={styles.sectionTitle}>Thông tin chuyến đi</Text>
+                <MaterialIcons name="payments" size={20} color="#9CA3AF" />
+                <Text style={styles.sectionTitle}>Thông tin thanh toán</Text>
               </View>
-              <View style={styles.infoGrid}>
-                <View style={styles.infoCard}>
-                  <MaterialIcons name="payments" size={18} color="#FF6B00" />
-                  <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>Giá ước tính</Text>
-                    <Text style={styles.infoValue}>
-                      {fareEstimate.finalPrice?.toLocaleString('vi-VN')}đ
+
+              {hasDeposit ? (
+                // === Bảng có cọ ===
+                <View style={paymentStyles.depositTable}>
+                  <View style={paymentStyles.row}>
+                    <Text style={paymentStyles.label}>💰 Tổng tiền chuyến</Text>
+                    <Text style={paymentStyles.value}>
+                      {totalFare.toLocaleString('vi-VN')}đ
+                    </Text>
+                  </View>
+                  <View style={paymentStyles.row}>
+                    <Text style={[paymentStyles.label, { color: '#22c55e' }]}>
+                      🔒 Đã đặt cọc (trừ từ ví)
+                    </Text>
+                    <Text style={[paymentStyles.value, { color: '#22c55e', fontWeight: '700' }]}>
+                      -{depositAmount.toLocaleString('vi-VN')}đ
+                    </Text>
+                  </View>
+                  <View style={[paymentStyles.row, paymentStyles.totalRow]}>
+                    <Text style={[paymentStyles.label, { color: '#FF6B00', fontWeight: '700', fontSize: 14 }]}>
+                      💵 Còn lại khách phải trả
+                    </Text>
+                    <Text style={[paymentStyles.value, { color: '#FF6B00', fontWeight: '800', fontSize: 16 }]}>
+                      {remainingPayment.toLocaleString('vi-VN')}đ
                     </Text>
                   </View>
                 </View>
-                <View style={styles.infoCard}>
-                  <MaterialIcons name="account-balance-wallet" size={18} color="#9CA3AF" />
-                  <View style={styles.infoContent}>
-                    <Text style={styles.infoLabel}>Thanh toán</Text>
-                    <Text style={styles.infoValue}>Tiền mặt</Text>
+              ) : (
+                // === Không có cọ: hiển thị đơn giản ===
+                <View style={styles.infoGrid}>
+                  <View style={styles.infoCard}>
+                    <MaterialIcons name="payments" size={18} color="#FF6B00" />
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Giá ước tính</Text>
+                      <Text style={styles.infoValue}>
+                        {totalFare.toLocaleString('vi-VN')}đ
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.infoCard}>
+                    <MaterialIcons name="account-balance-wallet" size={18} color="#9CA3AF" />
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>Thanh toán</Text>
+                      <Text style={styles.infoValue}>Tiền mặt</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
+              )}
             </View>
           )}
         </View>
@@ -394,5 +429,39 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
     color: '#FF6B00',
+  },
+})
+
+// ====== PAYMENT BREAKDOWN STYLES (deposit) ======
+const paymentStyles = StyleSheet.create({
+  depositTable: {
+    backgroundColor: '#2d3748',
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  label: {
+    fontSize: 13,
+    color: '#d1d5db',
+    fontWeight: '500',
+    flex: 1,
+  },
+  value: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  totalRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#4B5563',
+    paddingTop: 10,
+    marginTop: 4,
   },
 })

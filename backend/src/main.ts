@@ -56,6 +56,7 @@ async function bootstrap() {
   ].filter(Boolean); // Remove undefined values
 
   app.enableCors({
+<<<<<<< HEAD
     origin: [
       'http://localhost:5173',   // Web Admin (Vite)
       'http://localhost:3001',   // Web Admin alternative
@@ -65,6 +66,9 @@ async function bootstrap() {
       'http://192.168.1.16:8082', // Mobile on local network
       'http://10.0.2.2:3000',    // Android emulator
     ],
+=======
+    origin: corsOrigins,
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
     credentials: true,
   });
 

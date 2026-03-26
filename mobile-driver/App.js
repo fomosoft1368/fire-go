@@ -486,6 +486,7 @@ const RootNavigator = () => {
           console.error('[App] ❌ Error polling regular rides:', error)
         }
 
+<<<<<<< HEAD
         // ============================================================
         // 2️⃣ POLL FOR COMBINED TRIP ASSIGNMENT REQUESTS (ghép xe)
         // ============================================================
@@ -539,6 +540,12 @@ const RootNavigator = () => {
             console.error('[App] ❌ Error polling combined trip:', error)
           }
         }
+=======
+        // ⛔ REMOVED: Combined-trips polling is handled exclusively by
+        // assignmentRequestPollingService (polls /combined-trips/driver/:driverId/pending-requests
+        // with expiresAt >= now filter). Polling here via /:tripId/requests had no expiry
+        // filter, causing the "45s + 27s duplicate modal" bug.
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
 
         // ============================================================
         // 3️⃣ POLL FOR DELIVERY ASSIGNMENT REQUESTS (giao hàng)
@@ -654,14 +661,40 @@ export default function App() {
   const [assignmentRequest, setAssignmentRequest] = useState(null)
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
   const [countdown, setCountdown] = useState(45)
-  const [timeoutSeconds, setTimeoutSeconds] = useState(45) // ✅ Dynamic timeout from backend (default 45s)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(45)
   const navigationRef = useRef(null)
+<<<<<<< HEAD
   const lastRequestIdRef = useRef(null)  // ✅ Track last request ID to avoid reset countdown
 
   // 🔥 NEW: Request queue to prevent modal override
+=======
+  const lastRequestIdRef = useRef(null)
+
+  // 🔥 Request queue to prevent modal override
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
   const [requestQueue, setRequestQueue] = useState([])
   const requestQueueRef = useRef([])
-  const currentRequestIdRef = useRef(null) // ✅ Ref-based modal lock (avoids stale closure bug)
+  const currentRequestIdRef = useRef(null) // Ref-based modal lock (avoids stale closure bug)
+
+  // 🛡️ DEBOUNCE: Track recently-closed request IDs to prevent duplicate modals.
+  // After a modal closes (timeout/reject/accept), the same requestId is blocked
+  // for DEBOUNCE_TTL_MS to prevent the old pending request from re-triggering.
+  const recentlyClosedIds = useRef(new Set())
+  const DEBOUNCE_TTL_MS = 90_000 // 90 seconds – safely covers any 45s timeout + network delay
+
+  const markRequestClosed = (requestId) => {
+    if (!requestId) return
+    recentlyClosedIds.current.add(requestId)
+    console.log('[App] 🚫 Debounced requestId for 90s:', requestId)
+    // Resume polling after 3s delay to let backend finish processing accept/reject
+    setTimeout(() => {
+      assignmentRequestPollingService.resumePolling()
+    }, 3000)
+    setTimeout(() => {
+      recentlyClosedIds.current.delete(requestId)
+      console.log('[App] ✅ Debounce expired for requestId:', requestId)
+    }, DEBOUNCE_TTL_MS)
+  }
 
   // ✅ Setup assignment request polling with store subscription
   useEffect(() => {
@@ -679,11 +712,32 @@ export default function App() {
 
       console.log('[App] 🚀 Starting assignment request polling with driverId:', driverId)
 
-      // ✅ Register global callback for RootNavigator polling to emit requests
+      // ✅ CRITICAL: Actually START the polling service for combined trips (rideshare)
+      // This polls /combined-trips/driver/:driverId/pending-requests every 1s
+      // with expiresAt >= now filter — the CORRECT way to poll for ghép xe requests.
+      assignmentRequestPollingService.startPolling((request) => {
+        console.log('[App] 📬 [PollingService] Combined trip request received:', request._id)
+        if (window && window.__firegoAssignmentCallback) {
+          window.__firegoAssignmentCallback({
+            ...request,
+            type: request.type || 'rideshare',
+          })
+        }
+      }, driverId)
+
+      // Register global callback for pollPendingRequests (rides + delivery)
       window.__firegoAssignmentCallback = (request) => {
+<<<<<<< HEAD
         console.log('[App] 📦 Request data:', request)
         console.log('[App] 📦 Request rideId data:', request.rideId)
         console.log('[App] 📦 Request deliveryId data:', request.deliveryId)
+=======
+        // 🛡️ DEBOUNCE: Block recently-closed requestIds to prevent re-triggering
+        if (recentlyClosedIds.current.has(request._id)) {
+          console.log('[App] 🚫 Debounced – requestId recently closed, skipping:', request._id)
+          return
+        }
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
 
         // ✅ Check if this is a NEW request (different from last one)
         const isNewRequest = lastRequestIdRef.current !== request._id
@@ -728,9 +782,10 @@ export default function App() {
           return
         }
 
-        // Modal free — show immediately and lock with ref
+        // Modal free — show immediately, lock with ref, and pause polling to prevent race condition
         console.log('[App] 📬 Showing request immediately (modal free)')
         currentRequestIdRef.current = request._id
+        assignmentRequestPollingService.pausePolling() // 🛑 Pause while modal is active
         setAssignmentRequest(request)
         setShowAssignmentModal(true)
 
@@ -1099,7 +1154,9 @@ export default function App() {
           // The backend timeout checker owns the status transition to 'timeout'.
           // Calling reject here would overwrite 'accepted' → 'rejected' in a race.
           console.log('[App] ⏰ Countdown 0 – closing modal (backend owns timeout status)')
+          const closedId = currentRequestIdRef.current
           currentRequestIdRef.current = null
+          markRequestClosed(closedId) // 🛡️ Debounce for 90s
           setShowAssignmentModal(false)
           setAssignmentRequest(null)
           setCountdown(45)
@@ -1132,13 +1189,14 @@ export default function App() {
     // ✅ Check if request is already expired
     if (assignmentRequest.status === 'timeout' || assignmentRequest.status !== 'pending') {
       console.warn('[App] ⚠️ Request already expired or rejected, skipping accept')
-      console.warn('[App] Request status:', assignmentRequest.status)
-      Alert.alert('Yêu cầu hết hạn', 'Yêu cầu này đã hết hạn, vui lòng chờ yêu cầu tiếp theo')
+      const closedId = currentRequestIdRef.current
       currentRequestIdRef.current = null
+      markRequestClosed(closedId)
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
-      showNextRequest() // 🔥 Show next request from queue
+      Alert.alert('Yêu cầu hết hạn', 'Yêu cầu này đã hết hạn, vui lòng chờ yêu cầu tiếp theo')
+      showNextRequest()
       return
     }
 
@@ -1279,11 +1337,13 @@ export default function App() {
       }
 
       // NOW close modal and reset state
+      const closedId = currentRequestIdRef.current
       currentRequestIdRef.current = null
+      markRequestClosed(closedId) // 🛡️ Debounce for 90s
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
-      showNextRequest() // 🔥 Show next request from queue
+      showNextRequest()
 
       // Navigate based on type
       if (!navigationRef.current) {
@@ -1329,11 +1389,13 @@ export default function App() {
       }
 
       // ✅ Close modal anyway on error
+      const closedId2 = currentRequestIdRef.current
       currentRequestIdRef.current = null
+      markRequestClosed(closedId2) // 🛡️ Debounce for 90s
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
-      showNextRequest() // 🔥 Show next request from queue
+      showNextRequest()
       Alert.alert('Lỗi', error?.message || 'Không thể nhận yêu cầu')
     }
   }
@@ -1347,13 +1409,14 @@ export default function App() {
     // ✅ Check if request is already expired
     if (assignmentRequest.status === 'timeout' || assignmentRequest.status !== 'pending') {
       console.warn('[App] ⚠️ Request already expired or rejected, skipping reject')
-      console.warn('[App] Request status:', assignmentRequest.status)
-      Alert.alert('Yêu cầu hết hạn', 'Yêu cầu này đã hết hạn')
+      const closedId = currentRequestIdRef.current
       currentRequestIdRef.current = null
+      markRequestClosed(closedId)
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
-      showNextRequest() // 🔥 Show next request from queue
+      Alert.alert('Yêu cầu hết hạn', 'Yêu cầu này đã hết hạn')
+      showNextRequest()
       return
     }
 
@@ -1379,11 +1442,13 @@ export default function App() {
       console.log('[App] ✅ Request rejected successfully')
 
       // Close modal and reset state
+      const closedId = currentRequestIdRef.current
       currentRequestIdRef.current = null
+      markRequestClosed(closedId) // 🛡️ Debounce for 90s
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
-      showNextRequest() // 🔥 Show next request from queue
+      showNextRequest()
       Alert.alert('Thành công', 'Bạn đã từ chối yêu cầu này')
     } catch (error) {
       console.error('[App] ❌ Error rejecting assignment:', error)
@@ -1391,11 +1456,13 @@ export default function App() {
       console.error('[App] ❌ Error stack:', error?.stack?.substring(0, 300))
 
       // ✅ Close modal anyway on error
+      const closedId3 = currentRequestIdRef.current
       currentRequestIdRef.current = null
+      markRequestClosed(closedId3) // 🛡️ Debounce for 90s
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
-      showNextRequest() // 🔥 Show next request from queue
+      showNextRequest()
       Alert.alert('Lỗi', error?.message || 'Không thể từ chối yêu cầu')
     }
   }

@@ -306,6 +306,7 @@ export class NotificationsService {
   ): Promise<{ data: NotificationDocument[]; total: number }> {
     const query: any = {
       customerId: new Types.ObjectId(customerId),
+      isActive: true,
     };
 
     if (filters?.type) query.type = filters.type;
@@ -316,8 +317,41 @@ export class NotificationsService {
     const [data, total] = await Promise.all([
       this.notificationModel
         .find(query)
-        .populate(['customerId', 'driverId'])
-        .sort({ sentAt: -1 })
+        .sort({ sentAt: -1, createdAt: -1 })
+        .limit(limit)
+        .skip(skip),
+      this.notificationModel.countDocuments(query),
+    ]);
+
+    return { data, total };
+  }
+
+  /**
+   * Get notifications for a specific driver (strictly by driverId)
+   */
+  async findDriverNotifications(
+    driverId: string,
+    filters?: {
+      type?: string;
+      limit?: number;
+      skip?: number;
+    }
+  ): Promise<{ data: NotificationDocument[]; total: number }> {
+    const query: any = {
+      // ✅ STRICTLY filter by driverId only — not userId/customerId
+      driverId: new Types.ObjectId(driverId),
+      isActive: true,
+    };
+
+    if (filters?.type) query.type = filters.type;
+
+    const limit = filters?.limit || 50;
+    const skip = filters?.skip || 0;
+
+    const [data, total] = await Promise.all([
+      this.notificationModel
+        .find(query)
+        .sort({ sentAt: -1, createdAt: -1 })
         .limit(limit)
         .skip(skip),
       this.notificationModel.countDocuments(query),

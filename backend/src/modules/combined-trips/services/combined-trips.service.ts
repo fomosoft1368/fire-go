@@ -667,7 +667,7 @@ export class CombinedTripsService implements OnModuleInit {
                 if (pickupCoordinates) {
                   // ✅ ALWAYS delay 15 seconds from when request expired before finding next driver
                   const expiredAt = expiredReq.expiresAt.getTime();
-                  const targetTime = expiredAt + 15000; // 15s after expiry
+                  const targetTime = expiredAt + 3000; // 3s delay (was 15s - reduced to send next driver faster)
                   const delayNeeded = targetTime - now.getTime();
                   
                   if (delayNeeded > 0) {
@@ -1317,10 +1317,13 @@ export class CombinedTripsService implements OnModuleInit {
       // Get list of drivers who already have active trips
       const activeTrips = await this.combinedTripModel.find({
         driverId: { $exists: true, $ne: null },
-        status: { $in: ['pending', 'accepted', 'in_progress'] },
+        // ✅ FIX: Only exclude accepted/in_progress, NOT 'pending'
+        // A driver with a 'pending' trip is still deciding — NOT busy yet.
+        // Including 'pending' was causing all rideshare drivers to be blacklisted.
+        status: { $in: ['accepted', 'in_progress'] },
       });
       const busyDriverIds = activeTrips.map(trip => trip.driverId?.toString()).filter(Boolean);
-      console.log('📊 Busy drivers (already have active trips):', busyDriverIds.length);
+      console.log('[findAndNotifyDrivers] Busy drivers (accepted/in_progress):', busyDriverIds.length);
 
       // ✅ NEW: Get list of drivers who already REJECTED or TIMED OUT for THIS trip
       // 🔥 CRITICAL: Only exclude drivers with requests that are STILL VALID (not expired)
@@ -1449,7 +1452,7 @@ export class CombinedTripsService implements OnModuleInit {
         pickupCoordinates: combinedTrip.pickupLocation?.coordinates,
         dropoffAddress: combinedTrip.dropoffAddress,
         dropoffCoordinates: combinedTrip.dropoffLocation?.coordinates,
-        fare: combinedTrip.baseFare,
+        fare: combinedTrip.totalFare || combinedTrip.baseFare || 0, // ✅ FIX: use totalFare (baseFare doesn't exist)
         seats: combinedTrip.availableSeats,
         distance: combinedTrip.distance,
         createdAt: new Date(),
@@ -1615,7 +1618,7 @@ export class CombinedTripsService implements OnModuleInit {
         pickupCoordinates: trip.pickupLocation?.coordinates,
         dropoffAddress: trip.dropoffAddress,
         dropoffCoordinates: trip.dropoffLocation?.coordinates,
-        fare: trip.baseFare,
+        fare: trip.totalFare || trip.baseFare || 0, // ✅ FIX: use totalFare
         seats: trip.availableSeats,
         distance: trip.distance,
         createdAt: new Date(),

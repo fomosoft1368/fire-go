@@ -44,6 +44,22 @@ export class NotificationsController {
     });
   }
 
+  @Get('driver')
+  @UseGuards(JwtAuthGuard)
+  async findDriverNotifications(
+    @Request() req: any,
+    @Query('type') type?: string,
+    @Query('limit') limit: number = 50,
+    @Query('skip') skip: number = 0,
+  ) {
+    // ✅ Filter STRICTLY by driverId only (not userId/customerId)
+    return this.notificationsService.findDriverNotifications(req.user.id, {
+      type,
+      limit,
+      skip,
+    });
+  }
+
   @Get('unread')
   @UseGuards(JwtAuthGuard)
   async findUnread(@Request() req: any) {
@@ -82,6 +98,10 @@ export class NotificationsController {
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   async findById(@Param('id') id: string) {
+    // Guard against route conflicts (e.g., 'driver', 'customer' being treated as :id)
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      throw new Error(`Invalid notification ID: ${id}`);
+    }
     return this.notificationsService.findById(id);
   }
 

@@ -26,6 +26,7 @@ export const jwtConfig = {
  */
 export const corsConfig = {
   origin: [
+<<<<<<< HEAD
     'http://localhost:5173',      // Web Admin (Vite dev)
     'http://localhost:3001',      // Web Admin alternative
     'http://localhost:8081',      // Mobile Customer (Expo)
@@ -33,6 +34,16 @@ export const corsConfig = {
     'http://192.168.1.16:8082',    // Mobile on local network
     'http://10.0.2.2:3000',       // Android emulator
   ],
+=======
+    process.env.CORS_WEB_ADMIN_VITE,
+    process.env.CORS_WEB_ADMIN_ALT,
+    process.env.CORS_MOBILE_CUSTOMER,
+    process.env.CORS_MOBILE_CUSTOMER_ALT,
+    process.env.CORS_LOCAL_NETWORK_1,
+    process.env.CORS_LOCAL_NETWORK_2,
+    process.env.CORS_ANDROID_EMULATOR,
+  ].filter(Boolean), // Remove undefined values
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

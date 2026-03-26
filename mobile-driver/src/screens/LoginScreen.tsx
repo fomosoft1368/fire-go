@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   Image,
   Platform,
+  ScrollView,
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { MaterialIcons } from '@expo/vector-icons'
@@ -69,6 +70,7 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+<<<<<<< HEAD
       <KeyboardAwareScrollView
         style={styles.scrollView}
         contentContainerStyle={{ flexGrow: 1 }}
@@ -86,111 +88,155 @@ export default function LoginScreen({ navigation }: any) {
               resizeMode="contain"
             />
             <Text style={styles.appName}>firego</Text>
+=======
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          // contentContainerStyle={{ flexGrow: 1 }}
+          keyboardDismissMode="interactive"
+          contentContainerStyle={{ paddingBottom: 150 }}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../assets/fire-logo.png')}
+                style={{ width: 39, height: 39 }}
+                resizeMode="contain"
+              />
+              <Text style={styles.appName}>firego</Text>
+            </View>
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
           </View>
-        </View>
 
-        {/* Hero Banner */}
-        <View style={styles.bannerContainer}>
-          <ImageBackground
-            source={require('../assets/heritage.png')}
-            style={styles.banner}
-          >
-            <View style={styles.bannerOverlay} />
-            <View style={styles.badgeContainer}>
-              <View style={styles.badge}>
-                <MaterialIcons name="verified" size={14} color={COLORS.white} />
-                <Text style={styles.badgeText}>Đối tác tin cậy</Text>
+          {/* Hero Banner */}
+          <View style={styles.bannerContainer}>
+            <ImageBackground
+              source={require('../assets/heritage.png')}
+              style={styles.banner}
+            >
+              <View style={styles.bannerOverlay} />
+              <View style={styles.badgeContainer}>
+                <View style={styles.badge}>
+                  <MaterialIcons name="verified" size={14} color={COLORS.white} />
+                  <Text style={styles.badgeText}>Đối tác tin cậy</Text>
+                </View>
               </View>
-            </View>
-          </ImageBackground>
-        </View>
-
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>Chào mừng tài xế</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Đăng nhập để bắt đầu nhận cuốc và quản lý thu nhập của bạn ngay hôm nay.
-          </Text>
-        </View>
-
-        {/* Login Form */}
-        <View style={styles.formContainer}>
-          {/* Phone/Email Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Số điện thoại hoặc Email</Text>
-            <View style={styles.inputWrapper}>
-              <MaterialIcons
-                name="person"
-                size={20}
-                color={COLORS.textSecondary}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Nhập thông tin đăng nhập"
-                placeholderTextColor={COLORS.textSecondary}
-                value={phoneEmail}
-                onChangeText={setPhoneEmail}
-                editable={!isLoading}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+            </ImageBackground>
           </View>
 
-          {/* Password Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Mật khẩu</Text>
-            <View style={styles.inputWrapper}>
-              <MaterialIcons
-                name="lock"
-                size={20}
-                color={COLORS.textSecondary}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={[styles.input, { paddingRight: 48 }]}
-                placeholder="Nhập mật khẩu"
-                placeholderTextColor={COLORS.textSecondary}
-                value={password}
-                onChangeText={setPassword}
-                editable={!isLoading}
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.visibilityToggle}
-              >
+          {/* Welcome Section */}
+          <View style={styles.welcomeSection}>
+            <Text style={styles.welcomeTitle}>Chào mừng tài xế</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Đăng nhập để bắt đầu nhận cuốc và quản lý thu nhập của bạn ngay hôm nay.
+            </Text>
+          </View>
+
+          {/* Login Form */}
+          <View style={styles.formContainer}>
+            {/* Phone/Email Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Số điện thoại hoặc Email</Text>
+              <View style={styles.inputWrapper}>
                 <MaterialIcons
-                  name={showPassword ? 'visibility' : 'visibility-off'}
+                  name="person"
                   size={20}
                   color={COLORS.textSecondary}
+                  style={styles.inputIcon}
                 />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Nhập thông tin đăng nhập"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={phoneEmail}
+                  onChangeText={setPhoneEmail}
+                  editable={!isLoading}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+
+            {/* Password Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Mật khẩu</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons
+                  name="lock"
+                  size={20}
+                  color={COLORS.textSecondary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, { paddingRight: 48 }]}
+                  placeholder="Nhập mật khẩu"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={password}
+                  onChangeText={setPassword}
+                  editable={!isLoading}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.visibilityToggle}
+                >
+                  <MaterialIcons
+                    name={showPassword ? 'visibility' : 'visibility-off'}
+                    size={20}
+                    color={COLORS.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Error Message */}
+            {error && <Text style={styles.errorText}>{error}</Text>}
+
+            {/* Actions Row */}
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setRememberMe(!rememberMe)}
+              >
+                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                  {rememberMe && (
+                    <MaterialIcons name="check" size={14} color={COLORS.white} />
+                  )}
+                </View>
+                <Text style={styles.checkboxLabel}>Ghi nhớ tôi</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleForgotPassword}>
+                <Text style={styles.forgotLink}>Quên mật khẩu?</Text>
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* Error Message */}
-          {error && <Text style={styles.errorText}>{error}</Text>}
-
-          {/* Actions Row */}
-          <View style={styles.actionsRow}>
+            {/* Login Button */}
             <TouchableOpacity
-              style={styles.checkboxContainer}
-              onPress={() => setRememberMe(!rememberMe)}
+              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
             >
-              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                {rememberMe && (
-                  <MaterialIcons name="check" size={14} color={COLORS.white} />
-                )}
-              </View>
-              <Text style={styles.checkboxLabel}>Ghi nhớ tôi</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleForgotPassword}>
-              <Text style={styles.forgotLink}>Quên mật khẩu?</Text>
+              {isLoading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <>
+                  <Text style={styles.loginButtonText}>Đăng nhập</Text>
+                  <MaterialIcons
+                    name="arrow-forward"
+                    size={20}
+                    color={COLORS.white}
+                    style={{ marginLeft: 8 }}
+                  />
+                </>
+              )}
             </TouchableOpacity>
           </View>
 
+<<<<<<< HEAD
           {/* Login Button */}
           <TouchableOpacity
             style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
@@ -221,6 +267,17 @@ export default function LoginScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
       </KeyboardAwareScrollView>
+=======
+          {/* Sign Up Link */}
+          <View style={styles.signupContainer}>
+            <Text style={styles.signupText}>Chưa có tài khoản? </Text>
+            <TouchableOpacity onPress={handleGoToRegister}>
+              <Text style={styles.signupLink}>Đăng ký tài xế</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+>>>>>>> a157af2b83efad212d526bededc568d9cc216aeb
     </SafeAreaView>
   )
 }
