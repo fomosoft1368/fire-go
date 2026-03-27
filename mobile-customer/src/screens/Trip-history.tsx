@@ -171,8 +171,8 @@ export default function TripHistoryScreen() {
             // Use CUSTOMER's pickup/dropoff, not driver's route
             pickupLocation: trip.customerPickupAddress || trip.pickupLocationAddress || trip.pickupAddress || 'Điểm đón',
             dropoffLocation: trip.customerDropoffAddress || trip.dropoffLocationAddress || trip.dropoffAddress || 'Điểm đến',
-            pickupDistrict: 'Hà Nội',
-            dropoffDistrict: 'Hà Nội',
+            pickupDistrict: 'Việt Nam',
+            dropoffDistrict: 'Việt Nam',
             status: trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase() || 'pending',
             driverName: trip.driverId?.firstName + ' ' + trip.driverId?.lastName || 'N/A',
             carPlate: trip.driverId?.vehiclePlate || 'N/A',

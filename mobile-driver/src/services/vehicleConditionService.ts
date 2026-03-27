@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as FileSystem from 'expo-file-system/legacy'
-import { API_URL } from '../config/api'
+import { API_BASE_URL } from '../constants/config'
 
 export interface VehicleConditionImages {
   front?: string
@@ -63,7 +63,7 @@ class VehicleConditionService {
       }
 
       const response = await fetch(
-        `${API_URL}/rides/${rideId}/vehicle-condition/upload`,
+        `${API_BASE_URL}/rides/${rideId}/vehicle-condition/upload`,
         {
           method: 'POST',
           headers: {
@@ -101,7 +101,7 @@ class VehicleConditionService {
       }
 
       const response = await fetch(
-        `${API_URL}/rides/${rideId}/vehicle-condition`,
+        `${API_BASE_URL}/rides/${rideId}/vehicle-condition`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

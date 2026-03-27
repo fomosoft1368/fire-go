@@ -26,6 +26,7 @@ import HourlyServices from './pages/hourly-services'
 import AddonServices from './pages/addon-services'
 import DriverSearchSettings from './pages/driver-search-settings'
 import LegalDocumentsManagement from './pages/legal-documents'
+import BonusManagement from './pages/bonus-management'
 import './App.css'
 
 function App() {
@@ -99,6 +100,7 @@ function App() {
               <Route path="/addon-services" element={<AddonServices />} />
               <Route path="/driver-search-settings" element={<DriverSearchSettings />} />
               <Route path="/legal-documents" element={<LegalDocumentsManagement />} />
+              <Route path="/bonus-management" element={<BonusManagement />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Router>

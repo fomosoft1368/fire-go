@@ -182,6 +182,16 @@ export class CustomersController {
     return this.customersService.findById(req.user.sub);
   }
 
+  @Get('me/wallet')
+  @UseGuards(JwtAuthGuard)
+  async getMyWallet(@Request() req: any) {
+    const customer = await this.customersService.findById(req.user.sub);
+    return {
+      walletBalance: (customer as any).walletBalance || 0,
+      currency: 'VND',
+    };
+  }
+
   @Get(':id')
   async findById(@Param('id') id: string) {
     return this.customersService.findById(id);

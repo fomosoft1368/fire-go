@@ -12,6 +12,8 @@ import { DriversModule } from '../drivers/drivers.module'
 import { CombinedTripsModule } from '../combined-trips/combined-trips.module'
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema'
 import { DriverSearchConfigModule } from '../config/config.module'
+import { Customer, CustomerSchema } from '../customers/schemas/customer.schema'
+import { Wallet, WalletSchema } from '../wallets/schemas/wallet.schema'
 
 @Module({
   imports: [
@@ -23,7 +25,7 @@ import { DriverSearchConfigModule } from '../config/config.module'
       { name: AssignmentRequest.name, schema: AssignmentRequestSchema },
       { name: Driver.name, schema: DriverSchema },
       { name: 'PricingConfig', schema: PricingConfigSchema },
-      { name: 'Customer', schema: require('../customers/schemas/customer.schema').CustomerSchema }, // ✅ For deposit wallet ops
+      { name: Wallet.name, schema: WalletSchema }, // ✅ For deposit wallet ops
     ]),
     MulterModule.register({
       dest: './uploads',

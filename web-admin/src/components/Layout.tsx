@@ -377,6 +377,18 @@ export default function Layout({ children }: LayoutProps) {
             <span className="font-semibold whitespace-nowrap">Tài liệu pháp lý</span>
           </button>
 
+          <button
+            onClick={() => navigate('/bonus-management')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              isActive('/bonus-management')
+                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${isActive('/bonus-management') ? 'filled' : ''}`}>card_giftcard</span>
+            <span className="font-semibold whitespace-nowrap">Quản lý Thưởng</span>
+          </button>
+
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 mt-4">
             <button
               onClick={() => navigate('/settings')}
@@ -435,6 +447,7 @@ export default function Layout({ children }: LayoutProps) {
               {location.pathname === '/notifications' && 'Quản lý Thông báo'}
               {location.pathname === '/reports' && 'Báo cáo & Thống kê'}
               {location.pathname === '/settings' && 'Cài đặt'}
+              {location.pathname === '/bonus-management' && 'Quản lý Thưởng'}
             </h2>
           </div>
           

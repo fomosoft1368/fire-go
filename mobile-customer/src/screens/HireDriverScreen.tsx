@@ -82,7 +82,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   // Navigation
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
 
-  // Láº¥y user tá»« redux
+  // Lấy user từ redux
   const user = useSelector((state: RootState) => state.auth.user)
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
@@ -215,8 +215,17 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     }
   }, [])
 
-  // Reset ride state khi cancel
-  const resetRideState = () => {
+  // Reset ride state khi cancel - gọi API để hoàn cọc nếu có
+  const resetRideState = async () => {
+    if (rideId) {
+      try {
+        console.log('[HireDriverScreen] 🚫 Cancelling ride:', rideId)
+        await rideService.cancelRide(rideId, 'customer', 'Khách hủy tìm tài xế')
+        console.log('[HireDriverScreen] ✅ Ride cancelled, deposit will be refunded if applicable')
+      } catch (err) {
+        console.warn('[HireDriverScreen] ⚠️ Cancel API error:', err)
+      }
+    }
     setIsSearching(false)
     setDriverFound(false)
     setDriver(null)
@@ -251,7 +260,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       }, 800)
       setPickupSearchTimeout(timeout)
     } else {
-      // XÃ³a suggestions náº¿u text < 5 kÃ½ tá»±
+      // Xóa suggestions nếu text < 5 ký tự
       setPickupSuggestions([])
       if (text.trim().length === 0) {
         setShowPickupSuggestions(false)
@@ -284,7 +293,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       }, 500)
       setDropoffSearchTimeout(timeout)
     } else {
-      // XÃ³a suggestions náº¿u text < 3 kÃ½ tá»±
+      // Xóa suggestions nếu text < 3 ký tự
       setDropoffSuggestions([])
       if (text.trim().length === 0) {
         setShowDropoffSuggestions(false)
@@ -451,7 +460,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     return () => clearTimeout(timer)
   }, [pickupLocation, dropoffLocation, carType, isSearching, driverFound])
 
-  // TÃ­nh giÃ¡ cÆ°á»›c khi cÃ³ Ä‘á»§ thÃ´ng tin
+  // TÃ­nh giÃ¡ cÆ°á»›c khi có Ä‘á»§ thÃ´ng tin
   const calculateEstimate = async () => {
     if (!pickupLocation.trim() || !dropoffLocation.trim()) {
       return
@@ -469,7 +478,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
       console.log('[HireDriverScreen] ðŸ—ºï¸ Route info:', {
         distance: route.distance + ' km',
-        duration: route.duration + ' phÃºt',
+        duration: route.duration + ' phút',
         pickup: route.pickup?.formattedAddress,
         dropoff: route.dropoff?.formattedAddress,
       })
@@ -521,7 +530,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
             const calcDeposit = Math.round((fare.total * percent) / 100)
             setDepositAmount(calcDeposit)
             setNeedsDeposit(true)
-            setDepositAgreed(false) // Reset khi tÃ­nh láº¡i
+            setDepositAgreed(false) // Reset khi tính lại
           } else {
             setDepositAmount(0)
             setNeedsDeposit(false)
@@ -589,14 +598,14 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     // Náº¿u chÆ°a tÃ­nh giÃ¡, tÃ­nh trÆ°á»›c
     if (!routeInfo || !fareEstimate) {
       Alert.alert(
-        'ChÆ°a tÃ­nh giÃ¡',
+        'Chưa tính giá',
         'Vui lÃ²ng nháº¥n "TÃ­nh giÃ¡" trÆ°á»›c khi Ä‘áº·t xe!',
         [
           {
-            text: 'TÃ­nh giÃ¡ ngay',
+            text: 'Tính giá ngay',
             onPress: calculateEstimate,
           },
-          { text: 'Há»§y', style: 'cancel' },
+          { text: 'Hủy', style: 'cancel' },
         ]
       )
       return
@@ -647,20 +656,19 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
         ],
         distance: routeInfo.distance,
         duration: routeInfo.duration,
-        baseFare: fareEstimate.total, // Tá»•ng giÃ¡ lÃ¡i xe há»™
-        distanceFare: fareEstimate.extraKmFee, // PhÃ­ vÆ°á»£t km
-        timeFare: 0, // KhÃ´ng tÃ­nh theo thá»i gian
-        surgePricing: 0, // LÃ¡i xe há»™ khÃ´ng cÃ³ peak pricing
+        baseFare: fareEstimate.total,  // Tổng tiền lái xe hộ (openingFee + extraKmFee)
+        distanceFare: 0,                // Hire: không tách riêng, baseFare đã là tổng
+        timeFare: 0,
+        surgePricing: 0,
+
         carType,
         licensePlate,
         transmission,
         driverNote,
         isScheduled,
         scheduledTime: isScheduled ? scheduledDateTime.toISOString() : undefined,
-        autoAssign: true, // LuÃ´n tá»± Ä‘á»™ng chá»‰ Ä‘á»‹nh tÃ i xáº¿
-        depositAmount: needsDeposit ? depositAmount : 0, // âœ… Gá»­i tiá»n cá»c
-        isScheduled,
-        scheduledTime: isScheduled ? scheduledDateTime.toISOString() : undefined,
+        autoAssign: true,
+        depositAmount: needsDeposit ? depositAmount : 0,
       }
 
       console.log('[HireDriverScreen] Creating ride with data:', rideData)
@@ -928,18 +936,18 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                   </View>
                 </View>
                 {/* Time Toggle */}
-                <View style={[styles.timeToggleContainer, { backgroundColor: "#ff6b00" }]}>
+                <View style={[styles.timeToggleContainer, { backgroundColor: "#f8f7f6ff" }]}>
                   <TouchableOpacity
                     style={[
                       styles.timeButton,
-                      !isScheduled && { backgroundColor: colors.border },
+                      !isScheduled && { backgroundColor: colors.primary },
                     ]}
                     onPress={() => setIsScheduled(false)}
                   >
                     <MaterialIcons
                       name="bolt"
                       size={18}
-                      color={!isScheduled ? '#FF6B00' : colors.textSecondary}
+                      color={!isScheduled ? '#0e0d0dff' : colors.textSecondary}
                     />
                     <Text
                       style={[
@@ -953,7 +961,7 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                   <TouchableOpacity
                     style={[
                       styles.timeButton,
-                      isScheduled && { backgroundColor: colors.border },
+                      isScheduled && { backgroundColor: colors.primary },
                     ]}
                     onPress={() => {
                       setIsScheduled(true)

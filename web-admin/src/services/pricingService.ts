@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 export interface PeakHour {
   id: string;
@@ -162,7 +162,7 @@ class PricingService {
   async updateDeliveryGoodsTypes(goodsTypes: DeliveryGoodsType[]): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}=/pricing/config/delivery/goods-types`,
+        `${API_URL}/pricing/config/delivery/goods-types`,
         { goodsTypes },
         this.getAuthHeaders()
       );
@@ -176,7 +176,7 @@ class PricingService {
   async updateDeliveryWeightRanges(weightRanges: DeliveryWeightRange[]): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}=/pricing/config/delivery/weight-ranges`,
+        `${API_URL}/pricing/config/delivery/weight-ranges`,
         { weightRanges },
         this.getAuthHeaders()
       );
@@ -190,7 +190,7 @@ class PricingService {
   async updateDeliveryVehicleTypes(vehicleTypes: DeliveryVehicleType[]): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}=/pricing/config/delivery/vehicle-types`,
+        `${API_URL}/pricing/config/delivery/vehicle-types`,
         { vehicleTypes },
         this.getAuthHeaders()
       );
@@ -205,7 +205,7 @@ class PricingService {
   async updateHireDriverPricing(hireDriverPricing: HireDriverPricing[]): Promise<PricingConfig> {
     try {
       const response = await axios.post(
-        `${API_URL}=/pricing/config/hire-driver`,
+        `${API_URL}/pricing/config/hire-driver`,
         { hireDriverPricing },
         this.getAuthHeaders()
       );
@@ -219,7 +219,7 @@ class PricingService {
   // ============ DRIVER SEARCH CONFIG - Get search radius ============
   async getDriverSearchConfig(serviceType: string = 'rideshare'): Promise<{ searchRadiusMeters: number }> {
     try {
-      const response = await axios.get(`${API_URL}=/config/driver-search/${serviceType}`);
+      const response = await axios.get(`${API_URL}/config/driver-search/${serviceType}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching driver search config:', error);

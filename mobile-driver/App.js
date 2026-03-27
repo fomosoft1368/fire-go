@@ -51,6 +51,7 @@ import TermsOfServiceScreen from './src/screens/TermsOfServiceScreen'
 import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen'
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen'
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import BonusScreen from './src/screens/BonusScreen'
 
 
 //
@@ -276,6 +277,11 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name="PrivacyPolicy"
         component={PrivacyPolicyScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name="DriverBonus"
+        component={BonusScreen}
         options={{ animationEnabled: true }}
       />
     </Stack.Navigator>

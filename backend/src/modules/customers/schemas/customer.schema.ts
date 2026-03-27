@@ -84,6 +84,9 @@ export class Customer {
   @Prop({ default: 0 })
   totalSpent: number;
 
+  @Prop({ default: 0 })
+  walletBalance: number; // Số dư ví (VNĐ) - dùng cho đặt cọc và thanh toán
+
   // Emergency contacts
   @Prop([
     {

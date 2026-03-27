@@ -266,12 +266,20 @@ export default function EarningsScreen({ navigation }: any) {
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>Thu nhập</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.supportButton}
-            onPress={() => navigation?.navigate('Support')}
-          >
-            <MaterialIcons name="help-outline" size={24} color="#0f172a" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TouchableOpacity
+              style={styles.supportButton}
+              onPress={() => navigation?.navigate('DriverBonus')}
+            >
+              <MaterialIcons name="card-giftcard" size={24} color="#FF6B00" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.supportButton}
+              onPress={() => navigation?.navigate('Support')}
+            >
+              <MaterialIcons name="help-outline" size={24} color="#0f172a" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Low Balance Warning Banner */}

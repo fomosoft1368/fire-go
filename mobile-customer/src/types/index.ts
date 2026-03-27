@@ -272,5 +272,6 @@ export interface CreateRideDto {
   driverNote?: string
   isScheduled?: boolean
   scheduledTime?: string
-  autoAssign?: boolean // Tự động chỉ định tài xế
+  autoAssign?: boolean
+  depositAmount?: number // Tiền cọc cho chuyến đi xa (lái xe hộ)
 }

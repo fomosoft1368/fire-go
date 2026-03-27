@@ -633,6 +633,35 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                         </View>
                     </View>
 
+                    {/* Payment Breakdown (for hire rides with deposit) */}
+                    {ride?.rideType === 'hire' && ride?.depositAmount > 0 && (
+                        <View style={styles.depositInfoCard}>
+                            <View style={styles.depositInfoHeader}>
+                                <MaterialIcons name="account-balance-wallet" size={18} color="#FF6B00" />
+                                <Text style={styles.depositInfoTitle}>Thông tin thu tiền</Text>
+                            </View>
+                            <View style={styles.depositRow}>
+                                <Text style={styles.depositLabel}>💰 Tổng cước phí</Text>
+                                <Text style={styles.depositValue}>{(ride.totalFare || 0).toLocaleString('vi-VN')}đ</Text>
+                            </View>
+                            {ride.depositPaid && (
+                                <View style={styles.depositRow}>
+                                    <Text style={styles.depositLabel}>🔒 KH đã cọc từ ví</Text>
+                                    <Text style={[styles.depositValue, { color: '#22C55E' }]}>-{ride.depositAmount.toLocaleString('vi-VN')}đ</Text>
+                                </View>
+                            )}
+                            <View style={[styles.depositRow, styles.depositRowTotal]}>
+                                <Text style={styles.depositLabelBold}>💳 Khách còn trả tài xế</Text>
+                                <Text style={styles.depositValueBold}>
+                                    {Math.max(0, (ride.totalFare || 0) - (ride.depositPaid ? ride.depositAmount : 0)).toLocaleString('vi-VN')}đ
+                                </Text>
+                            </View>
+                            <Text style={styles.depositNote}>
+                                ⚠️ Thu số tiền trên từ khách. Phần cọc đã khấu trừ qua ví điện tử.
+                            </Text>
+                        </View>
+                    )}
+
                     {/* Route Section */}
                     <View style={styles.routeSection}>
                         <View style={styles.sectionHeader}>
@@ -1354,5 +1383,63 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         color: '#000',
+    },
+    depositInfoCard: {
+        backgroundColor: '#faf1edff',
+        borderRadius: 14,
+        padding: 16,
+        marginHorizontal: 16,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: '#FF6B00',
+    },
+    depositInfoHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    depositInfoTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#FF6B00',
+    },
+    depositRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 5,
+    },
+    depositRowTotal: {
+        borderTopWidth: 1,
+        borderTopColor: '#2D3748',
+        marginTop: 8,
+        paddingTop: 10,
+    },
+    depositLabel: {
+        fontSize: 13,
+        color: '#111111ff',
+    },
+    depositValue: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#0a0a0aff',
+    },
+    depositLabelBold: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#0f0f0fff',
+    },
+    depositValueBold: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#FF6B00',
+    },
+    depositNote: {
+        fontSize: 11,
+        color: '#9CA3AF',
+        marginTop: 10,
+        fontStyle: 'italic',
+        lineHeight: 16,
     },
 })
