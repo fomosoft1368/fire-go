@@ -71,6 +71,6 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
-  console.log(`Application is running on: http://192.168.1.12:${port} (or your LAN IP)`);
+  console.log(`Application is running on: http://192.168.1.9:${port} (or your LAN IP)`);
 }
 bootstrap();

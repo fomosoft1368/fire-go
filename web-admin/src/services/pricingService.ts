@@ -3,7 +3,7 @@ import axios from 'axios';
 <<<<<<< Updated upstream
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 =======
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.12:3000';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.9:3000';
 >>>>>>> Stashed changes
 
 export interface PeakHour {

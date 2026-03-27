@@ -2,7 +2,7 @@
 
 ## Base URL
 ```
-http://192.168.1.12:3000/api/pricing
+http://192.168.1.9:3000/api/pricing
 ```
 
 ## Endpoints
@@ -186,7 +186,7 @@ if (final_price < minimum_fare) {
 ### Test với curl:
 ```bash
 # Tính giá cho 3 người
-curl -X POST http://192.168.1.12:3000/api/pricing/calculate \
+curl -X POST http://192.168.1.9:3000/api/pricing/calculate \
   -H "Content-Type: application/json" \
   -d '{
     "passengers": [
@@ -199,7 +199,7 @@ curl -X POST http://192.168.1.12:3000/api/pricing/calculate \
 
 ### Test với JavaScript:
 ```javascript
-const response = await fetch('http://192.168.1.12:3000/api/pricing/calculate', {
+const response = await fetch('http://192.168.1.9:3000/api/pricing/calculate', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

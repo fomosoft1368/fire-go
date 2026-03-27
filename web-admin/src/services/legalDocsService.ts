@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.12:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.9:3000/api';
 
 export interface LegalDocContent {
   introduction: string;

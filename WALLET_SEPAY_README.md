@@ -259,7 +259,7 @@ Response:
 ## 🖥️ **Web Admin Dashboard**
 
 ### **Trang: Wallet Transactions**
-URL: `http://192.168.1.12:5173/wallet-transactions`
+URL: `http://192.168.1.9:5173/wallet-transactions`
 
 **Chức năng:**
 - ✅ Hiển thị tất cả giao dịch (nạp/rút/chiết khấu/thưởng)
@@ -298,7 +298,7 @@ URL: `http://192.168.1.12:5173/wallet-transactions`
 # Last 8 chars: "8A9B0C1D"
 
 # Call test webhook endpoint
-curl -X POST http://192.168.1.12:3000/api/wallet/sepay/test-webhook \
+curl -X POST http://192.168.1.9:3000/api/wallet/sepay/test-webhook \
   -H "Content-Type: application/json" \
   -d '{
     "id": "sepay_test_123",
