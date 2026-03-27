@@ -22,6 +22,12 @@ export enum NotificationType {
   SAFETY_ALERT = 'safety_alert',
   DOCUMENT_EXPIRED = 'document_expired',
   WALLET_LOW = 'wallet_low',
+  // Voice Call
+  CALL_INCOMING = 'call_incoming',
+  CALL_ACCEPTED = 'call_accepted',
+  CALL_REJECTED = 'call_rejected',
+  CALL_ENDED = 'call_ended',
+  CALL_MISSED = 'call_missed',
 }
 
 export enum NotificationChannel {

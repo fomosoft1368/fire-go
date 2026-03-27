@@ -47,7 +47,7 @@ Session Status                online
 Account                       Free Plan
 Version                       3.x.x
 Region                        Asia Pacific (ap)
-Forwarding                    https://abc123.ngrok-free.app -> http://localhost:3000
+Forwarding                    https://abc123.ngrok-free.app -> http://192.168.1.12:3000
 
 Web Interface                 http://127.0.0.1:4040
 ```
@@ -196,7 +196,7 @@ Phải thấy:
 ```
 Mobile App (Driver)
     ↓ (1) Tạo nạp tiền 10,000đ
-Backend (localhost:3000)
+Backend (192.168.1.12:3000)
     ↓ (2) Tạo transaction PENDING
     ↓ (3) Generate QR code
 Mobile App

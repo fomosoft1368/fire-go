@@ -20,7 +20,11 @@ import { HourlyServicesModule } from './modules/hourly-services/hourly-services.
 import { AddonServicesModule } from './modules/addon-services/addon-services.module';
 import { DriverSearchConfigModule } from './modules/config/config.module';
 import { LegalDocsModule } from './modules/config/legal-docs.module';
+<<<<<<< Updated upstream
 import { BonusesModule } from './modules/bonuses/bonuses.module';
+=======
+import { CallModule } from './modules/call/call.module';
+>>>>>>> Stashed changes
 
 @Module({
   imports: [
@@ -50,7 +54,11 @@ import { BonusesModule } from './modules/bonuses/bonuses.module';
     AddonServicesModule,
     DriverSearchConfigModule,
     LegalDocsModule,
+<<<<<<< Updated upstream
     BonusesModule,
+=======
+    CallModule,
+>>>>>>> Stashed changes
   ],
   controllers: [],
   providers: [],

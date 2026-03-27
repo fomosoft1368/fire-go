@@ -38,10 +38,14 @@ export const FONT_SIZES = {
 
 // API Configuration
 // - Android Emulator: use 10.0.2.2
-// - iOS Simulator: use 127.0.0.1 or localhost
+// - iOS Simulator: use 127.0.0.1 or 192.168.1.12
 // - Physical Device: use your machine's IP (192.168.x.x)
 // Set REACT_APP_API_URL in .env file
+<<<<<<< Updated upstream
 export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.9:3000/api'
+=======
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.12:3000/api'
+>>>>>>> Stashed changes
 
 // API timeout in milliseconds (30 seconds for physical devices)
 export const API_TIMEOUT = 30000

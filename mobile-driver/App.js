@@ -50,6 +50,8 @@ import NotificationDetailScreen from './src/screens/NotificationDetail'
 import TermsOfServiceScreen from './src/screens/TermsOfServiceScreen'
 import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen'
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen'
+import IncomingCallScreen from './src/screens/IncomingCallScreen'
+import ActiveCallScreen from './src/screens/ActiveCallScreen'
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import BonusScreen from './src/screens/BonusScreen'
 
@@ -280,9 +282,20 @@ const HomeStackNavigator = () => {
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
+<<<<<<< Updated upstream
         name="DriverBonus"
         component={BonusScreen}
         options={{ animationEnabled: true }}
+=======
+        name="IncomingCall"
+        component={IncomingCallScreen}
+        options={{ animationEnabled: true, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="ActiveCall"
+        component={ActiveCallScreen}
+        options={{ animationEnabled: true, gestureEnabled: false }}
+>>>>>>> Stashed changes
       />
     </Stack.Navigator>
   )
@@ -435,6 +448,77 @@ const RootNavigator = () => {
       }).catch((err) => {
         console.error('[App] Error checking token:', err.message)
       })
+    }
+  }, [isAuthenticated])
+
+  // =====================================================
+  // 📞 POLL FOR INCOMING CALL NOTIFICATIONS
+  // =====================================================
+  const handledCallIdsRef = useRef(new Set())
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const navigationObj = require('@react-navigation/native').navigationRef
+    let isMounted = true
+
+    const pollCallNotifications = async () => {
+      if (!isMounted) return
+      try {
+        const token = await AsyncStorage.getItem('token')
+        if (!token) return
+
+        const resp = await fetch(`${API_BASE_URL}/notifications/driver?type=CALL_INCOMING&limit=5`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!resp.ok) return
+
+        const json = await resp.json()
+        const notifications = json?.data?.notifications || json?.notifications || []
+
+        for (const notif of notifications) {
+          const callData = notif.data || {}
+          const callId = callData.callId
+          if (!callId || handledCallIdsRef.current.has(callId)) continue
+
+          // Mark as handled before navigating to prevent duplicate navigation
+          handledCallIdsRef.current.add(callId)
+
+          // Mark the notification as read
+          try {
+            await fetch(`${API_BASE_URL}/notifications/${notif._id}/read`, {
+              method: 'PATCH',
+              headers: { Authorization: `Bearer ${token}` },
+            })
+          } catch (_) {}
+
+          console.log('[App] 📞 CALL_INCOMING detected, callId:', callId)
+
+          // Navigate to IncomingCallScreen
+          if (navigationRef.current) {
+            navigationRef.current.navigate('IncomingCall', {
+              callId: callData.callId,
+              rideId: callData.rideId,
+              channelName: callData.channelName,
+              receiverToken: callData.receiverToken,
+              receiverUid: callData.receiverUid,
+              callerName: notif.title || 'Khách hàng',
+              callerRole: callData.callerRole || 'customer',
+            })
+          }
+          break // Handle one call at a time
+        }
+      } catch (err) {
+        console.warn('[App] ⚠️ Call notification poll error:', err.message)
+      }
+    }
+
+    const callPollInterval = setInterval(pollCallNotifications, 3000)
+    pollCallNotifications() // Initial poll
+
+    return () => {
+      isMounted = false
+      clearInterval(callPollInterval)
     }
   }, [isAuthenticated])
 

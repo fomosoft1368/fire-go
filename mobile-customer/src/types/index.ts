@@ -235,6 +235,24 @@ export type RootStackParamList = {
   Support: undefined
   Topup: undefined
   Withdraw: undefined
+  IncomingCall: {
+    callId: string
+    rideId: string
+    channelName: string
+    receiverToken: string
+    receiverUid: number
+    callerName: string
+    callerRole: 'customer' | 'driver'
+  }
+  ActiveCall: {
+    callId: string
+    rideId: string
+    channelName: string
+    token: string
+    uid: number
+    otherPartyName: string
+    role: 'caller' | 'receiver'
+  }
 }
 
 // API Response Types

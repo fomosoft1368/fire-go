@@ -337,13 +337,25 @@ export class NotificationsService {
       skip?: number;
     }
   ): Promise<{ data: NotificationDocument[]; total: number }> {
+    const driverObjectId = new Types.ObjectId(driverId);
+
+    // ✅ Match both driverId AND userId to catch notifications created by
+    // CallListener (which uses userId field) as well as those using driverId.
     const query: any = {
-      // ✅ STRICTLY filter by driverId only — not userId/customerId
-      driverId: new Types.ObjectId(driverId),
+      $or: [
+        { driverId: driverObjectId },
+        { userId: driverObjectId },
+      ],
       isActive: true,
     };
 
-    if (filters?.type) query.type = filters.type;
+    if (filters?.type) {
+      query.$and = [
+        { $or: query.$or },
+        { type: filters.type },
+      ];
+      delete query.$or;
+    }
 
     const limit = filters?.limit || 50;
     const skip = filters?.skip || 0;
@@ -360,4 +372,3 @@ export class NotificationsService {
     return { data, total };
   }
 }
-

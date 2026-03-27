@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.12:3000/api';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -114,7 +114,7 @@ class ApiService {
     if (!response.ok) {
       const error = await response.json();
       let errorMessage = '';
-      
+
       if (Array.isArray(error.message)) {
         errorMessage = error.message.map((msg: any) => {
           if (typeof msg === 'string') return msg;
@@ -128,7 +128,7 @@ class ApiService {
       } else {
         errorMessage = `HTTP error! status: ${response.status}`;
       }
-      
+
       console.error('API Error:', { status: response.status, error, errorMessage });
       throw new Error(errorMessage);
     }
@@ -623,17 +623,17 @@ class ApiService {
         console.log('No auth token found, cannot fetch profile');
         return null;
       }
-      
+
       const url = `${API_BASE_URL}/auth/profile`;
       const headers = this.getHeaders();
       console.log('Fetching profile with URL:', url);
       console.log('Auth token exists:', !!token);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers,
       });
-      
+
       console.log('Profile response status:', response.status);
       if (!response.ok) {
         const errorData = await response.json();

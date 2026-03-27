@@ -1,6 +1,6 @@
 import React from 'react'
 import 'react-native-gesture-handler'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { useFocusEffect } from '@react-navigation/native'
@@ -9,17 +9,21 @@ import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen, TopupScreen, WithdrawScreen, HourlyService, FindingServiceScreen, ServiceDetailScreen, ServiceRatingScreen  } from './screens'
+import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen, TopupScreen, WithdrawScreen, HourlyService, FindingServiceScreen, ServiceDetailScreen, ServiceRatingScreen, IncomingCallScreen, ActiveCallScreen  } from './screens'
 import { View, Text, ActivityIndicator } from 'react-native'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
 import type { RootStackParamList } from './types'
 import { notificationService } from './services/notificationService'
+import { API_BASE_URL } from './constants'
 import RideTracking from './screens/RideTracking'
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 const Tab = createBottomTabNavigator()
+
+// Global ref for call navigation from outside React tree
+const callNavigationRef = React.createRef<any>()
 
 // Badge component for tab icon
 const NotificationBadge = ({ unreadCount, size, color }: { unreadCount: number; size: number; color: string }) => (
@@ -198,6 +202,62 @@ const RootNavigator = () => {
     restoreAuthFromStorage()
   }, [dispatch])
 
+  // ======================================================
+  // 📞 Incoming Call Poller – check CALL_INCOMING every 5s
+  // ======================================================
+  const handledCallIds = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const pollIncomingCall = async () => {
+      try {
+        const token = await AsyncStorage.getItem('authToken')
+        if (!token) return
+
+        const response = await notificationService.getNotifications(10, 0)
+        const notifications: any[] = response.data || []
+
+        const callNotif = notifications.find(
+          (n) =>
+            !n.isRead &&
+            n.data?.type === 'CALL_INCOMING' &&
+            n.data?.callId &&
+            !handledCallIds.current.has(n.data.callId)
+        )
+
+        if (callNotif) {
+          const { callId, rideId, channelName, receiverToken, receiverUid, callerRole } = callNotif.data
+          handledCallIds.current.add(callId)
+
+          // Mark notification as read
+          try {
+            await fetch(`${API_BASE_URL}/notifications/${callNotif._id}/read`, {
+              method: 'PATCH',
+              headers: { Authorization: `Bearer ${token}` },
+            })
+          } catch (_) {}
+
+          // Navigate to IncomingCallScreen
+          callNavigationRef.current?.navigate('IncomingCall', {
+            callId,
+            rideId,
+            channelName,
+            receiverToken,
+            receiverUid,
+            callerName: callerRole === 'driver' ? 'Tài xế' : 'Khách hàng',
+            callerRole,
+          })
+        }
+      } catch (err) {
+        // silent - don't break app if poll fails
+      }
+    }
+
+    const interval = setInterval(pollIncomingCall, 5000)
+    return () => clearInterval(interval)
+  }, [isAuthenticated])
+
   // Show loading screen while checking auth
   if (isInitializing) {
     return (
@@ -252,6 +312,8 @@ const RootNavigator = () => {
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
             <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
             <Stack.Screen name="Support" component={SupportScreen} />
+            <Stack.Screen name="IncomingCall" component={IncomingCallScreen} options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+            <Stack.Screen name="ActiveCall" component={ActiveCallScreen} options={{ headerShown: false, presentation: 'fullScreenModal' }} />
           </Stack.Group>
         </>
       ) : (
@@ -264,7 +326,7 @@ const RootNavigator = () => {
 export default function App() {
   return (
     <Provider store={store}>
-      <NavigationContainer>
+      <NavigationContainer ref={callNavigationRef}>
         <RootNavigator />
       </NavigationContainer>
     </Provider>

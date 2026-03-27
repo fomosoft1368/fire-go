@@ -943,12 +943,56 @@ export default function DriverFoundScreen() {
     }
   }
 
-  const handleCall = () => {
-    if (tripData?.driverId?.phoneNumber) {
-      Alert.alert('Gọi tài xế', `Gọi đến ${tripData.driverId.phoneNumber}?`, [
-        { text: 'Hủy', onPress: () => { }, style: 'cancel' },
-        { text: 'Gọi', onPress: () => console.log('Call driver') },
-      ])
+  const [isCalling, setIsCalling] = useState(false)
+
+  const handleCall = async () => {
+    if (isCalling) return
+    if (!combinedTripId) {
+      Alert.alert('Lỗi', 'Không tìm thấy ID chuyến đi')
+      return
+    }
+
+    setIsCalling(true)
+    try {
+      const token = await AsyncStorage.getItem('authToken')
+      const res = await fetch(`${API_BASE_URL}/call/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          rideId: combinedTripId,
+          callerRole: 'customer',
+        }),
+      })
+
+      const json = await res.json()
+
+      if (!res.ok) {
+        Alert.alert('Không thể gọi', json.message || 'Vui lòng thử lại')
+        return
+      }
+
+      const { callId, channelName, callerToken, callerUid } = json.data
+      const driverName = tripData?.driverId
+        ? `${tripData.driverId.firstName} ${tripData.driverId.lastName}`
+        : 'Tài xế'
+
+      navigation.navigate('ActiveCall', {
+        callId,
+        rideId: combinedTripId,
+        channelName,
+        token: callerToken,
+        uid: callerUid,
+        otherPartyName: driverName,
+        role: 'caller',
+      })
+    } catch (err: any) {
+      console.error('[DriverFoundScreen] Call error:', err.message)
+      Alert.alert('Lỗi', 'Không thể kết nối cuộc gọi. Vui lòng thử lại.')
+    } finally {
+      setIsCalling(false)
     }
   }
 

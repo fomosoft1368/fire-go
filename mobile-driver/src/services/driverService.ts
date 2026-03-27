@@ -59,7 +59,7 @@ export class DriverService {
   constructor(baseURL: string = API_BASE_URL) {
     // For Expo:
     // - Android Emulator: use 10.0.2.2 (special alias to host machine)
-    // - iOS Simulator: use localhost or 127.0.0.1
+    // - iOS Simulator: use 192.168.1.12 or 127.0.0.1
     // - Physical Device: use your machine's IP address (e.g., 192.168.x.x)
     // Change API_BASE_URL in constants/config.ts
     this.baseURL = baseURL;
@@ -129,13 +129,13 @@ export class DriverService {
   async updateDriverStatus(status: 'online' | 'offline'): Promise<any> {
     try {
       const token = await AsyncStorage.getItem('authToken');
-      
+
       if (!token) {
         throw new Error('No auth token found');
       }
 
       console.log('[DriverService] Updating driver status to:', status);
-      
+
       const response = await this.api.patch('/me/status', { status }, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -287,7 +287,7 @@ export class DriverService {
       console.log('🔐 Token:', token ? 'Có token' : 'Không có token');
       console.log('🌐 Base URL:', this.baseURL);
       console.log('📍 Calling: GET', `${this.baseURL}/rides`);
-      
+
       const params: any = {
         status: 'pending',
       };
@@ -303,7 +303,7 @@ export class DriverService {
         },
         timeout: 10000,
       });
-      
+
       console.log('✅ API Response:', response.data);
       return response.data || [];
     } catch (error: any) {
@@ -323,7 +323,7 @@ export class DriverService {
   async getMyCombinedTrips(): Promise<any[]> {
     try {
       const token = await AsyncStorage.getItem('token');
-      
+
       if (!token) {
         console.warn('⚠️ No token for getMyCombinedTrips');
         return [];
@@ -371,15 +371,15 @@ export class DriverService {
   }): Promise<any> {
     try {
       const token = await AsyncStorage.getItem('token');
-      
+
       if (!token) {
         console.error('❌ No auth token found. Driver must be logged in.');
         throw new Error('Vui lòng đăng nhập trước khi tạo chuyến xe');
       }
-      
+
       console.log('🚗 Creating new combined trip (share ride):', rideData);
       console.log('🔐 Token present:', token.substring(0, 20) + '...');
-      
+
       const response = await axios.post(
         `${API_BASE_URL}/combined-trips`,
         rideData,
@@ -391,7 +391,7 @@ export class DriverService {
           timeout: 10000,
         }
       );
-      
+
       console.log('✅ Combined trip created successfully:', response.data);
       return response.data;
     } catch (error: any) {
@@ -423,7 +423,7 @@ export class DriverService {
     try {
       const token = await AsyncStorage.getItem('token');
       console.log('🚗 Creating new ride:', rideData);
-      
+
       // For share rides (xe ghép), use combined-trips endpoint
       if (rideData.rideType === 'share') {
         return await this.createCombinedTrip({
@@ -441,7 +441,7 @@ export class DriverService {
           notes: rideData.notes,
         });
       }
-      
+
       // For hire rides, use rides endpoint
       const response = await axios.post(
         `${this.baseURL}/rides`,
@@ -454,7 +454,7 @@ export class DriverService {
           timeout: 10000,
         }
       );
-      
+
       console.log('✅ Ride created successfully:', response.data);
       return response.data;
     } catch (error: any) {
@@ -515,7 +515,7 @@ export class DriverService {
     try {
       const token = await AsyncStorage.getItem('token');
       console.log('🚗 Fetching completed trips with driverId:', driverId, 'status:', status || 'all');
-      
+
       const params: any = {};
       if (driverId) {
         params.driverId = driverId;
@@ -532,7 +532,7 @@ export class DriverService {
         },
         timeout: 10000,
       });
-      
+
       const result = Array.isArray(response.data) ? response.data : [];
       console.log(`✅ Completed trips (${status || 'all'}) fetched:`, result.length);
       return result;
@@ -549,7 +549,7 @@ export class DriverService {
     try {
       const token = await AsyncStorage.getItem('token');
       console.log('🚗 Fetching completed combined trips with driverId:', driverId, 'status:', status || 'all');
-      
+
       const params: any = {};
       if (driverId) {
         params.driverId = driverId;
@@ -566,7 +566,7 @@ export class DriverService {
         },
         timeout: 10000,
       });
-      
+
       const result = Array.isArray(response.data) ? response.data : [];
       console.log(`✅ Completed combined trips (${status || 'all'}) fetched:`, result.length);
       return result;
@@ -605,7 +605,7 @@ export class DriverService {
     try {
       const token = await AsyncStorage.getItem('token');
       console.log('🚚 Fetching completed deliveries with driverId:', driverId, 'status:', status || 'all');
-      
+
       const params: any = {};
       if (driverId) {
         params.driverId = driverId;
@@ -622,7 +622,7 @@ export class DriverService {
         },
         timeout: 10000,
       });
-      
+
       const result = Array.isArray(response.data) ? response.data : [];
       console.log(`✅ Completed deliveries (${status || 'all'}) fetched:`, result.length);
       return result;
@@ -848,7 +848,7 @@ export class DriverService {
     try {
       const token = await AsyncStorage.getItem('token');
       console.log('[DriverService] Requesting withdrawal:', { amount, bankAccount, description });
-      
+
       const response = await axios.post(
         `${this.baseURL}/wallets/withdraw`,
         {
@@ -863,7 +863,7 @@ export class DriverService {
           },
         }
       );
-      
+
       console.log('[DriverService] ✅ Withdrawal request created:', response.data);
       return response.data;
     } catch (error: any) {
@@ -912,7 +912,7 @@ export class DriverService {
     try {
       const token = await AsyncStorage.getItem('token');
       console.log('[DriverService] Uploading documents for driver:', driverId);
-      
+
       const response = await axios.post(
         `${this.baseURL}/drivers/${driverId}/documents`,
         documents,
@@ -923,7 +923,7 @@ export class DriverService {
           },
         }
       );
-      
+
       console.log('[DriverService] ✅ Documents uploaded successfully:', response.data);
       return response.data;
     } catch (error: any) {

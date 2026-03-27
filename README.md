@@ -51,9 +51,9 @@ npm run dev
 ```
 
 **Truy cập:**
-- 🚀 Backend API: http://localhost:3000/api
-- 💼 Web Admin: http://localhost:5173
-- 📊 API Docs: http://localhost:3000/api/docs
+- 🚀 Backend API: http://192.168.1.12:3000/api
+- 💼 Web Admin: http://192.168.1.12:5173
+- 📊 API Docs: http://192.168.1.12:3000/api/docs
 
 ## 📖 Cài đặt Chi tiết
 
@@ -66,8 +66,8 @@ cp .env.example .env
 npm run start:dev
 ```
 
-**Server:** http://localhost:3000  
-**API Docs:** http://localhost:3000/api/docs
+**Server:** http://192.168.1.12:3000  
+**API Docs:** http://192.168.1.12:3000/api/docs
 
 ### 2. Web Admin (React)
 
@@ -78,7 +78,7 @@ cp .env.example .env
 npm run dev
 ```
 
-**Dashboard:** http://localhost:5173
+**Dashboard:** http://192.168.1.12:5173
 
 ### 3. Mobile Driver App
 
@@ -179,7 +179,7 @@ npm run lint             # Kiểm tra code style
 FireGo sử dụng **MongoDB** cho data storage.
 
 **Default Connection:**
-- **Host:** localhost
+- **Host:** 192.168.1.12
 - **Port:** 27017
 - **Username:** admin
 - **Password:** password123

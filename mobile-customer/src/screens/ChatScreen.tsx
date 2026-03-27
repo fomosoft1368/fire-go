@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import { RootState } from '../redux/store'
 import { messageService } from '../services/messageService'
@@ -16,7 +16,7 @@ import {
   Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { SPACING, BORDER_RADIUS } from '../constants'
+import { SPACING, BORDER_RADIUS, API_BASE_URL } from '../constants'
 import { useNavigation, useRoute } from '@react-navigation/native'
 import type { RouteProp } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
@@ -38,10 +38,12 @@ export default function ChatScreen() {
   const route = useRoute<ChatScreenRouteProp>()
   const { driver, rideId, deliveryId, combinedTripId } = route.params || {}
   const user = useSelector((state: RootState) => state.auth.user)
+  const authToken = useSelector((state: RootState) => state.auth.token)
   const [chatMessages, setChatMessages] = useState<Message[]>([])
   const [messageInput, setMessageInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
+  const [calling, setCalling] = useState(false)
   const [lastPollTime, setLastPollTime] = useState(Date.now())
   const sendingRef = useRef(false) // Prevent multiple sends
 
@@ -172,6 +174,49 @@ export default function ChatScreen() {
     }
   }
 
+  // Gọi điện thoại cho tài xế
+  const handleVoiceCall = useCallback(async () => {
+    const tripId = rideId || deliveryId || combinedTripId
+    if (!tripId || !driver?.id || calling) return
+
+    setCalling(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/call/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          rideId: tripId,
+          callerRole: 'customer',
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(err?.message || 'Không thể kết nối cuộc gọi')
+      }
+
+      const data = await response.json()
+      const callData = data?.data || data
+
+      navigation.navigate('ActiveCall', {
+        callId: callData.callId,
+        rideId: tripId,
+        channelName: callData.channelName,
+        token: callData.callerToken,
+        uid: callData.callerUid,
+        otherPartyName: driver?.name || 'Tài xế',
+        role: 'caller',
+      })
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể thực hiện cuộc gọi')
+    } finally {
+      setCalling(false)
+    }
+  }, [rideId, deliveryId, combinedTripId, driver, calling])
+
   // Gửi tin nhắn
   const sendMessage = useCallback(async () => {
     const tripId = rideId || deliveryId || combinedTripId
@@ -233,7 +278,17 @@ export default function ChatScreen() {
           <Text style={styles.chatHeaderName}>{driver?.name || 'Tài xế'}</Text>
           <Text style={styles.chatHeaderStatus}>Đang hoạt động</Text>
         </View>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity
+          onPress={handleVoiceCall}
+          disabled={calling}
+          style={styles.callButton}
+        >
+          {calling ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <MaterialIcons name="call" size={22} color="#fff" />
+          )}
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -423,5 +478,18 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#64748b',
     shadowOpacity: 0,
+  },
+  callButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#22c55e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
   },
 })
