@@ -9,12 +9,14 @@ import { DriversModule } from '../drivers/drivers.module';
 import { CombinedTripsService } from './services/combined-trips.service';
 import { CombinedTripsController } from './controllers/combined-trips.controller';
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     AuthModule,
     DriverSearchConfigModule,
     DriversModule,
+    NotificationsModule,
     MongooseModule.forFeature([
       { name: CombinedTrip.name, schema: CombinedTripSchema },
       { name: RideRequest.name, schema: RideRequestSchema },

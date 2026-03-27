@@ -9,11 +9,13 @@ import { DriversModule } from '../drivers/drivers.module';
 import { DeliveryAssignmentRequest, DeliveryAssignmentRequestSchema } from './schemas/delivery-assignment-request.schema';
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
 import { DriverSearchConfigModule } from '../config/config.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     DriverSearchConfigModule,
     DriversModule,
+    NotificationsModule,
     MongooseModule.forFeature([
       { name: Delivery.name, schema: DeliverySchema },
       { name: Driver.name, schema: DriverSchema },

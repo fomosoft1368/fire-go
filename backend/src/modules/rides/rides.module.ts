@@ -14,6 +14,7 @@ import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.sc
 import { DriverSearchConfigModule } from '../config/config.module'
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema'
 import { Wallet, WalletSchema } from '../wallets/schemas/wallet.schema'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { Wallet, WalletSchema } from '../wallets/schemas/wallet.schema'
       },
     }),
     CombinedTripsModule,
+    NotificationsModule,
   ],
   controllers: [RidesController],
   providers: [RidesService, AutoAssignService],

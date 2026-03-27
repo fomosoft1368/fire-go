@@ -10,12 +10,14 @@ import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignm
 import { Pricing } from '../schemas/pricing.schema';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
+import { PushNotificationService } from '../../notifications/push-notification.service';
 
 @Controller('rides')
 export class RidesController {
   constructor(
     private readonly ridesService: RidesService,
     private readonly autoAssignService: AutoAssignService,
+    private readonly pushService: PushNotificationService,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<Pricing>,
     @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
@@ -314,6 +316,21 @@ export class RidesController {
     try {
       const result = await this.ridesService.acceptRide(id, driverId);
       console.log('[RidesController] Ride accepted successfully:', result._id);
+
+      // 📣 Push notification to customer
+      const customerId = result.customerId?.toString();
+      const driver = await this.driverModel.findById(driverId).select('firstName lastName').lean() as any;
+      const driverName = driver ? `${driver.firstName} ${driver.lastName}` : 'Tài xế';
+      console.log(`\n🚗 [Push] Ride ACCEPTED — customerId: ${customerId}, driver: ${driverName}`);
+      if (customerId) {
+        this.pushService.sendToCustomer(
+          customerId,
+          '🚗 Tài xế đã nhận chuyến!',
+          `${driverName} đang trên đường đến đón bạn`,
+          { type: 'RIDE_ACCEPTED', rideId: id },
+        ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+      }
+
       return result;
     } catch (error) {
       console.error('[RidesController] Error accepting ride:', error.message);
@@ -334,7 +351,21 @@ export class RidesController {
   @Patch(':id/start')
   @UseGuards(JwtAuthGuard)
   async startRide(@Param('id') id: string) {
-    return this.ridesService.startRide(id);
+    const result = await this.ridesService.startRide(id);
+
+    // 📣 Push notification to customer
+    const customerId = result.customerId?.toString();
+    console.log(`\n🚀 [Push] Ride STARTED — customerId: ${customerId}`);
+    if (customerId) {
+      this.pushService.sendToCustomer(
+        customerId,
+        '🚀 Chuyến đi bắt đầu!',
+        'Tài xế đang đưa bạn đến điểm đến. Chúc bạn có chuyến đi vui!',
+        { type: 'RIDE_STARTED', rideId: id },
+      ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+    }
+
+    return result;
   }
 
   @Patch(':id/complete')
@@ -364,15 +395,30 @@ export class RidesController {
 
       if (driver) {
         walletBalance = driver.walletBalance;
-        // Show warning if balance < 200,000đ
         walletWarning = driver.walletBalance < 200000;
 
-        console.log(`[RidesController] 💰 Driver wallet after completion:`, {
-          driverId: driverId.toString(),
-          newBalance: walletBalance,
-          warningNeeded: walletWarning,
-        });
+        // 📣 Push to driver: earnings notification
+        const fare = (ride as any).fare || totalFare || 0;
+        console.log(`\n💰 [Push] Ride COMPLETED — driverId: ${driverId}, fare: ${fare}`);
+        this.pushService.sendToDriver(
+          driverId.toString(),
+          '✅ Hoàn thành chuyến đi!',
+          `Thu nhập +${fare.toLocaleString('vi-VN')}đ đã được ghi nhận vào ví`,
+          { type: 'RIDE_COMPLETED', rideId: id },
+        ).catch((e: any) => console.error('[Push] sendToDriver failed:', e.message));
       }
+    }
+
+    // 📣 Push to customer: trip completed
+    const customerId = ride.customerId?.toString();
+    console.log(`🎉 [Push] Ride COMPLETED — customerId: ${customerId}`);
+    if (customerId) {
+      this.pushService.sendToCustomer(
+        customerId,
+        '🎉 Chuyến đi hoàn thành!',
+        'Cảm ơn bạn đã sử dụng dịch vụ. Hãy đánh giá tài xế nhé!',
+        { type: 'RIDE_COMPLETED', rideId: id },
+      ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
     }
 
     return {
@@ -392,7 +438,29 @@ export class RidesController {
     @Body('cancellationBy') cancellationBy: 'driver' | 'customer',
     @Body('reason') reason?: string,
   ) {
-    return this.ridesService.cancelRide(id, cancellationBy, reason);
+    const result = await this.ridesService.cancelRide(id, cancellationBy, reason);
+
+    // ✅ Push notification to the OTHER party
+    const customerId = result.customerId?.toString();
+    const driverId = result.driverId?.toString();
+
+    if (cancellationBy === 'driver' && customerId) {
+      this.pushService.sendToCustomer(
+        customerId,
+        '❌ Chuyến bị hủy',
+        'Tài xế đã hủy chuyến. Chúng tôi đang tìm tài xế khác cho bạn...',
+        { type: 'RIDE_CANCELLED_BY_DRIVER', rideId: id },
+      ).catch(() => {});
+    } else if (cancellationBy === 'customer' && driverId) {
+      this.pushService.sendToDriver(
+        driverId,
+        '❌ Khách hủy chuyến',
+        'Khách hàng đã hủy chuyến này.',
+        { type: 'RIDE_CANCELLED_BY_CUSTOMER', rideId: id },
+      ).catch(() => {});
+    }
+
+    return result;
   }
 
   @Patch(':rideId/rate')

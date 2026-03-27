@@ -123,6 +123,10 @@ export class User {
 
   @Prop()
   lastActivityAt?: Date;
+
+  // Push notification
+  @Prop()
+  expoPushToken?: string; // Expo Push Token for push notifications
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

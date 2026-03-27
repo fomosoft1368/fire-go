@@ -7,10 +7,13 @@ import { useFocusEffect } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Provider, useSelector, useDispatch } from 'react-redux'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as Notifications from 'expo-notifications'
+import * as Device from 'expo-device'
+import Constants from 'expo-constants'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
 import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen, TopupScreen, WithdrawScreen, HourlyService, FindingServiceScreen, ServiceDetailScreen, ServiceRatingScreen, IncomingCallScreen, ActiveCallScreen  } from './screens'
-import { View, Text, ActivityIndicator } from 'react-native'
+import { View, Text, ActivityIndicator, Platform } from 'react-native'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
@@ -18,6 +21,77 @@ import type { RootStackParamList } from './types'
 import { notificationService } from './services/notificationService'
 import { API_BASE_URL } from './constants'
 import RideTracking from './screens/RideTracking'
+
+// Detect Expo Go — executionEnvironment is reliable in SDK 54+ (appOwnership is deprecated)
+const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient' ||
+  Constants.appOwnership === 'expo'
+
+// Configure foreground notification display (skip in Expo Go)
+if (!IS_EXPO_GO) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    })
+  } catch {
+    // ignore if not supported
+  }
+}
+
+// Register Expo push token and save to backend
+async function registerPushToken(authToken: string): Promise<void> {
+  // Push notifications not supported in Expo Go since SDK 53
+  if (IS_EXPO_GO) {
+    console.log('[Push] ⚠️ Expo Go detected — remote push not supported. Use a development build.')
+    return
+  }
+
+  // iOS simulator cannot get push tokens (Android emulators with Play Services can)
+  if (!Device.isDevice && Platform.OS === 'ios') return
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync()
+  let finalStatus = existingStatus
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync()
+    finalStatus = status
+  }
+  if (finalStatus !== 'granted') return
+
+  try {
+    const { data: expoPushToken } = await Notifications.getExpoPushTokenAsync()
+    console.log('[Push] 🔔 Customer push token:', expoPushToken)
+    await fetch(`${API_BASE_URL}/notifications/push-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ token: expoPushToken }),
+    })
+    console.log('[Push] ✅ Customer push token registered')
+  } catch (err: any) {
+    // Expo Go on Android (SDK 53+) removed remote push support — skip silently
+    if (err.message?.includes('Expo Go')) {
+      console.log('[Push] ⚠️ Remote push not supported in Expo Go. Use a development build.')
+    } else {
+      console.warn('[Push] Token registration error:', err.message)
+    }
+  }
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF6B00',
+    })
+  }
+}
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 const Tab = createBottomTabNavigator()
@@ -168,29 +242,55 @@ const RootNavigator = () => {
   const dispatch = useDispatch()
 
   useEffect(() => {
+    const performLogout = async (reason: string) => {
+      console.log('[App] 🚫 Auto-logout:', reason)
+      await AsyncStorage.multiRemove(['authToken', 'user'])
+      dispatch(restoreAuth(null))
+    }
+
+    const verifyAccountWithBackend = async (token: string): Promise<boolean> => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/verify-account`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (response.status === 401) {
+          await performLogout('Tài khoản không tồn tại hoặc đã bị xóa')
+          return false
+        }
+        if (response.status === 403) {
+          const data = await response.json().catch(() => ({}))
+          await performLogout(data.message || 'Tài khoản bị khóa')
+          return false
+        }
+        return response.ok
+      } catch {
+        // Network error — don't logout, just skip check
+        return true
+      }
+    }
+
     const restoreAuthFromStorage = async () => {
       try {
         const token = await AsyncStorage.getItem('authToken')
         const userStr = await AsyncStorage.getItem('user')
-        
+
         console.log('[App] Restoring auth...')
-        console.log('[App] Token exists:', !!token)
-        console.log('[App] User exists:', !!userStr)
 
         if (token && userStr) {
           try {
             const user = JSON.parse(userStr)
-            console.log('[App] Restored user:', { id: user.id, role: user.role, email: user.email })
+            // Restore first so UI shows quickly
             dispatch(restoreAuth({ token, user }))
+            // Then verify with backend (will auto-logout if invalid)
+            await verifyAccountWithBackend(token)
+            // Register push notification token
+            registerPushToken(token).catch(() => {})
           } catch (parseError) {
             console.error('[App] User JSON parse error:', parseError)
-            // Clear corrupted data
-            await AsyncStorage.removeItem('authToken')
-            await AsyncStorage.removeItem('user')
+            await AsyncStorage.multiRemove(['authToken', 'user'])
             dispatch(restoreAuth(null))
           }
         } else {
-          console.log('[App] No auth data in storage')
           dispatch(restoreAuth(null))
         }
       } catch (error) {
@@ -201,6 +301,46 @@ const RootNavigator = () => {
 
     restoreAuthFromStorage()
   }, [dispatch])
+
+  // ✅ Verify account every time app comes to foreground + every 60s
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const checkAccountValidity = async () => {
+      const token = await AsyncStorage.getItem('authToken')
+      if (!token) return
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/verify-account`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (response.status === 401 || response.status === 403) {
+          const data = await response.json().catch(() => ({}))
+          const reason = data.message || 'Tài khoản không hợp lệ'
+          console.log('[App] 🚫 Account invalid, logging out:', reason)
+          await AsyncStorage.multiRemove(['authToken', 'user'])
+          dispatch(restoreAuth(null))
+        }
+      } catch {
+        // Network error - skip
+      }
+    }
+
+    // Check every 60 seconds
+    const interval = setInterval(checkAccountValidity, 60000)
+
+    // Check when app comes to foreground
+    const { AppState } = require('react-native')
+    const subscription = AppState.addEventListener('change', (state: string) => {
+      if (state === 'active') {
+        checkAccountValidity()
+      }
+    })
+
+    return () => {
+      clearInterval(interval)
+      subscription.remove()
+    }
+  }, [isAuthenticated, dispatch])
 
   // ======================================================
   // 📞 Incoming Call Poller – check CALL_INCOMING every 5s

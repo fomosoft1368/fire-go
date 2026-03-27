@@ -127,6 +127,10 @@ export class Customer {
 
   @Prop({ default: false })
   isAccountLocked: boolean;
+
+  // Push notifications
+  @Prop()
+  expoPushToken?: string;
 }
 
 export const CustomerSchema = SchemaFactory.createForClass(Customer);

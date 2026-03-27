@@ -35,6 +35,19 @@ export class AuthController {
     return this.authService.getUserProfile(req.user.id);
   }
 
+  /**
+   * Real-time account validity check.
+   * Called by mobile apps on startup and periodically to detect:
+   * - Deleted accounts
+   * - Suspended/blocked accounts
+   * Returns 200 { valid: true } or throws 401/403.
+   */
+  @Get('verify-account')
+  @UseGuards(JwtAuthGuard)
+  async verifyAccount(@Request() req: any) {
+    return this.authService.verifyAccount(req.user.id, req.user.role);
+  }
+
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
   async changePassword(

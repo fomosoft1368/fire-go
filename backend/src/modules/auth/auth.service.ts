@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
 import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
+import { Customer, CustomerDocument } from '../customers/schemas/customer.schema';
 import { RegisterDto, LoginDto, AuthResponseDto } from './dto';
 import { jwtConfig } from '../../config/app.config';
 
@@ -13,6 +14,7 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
+    @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
     private jwtService: JwtService,
   ) {}
 
@@ -323,5 +325,50 @@ export class AuthService {
       status: user.status,
       avatar: user.avatar,
     };
+  }
+
+  /**
+   * Verify that an account is still valid (exists + not suspended/blocked).
+   * Called by mobile apps on startup and periodically via AppState.
+   */
+  async verifyAccount(userId: string, role: string): Promise<{ valid: boolean; role: string; status: string }> {
+    if (role === 'driver') {
+      const driver = await this.driverModel.findById(userId).select('isSuspended isBlacklisted status').lean() as any;
+      if (!driver) {
+        throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị xóa.');
+      }
+      if (driver.isSuspended) {
+        throw new ForbiddenException('Tài khoản tài xế của bạn đã bị đình chỉ. Vui lòng liên hệ quản trị viên.');
+      }
+      if (driver.isBlacklisted) {
+        throw new ForbiddenException('Tài khoản tài xế của bạn đã bị khóa vĩnh viễn. Vui lòng liên hệ quản trị viên.');
+      }
+      return { valid: true, role: 'driver', status: driver.status || 'active' };
+
+    } else if (role === 'customer') {
+      // ✅ Customers are in Customer collection (NOT User collection)
+      const customer = await this.customerModel.findById(userId).select('isBlacklisted isAccountLocked').lean() as any;
+      if (!customer) {
+        throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị xóa.');
+      }
+      if (customer.isBlacklisted) {
+        throw new ForbiddenException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.');
+      }
+      if (customer.isAccountLocked) {
+        throw new ForbiddenException('Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ quản trị viên.');
+      }
+      return { valid: true, role: 'customer', status: 'active' };
+
+    } else {
+      // Admin/staff — check User collection
+      const user = await this.userModel.findById(userId).select('isBlocked status role').lean();
+      if (!user) {
+        throw new UnauthorizedException('Tài khoản không tồn tại hoặc đã bị xóa.');
+      }
+      if (user.isBlocked) {
+        throw new ForbiddenException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.');
+      }
+      return { valid: true, role: user.role || role, status: user.status || 'active' };
+    }
   }
 }

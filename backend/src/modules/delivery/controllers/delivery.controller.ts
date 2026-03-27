@@ -21,12 +21,14 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { DeliveryStatus } from '../schemas/delivery.schema';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { Types } from 'mongoose';
+import { PushNotificationService } from '../../notifications/push-notification.service';
 
 @Controller('deliveries')
 export class DeliveryController {
   constructor(
     private readonly deliveryService: DeliveryService,
     private readonly deliveryAutoAssignService: DeliveryAutoAssignService,
+    private readonly pushService: PushNotificationService,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
   ) {}
 
@@ -59,7 +61,7 @@ export class DeliveryController {
         console.error('[DeliveryController] ❌ Auto-assign error:', error);
         console.error('[DeliveryController] Error stack:', error.stack);
       }
-    }, 1000); // Wait 1 second before auto-assign
+    }, 1000);
 
     console.log('[DeliveryController] Returning delivery to client (auto-assign scheduled)');
     return delivery;
@@ -111,8 +113,43 @@ export class DeliveryController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  update(@Param('id') id: string, @Body() updateDeliveryDto: UpdateDeliveryDto) {
-    return this.deliveryService.update(id, updateDeliveryDto);
+  async update(@Param('id') id: string, @Body() updateDeliveryDto: UpdateDeliveryDto) {
+    const delivery = await this.deliveryService.update(id, updateDeliveryDto);
+    const customerId = (delivery as any).customerId?.toString();
+    const driverId = (delivery as any).driverId?.toString();
+
+    if (updateDeliveryDto.status === DeliveryStatus.PICKING_UP) {
+      console.log(`\n📦 [Push] Delivery PICKING UP — customerId: ${customerId}`);
+      if (customerId) {
+        this.pushService.sendToCustomer(
+          customerId,
+          '📦 Tài xế đã lấy hàng!',
+          'Tài xế đang trên đường giao hàng đến bạn',
+          { type: 'DELIVERY_PICKED_UP', deliveryId: id },
+        ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+      }
+    } else if (updateDeliveryDto.status === DeliveryStatus.DELIVERED) {
+      console.log(`\n✅ [Push] Delivery DELIVERED — customerId: ${customerId}, driverId: ${driverId}`);
+      if (customerId) {
+        this.pushService.sendToCustomer(
+          customerId,
+          '✅ Giao hàng thành công!',
+          'Đơn hàng đã được giao thành công. Cảm ơn bạn đã sử dụng dịch vụ!',
+          { type: 'DELIVERY_COMPLETED', deliveryId: id },
+        ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+      }
+      if (driverId) {
+        const fare = (delivery as any).fare || 0;
+        this.pushService.sendToDriver(
+          driverId,
+          '💰 Hoàn thành giao hàng!',
+          `Thu nhập +${fare.toLocaleString('vi-VN')}đ đã được ghi nhận`,
+          { type: 'DELIVERY_COMPLETED', deliveryId: id },
+        ).catch((e: any) => console.error('[Push] sendToDriver failed:', e.message));
+      }
+    }
+
+    return delivery;
   }
 
   @Patch(':id/assign-driver')
@@ -129,8 +166,30 @@ export class DeliveryController {
 
   @Post(':id/cancel')
   @UseGuards(JwtAuthGuard)
-  cancel(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.deliveryService.cancel(id, reason);
+  async cancel(@Param('id') id: string, @Body('reason') reason: string) {
+    const delivery = await this.deliveryService.cancel(id, reason);
+    const customerId = (delivery as any).customerId?.toString();
+    const driverId = (delivery as any).driverId?.toString();
+
+    console.log(`\n❌ [Push] Delivery CANCELLED — customerId: ${customerId}`);
+    if (customerId) {
+      this.pushService.sendToCustomer(
+        customerId,
+        '❌ Đơn giao hàng bị hủy',
+        reason || 'Đơn hàng của bạn đã bị hủy',
+        { type: 'DELIVERY_CANCELLED', deliveryId: id },
+      ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+    }
+    if (driverId) {
+      this.pushService.sendToDriver(
+        driverId,
+        '❌ Đơn giao hàng bị hủy',
+        'Đơn hàng đã bị hủy bởi khách hàng',
+        { type: 'DELIVERY_CANCELLED', deliveryId: id },
+      ).catch((e: any) => console.error('[Push] sendToDriver failed:', e.message));
+    }
+
+    return delivery;
   }
 
   @Delete(':id')
@@ -141,10 +200,6 @@ export class DeliveryController {
 
   // ============= ASSIGNMENT REQUEST ENDPOINTS =============
 
-  /**
-   * Get pending assignment requests for driver
-   * Used by driver app to poll for new delivery requests
-   */
   @Get('assignment-requests/pending')
   @UseGuards(JwtAuthGuard)
   async getPendingAssignmentRequests(@Request() req) {
@@ -155,18 +210,28 @@ export class DeliveryController {
     return requests;
   }
 
-  /**
-   * Accept an assignment request
-   */
   @Post('assignment-requests/:requestId/accept')
   @UseGuards(JwtAuthGuard)
   async acceptAssignmentRequest(@Param('requestId') requestId: string, @Request() req) {
     const driverId = req.user.id || req.user.sub;
     const delivery = await this.deliveryAutoAssignService.acceptAssignmentRequest(requestId, driverId);
     
-    // Fetch driver's wallet info to include in response
-    const driver = await this.driverModel.findById(driverId);
-    const walletBalance = driver?.walletBalance || 0;
+    // Push to customer: driver accepted delivery
+    const customerId = (delivery as any).customerId?.toString();
+    const driver = await this.driverModel.findById(driverId).select('firstName lastName').lean() as any;
+    const driverName = driver ? `${driver.firstName} ${driver.lastName}` : 'Tài xế';
+    console.log(`\n🚚 [Push] Delivery ACCEPTED — customerId: ${customerId}, driver: ${driverName}`);
+    if (customerId) {
+      this.pushService.sendToCustomer(
+        customerId,
+        '🚚 Tài xế đã nhận đơn!',
+        `${driverName} đang trên đường đến lấy hàng`,
+        { type: 'DELIVERY_ACCEPTED', deliveryId: (delivery as any)._id?.toString() },
+      ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+    }
+
+    const driverFull = await this.driverModel.findById(driverId);
+    const walletBalance = driverFull?.walletBalance || 0;
     const walletWarning = walletBalance < 200000;
 
     return {
@@ -179,9 +244,6 @@ export class DeliveryController {
     };
   }
 
-  /**
-   * Reject an assignment request
-   */
   @Post('assignment-requests/:requestId/reject')
   @UseGuards(JwtAuthGuard)
   async rejectAssignmentRequest(

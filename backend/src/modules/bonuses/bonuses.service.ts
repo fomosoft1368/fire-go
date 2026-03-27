@@ -4,6 +4,9 @@ import { Model, Types } from 'mongoose';
 import { BonusRule, BonusRuleDocument, BonusPeriod } from './schemas/bonus-rule.schema';
 import { BonusClaim, BonusClaimDocument } from './schemas/bonus-claim.schema';
 import { Ride, RideDocument } from '../rides/schemas/ride.schema';
+import { CombinedTrip, CombinedTripDocument } from '../combined-trips/schemas/combined-trip.schema';
+import { Delivery } from '../delivery/schemas/delivery.schema';
+import { Document } from 'mongoose';
 import { WalletsService } from '../wallets/wallets.service';
 import { TransactionType, UserType } from '../wallets/schemas/transaction.schema';
 
@@ -13,6 +16,8 @@ export class BonusesService {
     @InjectModel(BonusRule.name) private bonusRuleModel: Model<BonusRuleDocument>,
     @InjectModel(BonusClaim.name) private bonusClaimModel: Model<BonusClaimDocument>,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
+    @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTripDocument>,
+    @InjectModel(Delivery.name) private deliveryModel: Model<Delivery & Document>,
     private readonly walletsService: WalletsService,
   ) {}
 
@@ -89,11 +94,39 @@ export class BonusesService {
   }
 
   private async getCompletedTripsCount(driverId: string, start: Date, end: Date): Promise<number> {
-    return this.rideModel.countDocuments({
-      driverId: new Types.ObjectId(driverId),
-      status: 'completed',
-      completedAt: { $gte: start, $lte: end },
+    const driverObjId = new Types.ObjectId(driverId);
+
+    // Count from all 3 trip types in parallel
+    const [rideCount, combinedTripCount, deliveryCount] = await Promise.all([
+      // 1. Lái xe hộ (Rides)
+      this.rideModel.countDocuments({
+        driverId: driverObjId,
+        status: 'completed',
+        completedAt: { $gte: start, $lte: end },
+      }),
+      // 2. Ghép xe (Combined Trips)
+      this.combinedTripModel.countDocuments({
+        driverId: driverObjId,
+        status: 'completed',
+        completedAt: { $gte: start, $lte: end },
+      }),
+      // 3. Giao hàng (Deliveries) - dùng updatedAt vì deliveredTime không phải lúc nào cũng set
+      this.deliveryModel.countDocuments({
+        driverId: driverObjId,
+        status: 'delivered',
+        updatedAt: { $gte: start, $lte: end },
+      }),
+    ]);
+
+    const total = rideCount + combinedTripCount + deliveryCount;
+    console.log(`[BonusesService] Trip count for driver ${driverId} [${start.toLocaleDateString()} - ${end.toLocaleDateString()}]:`, {
+      rides: rideCount,
+      combinedTrips: combinedTripCount,
+      deliveries: deliveryCount,
+      total,
     });
+
+    return total;
   }
 
   // ==================== DRIVER: Progress ====================

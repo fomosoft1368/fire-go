@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { StyleSheet, ActivityIndicator, View, Alert, AppState } from 'react-native'
+import { StyleSheet, ActivityIndicator, View, Alert, AppState, Platform } from 'react-native'
 import { Audio } from 'expo-av'
+import * as Notifications from 'expo-notifications'
+import * as Device from 'expo-device'
+import Constants from 'expo-constants'
 import 'react-native-gesture-handler'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
@@ -59,6 +62,93 @@ import BonusScreen from './src/screens/BonusScreen'
 //
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
+
+// Detect Expo Go — push notifications not supported in Expo Go since SDK 53
+// Use executionEnvironment which is reliable in SDK 54+ (appOwnership is deprecated)
+const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient' ||
+  Constants.appOwnership === 'expo'
+
+// Configure foreground notification display (skip in Expo Go)
+if (!IS_EXPO_GO) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    })
+  } catch {
+    // ignore if not supported
+  }
+}
+
+/**
+ * Register for Expo Push Notifications and send token to backend
+ */
+async function registerPushToken(authToken) {
+  // Push notifications not supported in Expo Go since SDK 53
+  if (IS_EXPO_GO) {
+    console.log('[Push] ⚠️ Expo Go detected — remote push not supported. Use a development build.')
+    return
+  }
+
+  // iOS simulator cannot get push tokens
+  if (!Device.isDevice && Platform.OS === 'ios') {
+    console.log('[Push] Skipping push registration on iOS simulator')
+    return
+  }
+  // Android emulators (with Google Play Services) CAN receive push notifications
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync()
+  let finalStatus = existingStatus
+
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync()
+    finalStatus = status
+  }
+
+  if (finalStatus !== 'granted') {
+    console.log('[Push] Notification permission denied')
+    return
+  }
+
+  try {
+    const tokenData = await Notifications.getExpoPushTokenAsync()
+    const expoPushToken = tokenData.data
+    console.log('[Push] 🔔 Expo push token:', expoPushToken)
+
+    // Register token with backend
+    await fetch(`${API_BASE_URL}/notifications/push-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ token: expoPushToken }),
+    })
+    console.log('[Push] ✅ Push token registered with backend')
+  } catch (error) {
+    // Expo Go on Android (SDK 53+) doesn't support remote push — skip silently
+    if (error.message?.includes('Expo Go')) {
+      console.log('[Push] ⚠️ Remote push not supported in Expo Go. Use a development build.')
+    } else {
+      console.warn('[Push] ❌ Failed to register push token:', error.message)
+    }
+  }
+
+  // Android requires notification channel
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF6B00',
+    })
+  }
+}
 
 const HomeTabStackNavigator = () => {
   return (
@@ -291,6 +381,11 @@ const HomeStackNavigator = () => {
         component={ActiveCallScreen}
         options={{ animationEnabled: true, gestureEnabled: false }}
       />
+      <Stack.Screen
+        name='DriverBonus'
+        component={BonusScreen}
+        options={{ animationEnabled: true }}
+      />
     </Stack.Navigator>
   )
 }
@@ -306,24 +401,38 @@ const RootNavigator = () => {
       try {
         console.log('[App] ===== CHECKING AUTH ON APP START =====')
         const token = await AsyncStorage.getItem('token')
-        console.log('[App] Token exists:', !!token)
-        console.log('[App] Token value:', token ? `${token.substring(0, 30)}...` : 'null')
 
         if (token) {
-          // Get user profile using token
+          // ✅ STEP 1: Verify account is still valid (not deleted/suspended)
+          try {
+            const verifyRes = await fetch(`${API_BASE_URL}/auth/verify-account`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (verifyRes.status === 401 || verifyRes.status === 403) {
+              const data = await verifyRes.json().catch(() => ({}))
+              console.log('[App] 🚫 Account invalid on startup:', data.message)
+              await AsyncStorage.removeItem('token')
+              setIsLoading(false)
+              return // Force login screen
+            }
+          } catch {
+            // Network error — continue restoring session anyway
+          }
+
+          // STEP 2: Get user profile using token
           const authService = require('./src/services/authService')
           try {
             console.log('[App] Fetching user profile with token...')
             const user = await authService.getCurrentUser()
-            console.log('[App] User restored successfully:', user ? `${user.email || user.phone}` : 'null')
 
             if (user) {
-              // Restore auth state
-              console.log('[App] Dispatching loginSuccess to restore session')
               dispatch(loginSuccess({ token, user }))
 
-              // Wait a bit for Redux to update, then set driver online
-              // Use setTimeout to ensure token is available in interceptor
+              // ✅ Register push notification token with backend
+              registerPushToken(token).catch(err =>
+                console.warn('[Push] Token registration failed:', err.message)
+              )
+
               setTimeout(async () => {
                 console.log('[App] Setting driver online status on app start...')
                 try {
@@ -331,9 +440,6 @@ const RootNavigator = () => {
                   console.log('[App] ✅ Driver is now online')
                 } catch (error) {
                   console.error('[App] ❌ Failed to set online status:', error)
-                  if (error.response) {
-                    console.error('[App] Error response:', error.response.status, error.response.data)
-                  }
                 }
               }, 500)
             }
@@ -383,7 +489,22 @@ const RootNavigator = () => {
       }
 
       if (nextAppState === 'active') {
-        // App came to foreground - set driver online
+        // App came to foreground — verify account validity first
+        try {
+          const verifyRes = await fetch(`${API_BASE_URL}/auth/verify-account`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (verifyRes.status === 401 || verifyRes.status === 403) {
+            const data = await verifyRes.json().catch(() => ({}))
+            console.log('[App] 🚫 Account invalid on foreground:', data.message)
+            await AsyncStorage.removeItem('token')
+            dispatch(restoreAuth(null))
+            return
+          }
+        } catch {
+          // Network error — skip
+        }
+        // Set driver online
         console.log('[App] App is now active, setting driver online...')
         try {
           await driverService.setOnlineStatus(true)
@@ -404,27 +525,40 @@ const RootNavigator = () => {
     })
 
     // Send heartbeat every 15 seconds to keep driver online
-    // This ensures we always have a heartbeat within the 2-minute timeout
     const heartbeatInterval = setInterval(async () => {
       try {
-        // Check if token still exists before heartbeat
-        const token = await AsyncStorage.getItem('token')
-        if (!token) {
-          console.log('[App] ⚠️ Token not found, skipping heartbeat')
-          return
-        }
-
+        const tok = await AsyncStorage.getItem('token')
+        if (!tok) return
         await driverService.sendHeartbeat()
-        console.log('[App] 💓 Heartbeat sent')
       } catch (error) {
         console.error('[App] ❌ Heartbeat failed:', error.message)
       }
-    }, 15 * 1000) // Every 15 seconds
+    }, 15 * 1000)
+
+    // ✅ NEW: Verify account validity every 60 seconds
+    const accountCheckInterval = setInterval(async () => {
+      const tok = await AsyncStorage.getItem('token')
+      if (!tok) return
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/verify-account`, {
+          headers: { Authorization: `Bearer ${tok}` },
+        })
+        if (res.status === 401 || res.status === 403) {
+          const data = await res.json().catch(() => ({}))
+          console.log('[App] 🚫 Periodic check - account invalid:', data.message)
+          await AsyncStorage.removeItem('token')
+          dispatch(restoreAuth(null))
+        }
+      } catch {
+        // Network error — skip
+      }
+    }, 60000)
 
     // Cleanup: Set offline when component unmounts (app closes)
     return () => {
       subscription.remove()
       clearInterval(heartbeatInterval)
+      clearInterval(accountCheckInterval)
 
       // Important: Set driver offline when app is closed/killed
       // But only if token still exists (user might have logged out)
@@ -797,8 +931,12 @@ export default function App() {
 
           // ✅ For combined trips, fetch full data to get distance, duration
           if (request.combinedTripId && request.type === 'rideshare') {
-            console.log('[App] 📡 Fetching full combined trip data...')
-            fetchFullRequestData(request.combinedTripId, request._id, 'combined_trip')
+            // ✅ FIX: Extract string ID from combinedTripId (may be ObjectId object or populated object)
+            const combinedTripIdStr = typeof request.combinedTripId === 'object'
+              ? (request.combinedTripId._id?.toString() || request.combinedTripId.toString())
+              : request.combinedTripId
+            console.log('[App] 📡 Fetching full combined trip data, id:', combinedTripIdStr, '(raw type:', typeof request.combinedTripId, ')')
+            fetchFullRequestData(combinedTripIdStr, request._id, 'combined_trip')
           } else if (request.type === 'ride') {
             // ✅ For regular rides, only fetch if rideId is just an ID string
             if (request.rideId && typeof request.rideId === 'string') {
@@ -841,6 +979,16 @@ export default function App() {
     // Helper to fetch full request data with trip details
     const fetchFullRequestData = async (dataId, requestId, dataType = 'combined_trip') => {
       try {
+        // ✅ Safety: always convert dataId to string (guard against ObjectId objects)
+        const safeDataId = dataId && typeof dataId === 'object'
+          ? (dataId._id?.toString() || dataId.toString())
+          : String(dataId || '')
+
+        if (!safeDataId || safeDataId === 'undefined' || safeDataId === '[object Object]') {
+          console.error('[App] ❌ Invalid dataId for fetchFullRequestData:', dataId)
+          return
+        }
+
         const token = await AsyncStorage.getItem('token')
         if (!token) {
           console.error('[App] ❌ No token available for fetch')
@@ -849,8 +997,8 @@ export default function App() {
 
         let endpoint = ''
         if (dataType === 'combined_trip') {
-          endpoint = `${API_BASE_URL}/combined-trips/${dataId}`
-          console.log('[App] 📡 Fetching full combined trip data for:', dataId)
+          endpoint = `${API_BASE_URL}/combined-trips/${safeDataId}`
+          console.log('[App] 📡 Fetching full combined trip data for:', safeDataId)
         } else if (dataType === 'ride') {
           endpoint = `${API_BASE_URL}/rides/${dataId}`
           console.log('[App] 📡 Fetching full ride data for:', dataId)

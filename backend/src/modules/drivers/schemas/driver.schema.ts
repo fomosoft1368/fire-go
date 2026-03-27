@@ -326,6 +326,20 @@ export class Driver {
     default: DocumentStatus.NOT_SUBMITTED,
   })
   verificationStatus?: DocumentStatus;
+
+  // Push notification
+  @Prop()
+  expoPushToken?: string; // Expo Push Token for push notifications
+
+  // Notification preferences  
+  @Prop({ default: true })
+  allowNotifications: boolean;
+
+  @Prop({ default: true })
+  allowSMS: boolean;
+
+  @Prop({ default: true })
+  allowEmail: boolean;
 }
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);

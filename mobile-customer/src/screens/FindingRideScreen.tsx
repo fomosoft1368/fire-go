@@ -879,10 +879,12 @@ export default function FindingRideScreen({ navigation }: any) {
 
   const handleSelectRide = (trip: any) => {
     // Navigate to ride detail screen to request joining
-    console.log('[FindingRideScreen] Selecting combined trip with customer coordinates:', {
-      combinedTripId: trip._id,
+    const tripId = trip._id?.toString() || trip.id?.toString() || trip._id
+    console.log('[FindingRideScreen] Selecting combined trip:', {
+      combinedTripId: tripId,
+      combinedTripId_raw: trip._id,
       pickupCoordinates: [startLng, startLat],
-      dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
+      dropoffCoordinates: [endLng, endLat],
       hasInterProvincialRoute: !!interProvincialRoute,
     })
     
@@ -896,14 +898,14 @@ export default function FindingRideScreen({ navigation }: any) {
     }
     
     navigation.navigate('RideDetailRequest', {
-      combinedTripId: trip._id,
+      combinedTripId: tripId,  // ✅ Always string
       ride: trip,
       pickupCoordinates: [startLng, startLat],
-      dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
+      dropoffCoordinates: [endLng, endLat],
       pickupAddress: pickupAddress,
       dropoffAddress: dropoffAddress,
       tripType: 'combined_trip',
-      interProvincialRoute: interProvincialRoute, // 🔥 Pass fixed-price route info
+      interProvincialRoute: interProvincialRoute,
     })
   }
 

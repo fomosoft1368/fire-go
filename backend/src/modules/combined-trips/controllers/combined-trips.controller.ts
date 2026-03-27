@@ -21,6 +21,7 @@ import { Driver } from '../../drivers/schemas/driver.schema';
 import { DriversService } from '../../drivers/drivers.service';
 import { Types } from 'mongoose';
 import { PricingConfig } from '../../pricing/pricing-config.schema';
+import { PushNotificationService } from '../../notifications/push-notification.service';
 
 @Controller('combined-trips')
 export class CombinedTripsController {
@@ -32,6 +33,7 @@ export class CombinedTripsController {
     @InjectModel(Driver.name) private driverModel: Model<Driver>,
     @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
     private readonly driversService: DriversService,
+    private readonly pushService: PushNotificationService,
   ) {}
 
   /**
@@ -228,11 +230,18 @@ export class CombinedTripsController {
       console.log('✅ [CancelTrip] Trip cancelled successfully:', {
         tripId,
         newStatus: updatedTrip?.status,
-        cancelledAt: updatedTrip?.cancelledAt,
-        cancellationBy: updatedTrip?.cancellationBy,
       });
 
-      
+      // ✅ Push notification to driver
+      const driverId = (updatedTrip as any)?.driverId?.toString();
+      if (driverId) {
+        this.pushService.sendToDriver(
+          driverId,
+          '❌ Khách hủy chuyến',
+          'Khách hàng đã hủy chuyến ghép xe.',
+          { type: 'COMBINED_TRIP_CANCELLED', tripId },
+        ).catch(() => {});
+      }
 
       return {
         success: true,
@@ -311,13 +320,28 @@ export class CombinedTripsController {
           walletBalance = driver.walletBalance || 0;
           walletWarning = driver.walletBalance < 200000;
 
-          console.log(`[CombinedTripsController] 💰 Driver wallet after completion:`, {
-            driverId: driverId.toString(),
-            newBalance: walletBalance,
-            warningNeeded: walletWarning,
-          });
+          // ✅ Push to driver: earnings notification
+          const fare = totalFare || (trip as any).totalFare || 0;
+          this.pushService.sendToDriver(
+            driverId.toString(),
+            '✅ Hoàn thành chuyến ghép xe!',
+            `Thu nhập +${fare.toLocaleString('vi-VN')}đ đã được ghi nhận vào ví`,
+            { type: 'COMBINED_TRIP_COMPLETED', tripId: combinedTripId },
+          ).catch(() => {});
         }
       }
+
+      // ✅ Push to all customers in the trip
+      const customerIds: string[] = ((trip as any).customerId || []).map((id: any) => id.toString());
+      for (const cid of customerIds) {
+        this.pushService.sendToCustomer(
+          cid,
+          '🎉 Chuyến đi hoàn thành!',
+          'Cảm ơn bạn đã sử dụng dịch vụ ghép xe. Hãy đánh giá tài xế nhé!',
+          { type: 'COMBINED_TRIP_COMPLETED', tripId: combinedTripId },
+        ).catch(() => {});
+      }
+
 
       return {
         ...trip.toObject ? trip.toObject() : trip,
@@ -1322,6 +1346,21 @@ export class CombinedTripsController {
         }
       }
 
+      // 📣 Push to customer: driver accepted combined-trip request
+      const cCustomerId = request.customerId?.toString();
+      const cDriverId = (request.driverId || (trip as any)?.driverId)?.toString();
+      const cDriverDoc = cDriverId ? await this.driverModel.findById(cDriverId).select('firstName lastName').lean() as any : null;
+      const cDriverName = cDriverDoc ? `${cDriverDoc.firstName} ${cDriverDoc.lastName}` : 'Tài xế';
+      console.log(`\n🚐 [Push] Combined-trip ACCEPTED — customerId: ${cCustomerId}, driver: ${cDriverName}`);
+      if (cCustomerId) {
+        this.pushService.sendToCustomer(
+          cCustomerId,
+          '🚐 Tài xế đã nhận chuyến ghép!',
+          `${cDriverName} đang trên đường đến đón bạn`,
+          { type: 'COMBINED_TRIP_ACCEPTED', combinedTripId, requestId },
+        ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+      }
+
       return { status: request.status };
     } catch (error: any) {
       console.error('[CombinedTripsController] Error:', error);
@@ -1514,9 +1553,19 @@ export class CombinedTripsController {
 
       // ✅ Recalculate fares for remaining passengers
       await this.combinedTripsService.recalculateFaresForCombinedTrip(combinedTripId);
-  
 
-      // TODO: Send socket notification to driver about cancellation
+      // 📣 Push to driver: customer cancelled
+      const tripForPush = await this.combinedTripsService.getCombinedTripsModel().findById(combinedTripId);
+      const cancelledDriverId = (tripForPush as any)?.driverId?.toString();
+      console.log(`\n❌ [Push] Customer CANCELLED combined-trip request — driverId: ${cancelledDriverId}`);
+      if (cancelledDriverId) {
+        this.pushService.sendToDriver(
+          cancelledDriverId,
+          '❌ Khách hàng đã hủy chuyến',
+          'Một hành khách đã hủy chuyến ghép',
+          { type: 'COMBINED_TRIP_CUSTOMER_CANCELLED', combinedTripId, requestId },
+        ).catch((e: any) => console.error('[Push] sendToDriver failed:', e.message));
+      }
 
       return {
         success: true,
@@ -1778,6 +1827,12 @@ export class CombinedTripsController {
   ) {
     try {
       console.log('[CombinedTripsController] ✅ GET /combined-trips/:id called, Trip ID:', combinedTripId);
+      
+      // ✅ Validate ID trước khi dùng — tránh BSONError khi app gửi object thay vì string
+      if (!combinedTripId || !Types.ObjectId.isValid(combinedTripId)) {
+        console.error('[CombinedTripsController] ❌ Invalid combinedTripId received:', combinedTripId, typeof combinedTripId);
+        throw new BadRequestException(`Invalid trip ID: ${JSON.stringify(combinedTripId)}`);
+      }
       
       const trip = await this.combinedTripsService.getCombinedTripDetail(combinedTripId);
 

@@ -21,6 +21,7 @@ import { AddonServicesModule } from './modules/addon-services/addon-services.mod
 import { DriverSearchConfigModule } from './modules/config/config.module';
 import { LegalDocsModule } from './modules/config/legal-docs.module';
 import { CallModule } from './modules/call/call.module';
+import { BonusesModule } from './modules/bonuses/bonuses.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CallModule } from './modules/call/call.module';
     AddonServicesModule,
     DriverSearchConfigModule,
     LegalDocsModule,
+    BonusesModule,
     CallModule,
   ],
   controllers: [],

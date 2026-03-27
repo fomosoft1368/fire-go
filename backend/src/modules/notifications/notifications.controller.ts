@@ -1,11 +1,46 @@
 import { Controller, Get, Post, Delete, Patch, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { PushNotificationService } from './push-notification.service';
 import { CreateNotificationDto, SendNotificationDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly pushNotificationService: PushNotificationService,
+  ) {}
+
+  /**
+   * Register Expo push token for the authenticated user (driver or customer)
+   * Called by mobile apps after login
+   */
+  @Post('push-token')
+  @UseGuards(JwtAuthGuard)
+  async registerPushToken(
+    @Request() req: any,
+    @Body('token') token: string,
+  ): Promise<{ success: boolean }> {
+    const { id, role, email } = req.user;
+    console.log(`\n🔔 ===== PUSH TOKEN REGISTRATION =====`);
+    console.log(`👤 User: ${email} (${role}) | ID: ${id}`);
+    console.log(`🔑 Token: ${token ? token.substring(0, 40) + '...' : '(empty)'}`);
+
+    if (!token) {
+      console.log('❌ Token is empty, skipping.');
+      return { success: false };
+    }
+
+    if (role === 'driver') {
+      await this.pushNotificationService.saveDriverPushToken(id, token);
+      console.log(`✅ Driver token saved successfully.`);
+    } else {
+      await this.pushNotificationService.saveCustomerPushToken(id, token);
+      console.log(`✅ Customer token saved successfully.`);
+    }
+    console.log(`=====================================\n`);
+    return { success: true };
+  }
 
   @Post('send')
   async send(@Body() sendNotificationDto: SendNotificationDto) {
