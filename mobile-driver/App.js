@@ -282,11 +282,6 @@ const HomeStackNavigator = () => {
         options={{ animationEnabled: true }}
       />
       <Stack.Screen
-<<<<<<< Updated upstream
-        name="DriverBonus"
-        component={BonusScreen}
-        options={{ animationEnabled: true }}
-=======
         name="IncomingCall"
         component={IncomingCallScreen}
         options={{ animationEnabled: true, gestureEnabled: false }}
@@ -295,7 +290,6 @@ const HomeStackNavigator = () => {
         name="ActiveCall"
         component={ActiveCallScreen}
         options={{ animationEnabled: true, gestureEnabled: false }}
->>>>>>> Stashed changes
       />
     </Stack.Navigator>
   )
@@ -490,7 +484,7 @@ const RootNavigator = () => {
               method: 'PATCH',
               headers: { Authorization: `Bearer ${token}` },
             })
-          } catch (_) {}
+          } catch (_) { }
 
           console.log('[App] 📞 CALL_INCOMING detected, callId:', callId)
 
@@ -522,125 +516,11 @@ const RootNavigator = () => {
     }
   }, [isAuthenticated])
 
-  // Global polling for pending requests (runs on all screens)
-  useEffect(() => {
-    if (!isAuthenticated) return
-
-    console.log('[App] 📬 Starting global pending requests polling...')
-    let isMounted = true
-
-    const pollPendingRequests = async () => {
-      console.log('🔥 POLLING START - Code version: 3.0 (combined + regular rides)')
-      console.log('👤 User from Redux:', user?.id || 'NULL')
-
-      try {
-        const token = await AsyncStorage.getItem('token')
-        if (!token) {
-          console.warn('[App] ⚠️ No auth token, skipping poll')
-          return
-        }
-
-        // ============================================================
-        // 1️⃣ POLL FOR REGULAR RIDE ASSIGNMENT REQUESTS (lái xe hộ)
-        // ============================================================
-        try {
-          console.log('[App] 🔄 Polling regular rides assignment requests...')
-          const rideResponse = await fetch(`${API_BASE_URL}/rides/assignment-requests/pending`, {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          })
-
-          if (rideResponse.ok) {
-            const rideRequests = await rideResponse.json()
-            console.log('[App] 📦 Regular ride requests found:', rideRequests.length)
-
-            if (rideRequests && rideRequests.length > 0) {
-              const firstRequest = rideRequests[0]
-              console.log('[App] 📬 Found regular ride request:', firstRequest._id)
-
-              if (window && window.__firegoAssignmentCallback) {
-                console.log('[App] 🔥 Full rideId object:', firstRequest.rideId)
-                window.__firegoAssignmentCallback({
-                  ...firstRequest,
-                  type: 'ride', // ✅ Mark as regular ride
-                  rideId: firstRequest.rideId, // ✅ Pass full populated object (not just ID)
-                })
-              }
-            }
-          } else {
-            console.warn('[App] ⚠️ Failed to fetch ride requests:', rideResponse.status)
-          }
-        } catch (error) {
-          console.error('[App] ❌ Error polling regular rides:', error)
-        }
-
-        // ⛔ REMOVED: Combined-trips polling is handled exclusively by
-        // assignmentRequestPollingService (polls /combined-trips/driver/:driverId/pending-requests
-        // with expiresAt >= now filter). Polling here via /:tripId/requests had no expiry
-        // filter, causing the "45s + 27s duplicate modal" bug.
-
-        // ============================================================
-        // 3️⃣ POLL FOR DELIVERY ASSIGNMENT REQUESTS (giao hàng)
-        // ============================================================
-        try {
-          console.log('[App] 🔄 Polling delivery assignment requests...')
-          const deliveryResponse = await fetch(`${API_BASE_URL}/deliveries/assignment-requests/pending`, {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          })
-
-          if (deliveryResponse.ok) {
-            const deliveryRequests = await deliveryResponse.json()
-            console.log('[App] 📦 Delivery requests found:', deliveryRequests.length)
-
-            if (deliveryRequests && deliveryRequests.length > 0) {
-              const firstRequest = deliveryRequests[0]
-              console.log('[App] 📬 ========== NEW DELIVERY REQUEST ==========')
-              console.log('[App] 📬 Request ID:', firstRequest._id)
-              console.log('[App] 📬 Delivery ID:', firstRequest.deliveryId?._id)
-              console.log('[App] 📬 Attempt #:', firstRequest.attemptNumber || 1)
-              console.log('[App] 📬 Score:', firstRequest.score)
-              console.log('[App] 🔥 Full delivery data:', {
-                distance: firstRequest.deliveryId?.distance,
-                duration: firstRequest.deliveryId?.duration,
-                estimatedPrice: firstRequest.deliveryId?.estimatedPrice,
-                pickupAddress: firstRequest.deliveryId?.pickupAddress,
-                dropoffAddress: firstRequest.deliveryId?.dropoffAddress,
-              })
-              console.log('[App] 📬 ========== END DELIVERY REQUEST ==========')
-
-              if (window && window.__firegoAssignmentCallback) {
-                window.__firegoAssignmentCallback({
-                  ...firstRequest,
-                  type: 'delivery', // ✅ Mark as delivery
-                  deliveryId: firstRequest.deliveryId, // ✅ Pass full populated object
-                })
-              }
-            }
-          } else {
-            console.warn('[App] ⚠️ Failed to fetch delivery requests:', deliveryResponse.status)
-          }
-        } catch (error) {
-          console.error('[App] ❌ Error polling delivery requests:', error)
-        }
-      } catch (error) {
-        console.error('[App] ❌ Error in global polling:', error)
-      }
-    }
-
-    // Poll every 5 seconds
-    const interval = setInterval(pollPendingRequests, 5000)
-    pollPendingRequests() // Initial poll
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
-  }, [isAuthenticated, user?.id])
+  // ⛔ REMOVED: Duplicate polling (5s interval) for rides + deliveries.
+  // assignmentRequestPollingService already polls /rides/assignment-requests/pending,
+  // /deliveries/assignment-requests/pending, and /combined-trips/driver/:id/pending-requests
+  // every 1 second — having a second 5s-interval poller caused race conditions with
+  // pausePolling/debounce logic, making the driver wait up to 60s for a request to appear.
 
   if (isLoading) {
     return (
@@ -727,6 +607,7 @@ export default function App() {
   // ✅ Setup assignment request polling with store subscription
   useEffect(() => {
     let unsubscribe
+    let pollingStarted = false
 
     const startPolling = () => {
       const state = store.getState()
@@ -735,16 +616,21 @@ export default function App() {
 
       if (!driverId) {
         console.log('[App] ⏭️ Skip polling - no driverId yet')
-        return
+        return false
       }
+
+      if (pollingStarted) {
+        console.log('[App] ⏭️ Polling already started, skipping')
+        return true
+      }
+      pollingStarted = true
 
       console.log('[App] 🚀 Starting assignment request polling with driverId:', driverId)
 
-      // ✅ CRITICAL: Actually START the polling service for combined trips (rideshare)
-      // This polls /combined-trips/driver/:driverId/pending-requests every 1s
-      // with expiresAt >= now filter — the CORRECT way to poll for ghép xe requests.
+      // ✅ CRITICAL: START the polling service (rides + deliveries + combined trips)
+      // Polls all 3 endpoints every 1s — this is the SINGLE source of truth for requests.
       assignmentRequestPollingService.startPolling((request) => {
-        console.log('[App] 📬 [PollingService] Combined trip request received:', request._id)
+        console.log('[App] 📬 [PollingService] Request received:', request._id, request.type)
         if (window && window.__firegoAssignmentCallback) {
           window.__firegoAssignmentCallback({
             ...request,
@@ -762,8 +648,11 @@ export default function App() {
         }
 
         // ✅ Check if this is a NEW request (different from last one)
+        // NOTE: Do NOT set lastRequestIdRef here — set it only AFTER we confirm
+        // the modal is free. Setting it early caused a race: the ref was updated
+        // even when the modal was busy, so the next poll treated the same request
+        // as "already seen" and skipped it.
         const isNewRequest = lastRequestIdRef.current !== request._id
-        lastRequestIdRef.current = request._id
 
         // 🔥 Check if rideId is a POPULATED OBJECT with distance/duration
         const rideHasFullData = request.rideId && typeof request.rideId === 'object' &&
@@ -1106,11 +995,13 @@ export default function App() {
       }
     }
 
-    // Subscribe to store changes to restart polling when user logs in
+    // Subscribe to store changes to start polling when user logs in.
+    // Uses `pollingStarted` flag (local variable, always current) instead of
+    // state-based conditions that would be stale inside the closure.
     unsubscribe = store.subscribe(() => {
       const newUser = store.getState().auth.user
-      if (newUser && !assignmentRequest) {
-        // User just logged in, start polling
+      if (newUser && !pollingStarted) {
+        // User just became available — start polling if not yet started
         startPolling()
       }
     })
