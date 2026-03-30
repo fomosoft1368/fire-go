@@ -1,6 +1,6 @@
 // Server-side: dùng BACKEND_URL trực tiếp (không qua Next.js proxy)
 // Tránh port conflict khi Next.js và NestJS cùng chạy local
-const BACKEND_URL = process.env.BACKEND_URL || 'http://192.168.1.14:3000'
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000'
 
 export interface PricingConfig {
   vehicleTypes: {

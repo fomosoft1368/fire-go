@@ -1,13 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react'
-<<<<<<< Updated upstream
 import { StyleSheet, ActivityIndicator, View, Alert, AppState, Platform } from 'react-native'
 import { Audio } from 'expo-av'
 import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 import Constants from 'expo-constants'
-=======
-import { StyleSheet, ActivityIndicator, View, Alert, AppState, Vibration } from 'react-native'
->>>>>>> Stashed changes
 import 'react-native-gesture-handler'
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'

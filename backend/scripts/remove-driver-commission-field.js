@@ -10,11 +10,7 @@
 
 const { MongoClient } = require('mongodb');
 
-<<<<<<< Updated upstream
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://192.168.1.10:27017/firego';
-=======
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://192.168.1.14:27017/firego';
->>>>>>> Stashed changes
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/firego';
 
 async function removeCommissionRateField() {
   const client = new MongoClient(MONGODB_URI);
