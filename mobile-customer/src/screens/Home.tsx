@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -15,14 +15,41 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
 import type { RootState } from '../redux/store';
 import PromoBanner from '../components/PromoBanner';
+import { API_BASE_URL } from '../constants';
 
 const Home = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const user = useSelector((state: RootState) => state.auth.user);
     const [searchQuery, setSearchQuery] = useState('');
     const [recentLocations, setRecentLocations] = useState<any[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    // Fetch số thông báo chưa đọc
+    const fetchUnreadCount = useCallback(async () => {
+        try {
+            const token = await AsyncStorage.getItem('authToken')
+            if (!token) return
+            const res = await fetch(`${API_BASE_URL}/notifications/unread/count`, {
+                headers: { Authorization: `Bearer ${token}` },
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setUnreadCount(data.unreadCount || 0)
+            }
+        } catch {
+            // Ignore silently
+        }
+    }, [])
+
+    // Poll mỗi 30 giây
+    useEffect(() => {
+        fetchUnreadCount()
+        const interval = setInterval(fetchUnreadCount, 30_000)
+        return () => clearInterval(interval)
+    }, [fetchUnreadCount])
 
     const handleOpenNotifications = () => {
+        setUnreadCount(0) // Reset badge khi mở thông báo
         navigation.navigate('Notification')
     }
     // Load recent locations from AsyncStorage
@@ -87,6 +114,13 @@ const Home = () => {
                         onPress={handleOpenNotifications}
                     >
                         <Ionicons name="notifications-outline" size={24} color="#333" />
+                        {unreadCount > 0 && (
+                            <View style={styles.notificationBadge}>
+                                <Text style={styles.notificationBadgeText}>
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </Text>
+                            </View>
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>

@@ -59,7 +59,7 @@ export class DriverService {
   constructor(baseURL: string = API_BASE_URL) {
     // For Expo:
     // - Android Emulator: use 10.0.2.2 (special alias to host machine)
-    // - iOS Simulator: use 192.168.1.9 or 127.0.0.1
+    // - iOS Simulator: use 192.168.1.10 or 127.0.0.1
     // - Physical Device: use your machine's IP address (e.g., 192.168.x.x)
     // Change API_BASE_URL in constants/config.ts
     this.baseURL = baseURL;

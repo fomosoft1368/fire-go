@@ -64,20 +64,44 @@ export class NotificationsService {
     }).sort({ createdAt: -1 });
   }
 
-  async getUnreadCount(userId: string): Promise<number> {
+  async getUnreadCount(userId: string, role?: 'driver' | 'customer' | 'admin'): Promise<number> {
     const userObjectId = new Types.ObjectId(userId);
-    const broadcastId = new Types.ObjectId('000000000000000000000000');
-    
-    return this.notificationModel.countDocuments({
-      $or: [
-        { userId: userObjectId },
-        { driverId: userObjectId }, // Support driver notifications
-        { customerId: userObjectId }, // Support customer notifications
-        { userId: broadcastId }, // Broadcast to all admins
-      ],
-      isRead: false,
-      isActive: true,
-    });
+
+    let query: any;
+
+    if (role === 'driver') {
+      // Driver notifications are stored in driverId OR userId field
+      query = {
+        $or: [
+          { driverId: userObjectId },
+          { userId: userObjectId },
+        ],
+        isRead: false,
+        isActive: true,
+      };
+    } else if (role === 'customer') {
+      // Customer notifications stored in customerId field
+      query = {
+        customerId: userObjectId,
+        isRead: false,
+        isActive: true,
+      };
+    } else {
+      // Admin / unknown: fall back to broad $or (original behavior)
+      const broadcastId = new Types.ObjectId('000000000000000000000000');
+      query = {
+        $or: [
+          { userId: userObjectId },
+          { driverId: userObjectId },
+          { customerId: userObjectId },
+          { userId: broadcastId },
+        ],
+        isRead: false,
+        isActive: true,
+      };
+    }
+
+    return this.notificationModel.countDocuments(query);
   }
 
   async markAsRead(notificationId: string): Promise<NotificationDocument> {

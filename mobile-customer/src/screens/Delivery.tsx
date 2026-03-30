@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSelector } from 'react-redux'
+import type { RootState } from '../redux/store'
 import {
     View,
     Text,
@@ -226,6 +228,7 @@ export default function Delivery(props?: DeliveryProps) {
     // ============ END GIAO HÀNG ============
 
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+    const user = useSelector((state: RootState) => state.auth.user)
     const setRideMode = props?.setRideMode
 
     // PanResponder for draggable bottom sheet
@@ -396,7 +399,7 @@ export default function Delivery(props?: DeliveryProps) {
             const timeout = setTimeout(async () => {
                 try {
                     console.log('[Delivery] Pickup search for:', text)
-                    const suggestions = await mapsService.searchPlaces(text)
+                    const suggestions = await mapsService.searchPlacesViaBackend(text, user?.id, API_BASE_URL)
                     console.log('[Delivery] Pickup suggestions received:', suggestions.length)
                     setPickupSuggestions(suggestions)
                 } catch (error) {
@@ -425,7 +428,7 @@ export default function Delivery(props?: DeliveryProps) {
             const timeout = setTimeout(async () => {
                 try {
                     console.log('[Delivery] Dropoff search for:', text)
-                    const suggestions = await mapsService.searchPlaces(text)
+                    const suggestions = await mapsService.searchPlacesViaBackend(text, user?.id, API_BASE_URL)
                     console.log('[Delivery] Dropoff suggestions received:', suggestions.length)
                     setDropoffSuggestions(suggestions)
                 } catch (error) {

@@ -17,6 +17,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { COLORS, SPACING } from '../constants'
 import { RideCard, BalanceCard } from '../components'
 import { driverService, type EarningsData } from '../services/driverService'
@@ -27,12 +28,14 @@ import { hourlyServiceService } from '../services/hourlyServiceService'
 import type { RootState } from '../redux/store'
 import type { RideItem } from '../types'
 import { updateUser } from '../redux/slices/authSlice'
+import { API_URL } from '../config/api'
 
 export default function HomeScreen() {
   const [isOnline, setIsOnline] = useState(false)
   const [rides, setRides] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const [earnings, setEarnings] = useState<Omit<EarningsData, 'totalTrips' | 'driverShare'> & {
     breakdown: NonNullable<EarningsData['breakdown']>
   }>({
@@ -75,6 +78,30 @@ export default function HomeScreen() {
   const { user } = useSelector((state: RootState) => state.auth)
   const dispatch = useDispatch()
   const navigation = useNavigation<NativeStackNavigationProp<any>>()
+
+  // Fetch đếm thông báo chưa đọc
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('token')
+      if (!token) return
+      const res = await fetch(`${API_URL}/notifications/unread/count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUnreadCount(data.unreadCount || 0)
+      }
+    } catch {
+      // Ignore network errors silently
+    }
+  }, [])
+
+  // Poll thông báo mỗi 30 giây
+  useEffect(() => {
+    fetchUnreadCount()
+    const interval = setInterval(fetchUnreadCount, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchUnreadCount])
 
   // Fetch today's earnings and wallet balance on mount
   useEffect(() => {
@@ -442,9 +469,19 @@ export default function HomeScreen() {
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.notificationButton}
-            onPress={() => navigation.navigate('Notifications' as never)}
+            onPress={() => {
+              setUnreadCount(0) // Reset badge khi mở màn hình thông báo
+              navigation.navigate('Notifications' as never)
+            }}
           >
             <Ionicons name="notifications-outline" size={24} color="#333" />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>

@@ -7,6 +7,7 @@ import { Ride, RideDocument } from '../rides/schemas/ride.schema';
 import { CombinedTrip, CombinedTripDocument } from '../combined-trips/schemas/combined-trip.schema';
 import { Delivery } from '../delivery/schemas/delivery.schema';
 import { Document } from 'mongoose';
+import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
 import { WalletsService } from '../wallets/wallets.service';
 import { TransactionType, UserType } from '../wallets/schemas/transaction.schema';
 
@@ -18,6 +19,7 @@ export class BonusesService {
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTripDocument>,
     @InjectModel(Delivery.name) private deliveryModel: Model<Delivery & Document>,
+    @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     private readonly walletsService: WalletsService,
   ) {}
 
@@ -259,15 +261,24 @@ export class BonusesService {
 
     const rule = claim.bonusRuleId as any;
     const bonusAmount = claim.bonusAmount;
+    const driverIdStr = claim.driverId.toString();
 
-    // Add bonus to driver wallet
+    // 1. Add bonus to Wallet collection (transaction history)
     await this.walletsService.addBalance(
-      claim.driverId.toString(),
+      driverIdStr,
       bonusAmount,
       TransactionType.BONUS,
       `Thưởng ${rule?.name || 'hoàn thành chỉ tiêu'}: ${bonusAmount.toLocaleString('vi-VN')}đ`,
       UserType.DRIVER,
     );
+
+    // 2. ✅ Also update Driver.walletBalance directly (this is what the app displays)
+    await this.driverModel.findByIdAndUpdate(
+      driverIdStr,
+      { $inc: { walletBalance: bonusAmount } },
+    );
+
+    console.log(`[BonusesService] ✅ Claim approved: driver=${driverIdStr}, amount=${bonusAmount}đ — wallet + driver.walletBalance updated`);
 
     // Update claim status
     claim.status = 'approved';
@@ -275,7 +286,6 @@ export class BonusesService {
     if (adminId) claim.approvedBy = new Types.ObjectId(adminId);
     await claim.save();
 
-    console.log(`[BonusesService] ✅ Claim approved: driver=${claim.driverId}, amount=${bonusAmount}đ`);
     return claim;
   }
 

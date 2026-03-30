@@ -7,10 +7,10 @@ export const DEBOUNCE_DELAY = 500
 // API Configuration
 // 🌐 Change this to your development machine IP address
 // - Android Emulator: 10.0.2.2 (special alias)
-// - iOS Simulator: 127.0.0.1 or 192.168.1.9
+// - iOS Simulator: 127.0.0.1 or 192.168.1.10
 // - Physical Device: Your machine's IP (192.168.x.x)
 // Set REACT_APP_API_URL in .env file
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.9:3000/api'
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.10:3000/api'
 
 export const DEFAULT_FONT_FAMILY = {
   regular: 'System',

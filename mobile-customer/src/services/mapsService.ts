@@ -204,6 +204,50 @@ export const mapsService = {
   },
 
   /**
+   * Tìm kiếm địa chỉ qua backend places API
+   * Ưu tiên: Cache → DB (per-user lịch sử) → Google Places API
+   * @param keyword - Từ khóa tìm kiếm
+   * @param userId - ID khách hàng để ưu tiên lịch sử cá nhân
+   * @param apiBaseUrl - Base URL của backend
+   */
+  async searchPlacesViaBackend(keyword: string, userId?: string, apiBaseUrl?: string): Promise<PlacePrediction[]> {
+    if (!keyword.trim() || keyword.trim().length < 3) {
+      return []
+    }
+
+    try {
+      const base = apiBaseUrl || ''
+      const params = new URLSearchParams({ keyword: keyword.trim() })
+      if (userId) params.append('userId', userId)
+
+      const url = `${base}/places/search?${params.toString()}`
+      console.log('[MapsService] 🔍 Backend places search:', { keyword, userId })
+
+      const response = await fetch(url)
+      if (!response.ok) {
+        console.warn('[MapsService] Backend places API error:', response.status)
+        return []
+      }
+
+      const data = await response.json()
+      const results: any[] = data.results || []
+
+      console.log(`[MapsService] ✅ Backend places [${data.source}]: ${results.length} results`)
+
+      return results.map((r: any) => ({
+        placeId: r.placeId,
+        mainText: r.name || r.address,
+        secondaryText: r.address || '',
+        fullText: r.address || r.name,
+      }))
+    } catch (error: any) {
+      console.error('[MapsService] searchPlacesViaBackend error:', error.message)
+      return []
+    }
+  },
+
+
+  /**
    * Chuyển tọa độ thành địa chỉ (Reverse Geocoding)
    */
   async reverseGeocode(latitude: number, longitude: number): Promise<string> {

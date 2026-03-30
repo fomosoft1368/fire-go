@@ -29,6 +29,7 @@ import {
 } from 'react-native'
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { SPACING, BORDER_RADIUS, COLORS_DARK, COLORS_LIGHT } from '../constants'
+import { API_BASE_URL } from '../constants/config'
 import MapViewComponent from '../components/MapView'
 import ScheduleDateTimeModal from '../components/ScheduleDateTimeModal'
 import ChatScreen from './ChatScreen'
@@ -251,7 +252,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       const timeout = setTimeout(async () => {
         try {
           console.log('[Search] Pickup search for:', text)
-          const suggestions = await mapsService.searchPlaces(text)
+          const suggestions = await mapsService.searchPlacesViaBackend(text, user?.id, API_BASE_URL)
           setPickupSuggestions(suggestions)
         } catch (error) {
           console.error('Error searching pickup locations:', error)
@@ -283,7 +284,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       const timeout = setTimeout(async () => {
         try {
           console.log('[Search] Dropoff search for:', text)
-          const suggestions = await mapsService.searchPlaces(text)
+          const suggestions = await mapsService.searchPlacesViaBackend(text, user?.id, API_BASE_URL)
           console.log('[Search] Dropoff suggestions received:', suggestions.length)
           setDropoffSuggestions(suggestions)
         } catch (error) {
@@ -936,32 +937,27 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                   </View>
                 </View>
                 {/* Time Toggle */}
-                <View style={[styles.timeToggleContainer, { backgroundColor: "#f8f7f6ff" }]}>
+                <View style={styles.timeToggleContainer}>
                   <TouchableOpacity
                     style={[
                       styles.timeButton,
-                      !isScheduled && { backgroundColor: colors.primary },
+                      !isScheduled ? styles.timeButtonActive : styles.timeButtonInactive,
                     ]}
                     onPress={() => setIsScheduled(false)}
                   >
                     <MaterialIcons
                       name="bolt"
                       size={18}
-                      color={!isScheduled ? '#0e0d0dff' : colors.textSecondary}
+                      color={!isScheduled ? '#fff' : '#9CA3AF'}
                     />
-                    <Text
-                      style={[
-                        styles.timeButtonText,
-                        { color: !isScheduled ? colors.text : colors.textSecondary },
-                      ]}
-                    >
+                    <Text style={[styles.timeButtonText, { color: !isScheduled ? '#fff' : '#9CA3AF' }]}>
                       Đi ngay
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
                       styles.timeButton,
-                      isScheduled && { backgroundColor: colors.primary },
+                      isScheduled ? styles.timeButtonActive : styles.timeButtonInactive,
                     ]}
                     onPress={() => {
                       setIsScheduled(true)
@@ -971,14 +967,9 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                     <MaterialIcons
                       name="schedule"
                       size={18}
-                      color={isScheduled ? '#FF6B00' : colors.textSecondary}
+                      color={isScheduled ? '#fff' : '#9CA3AF'}
                     />
-                    <Text
-                      style={[
-                        styles.timeButtonText,
-                        { color: isScheduled ? colors.text : colors.textSecondary },
-                      ]}
-                    >
+                    <Text style={[styles.timeButtonText, { color: isScheduled ? '#fff' : '#9CA3AF' }]}>
                       Hẹn giờ
                     </Text>
                   </TouchableOpacity>
@@ -1003,23 +994,19 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                         key={car.id}
                         style={[
                           styles.carTypeButton,
-                          {
-                            backgroundColor: carType === car.id ? 'rgba(255, 107, 0, 0.1)' : colors.card,
-                            borderColor: carType === car.id ? '#FF6B00' : colors.warning,
-                          },
-                          carType === car.id && styles.carTypeButtonActive,
+                          carType === car.id ? styles.carTypeButtonActive : styles.carTypeButtonInactive,
                         ]}
                         onPress={() => setCarType(car.id as any)}
                       >
                         <MaterialIcons
                           name={car.icon as any}
                           size={32}
-                          color={carType === car.id ? '#FF6B00' : colors.textSecondary}
+                          color={carType === car.id ? '#fff' : '#9CA3AF'}
                         />
                         <Text
                           style={[
                             styles.carTypeLabel,
-                            { color: carType === car.id ? '#FF6B00' : colors.textSecondary },
+                            { color: carType === car.id ? '#fff' : '#6B7280' },
                           ]}
                         >
                           {car.label}
@@ -1031,12 +1018,12 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                   {/* License Plate Input */}
                   <View style={styles.inputGroup}>
                     <Text style={styles.sectionLabel}>Biển số xe</Text>
-                    <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.warning }]}>
-                      <MaterialIcons name="pin" size={20} color={colors.textSecondary} />
+                    <View style={styles.inputContainer}>
+                      <MaterialIcons name="pin" size={20} color="#9CA3AF" />
                       <TextInput
                         style={[styles.textInput, { color: colors.text }]}
                         placeholder="Ví dụ: 30A-123.45"
-                        placeholderTextColor={colors.textSecondary}
+                        placeholderTextColor="#9CA3AF"
                         value={licensePlate}
                         onChangeText={setLicensePlate}
                         onFocus={snapToMax}
@@ -1051,55 +1038,39 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                       <TouchableOpacity
                         style={[
                           styles.transmissionButton,
-                          {
-                            backgroundColor: transmission === 'auto' ? 'rgba(255, 107, 0, 0.1)' : colors.card,
-                            borderColor: transmission === 'auto' ? '#FF6B00' : colors.warning,
-                          },
+                          transmission === 'auto' ? styles.transmissionButtonActive : styles.transmissionButtonInactive,
                         ]}
                         onPress={() => setTransmission('auto')}
                       >
                         <Text
                           style={[
                             styles.transmissionText,
-                            { color: transmission === 'auto' ? '#FF6B00' : colors.textSecondary },
+                            { color: transmission === 'auto' ? '#fff' : '#6B7280' },
                           ]}
                         >
                           Số tự động
                         </Text>
                         {transmission === 'auto' && (
-                          <MaterialIcons
-                            name="check-circle"
-                            size={16}
-                            color="#FF6B00"
-                            style={styles.checkIcon}
-                          />
+                          <MaterialIcons name="check-circle" size={16} color="#fff" style={styles.checkIcon} />
                         )}
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[
                           styles.transmissionButton,
-                          {
-                            backgroundColor: transmission === 'manual' ? 'rgba(255, 107, 0, 0.1)' : colors.card,
-                            borderColor: transmission === 'manual' ? '#FF6B00' : colors.warning,
-                          },
+                          transmission === 'manual' ? styles.transmissionButtonActive : styles.transmissionButtonInactive,
                         ]}
                         onPress={() => setTransmission('manual')}
                       >
                         <Text
                           style={[
                             styles.transmissionText,
-                            { color: transmission === 'manual' ? '#FF6B00' : colors.textSecondary },
+                            { color: transmission === 'manual' ? '#fff' : '#6B7280' },
                           ]}
                         >
                           Số sàn
                         </Text>
                         {transmission === 'manual' && (
-                          <MaterialIcons
-                            name="check-circle"
-                            size={16}
-                            color="#FF6B00"
-                            style={styles.checkIcon}
-                          />
+                          <MaterialIcons name="check-circle" size={16} color="#fff" style={styles.checkIcon} />
                         )}
                       </TouchableOpacity>
                     </View>
@@ -1109,11 +1080,11 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                 {/* Driver Note */}
                 <View style={styles.noteSection}>
                   <Text style={styles.sectionLabel}>Ghi chú cho tài xế</Text>
-                  <View style={[styles.noteContainer, { backgroundColor: colors.card, borderColor: colors.warning }]}>
+                  <View style={styles.noteContainer}>
                     <TextInput
                       style={[styles.noteInput, { color: colors.text }]}
                       placeholder="Xe đỗ ở hầm B1, cột A05..."
-                      placeholderTextColor={colors.textSecondary}
+                      placeholderTextColor="#9CA3AF"
                       value={driverNote}
                       onChangeText={setDriverNote}
                       onFocus={snapToMax}
@@ -1490,10 +1461,11 @@ const styles = StyleSheet.create({
   },
   timeToggleContainer: {
     flexDirection: 'row',
-    gap: SPACING.md,
+    gap: SPACING.sm,
     marginBottom: SPACING.lg,
-    padding: SPACING.sm,
+    padding: 4,
     borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#F3F4F6',
   },
   timeButton: {
     flex: 1,
@@ -1524,7 +1496,25 @@ const styles = StyleSheet.create({
   },
   carTypeButtonActive: {
     borderColor: '#FF6B00',
-    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    backgroundColor: '#FF6B00',
+  },
+  carTypeButtonInactive: {
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  timeButtonActive: {
+    backgroundColor: '#FF6B00',
+  },
+  timeButtonInactive: {
+    backgroundColor: '#F3F4F6',
+  },
+  transmissionButtonActive: {
+    backgroundColor: '#FF6B00',
+    borderColor: '#FF6B00',
+  },
+  transmissionButtonInactive: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#E5E7EB',
   },
   carTypeLabel: {
     fontSize: 11,
@@ -1538,6 +1528,8 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
     gap: SPACING.md,
   },
   textInput: {
@@ -1575,6 +1567,8 @@ const styles = StyleSheet.create({
   noteContainer: {
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
     padding: SPACING.md,
     minHeight: 120,
   },

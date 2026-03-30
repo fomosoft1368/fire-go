@@ -762,7 +762,7 @@ export default function RideSharing(props?: RideSharingProps) {
       const timeout = setTimeout(async () => {
         try {
           console.log('[Delivery] Pickup search for:', text)
-          const suggestions = await mapsService.searchPlaces(text)
+          const suggestions = await mapsService.searchPlacesViaBackend(text, user?.id, API_BASE_URL)
           console.log('[Delivery] Pickup suggestions received:', suggestions.length)
           setPickupSuggestions(suggestions)
         } catch (error) {
@@ -825,7 +825,7 @@ export default function RideSharing(props?: RideSharingProps) {
       const timeout = setTimeout(async () => {
         try {
           console.log('[Delivery] Dropoff search for:', text)
-          const suggestions = await mapsService.searchPlaces(text)
+          const suggestions = await mapsService.searchPlacesViaBackend(text, user?.id, API_BASE_URL)
           console.log('[Delivery] Dropoff suggestions received:', suggestions.length)
           setDropoffSuggestions(suggestions)
         } catch (error) {

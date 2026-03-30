@@ -107,8 +107,8 @@ export class PlacesService {
       this.placeModel.updateMany(
         dbQuery,
         {
-          lastSearchedAt: new Date(),
-          $inc: { searchCount: 1 }
+          $set: { lastSearchedAt: new Date() },
+          $inc: { searchCount: 1 },
         }
       ).exec().catch(err => console.error('Update error:', err));
 
@@ -342,10 +342,16 @@ export class PlacesService {
         const query = userId
           ? { userId, placeId: doc.placeId, keyword: doc.keyword }
           : { placeId: doc.placeId, keyword: doc.keyword };
-        
+
+        // Separate searchCount from $set to avoid MongoDB conflict with $inc
+        const { searchCount: _sc, ...docWithoutCount } = doc;
+
         await this.placeModel.updateOne(
           query,
-          { $set: doc, $inc: { searchCount: 1 } },
+          {
+            $set: docWithoutCount,
+            $inc: { searchCount: 1 },
+          },
           { upsert: true }
         );
       }
