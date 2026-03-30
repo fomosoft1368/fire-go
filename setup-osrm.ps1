@@ -10,7 +10,8 @@ Write-Host "📁 Step 1: Creating osrm-data directory..." -ForegroundColor Yello
 if (-not (Test-Path "osrm-data")) {
     New-Item -ItemType Directory -Path "osrm-data" | Out-Null
     Write-Host "✅ Created osrm-data/" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "✅ osrm-data/ already exists" -ForegroundColor Green
 }
 
@@ -30,7 +31,8 @@ if (-not (Test-Path $osmFile)) {
         Invoke-WebRequest -Uri $osmUrl -OutFile $osmFile -TimeoutSec 600
         $ProgressPreference = 'Continue'
         Write-Host "✅ Downloaded: $osmFile" -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Host "❌ Download failed: $_" -ForegroundColor Red
         Write-Host ""
         Write-Host "⚠️  Manual download required:" -ForegroundColor Yellow
@@ -39,7 +41,8 @@ if (-not (Test-Path $osmFile)) {
         Write-Host "   3. Then run: docker-compose -f docker-compose.osrm.yml run osrm bash" -ForegroundColor Gray
         exit 1
     }
-} else {
+}
+else {
     Write-Host "✅ OSM file already exists: $osmFile" -ForegroundColor Green
 }
 
@@ -72,7 +75,8 @@ try {
         osrm-customize /data/vietnam-latest.osrm
     
     Write-Host "✅ OSRM profile built successfully" -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Host "❌ Build failed: $_" -ForegroundColor Red
     exit 1
 }
@@ -84,12 +88,9 @@ Write-Host "🚀 Step 4: Starting OSRM server..." -ForegroundColor Yellow
 try {
     docker-compose -f docker-compose.osrm.yml up -d
     Write-Host "✅ OSRM server started" -ForegroundColor Green
-<<<<<<< Updated upstream
     Write-Host "   Port: http://192.168.1.10:5000" -ForegroundColor Gray
-=======
-    Write-Host "   Port: http://192.168.1.14:5000" -ForegroundColor Gray
->>>>>>> Stashed changes
-} catch {
+}
+catch {
     Write-Host "❌ Failed to start server: $_" -ForegroundColor Red
     exit 1
 }
@@ -103,21 +104,14 @@ Start-Sleep -Seconds 3
 # Step 5: Verify
 Write-Host "🔍 Step 5: Testing OSRM server..." -ForegroundColor Yellow
 try {
-<<<<<<< Updated upstream
     $response = Invoke-WebRequest -Uri "http://192.168.1.10:5000/status" -TimeoutSec 10
-=======
-    $response = Invoke-WebRequest -Uri "http://192.168.1.14:5000/status" -TimeoutSec 10
->>>>>>> Stashed changes
     if ($response.StatusCode -eq 200) {
         Write-Host "✅ OSRM server is running and healthy" -ForegroundColor Green
     }
-} catch {
+}
+catch {
     Write-Host "⚠️  Server not ready yet. It may take a few more seconds..." -ForegroundColor Yellow
-<<<<<<< Updated upstream
     Write-Host "   Check status manually: curl http://192.168.1.10:5000/status" -ForegroundColor Gray
-=======
-    Write-Host "   Check status manually: curl http://192.168.1.14:5000/status" -ForegroundColor Gray
->>>>>>> Stashed changes
 }
 
 Write-Host ""

@@ -56,11 +56,7 @@ ngrok http 3000
 ### Lấy URL:
 Sau khi chạy, copy URL:
 ```
-<<<<<<< Updated upstream
 Forwarding    https://abc123.ngrok-free.app -> http://192.168.1.10:3000
-=======
-Forwarding    https://abc123.ngrok-free.app -> http://192.168.1.14:3000
->>>>>>> Stashed changes
 ```
 
 **Copy:** `https://abc123.ngrok-free.app`
