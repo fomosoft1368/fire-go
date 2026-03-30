@@ -1,9 +1,9 @@
 // API Configuration for Mobile Driver App
 
-// Sử dụng IP của máy local - thay đổi theo IP của bạn
-// Android emulator: 10.0.2.2 (192.168.1.10 của máy host)
-// iOS simulator: 192.168.1.10 hoặc 127.0.0.1
-// Real device: IP của máy trên mạng LAN (vd: 192.168.1.16)
-// Set REACT_APP_API_URL in .env file
+// 🌐 Đọc từ .env file: REACT_APP_API_URL=http://<YOUR_LAN_IP>:3000/api
+// Android emulator: REACT_APP_API_URL=http://10.0.2.2:3000/api
+// iOS simulator:    REACT_APP_API_URL=http://localhost:3000/api
+// Real device:      REACT_APP_API_URL=http://<YOUR_LAN_IP>:3000/api
+// Xem .env.example để biết thêm chi tiết
 
-export const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.10:3000/api'
+export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api'

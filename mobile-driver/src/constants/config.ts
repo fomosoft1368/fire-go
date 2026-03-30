@@ -5,12 +5,15 @@ export const ANIMATION_DURATION = 300
 export const DEBOUNCE_DELAY = 500
 
 // API Configuration
-// 🌐 Change this to your development machine IP address
-// - Android Emulator: 10.0.2.2 (special alias)
-// - iOS Simulator: 127.0.0.1 or 192.168.1.10
-// - Physical Device: Your machine's IP (192.168.x.x)
-// Set REACT_APP_API_URL in .env file
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.10:3000/api'
+// 🌐 Đọc từ .env file: REACT_APP_API_URL=http://<YOUR_LAN_IP>:3000/api
+// - Android Emulator: REACT_APP_API_URL=http://10.0.2.2:3000/api
+// - iOS Simulator: REACT_APP_API_URL=http://localhost:3000/api
+// - Physical Device: REACT_APP_API_URL=http://<YOUR_LAN_IP>:3000/api
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api'
+
+// ====== Agora Voice Call Config ======
+// ❗ Tạo tài khoản tại https://console.agora.io, tạo project, dán App ID vào đây
+export const AGORA_APP_ID = process.env.REACT_APP_AGORA_APP_ID || '21478a4dfe134ebd8adfe7bbac134541'
 
 export const DEFAULT_FONT_FAMILY = {
   regular: 'System',

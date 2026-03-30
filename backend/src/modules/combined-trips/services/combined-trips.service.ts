@@ -890,7 +890,8 @@ export class CombinedTripsService implements OnModuleInit {
         .findById(tripIdObj)
         .populate({
           path: 'driverId',
-          select: 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType vehicleColor phone',
+          // ✅ Include currentLocation so DriverFoundScreen can display driver on map
+          select: 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType vehicleColor phone currentLocation',
           // Don't fail if driver is null
           options: { strictPopulate: false },
         })

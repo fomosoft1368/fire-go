@@ -8,10 +8,37 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
+import * as path from 'path';
+import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CallService } from './call.service';
 import { CreateCallDto, ActionCallDto } from './dto/call.dto';
+
+/**
+ * Public controller: không cần JWT (WebView load trang này trực tiếp)
+ */
+@Controller('call')
+export class CallRoomController {
+  /**
+   * GET /api/call/room?appId=...&channel=...&token=...&uid=...&callId=...&authToken=...&apiBase=...&otherName=...
+   * Trả về HTML page với Agora Web SDK để WebView load
+   */
+  @Get('room')
+  serveRoom(@Res() res: Response) {
+    const htmlPath = path.join(__dirname, 'call-room.html');
+    if (!fs.existsSync(htmlPath)) {
+      return res.status(404).send('Call room not found');
+    }
+    const html = fs.readFileSync(htmlPath, 'utf-8');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    return res.send(html);
+  }
+}
 
 @Controller('call')
 @UseGuards(JwtAuthGuard)

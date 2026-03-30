@@ -10,7 +10,8 @@ Write-Host "📁 Step 1: Creating osrm-data directory..." -ForegroundColor Yello
 if (-not (Test-Path "osrm-data")) {
     New-Item -ItemType Directory -Path "osrm-data" | Out-Null
     Write-Host "✅ Created osrm-data/" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "✅ osrm-data/ already exists" -ForegroundColor Green
 }
 
@@ -30,7 +31,8 @@ if (-not (Test-Path $osmFile)) {
         Invoke-WebRequest -Uri $osmUrl -OutFile $osmFile -TimeoutSec 600
         $ProgressPreference = 'Continue'
         Write-Host "✅ Downloaded: $osmFile" -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Host "❌ Download failed: $_" -ForegroundColor Red
         Write-Host ""
         Write-Host "⚠️  Manual download required:" -ForegroundColor Yellow
@@ -39,7 +41,8 @@ if (-not (Test-Path $osmFile)) {
         Write-Host "   3. Then run: docker-compose -f docker-compose.osrm.yml run osrm bash" -ForegroundColor Gray
         exit 1
     }
-} else {
+}
+else {
     Write-Host "✅ OSM file already exists: $osmFile" -ForegroundColor Green
 }
 
@@ -72,7 +75,8 @@ try {
         osrm-customize /data/vietnam-latest.osrm
     
     Write-Host "✅ OSRM profile built successfully" -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Host "❌ Build failed: $_" -ForegroundColor Red
     exit 1
 }
@@ -85,7 +89,8 @@ try {
     docker-compose -f docker-compose.osrm.yml up -d
     Write-Host "✅ OSRM server started" -ForegroundColor Green
     Write-Host "   Port: http://192.168.1.10:5000" -ForegroundColor Gray
-} catch {
+}
+catch {
     Write-Host "❌ Failed to start server: $_" -ForegroundColor Red
     exit 1
 }
@@ -103,7 +108,8 @@ try {
     if ($response.StatusCode -eq 200) {
         Write-Host "✅ OSRM server is running and healthy" -ForegroundColor Green
     }
-} catch {
+}
+catch {
     Write-Host "⚠️  Server not ready yet. It may take a few more seconds..." -ForegroundColor Yellow
     Write-Host "   Check status manually: curl http://192.168.1.10:5000/status" -ForegroundColor Gray
 }
@@ -115,7 +121,11 @@ Write-Host "╚═════════════════════�
 Write-Host ""
 
 Write-Host "📋 Next Steps:" -ForegroundColor Yellow
+<<<<<<< Updated upstream
 Write-Host "  1. Backend .env already has: OSRM_BASE_URL=http://192.168.1.10:5000" -ForegroundColor Gray
+=======
+Write-Host "  1. Backend .env already has: OSRM_BASE_URL=http://192.168.1.14:5000" -ForegroundColor Gray
+>>>>>>> Stashed changes
 Write-Host "  2. Restart backend:" -ForegroundColor Gray
 Write-Host "     cd backend && npm run start:dev" -ForegroundColor Gray
 Write-Host "  3. Test in your app: Bình Dương → TP.HCM should show correct route" -ForegroundColor Gray
@@ -124,7 +134,11 @@ Write-Host ""
 Write-Host "💡 Useful commands:" -ForegroundColor Yellow
 Write-Host "   Stop server:     docker-compose -f docker-compose.osrm.yml down" -ForegroundColor Gray
 Write-Host "   View logs:       docker logs -f fire-go-osrm" -ForegroundColor Gray
+<<<<<<< Updated upstream
 Write-Host "   Test endpoint:   curl 'http://192.168.1.10:5000/route/v1/driving/106.6626,10.6644;106.6763,10.7743?geometries=geojson'" -ForegroundColor Gray
+=======
+Write-Host "   Test endpoint:   curl 'http://192.168.1.14:5000/route/v1/driving/106.6626,10.6644;106.6763,10.7743?geometries=geojson'" -ForegroundColor Gray
+>>>>>>> Stashed changes
 Write-Host ""
 
 Write-Host "📖 Full documentation: see OSRM_SETUP.md" -ForegroundColor Gray

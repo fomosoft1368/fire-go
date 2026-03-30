@@ -321,10 +321,42 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
         navigation?.goBack()
     }
 
-    const handleCall = () => {
-        if (customer?.phone) {
-            // Implement call functionality
-            Alert.alert('Gọi điện', `Gọi đến ${customer.phone}`)
+    const handleCall = async () => {
+        if (!rideId) {
+            Alert.alert('Lỗi', 'Không tìm thấy thông tin chuyến đi')
+            return
+        }
+        try {
+            const AsyncStorage = require('@react-native-async-storage/async-storage').default
+            const token = await AsyncStorage.getItem('token')
+            if (!token) {
+                Alert.alert('Lỗi', 'Chưa đăng nhập')
+                return
+            }
+            const res = await fetch(`${API_BASE_URL}/call/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ rideId, callerRole: 'driver' }),
+            })
+            const json = await res.json()
+            console.log('[TripActivities] Call create response:', res.status, JSON.stringify(json))
+            if (!res.ok) {
+                Alert.alert('Không thể gọi', json.message || `HTTP ${res.status}`)
+                return
+            }
+            const { callId, channelName, callerToken, callerUid } = json
+            navigation.navigate('ActiveCall', {
+                callId,
+                rideId,
+                channelName,
+                token: callerToken || '',
+                uid: callerUid || 0,
+                otherPartyName: customer?.name || 'Khách hàng',
+                role: 'caller',
+            })
+        } catch (err: any) {
+            console.error('[TripActivities] Call error:', err.message)
+            Alert.alert('Lỗi', 'Không thể tạo cuộc gọi. Vui lòng thử lại.')
         }
     }
 

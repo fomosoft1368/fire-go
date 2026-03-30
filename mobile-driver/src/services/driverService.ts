@@ -57,11 +57,11 @@ export class DriverService {
   private baseURL: string;
 
   constructor(baseURL: string = API_BASE_URL) {
-    // For Expo:
+    // Đọc URL từ .env file: REACT_APP_API_URL=http://<YOUR_LAN_IP>:3000/api
     // - Android Emulator: use 10.0.2.2 (special alias to host machine)
-    // - iOS Simulator: use 192.168.1.10 or 127.0.0.1
+    // - iOS Simulator: use localhost or 127.0.0.1
     // - Physical Device: use your machine's IP address (e.g., 192.168.x.x)
-    // Change API_BASE_URL in constants/config.ts
+    // Change API_BASE_URL via REACT_APP_API_URL in .env file
     this.baseURL = baseURL;
     this.api = axios.create({
       baseURL: `${baseURL}/drivers`,

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Notification, NotificationDocument, NotificationType } from './schemas/notification.schema';
+import { Notification, NotificationDocument, NotificationType, NotificationChannel } from './schemas/notification.schema';
 import { CreateNotificationDto } from './dto';
 
 @Injectable()
@@ -16,6 +16,37 @@ export class NotificationsService {
     });
 
     return notification;
+  }
+
+  /**
+   * Create a notification with explicit recipient fields (userId, customerId, driverId).
+   * Use this when you need to set customerId OR driverId directly (e.g. CALL_INCOMING).
+   */
+  async createRaw(data: {
+    userId?: string;
+    customerId?: string;
+    driverId?: string;
+    type: NotificationType;
+    channels: NotificationChannel[];
+    title: string;
+    message: string;
+    data?: Record<string, any>;
+    rideId?: string;
+  }): Promise<NotificationDocument> {
+    const doc: any = {
+      type: data.type,
+      channels: data.channels,
+      title: data.title,
+      message: data.message,
+      data: data.data,
+    };
+
+    if (data.userId) doc.userId = new Types.ObjectId(data.userId);
+    if (data.customerId) doc.customerId = new Types.ObjectId(data.customerId);
+    if (data.driverId) doc.driverId = new Types.ObjectId(data.driverId);
+    if (data.rideId) doc.rideId = new Types.ObjectId(data.rideId);
+
+    return this.notificationModel.create(doc);
   }
 
   async findById(id: string): Promise<NotificationDocument> {

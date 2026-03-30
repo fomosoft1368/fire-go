@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 import Constants from 'expo-constants'
 import 'react-native-gesture-handler'
-import { NavigationContainer } from '@react-navigation/native'
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Provider, useSelector, useDispatch } from 'react-redux'
@@ -60,6 +60,10 @@ import BonusScreen from './src/screens/BonusScreen'
 
 
 //
+// Module-level navigation ref — accessible from both RootNavigator and App
+// This is the ONLY way to navigate from outside the React component tree
+const callNavigationRef = createNavigationContainerRef()
+
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
 
@@ -678,7 +682,6 @@ const RootNavigator = () => {
   useEffect(() => {
     if (!isAuthenticated) return
 
-    const navigationObj = require('@react-navigation/native').navigationRef
     let isMounted = true
 
     const pollCallNotifications = async () => {
@@ -687,15 +690,26 @@ const RootNavigator = () => {
         const token = await AsyncStorage.getItem('token')
         if (!token) return
 
-        const resp = await fetch(`${API_BASE_URL}/notifications/driver?type=CALL_INCOMING&limit=5`, {
+        const resp = await fetch(`${API_BASE_URL}/notifications/driver?type=call_incoming&limit=5`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!resp.ok) return
 
         const json = await resp.json()
-        const notifications = json?.data?.notifications || json?.notifications || []
+
+        // ✅ FIX: Backend returns { data: [...], total: N }
+        // json.data is already the array — NOT json.data.notifications
+        const notifications = Array.isArray(json?.data) ? json.data
+          : Array.isArray(json?.notifications) ? json.notifications
+          : []
+
+        console.log('[App] 📞 Call notifications polled:', notifications.length, 'items (unread:',
+          notifications.filter(n => !n.isRead).length, ')')
 
         for (const notif of notifications) {
+          // Skip already-read notifications
+          if (notif.isRead) continue
+
           const callData = notif.data || {}
           const callId = callData.callId
           if (!callId || handledCallIdsRef.current.has(callId)) continue
@@ -711,11 +725,11 @@ const RootNavigator = () => {
             })
           } catch (_) { }
 
-          console.log('[App] 📞 CALL_INCOMING detected, callId:', callId)
+          console.log('[App] 📞 CALL_INCOMING detected, callId:', callId, 'from callerRole:', callData.callerRole)
 
-          // Navigate to IncomingCallScreen
-          if (navigationRef.current) {
-            navigationRef.current.navigate('IncomingCall', {
+          // ✅ Navigate using module-level callNavigationRef (shared with App's NavigationContainer)
+          if (callNavigationRef.isReady()) {
+            callNavigationRef.navigate('IncomingCall', {
               callId: callData.callId,
               rideId: callData.rideId,
               channelName: callData.channelName,
@@ -724,6 +738,8 @@ const RootNavigator = () => {
               callerName: notif.title || 'Khách hàng',
               callerRole: callData.callerRole || 'customer',
             })
+          } else {
+            console.warn('[App] 📞 callNavigationRef not ready, cannot navigate to IncomingCall')
           }
           break // Handle one call at a time
         }
@@ -732,7 +748,8 @@ const RootNavigator = () => {
       }
     }
 
-    const callPollInterval = setInterval(pollCallNotifications, 3000)
+    // ✅ Poll every 2s (was 3s) + initial poll on mount
+    const callPollInterval = setInterval(pollCallNotifications, 2000)
     pollCallNotifications() // Initial poll
 
     return () => {
@@ -801,7 +818,9 @@ export default function App() {
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
   const [countdown, setCountdown] = useState(45)
   const [timeoutSeconds, setTimeoutSeconds] = useState(45)
-  const navigationRef = useRef(null)
+  // ✅ Reuse the module-level callNavigationRef (already wired into NavigationContainer)
+  // This ensures navigate() calls in App() work the same as in RootNavigator
+  const navigationRef = callNavigationRef
   const lastRequestIdRef = useRef(null)
 
   // 🔥 Request queue to prevent modal override
@@ -1322,16 +1341,13 @@ export default function App() {
     return () => clearInterval(timer)
   }, [showAssignmentModal])
 
-  const playNotificationSound = async () => {
+  const playNotificationSound = () => {
+    // ✅ Use Vibration (no expo-av dependency needed)
+    // Pattern: [wait, vibrate, pause, vibrate, pause, vibrate]
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        require('./src/assets/sounds/notification.mp3')
-      )
-      await sound.setPositionAsync(0)
-      await sound.setVolumeAsync(1.0)
-      await sound.playAsync()
+      Vibration.vibrate([0, 300, 200, 300, 200, 300])
     } catch (e) {
-      console.log('Sound error:', e)
+      console.log('Vibration error:', e)
     }
   }
 
@@ -1390,7 +1406,7 @@ export default function App() {
             {
               text: 'Nạp tiền',
               onPress: () => {
-                navigationRef.current?.navigate('Wallet')
+                callNavigationRef.navigate('Wallet')
               },
             },
             {
@@ -1498,25 +1514,25 @@ export default function App() {
       showNextRequest()
 
       // Navigate based on type
-      if (!navigationRef.current) {
-        console.error('[App] ❌ navigationRef not available')
+      if (!callNavigationRef.isReady()) {
+        console.error('[App] ❌ navigationRef not ready')
         return
       }
 
       if (requestType === 'delivery') {
         console.log('[App] 🚀 Navigating to ActiveDelivery with id:', navigationId)
-        navigationRef.current.navigate('ActiveDelivery', { deliveryId: navigationId })
+        callNavigationRef.navigate('ActiveDelivery', { deliveryId: navigationId })
         Alert.alert('Thành công', 'Bạn đã nhận đơn giao hàng!')
       } else if (requestType === 'rideshare') {
         console.log('[App] 🚀 Navigating to ActiveRideScreen with combinedTripId:', navigationId)
-        navigationRef.current.navigate('ActiveRideScreen', {
+        callNavigationRef.navigate('ActiveRideScreen', {
           combinedTripId: navigationId, // ✅ Chỉ truyền combinedTripId cho rideshare
           sourceType: 'combined_trip',
         })
         Alert.alert('Thành công', 'Bạn đã nhận chuyến ghép!')
       } else {
         console.log('[App] 🚀 Navigating to TripActivities with rideId:', navigationId)
-        navigationRef.current.navigate('TripActivities', { rideId: navigationId })
+        callNavigationRef.navigate('TripActivities', { rideId: navigationId })
         Alert.alert('Thành công', 'Bạn đã nhận cuốc xe!')
       }
     } catch (error) {
@@ -1621,7 +1637,7 @@ export default function App() {
 
   return (
     <Provider store={store}>
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer ref={callNavigationRef}>
         <RootNavigator />
 
         {/* Global Assignment Request Modal */}

@@ -47,7 +47,11 @@ Session Status                online
 Account                       Free Plan
 Version                       3.x.x
 Region                        Asia Pacific (ap)
+<<<<<<< Updated upstream
 Forwarding                    https://abc123.ngrok-free.app -> http://192.168.1.10:3000
+=======
+Forwarding                    https://abc123.ngrok-free.app -> http://192.168.1.14:3000
+>>>>>>> Stashed changes
 
 Web Interface                 http://127.0.0.1:4040
 ```
@@ -196,7 +200,11 @@ Phải thấy:
 ```
 Mobile App (Driver)
     ↓ (1) Tạo nạp tiền 10,000đ
+<<<<<<< Updated upstream
 Backend (192.168.1.10:3000)
+=======
+Backend (192.168.1.14:3000)
+>>>>>>> Stashed changes
     ↓ (2) Tạo transaction PENDING
     ↓ (3) Generate QR code
 Mobile App

@@ -51,9 +51,15 @@ npm run dev
 ```
 
 **Truy cập:**
+<<<<<<< Updated upstream
 - 🚀 Backend API: http://192.168.1.10:3000/api
 - 💼 Web Admin: http://192.168.1.10:5173
 - 📊 API Docs: http://192.168.1.10:3000/api/docs
+=======
+- 🚀 Backend API: http://192.168.1.14:3000/api
+- 💼 Web Admin: http://192.168.1.14:5173
+- 📊 API Docs: http://192.168.1.14:3000/api/docs
+>>>>>>> Stashed changes
 
 ## 📖 Cài đặt Chi tiết
 
@@ -66,8 +72,13 @@ cp .env.example .env
 npm run start:dev
 ```
 
+<<<<<<< Updated upstream
 **Server:** http://192.168.1.10:3000  
 **API Docs:** http://192.168.1.10:3000/api/docs
+=======
+**Server:** http://192.168.1.14:3000  
+**API Docs:** http://192.168.1.14:3000/api/docs
+>>>>>>> Stashed changes
 
 ### 2. Web Admin (React)
 
@@ -78,7 +89,11 @@ cp .env.example .env
 npm run dev
 ```
 
+<<<<<<< Updated upstream
 **Dashboard:** http://192.168.1.10:5173
+=======
+**Dashboard:** http://192.168.1.14:5173
+>>>>>>> Stashed changes
 
 ### 3. Mobile Driver App
 
@@ -179,7 +194,11 @@ npm run lint             # Kiểm tra code style
 FireGo sử dụng **MongoDB** cho data storage.
 
 **Default Connection:**
+<<<<<<< Updated upstream
 - **Host:** 192.168.1.10
+=======
+- **Host:** 192.168.1.14
+>>>>>>> Stashed changes
 - **Port:** 27017
 - **Username:** admin
 - **Password:** password123

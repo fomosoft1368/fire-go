@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Audio } from 'expo-av'
 import {
   View,
   Text,
@@ -36,6 +37,7 @@ export default function IncomingCallScreen() {
 
   const pulseAnim = useRef(new Animated.Value(1)).current
   const dismissTimer = useRef<NodeJS.Timeout | null>(null)
+  const soundRef = useRef<Audio.Sound | null>(null)
 
   useEffect(() => {
     const pulse = Animated.loop(
@@ -47,6 +49,25 @@ export default function IncomingCallScreen() {
     pulse.start()
     Vibration.vibrate([0, 500, 300, 500, 300, 500], true)
 
+    // ✅ Play ringtone using expo-av
+    const playRingtone = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          allowsRecordingIOS: false,
+        })
+        const { sound } = await Audio.Sound.createAsync(
+          require('../assets/sounds/notification.mp3'),
+          { shouldPlay: true, isLooping: true, volume: 1.0 }
+        )
+        soundRef.current = sound
+        await sound.playAsync()
+      } catch (e) {
+        console.log('[IncomingCallScreen] Ringtone error:', e)
+      }
+    }
+    playRingtone()
+
     dismissTimer.current = setTimeout(() => {
       Vibration.cancel()
       navigation.goBack()
@@ -56,26 +77,52 @@ export default function IncomingCallScreen() {
       pulse.stop()
       Vibration.cancel()
       if (dismissTimer.current) clearTimeout(dismissTimer.current)
+      // Stop ringtone
+      if (soundRef.current) {
+        soundRef.current.stopAsync().catch(() => {})
+        soundRef.current.unloadAsync().catch(() => {})
+        soundRef.current = null
+      }
     }
   }, [])
 
   const getToken = async (): Promise<string> => {
-    return (await AsyncStorage.getItem('driverToken')) || ''
+    // ✅ Driver app stores token under 'token' key (NOT 'driverToken')
+    const token = await AsyncStorage.getItem('token')
+    console.log('[IncomingCallScreen] Token found:', !!token)
+    return token || ''
+  }
+
+  const stopSound = async () => {
+    if (soundRef.current) {
+      try { await soundRef.current.stopAsync() } catch (_) {}
+      try { await soundRef.current.unloadAsync() } catch (_) {}
+      soundRef.current = null
+    }
   }
 
   const handleAccept = async () => {
     if (dismissTimer.current) clearTimeout(dismissTimer.current)
     Vibration.cancel()
-
+    await stopSound()
     try {
       const token = await getToken()
+      if (!token) {
+        console.error('[Driver IncomingCallScreen] No auth token found')
+        navigation.goBack()
+        return
+      }
+
+      console.log('[Driver IncomingCallScreen] Accepting callId:', callId)
       const res = await fetch(`${API_BASE_URL}/call/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ callId }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.message || 'Cannot accept call')
+      console.log('[Driver IncomingCallScreen] Accept response:', res.status, JSON.stringify(json))
+
+      if (!res.ok) throw new Error(json.message || `HTTP ${res.status}`)
 
       const { channelName: ch, receiverToken: rt, receiverUid: ruid } = json.data
 
@@ -97,6 +144,7 @@ export default function IncomingCallScreen() {
   const handleReject = async () => {
     if (dismissTimer.current) clearTimeout(dismissTimer.current)
     Vibration.cancel()
+    await stopSound()
 
     try {
       const token = await getToken()

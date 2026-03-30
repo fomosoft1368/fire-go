@@ -25,7 +25,8 @@
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Allow app to access your location for ride booking",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow app to access your location for ride tracking and history"
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow app to access your location for ride tracking and history",
+        "NSMicrophoneUsageDescription": "App cần quyền micro để thực hiện cuộc gọi thoại với tài xế"
       },
       "config": {
         "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
@@ -38,7 +39,11 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/logooo.png",
@@ -64,7 +69,8 @@
             "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf"
           ]
         }
-      ]
+      ],
+      "react-native-agora"
     ],
     "extra": {
       "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo",

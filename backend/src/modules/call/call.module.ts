@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { CallController } from './call.controller';
+import { CallController, CallRoomController } from './call.controller';
 import { CallService } from './call.service';
 import { CallListener } from './call.listener';
 import { CallSession, CallSessionSchema } from './schemas/call.schema';
@@ -17,7 +17,7 @@ import { RidesModule } from '../rides/rides.module';
     NotificationsModule,
     RidesModule,
   ],
-  controllers: [CallController],
+  controllers: [CallRoomController, CallController],
   providers: [CallService, CallListener],
   exports: [CallService],
 })

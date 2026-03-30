@@ -46,12 +46,21 @@ export class CallService {
     const appId = this.configService.get<string>('AGORA_APP_ID');
     const appCertificate = this.configService.get<string>('AGORA_APP_CERTIFICATE');
 
-    if (!appId || !appCertificate) {
-      console.warn('[CallService] AGORA credentials missing – returning placeholder token');
-      return `placeholder_token_${channelName}_${uid}`;
+    if (!appId) {
+      console.warn('[CallService] AGORA_APP_ID missing – set it in .env');
+      // Return empty string so mobile can still attempt to join (will fail but won't crash)
+      return '';
     }
 
-    const expireTs = Math.floor(Date.now() / 1000) + 120; // 2 minutes
+    // ✅ APP ID only mode (no certificate): return empty token string
+    // Mobile calls joinChannel(token='', channelName, uid, {})
+    if (!appCertificate) {
+      console.log('[CallService] No AGORA_APP_CERTIFICATE – using APP ID only mode (token="")');
+      return '';
+    }
+
+    // ✅ Token auth mode: generate a proper Agora RTC token
+    const expireTs = Math.floor(Date.now() / 1000) + 3600; // 1 hour
     return RtcTokenBuilder.buildTokenWithUid(
       appId,
       appCertificate,
@@ -219,8 +228,9 @@ export class CallService {
     call.startedAt = new Date();
     await call.save();
 
-    // Generate receiver token for joining Agora
+    // Generate tokens for both parties
     const receiverToken = this.generateAgoraToken(call.channelName, call.receiverUid);
+    const callerToken = this.generateAgoraToken(call.channelName, call.callerUid);
 
     this.eventEmitter.emit('call.accepted', {
       callId: dto.callId,
@@ -228,6 +238,8 @@ export class CallService {
       channelName: call.channelName,
       callerId: call.callerId.toString(),
       receiverId: call.receiverId.toString(),
+      callerToken,
+      callerUid: call.callerUid,
     });
 
     return {

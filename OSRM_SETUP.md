@@ -81,7 +81,11 @@ docker-compose -f docker-compose.osrm.yml up -d
 Verify it's running:
 ```bash
 # Should return: {"status": 0}
+<<<<<<< Updated upstream
 curl http://192.168.1.10:5000/status
+=======
+curl http://192.168.1.14:5000/status
+>>>>>>> Stashed changes
 ```
 
 ## Step 5: Update Backend Configuration
@@ -90,7 +94,11 @@ curl http://192.168.1.10:5000/status
 
 ```env
 # Existing settings...
+<<<<<<< Updated upstream
 OSRM_BASE_URL=http://192.168.1.10:5000
+=======
+OSRM_BASE_URL=http://192.168.1.14:5000
+>>>>>>> Stashed changes
 ```
 
 ### Backend already configured to use OSRM_BASE_URL ✅
@@ -107,7 +115,11 @@ npm run start:dev
 ### Test route from Bình Dương → TP.HCM
 
 ```bash
+<<<<<<< Updated upstream
 curl "http://192.168.1.10:5000/route/v1/driving/106.6626,10.6644;106.6763,10.7743?geometries=geojson&overview=full"
+=======
+curl "http://192.168.1.14:5000/route/v1/driving/106.6626,10.6644;106.6763,10.7743?geometries=geojson&overview=full"
+>>>>>>> Stashed changes
 ```
 
 Should return route staying **entirely within Vietnam** ✅
@@ -137,7 +149,11 @@ Invoke-WebRequest -Uri "https://download.geofabrik.de/asia/vietnam-latest.osm.pb
 docker logs -f fire-go-osrm
 
 # Check server status
+<<<<<<< Updated upstream
 curl http://192.168.1.10:5000/status
+=======
+curl http://192.168.1.14:5000/status
+>>>>>>> Stashed changes
 
 # Stop server
 docker-compose -f docker-compose.osrm.yml down
@@ -176,7 +192,11 @@ combinedTripsService.getDirections()
     ↓
 Backend: CombinedTripsService.getDirections()
     ↓
+<<<<<<< Updated upstream
 http://192.168.1.10:5000/route/v1/driving/...  ← Local OSRM (Vietnam only!)
+=======
+http://192.168.1.14:5000/route/v1/driving/...  ← Local OSRM (Vietnam only!)
+>>>>>>> Stashed changes
     ↓
 Route coordinates (always in Vietnam)
     ↓

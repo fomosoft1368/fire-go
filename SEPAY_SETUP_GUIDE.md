@@ -57,7 +57,11 @@ SEPAY_BANK_NAME=MB
 
 ### 3.1. Deploy Backend lên Server (Hosting)
 
+<<<<<<< Updated upstream
 Webhook PHẢI có URL public (không thể dùng 192.168.1.10):
+=======
+Webhook PHẢI có URL public (không thể dùng 192.168.1.14):
+>>>>>>> Stashed changes
 
 **Option A: Deploy lên Vercel/Railway/Render**
 ```bash
@@ -168,7 +172,11 @@ export class SepayService {
 Gửi POST request đến webhook endpoint:
 
 ```bash
+<<<<<<< Updated upstream
 curl -X POST http://192.168.1.10:3000/api/wallet/sepay/webhook \
+=======
+curl -X POST http://192.168.1.14:3000/api/wallet/sepay/webhook \
+>>>>>>> Stashed changes
   -H "Content-Type: application/json" \
   -d '{
     "id": "sepay_test_123",
@@ -212,7 +220,11 @@ ngrok http 3000
 ### 1. Webhook không được gọi
 
 **Kiểm tra:**
+<<<<<<< Updated upstream
 - ✅ Backend đã deploy lên server public (không phải 192.168.1.10)
+=======
+- ✅ Backend đã deploy lên server public (không phải 192.168.1.14)
+>>>>>>> Stashed changes
 - ✅ URL webhook đã đăng ký đúng trong Sepay dashboard
 - ✅ Firewall/Security group cho phép traffic từ Sepay IP
 

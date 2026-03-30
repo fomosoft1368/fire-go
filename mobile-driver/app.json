@@ -22,7 +22,8 @@
           "locationAlwaysAndWhenInUsePermission": "Allow app to access your location for delivery tracking",
           "locationWhenInUsePermission": "Allow app to access your location while using the app"
         }
-      ]
+      ],
+      "react-native-agora"
     ],
     "ios": {
       "supportsTabletMode": true,
@@ -30,6 +31,7 @@
         "NSLocationWhenInUseUsageDescription": "Allow the app to access your location while using the app to track deliveries and show nearby orders",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow the app to access your location at all times to track your delivery and location history",
         "NSLocationAlwaysUsageDescription": "Allow the app to access your location for delivery tracking",
+        "NSMicrophoneUsageDescription": "App cần quyền micro để thực hiện cuộc gọi thoại với khách hàng",
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.firego.driver"
@@ -40,7 +42,11 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/fire-logo.png",

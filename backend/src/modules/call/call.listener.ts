@@ -27,8 +27,23 @@ export class CallListener {
     try {
       const isCallerDriver = payload.callerRole === 'driver';
 
-      await this.notificationsService.create({
+      // ✅ FIX: Set the correct recipient field based on who the RECEIVER is.
+      // If caller is driver → receiver is customer → set customerId.
+      // If caller is customer → receiver is driver → set driverId.
+      // Also keep userId for backward compat (findDriverNotifications checks both).
+      const recipientFields: Record<string, any> = {
         userId: payload.receiverId,
+      };
+      if (isCallerDriver) {
+        // Receiver is a customer
+        recipientFields.customerId = payload.receiverId;
+      } else {
+        // Receiver is a driver
+        recipientFields.driverId = payload.receiverId;
+      }
+
+      await this.notificationsService.createRaw({
+        ...recipientFields,
         type: NotificationType.CALL_INCOMING,
         channels: [NotificationChannel.IN_APP],
         title: isCallerDriver ? 'Tài xế đang gọi cho bạn' : 'Khách hàng đang gọi cho bạn',
@@ -49,17 +64,22 @@ export class CallListener {
     }
   }
 
+
   @OnEvent('call.accepted')
   async handleCallAccepted(payload: {
     callId: string;
     rideId: string;
+    channelName: string;
     callerId: string;
     receiverId: string;
+    callerToken: string;
+    callerUid: number;
   }) {
     console.log('✅ [CallListener] call.accepted:', payload.callId);
 
     try {
-      await this.notificationsService.create({
+      // ✅ Notify the CALLER with callerToken so they can join Agora channel immediately
+      await this.notificationsService.createRaw({
         userId: payload.callerId,
         type: NotificationType.CALL_ACCEPTED,
         channels: [NotificationChannel.IN_APP],
@@ -69,6 +89,9 @@ export class CallListener {
           type: 'CALL_ACCEPTED',
           callId: payload.callId,
           rideId: payload.rideId,
+          channelName: payload.channelName,
+          callerToken: payload.callerToken,
+          callerUid: payload.callerUid,
         },
       });
     } catch (err) {

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Audio } from 'expo-av'
 import {
   View,
   Text,
@@ -36,8 +37,17 @@ export default function IncomingCallScreen() {
 
   const pulseAnim = useRef(new Animated.Value(1)).current
   const dismissTimer = useRef<NodeJS.Timeout | null>(null)
+  const soundRef = useRef<Audio.Sound | null>(null)
 
-  // Pulse animation for call ring effect
+  const stopSound = async () => {
+    if (soundRef.current) {
+      try { await soundRef.current.stopAsync() } catch (_) {}
+      try { await soundRef.current.unloadAsync() } catch (_) {}
+      soundRef.current = null
+    }
+  }
+
+  // Pulse animation + ringtone for call ring effect
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
@@ -50,9 +60,29 @@ export default function IncomingCallScreen() {
     // Vibrate to alert receiver
     Vibration.vibrate([0, 500, 300, 500, 300, 500], true)
 
+    // ✅ Play ringtone using expo-av
+    const playRingtone = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          allowsRecordingIOS: false,
+        })
+        const { sound } = await Audio.Sound.createAsync(
+          require('../assets/sounds/notification.mp3'),
+          { shouldPlay: true, isLooping: true, volume: 1.0 }
+        )
+        soundRef.current = sound
+        await sound.playAsync()
+      } catch (e) {
+        console.log('[Customer IncomingCallScreen] Ringtone error:', e)
+      }
+    }
+    playRingtone()
+
     // Auto-dismiss when backend misses the call (30s)
     dismissTimer.current = setTimeout(() => {
       Vibration.cancel()
+      stopSound()
       navigation.goBack()
     }, AUTO_DISMISS_MS)
 
@@ -60,16 +90,81 @@ export default function IncomingCallScreen() {
       pulse.stop()
       Vibration.cancel()
       if (dismissTimer.current) clearTimeout(dismissTimer.current)
+      stopSound()
     }
   }, [])
 
+  const handledAcceptedCallIds = useRef<Set<string>>(new Set())
+
+  // ✅ Poll for CALL_ACCEPTED notification — customer navigates to ActiveCall
+  // when driver accepts. Backend emits call.accepted → creates CALL_ACCEPTED notification
+  // for the caller (customer).
+  useEffect(() => {
+    const pollAccepted = async () => {
+      try {
+        const token = await AsyncStorage.getItem('authToken')
+        if (!token) return
+
+        const res = await fetch(
+          `${API_BASE_URL}/notifications/customer?type=call_accepted&limit=5`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (!res.ok) return
+
+        const json = await res.json()
+        const notifications: any[] = Array.isArray(json?.data) ? json.data
+          : Array.isArray(json?.notifications) ? json.notifications
+          : []
+
+        const accepted = notifications.find(
+          (n) => !n.isRead && n.data?.type === 'CALL_ACCEPTED' && n.data?.callId === callId
+        )
+
+        if (accepted && !handledAcceptedCallIds.current.has(callId)) {
+          handledAcceptedCallIds.current.add(callId)
+
+          // Mark as read
+          try {
+            await fetch(`${API_BASE_URL}/notifications/${accepted._id}/read`, {
+              method: 'PATCH', headers: { Authorization: `Bearer ${token}` }
+            })
+          } catch (_) {}
+
+          // ✅ Read callerToken/callerUid directly from notification data
+          // Backend puts these in CALL_ACCEPTED notification since they are not stored in DB
+          const { channelName: ch, callerToken: ct, callerUid: cuid } = accepted.data
+
+          if (dismissTimer.current) clearTimeout(dismissTimer.current)
+          Vibration.cancel()
+
+          navigation.replace('ActiveCall', {
+            callId,
+            rideId,
+            channelName: ch || channelName,
+            token: ct || '',
+            uid: cuid || 0,
+            otherPartyName: callerName,
+            role: 'caller',
+          })
+        }
+      } catch (_) {}
+    }
+
+    const interval = setInterval(pollAccepted, 2000)
+    return () => clearInterval(interval)
+  }, [callId, rideId])
+
   const getToken = async (): Promise<string> => {
-    return (await AsyncStorage.getItem('accessToken')) || ''
+    // ✅ Customer app stores token under 'authToken' key (NOT 'accessToken')
+    const token = await AsyncStorage.getItem('authToken')
+    console.log('[Customer IncomingCallScreen] Token found:', !!token)
+    return token || ''
   }
 
   const handleAccept = async () => {
     if (dismissTimer.current) clearTimeout(dismissTimer.current)
     Vibration.cancel()
+    await stopSound()
 
     try {
       const token = await getToken()
