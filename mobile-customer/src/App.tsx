@@ -26,20 +26,52 @@ import RideTracking from './screens/RideTracking'
 const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient' ||
   Constants.appOwnership === 'expo'
 
-// Configure foreground notification display (skip in Expo Go)
-if (!IS_EXPO_GO) {
+// Configure foreground notification display — works in Expo Go for LOCAL notifications
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  })
+} catch {
+  // ignore if not supported
+}
+
+// Request local notification permission (works in Expo Go)
+async function requestLocalNotificationPermission(): Promise<void> {
   try {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
+    const { status } = await Notifications.requestPermissionsAsync()
+    if (status !== 'granted') {
+      console.log('[LocalNotif] Permission not granted')
+      return
+    }
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'FireGo',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF6B00',
+      })
+    }
+    console.log('[LocalNotif] ✅ Permission granted')
+  } catch (err: any) {
+    console.warn('[LocalNotif] Permission error:', err.message)
+  }
+}
+
+// Show a local notification immediately (works in Expo Go)
+async function showLocalNotification(title: string, body: string, data?: Record<string, any>): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, data: data || {}, sound: 'default' },
+      trigger: null, // fire immediately
     })
-  } catch {
-    // ignore if not supported
+  } catch (err: any) {
+    console.warn('[LocalNotif] Failed to show:', err.message)
   }
 }
 
@@ -136,9 +168,14 @@ const MainNavigator = () => {
   const [unreadCount, setUnreadCount] = useState(0)
   const token = useSelector((state: RootState) => state.auth.token)
 
+  const lastNotifIdRef = React.useRef<string | null>(null)
+  const isFirstLoadRef = React.useRef(true)
+
   useEffect(() => {
     if (token) {
       notificationService.setToken(token)
+      isFirstLoadRef.current = true
+      lastNotifIdRef.current = null
       fetchUnreadCount()
       // Refresh every 30 seconds
       const interval = setInterval(fetchUnreadCount, 30000)
@@ -158,9 +195,28 @@ const MainNavigator = () => {
   const fetchUnreadCount = async () => {
     try {
       const response = await notificationService.getNotifications(50, 0)
-      const data = response.data || []
-      const count = data.filter((n: any) => !n.isRead).length
-      setUnreadCount(count)
+      const data: any[] = response.data || []
+      const unread = data.filter((n: any) => !n.isRead)
+      setUnreadCount(unread.length)
+
+      if (unread.length > 0) {
+        const newest = unread[0]
+        if (isFirstLoadRef.current) {
+          // Seed ref on first load — don't show notification
+          lastNotifIdRef.current = newest._id
+          isFirstLoadRef.current = false
+        } else if (newest._id !== lastNotifIdRef.current) {
+          // New notification arrived after first load → show it
+          lastNotifIdRef.current = newest._id
+          showLocalNotification(
+            newest.title || 'FireGo',
+            newest.message || '',
+            { notificationId: newest._id, type: newest.type }
+          )
+        }
+      } else {
+        isFirstLoadRef.current = false
+      }
     } catch (error) {
       console.error('Fetch unread count error:', error)
     }
@@ -283,7 +339,9 @@ const RootNavigator = () => {
             dispatch(restoreAuth({ token, user }))
             // Then verify with backend (will auto-logout if invalid)
             await verifyAccountWithBackend(token)
-            // Register push notification token
+            // Request local notification permission (works in Expo Go)
+            requestLocalNotificationPermission().catch(() => {})
+            // Register remote push token (only works in dev build, not Expo Go)
             registerPushToken(token).catch(() => {})
           } catch (parseError) {
             console.error('[App] User JSON parse error:', parseError)

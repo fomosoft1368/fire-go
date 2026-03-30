@@ -68,21 +68,19 @@ const Tab = createBottomTabNavigator()
 const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient' ||
   Constants.appOwnership === 'expo'
 
-// Configure foreground notification display (skip in Expo Go)
-if (!IS_EXPO_GO) {
-  try {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    })
-  } catch {
-    // ignore if not supported
-  }
+// Configure foreground notification display — works in Expo Go for LOCAL notifications
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  })
+} catch {
+  // ignore if not supported
 }
 
 /**
@@ -147,6 +145,44 @@ async function registerPushToken(authToken) {
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#FF6B00',
     })
+  }
+}
+
+/**
+ * Request local notification permission (works in Expo Go)
+ */
+async function requestLocalNotificationPermission() {
+  try {
+    const { status } = await Notifications.requestPermissionsAsync()
+    if (status !== 'granted') {
+      console.log('[LocalNotif] Permission not granted')
+      return
+    }
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'FireGo Thông báo',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF6B00',
+      })
+    }
+    console.log('[LocalNotif] ✅ Permission granted')
+  } catch (err) {
+    console.warn('[LocalNotif] Permission error:', err.message)
+  }
+}
+
+/**
+ * Show a local notification immediately (works in Expo Go)
+ */
+async function showLocalNotification(title, body, data) {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, data: data || {}, sound: 'default' },
+      trigger: null, // fire immediately
+    })
+  } catch (err) {
+    console.warn('[LocalNotif] Failed to show:', err.message)
   }
 }
 
@@ -428,7 +464,9 @@ const RootNavigator = () => {
             if (user) {
               dispatch(loginSuccess({ token, user }))
 
-              // ✅ Register push notification token with backend
+              // ✅ Request local notification permission (works in Expo Go)
+              requestLocalNotificationPermission().catch(() => {})
+              // Register remote push token (only works in dev build, not Expo Go)
               registerPushToken(token).catch(err =>
                 console.warn('[Push] Token registration failed:', err.message)
               )
@@ -577,6 +615,59 @@ const RootNavigator = () => {
         console.error('[App] Error checking token:', err.message)
       })
     }
+  }, [isAuthenticated])
+
+  // =====================================================
+  // 🔔 POLL FOR NEW NOTIFICATIONS → Show local notification
+  // Works in Expo Go (local schedule, no FCM needed)
+  // =====================================================
+  const lastDriverNotifIdRef = useRef(null)
+  const isDriverNotifFirstLoadRef = useRef(true)
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const pollDriverNotifications = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token')
+        if (!token) return
+
+        const resp = await fetch(`${API_BASE_URL}/notifications/driver?limit=20`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!resp.ok) return
+
+        const json = await resp.json()
+        // Backend findDriverNotifications returns { data: [...], total: N }
+        const notifications = Array.isArray(json?.data) ? json.data : []
+        const unread = notifications.filter(n => !n.isRead)
+
+        if (unread.length > 0) {
+          const newest = unread[0]
+          if (isDriverNotifFirstLoadRef.current) {
+            // Seed on first load — don't show notification
+            lastDriverNotifIdRef.current = newest._id
+            isDriverNotifFirstLoadRef.current = false
+          } else if (newest._id !== lastDriverNotifIdRef.current) {
+            lastDriverNotifIdRef.current = newest._id
+            showLocalNotification(
+              newest.title || 'FireGo',
+              newest.message || '',
+              { notificationId: newest._id, type: newest.type }
+            )
+          }
+        } else {
+          isDriverNotifFirstLoadRef.current = false
+        }
+      } catch (err) {
+        // Silent — don't break app
+      }
+    }
+
+    // Initial poll + every 30s
+    pollDriverNotifications()
+    const interval = setInterval(pollDriverNotifications, 30_000)
+    return () => clearInterval(interval)
   }, [isAuthenticated])
 
   // =====================================================

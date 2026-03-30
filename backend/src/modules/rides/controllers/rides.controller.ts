@@ -11,6 +11,7 @@ import { Pricing } from '../schemas/pricing.schema';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { PushNotificationService } from '../../notifications/push-notification.service';
+import { NotificationType } from '../../notifications/schemas/notification.schema';
 
 @Controller('rides')
 export class RidesController {
@@ -317,18 +318,19 @@ export class RidesController {
       const result = await this.ridesService.acceptRide(id, driverId);
       console.log('[RidesController] Ride accepted successfully:', result._id);
 
-      // 📣 Push notification to customer
+      // 📣 Notify customer: driver accepted
       const customerId = result.customerId?.toString();
       const driver = await this.driverModel.findById(driverId).select('firstName lastName').lean() as any;
-      const driverName = driver ? `${driver.firstName} ${driver.lastName}` : 'Tài xế';
-      console.log(`\n🚗 [Push] Ride ACCEPTED — customerId: ${customerId}, driver: ${driverName}`);
+      const driverName = driver ? `${driver.firstName} ${driver.lastName}`.trim() : 'Tài xế';
       if (customerId) {
-        this.pushService.sendToCustomer(
+        this.pushService.notifyCustomer(
           customerId,
           '🚗 Tài xế đã nhận chuyến!',
           `${driverName} đang trên đường đến đón bạn`,
+          NotificationType.RIDE_ACCEPTED,
           { type: 'RIDE_ACCEPTED', rideId: id },
-        ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+          id,
+        ).catch(() => {});
       }
 
       return result;
@@ -353,19 +355,45 @@ export class RidesController {
   async startRide(@Param('id') id: string) {
     const result = await this.ridesService.startRide(id);
 
-    // 📣 Push notification to customer
+    // 📣 Notify customer: trip started
     const customerId = result.customerId?.toString();
-    console.log(`\n🚀 [Push] Ride STARTED — customerId: ${customerId}`);
     if (customerId) {
-      this.pushService.sendToCustomer(
+      this.pushService.notifyCustomer(
         customerId,
         '🚀 Chuyến đi bắt đầu!',
         'Tài xế đang đưa bạn đến điểm đến. Chúc bạn có chuyến đi vui!',
+        NotificationType.RIDE_STARTED,
         { type: 'RIDE_STARTED', rideId: id },
-      ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+        id,
+      ).catch(() => {});
     }
 
     return result;
+  }
+
+  /** Tài xế báo đã đến điểm đón */
+  @Patch(':id/driver-arrived')
+  @UseGuards(JwtAuthGuard)
+  async driverArrived(@Param('id') id: string, @Request() req: any) {
+    const ride = await this.ridesService.findById(id);
+    if (!ride) throw new BadRequestException('Ride not found');
+
+    const customerId = ride.customerId
+      ? (ride.customerId as any)?._id?.toString() || (ride.customerId as any)?.toString()
+      : null;
+
+    if (customerId) {
+      this.pushService.notifyCustomer(
+        customerId,
+        '📍 Tài xế đã đến điểm đón!',
+        'Tài xế đang chờ bạn. Hãy ra xe ngay nhé!',
+        NotificationType.DRIVER_ARRIVED,
+        { type: 'DRIVER_ARRIVED', rideId: id },
+        id,
+      ).catch(() => {});
+    }
+
+    return { success: true, message: 'Customer notified of driver arrival' };
   }
 
   @Patch(':id/complete')
@@ -374,18 +402,12 @@ export class RidesController {
     @Param('id') id: string,
     @Body('totalFare') totalFare?: number,
   ) {
-    // Save total fare if provided
     if (totalFare !== undefined && totalFare > 0) {
-      console.log(`[RidesController] 💰 Saving total fare:`, {
-        rideId: id,
-        totalFare: totalFare,
-      });
       await this.ridesService.updateRideData(id, { fare: totalFare });
     }
 
     const ride = await this.ridesService.completeRide(id);
 
-    // Fetch driver's updated wallet balance after deduction
     let walletBalance = 0;
     let walletWarning = false;
 
@@ -397,28 +419,30 @@ export class RidesController {
         walletBalance = driver.walletBalance;
         walletWarning = driver.walletBalance < 200000;
 
-        // 📣 Push to driver: earnings notification
-        const fare = (ride as any).fare || totalFare || 0;
-        console.log(`\n💰 [Push] Ride COMPLETED — driverId: ${driverId}, fare: ${fare}`);
-        this.pushService.sendToDriver(
+        // 📣 Notify driver: earnings
+        const fare = (ride as any).fare || totalFare || ride.totalFare || 0;
+        this.pushService.notifyDriver(
           driverId.toString(),
           '✅ Hoàn thành chuyến đi!',
           `Thu nhập +${fare.toLocaleString('vi-VN')}đ đã được ghi nhận vào ví`,
+          NotificationType.RIDE_COMPLETED,
           { type: 'RIDE_COMPLETED', rideId: id },
-        ).catch((e: any) => console.error('[Push] sendToDriver failed:', e.message));
+          id,
+        ).catch(() => {});
       }
     }
 
-    // 📣 Push to customer: trip completed
+    // 📣 Notify customer: trip completed
     const customerId = ride.customerId?.toString();
-    console.log(`🎉 [Push] Ride COMPLETED — customerId: ${customerId}`);
     if (customerId) {
-      this.pushService.sendToCustomer(
+      this.pushService.notifyCustomer(
         customerId,
         '🎉 Chuyến đi hoàn thành!',
         'Cảm ơn bạn đã sử dụng dịch vụ. Hãy đánh giá tài xế nhé!',
+        NotificationType.RIDE_COMPLETED,
         { type: 'RIDE_COMPLETED', rideId: id },
-      ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+        id,
+      ).catch(() => {});
     }
 
     return {
@@ -440,23 +464,28 @@ export class RidesController {
   ) {
     const result = await this.ridesService.cancelRide(id, cancellationBy, reason);
 
-    // ✅ Push notification to the OTHER party
     const customerId = result.customerId?.toString();
     const driverId = result.driverId?.toString();
 
     if (cancellationBy === 'driver' && customerId) {
-      this.pushService.sendToCustomer(
+      // Customer gets notified that driver cancelled
+      this.pushService.notifyCustomer(
         customerId,
         '❌ Chuyến bị hủy',
         'Tài xế đã hủy chuyến. Chúng tôi đang tìm tài xế khác cho bạn...',
+        NotificationType.RIDE_CANCELLED,
         { type: 'RIDE_CANCELLED_BY_DRIVER', rideId: id },
+        id,
       ).catch(() => {});
     } else if (cancellationBy === 'customer' && driverId) {
-      this.pushService.sendToDriver(
+      // Driver gets notified that customer cancelled
+      this.pushService.notifyDriver(
         driverId,
         '❌ Khách hủy chuyến',
         'Khách hàng đã hủy chuyến này.',
+        NotificationType.RIDE_CANCELLED,
         { type: 'RIDE_CANCELLED_BY_CUSTOMER', rideId: id },
+        id,
       ).catch(() => {});
     }
 

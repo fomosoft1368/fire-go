@@ -345,13 +345,22 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
     const handleArrivedAtPickup = async () => {
         setUpdating(true)
         try {
-            // In real app, you might want to update status on backend
-            // For now, just update local state
+            const AsyncStorage = require('@react-native-async-storage/async-storage').default
+            const token = await AsyncStorage.getItem('token')
+
+            // 📣 Notify backend → customer will receive notification within 30s poll
+            if (token) {
+                await fetch(`${API_BASE_URL}/rides/${rideId}/driver-arrived`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                }).catch(() => {}) // silent fail — don't block UI
+            }
+
             setTripStatus('arrived_at_pickup')
-
-            // Clear routeInfo để trigger re-fetch route mới (pickup → dropoff)
             setRouteInfo(null)
-
             Alert.alert('Thành công', 'Đã đến điểm đón. Hãy chờ khách hàng.')
         } catch (error: any) {
             console.error('❌ Error updating status:', error.message)

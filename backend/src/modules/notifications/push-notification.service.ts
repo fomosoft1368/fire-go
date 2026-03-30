@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
 import { Customer, CustomerDocument } from '../customers/schemas/customer.schema';
+import { Notification, NotificationDocument, NotificationType, NotificationChannel } from './schemas/notification.schema';
 
 export interface PushMessage {
   to: string;
@@ -22,6 +23,7 @@ export class PushNotificationService {
   constructor(
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
+    @InjectModel(Notification.name) private notificationModel: Model<NotificationDocument>,
   ) {}
 
   /**
@@ -36,13 +38,82 @@ export class PushNotificationService {
    * Save Expo push token for a customer (Customer collection)
    */
   async saveCustomerPushToken(customerId: string, token: string): Promise<void> {
-    // ✅ Customers are in Customer collection, NOT User collection
     await this.customerModel.findByIdAndUpdate(customerId, { expoPushToken: token });
     this.logger.log(`🔔 [Customer] Push token saved: ${customerId} -> ${token.substring(0, 30)}...`);
   }
 
   /**
-   * Send push notification to a driver
+   * Notify a CUSTOMER:
+   * 1. Saves notification to DB (picked up by 30s poll in Expo Go)
+   * 2. Also sends remote push via Expo API (works in production / dev builds)
+   */
+  async notifyCustomer(
+    customerId: string,
+    title: string,
+    body: string,
+    type: NotificationType,
+    data?: Record<string, any>,
+    rideId?: string,
+  ): Promise<void> {
+    // ① Persist to DB — always works regardless of Expo Go / dev build
+    try {
+      await this.notificationModel.create({
+        customerId: new Types.ObjectId(customerId),
+        type,
+        channels: [NotificationChannel.IN_APP],
+        title,
+        message: body,
+        data: data || {},
+        rideId: rideId ? new Types.ObjectId(rideId) : undefined,
+        isActive: true,
+        isRead: false,
+      });
+      this.logger.log(`💾 [Customer] Notification saved to DB: ${customerId} — "${title}"`);
+    } catch (err) {
+      this.logger.warn(`⚠️ [Customer] Failed to save notification to DB: ${err.message}`);
+    }
+
+    // ② Also attempt remote push (Expo Go will silently skip — no token registered)
+    this.sendToCustomer(customerId, title, body, data).catch(() => {});
+  }
+
+  /**
+   * Notify a DRIVER:
+   * 1. Saves notification to DB (picked up by 30s poll in Expo Go)
+   * 2. Also sends remote push via Expo API (works in production / dev builds)
+   */
+  async notifyDriver(
+    driverId: string,
+    title: string,
+    body: string,
+    type: NotificationType,
+    data?: Record<string, any>,
+    rideId?: string,
+  ): Promise<void> {
+    // ① Persist to DB — always works
+    try {
+      await this.notificationModel.create({
+        driverId: new Types.ObjectId(driverId),
+        type,
+        channels: [NotificationChannel.IN_APP],
+        title,
+        message: body,
+        data: data || {},
+        rideId: rideId ? new Types.ObjectId(rideId) : undefined,
+        isActive: true,
+        isRead: false,
+      });
+      this.logger.log(`💾 [Driver] Notification saved to DB: ${driverId} — "${title}"`);
+    } catch (err) {
+      this.logger.warn(`⚠️ [Driver] Failed to save notification to DB: ${err.message}`);
+    }
+
+    // ② Also attempt remote push
+    this.sendToDriver(driverId, title, body, data).catch(() => {});
+  }
+
+  /**
+   * Send push notification to a driver (remote push only — no DB write)
    */
   async sendToDriver(
     driverId: string,
@@ -68,7 +139,7 @@ export class PushNotificationService {
   }
 
   /**
-   * Send push notification to a customer (Customer collection)
+   * Send push notification to a customer (remote push only - no DB write)
    */
   async sendToCustomer(
     customerId: string,
@@ -77,7 +148,6 @@ export class PushNotificationService {
     data?: Record<string, any>,
   ): Promise<void> {
     try {
-      // ✅ Lookup from Customer collection (not User)
       const customer = await this.customerModel.findById(customerId).select('expoPushToken firstName').lean() as any;
       if (!customer) {
         this.logger.warn(`⚠️ [Customer] Not found in DB: ${customerId}`);
@@ -101,14 +171,14 @@ export class PushNotificationService {
     // Filter valid Expo push tokens
     const validTokens = tokens.filter(t => t && t.startsWith('ExponentPushToken['));
 
-    console.log(`\n\ud83d\udce1 ===== EXPO PUSH DISPATCH =====`);
-    console.log(`\ud83d\udcf1 Tokens total: ${tokens.length} | Valid: ${validTokens.length}`);
-    console.log(`\ud83d\udcec Title: "${title}"`);
-    console.log(`\ud83d\udcdd Body: "${body}"`);
+    console.log(`\n📡 ===== EXPO PUSH DISPATCH =====`);
+    console.log(`📱 Tokens total: ${tokens.length} | Valid: ${validTokens.length}`);
+    console.log(`📬 Title: "${title}"`);
+    console.log(`📝 Body: "${body}"`);
     validTokens.forEach((t, i) => console.log(`   Token[${i}]: ${t.substring(0, 45)}...`));
 
     if (validTokens.length === 0) {
-      console.log('\u26a0\ufe0f No valid ExponentPushToken[] found \u2014 push skipped.');
+      console.log('⚠️ No valid ExponentPushToken[] found — push skipped.');
       console.log(`==============================\n`);
       return;
     }
@@ -134,20 +204,20 @@ export class PushNotificationService {
       });
 
       const result = await response.json() as any;
-      console.log(`\ud83c\udf10 Expo API response status: ${response.status}`);
-      console.log(`\ud83d\udce6 Expo API result:`, JSON.stringify(result, null, 2));
+      console.log(`🌐 Expo API response status: ${response.status}`);
+      console.log(`📦 Expo API result:`, JSON.stringify(result, null, 2));
 
       if (result.data) {
         result.data.forEach((r: any, i: number) => {
           if (r.status === 'error') {
-            console.log(`\u274c [${i}] Push ERROR: ${r.message} (${r.details?.error})`);
+            console.log(`❌ [${i}] Push ERROR: ${r.message} (${r.details?.error})`);
           } else {
-            console.log(`\u2705 [${i}] Push OK \u2014 receipt ID: ${r.id}`);
+            console.log(`✅ [${i}] Push OK — receipt ID: ${r.id}`);
           }
         });
       }
     } catch (error) {
-      console.log(`\ud83d\udd34 Expo push API request failed: ${error.message}`);
+      console.log(`🔴 Expo push API request failed: ${error.message}`);
     }
     console.log(`==============================\n`);
   }

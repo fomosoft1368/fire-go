@@ -22,6 +22,7 @@ import { DeliveryStatus } from '../schemas/delivery.schema';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { Types } from 'mongoose';
 import { PushNotificationService } from '../../notifications/push-notification.service';
+import { NotificationType } from '../../notifications/schemas/notification.schema';
 
 @Controller('deliveries')
 export class DeliveryController {
@@ -115,37 +116,70 @@ export class DeliveryController {
   @UseGuards(JwtAuthGuard)
   async update(@Param('id') id: string, @Body() updateDeliveryDto: UpdateDeliveryDto) {
     const delivery = await this.deliveryService.update(id, updateDeliveryDto);
-    const customerId = (delivery as any).customerId?.toString();
-    const driverId = (delivery as any).driverId?.toString();
+    const customerId = (delivery as any).customerId?._id?.toString() || (delivery as any).customerId?.toString();
+    const driverId = (delivery as any).driverId?._id?.toString() || (delivery as any).driverId?.toString();
 
     if (updateDeliveryDto.status === DeliveryStatus.PICKING_UP) {
-      console.log(`\n📦 [Push] Delivery PICKING UP — customerId: ${customerId}`);
+      // Tài xế vấn đang đến lấy hàng
       if (customerId) {
-        this.pushService.sendToCustomer(
+        this.pushService.notifyCustomer(
           customerId,
-          '📦 Tài xế đã lấy hàng!',
-          'Tài xế đang trên đường giao hàng đến bạn',
-          { type: 'DELIVERY_PICKED_UP', deliveryId: id },
-        ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+          '📦 Tài xế đang đến lấy hàng!',
+          'Tài xế đang trên đường đến lấy đơn hàng của bạn',
+          NotificationType.DELIVERY_PICKING_UP,
+          { type: 'DELIVERY_PICKING_UP', deliveryId: id },
+        ).catch(() => {});
+      }
+    } else if (updateDeliveryDto.status === DeliveryStatus.DELIVERING) {
+      // Tài xế đã lấy hàng và đang giao
+      if (customerId) {
+        this.pushService.notifyCustomer(
+          customerId,
+          '🚚 Hàng đã được lấy, đang giao!',
+          'Tài xế đã lấy đơn hàng và đang giao đến bạn',
+          NotificationType.DELIVERY_DELIVERING,
+          { type: 'DELIVERY_DELIVERING', deliveryId: id },
+        ).catch(() => {});
       }
     } else if (updateDeliveryDto.status === DeliveryStatus.DELIVERED) {
-      console.log(`\n✅ [Push] Delivery DELIVERED — customerId: ${customerId}, driverId: ${driverId}`);
+      // Giao thành công
       if (customerId) {
-        this.pushService.sendToCustomer(
+        this.pushService.notifyCustomer(
           customerId,
           '✅ Giao hàng thành công!',
           'Đơn hàng đã được giao thành công. Cảm ơn bạn đã sử dụng dịch vụ!',
-          { type: 'DELIVERY_COMPLETED', deliveryId: id },
-        ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+          NotificationType.DELIVERY_DELIVERED,
+          { type: 'DELIVERY_DELIVERED', deliveryId: id },
+        ).catch(() => {});
       }
       if (driverId) {
-        const fare = (delivery as any).fare || 0;
-        this.pushService.sendToDriver(
+        const fare = (delivery as any).estimatedPrice || 0;
+        this.pushService.notifyDriver(
           driverId,
           '💰 Hoàn thành giao hàng!',
-          `Thu nhập +${fare.toLocaleString('vi-VN')}đ đã được ghi nhận`,
-          { type: 'DELIVERY_COMPLETED', deliveryId: id },
-        ).catch((e: any) => console.error('[Push] sendToDriver failed:', e.message));
+          `Thu nhập đã được ghi nhận`,
+          NotificationType.DELIVERY_DELIVERED,
+          { type: 'DELIVERY_DELIVERED', deliveryId: id },
+        ).catch(() => {});
+      }
+    } else if (updateDeliveryDto.status === DeliveryStatus.CANCELLED) {
+      if (customerId) {
+        this.pushService.notifyCustomer(
+          customerId,
+          '❌ Đơn giao hàng bị hủy',
+          'Đơn hàng của bạn đã bị hủy',
+          NotificationType.DELIVERY_CANCELLED,
+          { type: 'DELIVERY_CANCELLED', deliveryId: id },
+        ).catch(() => {});
+      }
+      if (driverId) {
+        this.pushService.notifyDriver(
+          driverId,
+          '❌ Đơn giao hàng bị hủy',
+          'Đơn hàng đã bị hủy bởi khách hàng',
+          NotificationType.DELIVERY_CANCELLED,
+          { type: 'DELIVERY_CANCELLED', deliveryId: id },
+        ).catch(() => {});
       }
     }
 
@@ -168,25 +202,26 @@ export class DeliveryController {
   @UseGuards(JwtAuthGuard)
   async cancel(@Param('id') id: string, @Body('reason') reason: string) {
     const delivery = await this.deliveryService.cancel(id, reason);
-    const customerId = (delivery as any).customerId?.toString();
-    const driverId = (delivery as any).driverId?.toString();
+    const customerId = (delivery as any).customerId?._id?.toString() || (delivery as any).customerId?.toString();
+    const driverId = (delivery as any).driverId?._id?.toString() || (delivery as any).driverId?.toString();
 
-    console.log(`\n❌ [Push] Delivery CANCELLED — customerId: ${customerId}`);
     if (customerId) {
-      this.pushService.sendToCustomer(
+      this.pushService.notifyCustomer(
         customerId,
         '❌ Đơn giao hàng bị hủy',
         reason || 'Đơn hàng của bạn đã bị hủy',
+        NotificationType.DELIVERY_CANCELLED,
         { type: 'DELIVERY_CANCELLED', deliveryId: id },
-      ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+      ).catch(() => {});
     }
     if (driverId) {
-      this.pushService.sendToDriver(
+      this.pushService.notifyDriver(
         driverId,
         '❌ Đơn giao hàng bị hủy',
         'Đơn hàng đã bị hủy bởi khách hàng',
+        NotificationType.DELIVERY_CANCELLED,
         { type: 'DELIVERY_CANCELLED', deliveryId: id },
-      ).catch((e: any) => console.error('[Push] sendToDriver failed:', e.message));
+      ).catch(() => {});
     }
 
     return delivery;
@@ -222,12 +257,13 @@ export class DeliveryController {
     const driverName = driver ? `${driver.firstName} ${driver.lastName}` : 'Tài xế';
     console.log(`\n🚚 [Push] Delivery ACCEPTED — customerId: ${customerId}, driver: ${driverName}`);
     if (customerId) {
-      this.pushService.sendToCustomer(
+      this.pushService.notifyCustomer(
         customerId,
         '🚚 Tài xế đã nhận đơn!',
         `${driverName} đang trên đường đến lấy hàng`,
+        NotificationType.DELIVERY_ASSIGNED,
         { type: 'DELIVERY_ACCEPTED', deliveryId: (delivery as any)._id?.toString() },
-      ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+      ).catch(() => {});
     }
 
     const driverFull = await this.driverModel.findById(driverId);

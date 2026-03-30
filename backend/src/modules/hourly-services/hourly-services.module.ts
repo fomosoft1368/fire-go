@@ -5,10 +5,12 @@ import { HourlyServiceService } from './services/hourly-service.service'
 import { HourlyServiceController } from './controllers/hourly-service.controller'
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema'
 import { DriversModule } from '../drivers/drivers.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
   imports: [
     DriversModule,
+    NotificationsModule,
     MongooseModule.forFeature([
       { name: HourlyService.name, schema: HourlyServiceSchema },
       { name: Customer.name, schema: CustomerSchema },

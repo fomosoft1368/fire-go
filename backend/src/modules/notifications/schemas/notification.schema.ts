@@ -6,12 +6,27 @@ export type NotificationDocument = Notification & Document;
 export enum NotificationType {
   DRIVER_REGISTERED = 'driver_registered',
   CUSTOMER_REGISTERED = 'customer_registered',
+  // === RIDE (lái xe hộ / ghép xe) ===
   RIDE_CREATED = 'ride_created',
   RIDE_REQUEST = 'ride_request',
   RIDE_ACCEPTED = 'ride_accepted',
+  DRIVER_ARRIVED = 'driver_arrived',
   RIDE_STARTED = 'ride_started',
   RIDE_COMPLETED = 'ride_completed',
   RIDE_CANCELLED = 'ride_cancelled',
+  // === DELIVERY (giao hàng) ===
+  DELIVERY_ASSIGNED = 'delivery_assigned',
+  DELIVERY_PICKING_UP = 'delivery_picking_up',
+  DELIVERY_DELIVERING = 'delivery_delivering',
+  DELIVERY_DELIVERED = 'delivery_delivered',
+  DELIVERY_CANCELLED = 'delivery_cancelled',
+  // === HOURLY (theo giờ) ===
+  HOURLY_ACCEPTED = 'hourly_accepted',
+  HOURLY_DRIVER_ARRIVED = 'hourly_driver_arrived',
+  HOURLY_STARTED = 'hourly_started',
+  HOURLY_COMPLETED = 'hourly_completed',
+  HOURLY_CANCELLED = 'hourly_cancelled',
+  // === PAYMENT / MISC ===
   PAYMENT_CONFIRMATION = 'payment_confirmation',
   REVIEW_RECEIVED = 'review_received',
   DRIVER_RATED = 'driver_rated',

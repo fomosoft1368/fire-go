@@ -20,6 +20,8 @@ import {
 } from '../dto/create-hourly-service.dto'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { DriversService } from '../../drivers/drivers.service'
+import { PushNotificationService } from '../../notifications/push-notification.service'
+import { NotificationType } from '../../notifications/schemas/notification.schema'
 
 @Controller('hourly-services')
 @UseGuards(JwtAuthGuard)
@@ -27,6 +29,7 @@ export class HourlyServiceController {
   constructor(
     private readonly hourlyServiceService: HourlyServiceService,
     private readonly driversService: DriversService,
+    private readonly pushService: PushNotificationService,
   ) {}
 
   /**
@@ -265,6 +268,21 @@ export class HourlyServiceController {
         status: 'confirmed',
       })
 
+      // 📣 Notify customer: driver accepted
+      const customerId = (service as any).customerId?._id?.toString() || (service as any).customerId?.toString()
+      if (customerId) {
+        // Get worker name
+        const worker = await this.driversService.findById(workerId).catch(() => null)
+        const workerName = worker ? `${(worker as any).firstName || ''} ${(worker as any).lastName || ''}`.trim() : 'Tài xế'
+        this.pushService.notifyCustomer(
+          customerId,
+          '👍 Dịch vụ đã được xác nhận!',
+          `${workerName} đã nhận dịch vụ theo giờ của bạn`,
+          NotificationType.HOURLY_ACCEPTED,
+          { type: 'HOURLY_ACCEPTED', serviceId: id },
+        ).catch(() => {})
+      }
+
       return {
         success: true,
         message: 'Worker assigned successfully',
@@ -285,9 +303,32 @@ export class HourlyServiceController {
    * PATCH /api/hourly-services/:id/cancel
    */
   @Patch(':id/cancel')
-  async cancelService(@Param('id') id: string, @Body() body: { cancelReason: string }) {
+  async cancelService(@Param('id') id: string, @Body() body: { cancelReason: string }, @Request() req: any) {
     try {
       const service = await this.hourlyServiceService.cancel(id, body.cancelReason)
+
+      // 📣 Notify the other party
+      const customerId = (service as any).customerId?._id?.toString() || (service as any).customerId?.toString()
+      const workerId = (service as any).workerId?._id?.toString() || (service as any).workerId?.toString()
+      const cancelledByDriver = req.user?.role === 'driver'
+
+      if (cancelledByDriver && customerId) {
+        this.pushService.notifyCustomer(
+          customerId,
+          '❌ Dịch vụ bị hủy',
+          'Tài xế đã hủy dịch vụ theo giờ của bạn',
+          NotificationType.HOURLY_CANCELLED,
+          { type: 'HOURLY_CANCELLED', serviceId: id },
+        ).catch(() => {})
+      } else if (!cancelledByDriver && workerId) {
+        this.pushService.notifyDriver(
+          workerId,
+          '❌ Dịch vụ bị hủy',
+          'Khách hàng đã hủy dịch vụ theo giờ',
+          NotificationType.HOURLY_CANCELLED,
+          { type: 'HOURLY_CANCELLED', serviceId: id },
+        ).catch(() => {})
+      }
 
       return {
         success: true,
@@ -312,6 +353,47 @@ export class HourlyServiceController {
   async update(@Param('id') id: string, @Body() updateDto: UpdateHourlyServiceDto) {
     try {
       const service = await this.hourlyServiceService.update(id, updateDto)
+
+      // 📣 Notify on key status changes
+      const customerId = (service as any).customerId?._id?.toString() || (service as any).customerId?.toString()
+      const workerId = (service as any).workerId?._id?.toString() || (service as any).workerId?.toString()
+
+      if (updateDto.status === 'in_progress' && customerId) {
+        this.pushService.notifyCustomer(
+          customerId,
+          '🚀 Dịch vụ đã bắt đầu!',
+          'Tài xế đang thực hiện dịch vụ cho bạn',
+          NotificationType.HOURLY_STARTED,
+          { type: 'HOURLY_STARTED', serviceId: id },
+        ).catch(() => {})
+      } else if (updateDto.status === 'completed') {
+        if (customerId) {
+          this.pushService.notifyCustomer(
+            customerId,
+            '✅ Dịch vụ hoàn thành!',
+            'Dịch vụ theo giờ đã hoàn thành. Cảm ơn bạn!',
+            NotificationType.HOURLY_COMPLETED,
+            { type: 'HOURLY_COMPLETED', serviceId: id },
+          ).catch(() => {})
+        }
+        if (workerId) {
+          this.pushService.notifyDriver(
+            workerId,
+            '✅ Hoàn thành dịch vụ!',
+            'Dịch vụ theo giờ đã hoàn thành',
+            NotificationType.HOURLY_COMPLETED,
+            { type: 'HOURLY_COMPLETED', serviceId: id },
+          ).catch(() => {})
+        }
+      } else if (updateDto.status === 'driver_arrived' && customerId) {
+        this.pushService.notifyCustomer(
+          customerId,
+          '📍 Tài xế đã đến!',
+          'Tài xế đã đến địa điểm của bạn',
+          NotificationType.HOURLY_DRIVER_ARRIVED,
+          { type: 'HOURLY_DRIVER_ARRIVED', serviceId: id },
+        ).catch(() => {})
+      }
 
       return {
         success: true,
