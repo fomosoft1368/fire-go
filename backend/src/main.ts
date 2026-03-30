@@ -71,6 +71,10 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
+<<<<<<< Updated upstream
   console.log(`Application is running on: http://192.168.1.10:${port} (or your LAN IP)`);
+=======
+  console.log(`Application is running on: http://192.168.1.14:${port} (or your LAN IP)`);
+>>>>>>> Stashed changes
 }
 bootstrap();

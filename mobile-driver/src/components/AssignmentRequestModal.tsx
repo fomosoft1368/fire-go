@@ -101,8 +101,9 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
           fare,
           requestFareField: request.fare,
           tripTotalFare: request.combinedTripId?.totalFare,
-          NOTE: fare === 0 ? '⚠️ Khách chưa gửi giá' : '✅ Khách đã gửi giá',
-        })      } else {
+          note: fare === 0 ? '⚠️ Khách chưa gửi giá' : '✅ Khách đã gửi giá',
+        })
+      } else {
         // Regular ride hoặc delivery: lấy từ nested object
         // ⭐ CRITICAL FIX for hire rides: Check baseFare and totalFare
         fare = request.fare ?? data.fare ?? data.baseFare ?? data.totalFare ?? data.estimatedPrice ?? data.deliveryFee ?? 0

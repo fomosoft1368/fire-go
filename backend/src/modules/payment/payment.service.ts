@@ -18,8 +18,13 @@ export class PaymentService {
     tmnCode: process.env.VNPAY_TMN_CODE || '2QNVQ7K1',
     hashSecret: process.env.VNPAY_HASH_SECRET || 'SCPUASVNZJUUKSMHZ4LQTEKBXAOTAZC',
     apiUrl: process.env.VNPAY_API_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+<<<<<<< Updated upstream
     returnUrl: process.env.VNPAY_RETURN_URL || `http://192.168.1.10:${process.env.PORT || 3000}/api/payment/vnpay/return`,
     notifyUrl: process.env.VNPAY_NOTIFY_URL || `http://192.168.1.10:${process.env.PORT || 3000}/api/payment/vnpay/notify`,
+=======
+    returnUrl: process.env.VNPAY_RETURN_URL || `http://192.168.1.14:${process.env.PORT || 3000}/api/payment/vnpay/return`,
+    notifyUrl: process.env.VNPAY_NOTIFY_URL || `http://192.168.1.14:${process.env.PORT || 3000}/api/payment/vnpay/notify`,
+>>>>>>> Stashed changes
   }
 
   constructor(@InjectModel('Payment') private paymentModel: Model<any>) { }

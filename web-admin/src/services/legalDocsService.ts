@@ -1,6 +1,10 @@
 /// <reference types="vite/client" />
 
+<<<<<<< Updated upstream
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.10:3000/api';
+=======
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.14:3000/api';
+>>>>>>> Stashed changes
 
 export interface LegalDocContent {
   introduction: string;

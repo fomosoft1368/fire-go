@@ -343,7 +343,7 @@ const RootNavigator = () => {
   }, [isAuthenticated, dispatch])
 
   // ======================================================
-  // 📞 Incoming Call Poller – check CALL_INCOMING every 5s
+  // 📞 Incoming Call Poller – check CALL_INCOMING every 2s
   // ======================================================
   const handledCallIds = useRef<Set<string>>(new Set())
 
@@ -355,7 +355,8 @@ const RootNavigator = () => {
         const token = await AsyncStorage.getItem('authToken')
         if (!token) return
 
-        const response = await notificationService.getNotifications(10, 0)
+        // ✅ Pass type filter so backend returns only CALL_INCOMING notifications
+        const response = await notificationService.getNotifications(10, 0, 'call_incoming')
         const notifications: any[] = response.data || []
 
         const callNotif = notifications.find(
@@ -394,9 +395,12 @@ const RootNavigator = () => {
       }
     }
 
-    const interval = setInterval(pollIncomingCall, 5000)
+    // ✅ Poll immediately on mount, then every 2s (was 5s with no initial poll)
+    pollIncomingCall()
+    const interval = setInterval(pollIncomingCall, 2000)
     return () => clearInterval(interval)
   }, [isAuthenticated])
+
 
   // Show loading screen while checking auth
   if (isInitializing) {

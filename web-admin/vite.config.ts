@@ -13,7 +13,11 @@ export default defineConfig({
     port: 3001,
     proxy: {
       '/api': {
+<<<<<<< Updated upstream
         target: 'http://192.168.1.10:3000',
+=======
+        target: 'http://192.168.1.14:3000',
+>>>>>>> Stashed changes
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

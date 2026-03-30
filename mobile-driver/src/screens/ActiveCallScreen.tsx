@@ -1,17 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native'
-import { MaterialIcons } from '@expo/vector-icons'
+import { WebView } from 'react-native-webview'
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native'
 import { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { API_BASE_URL } from '../constants'
+import { API_BASE_URL, AGORA_APP_ID } from '../constants'
 import type { RootStackParamList } from '../types'
 
 type ActiveCallRouteProp = RouteProp<RootStackParamList, 'ActiveCall'>
@@ -22,126 +22,148 @@ export default function ActiveCallScreen() {
   const route = useRoute<ActiveCallRouteProp>()
   const { callId, channelName, token, uid, otherPartyName } = route.params
 
-  const [isMuted, setIsMuted] = useState(false)
-  const [duration, setDuration] = useState(0)
+  const [authToken, setAuthToken] = useState<string>('')
   const [callEnded, setCallEnded] = useState(false)
 
-  const agoraEngineRef = useRef<any>(null)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const pollRef = useRef<NodeJS.Timeout | null>(null)
+  const callEndedRef = useRef(false)
 
-  // Duration timer
+  // Load auth token once
   useEffect(() => {
-    timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000)
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+    AsyncStorage.getItem('token').then((t) => setAuthToken(t || ''))
   }, [])
 
-  // Initialize Agora
+  // Poll for CALL_ENDED notification (fallback if WebView postMessage fails)
   useEffect(() => {
-    let mounted = true
+    if (!authToken) return
 
-    const initAgora = async () => {
+    const pollEnded = async () => {
+      if (callEndedRef.current) return
       try {
-        const AgoraModule = await import('react-native-agora').catch(() => null)
-        if (!AgoraModule || !mounted) return
+        const res = await fetch(
+          `${API_BASE_URL}/notifications/driver?type=call_ended&limit=5`,
+          { headers: { Authorization: `Bearer ${authToken}` } }
+        )
+        if (!res.ok) return
+        const json = await res.json()
+        const notifications: any[] = Array.isArray(json?.data) ? json.data
+          : Array.isArray(json?.notifications) ? json.notifications
+          : []
 
-        const appId = process.env.EXPO_PUBLIC_AGORA_APP_ID
-        if (!appId) {
-          console.warn('[Driver ActiveCallScreen] EXPO_PUBLIC_AGORA_APP_ID not set')
-          return
+        const ended = notifications.find(
+          (n) => !n.isRead && n.data?.type === 'CALL_ENDED' && n.data?.callId === callId
+        )
+
+        if (ended && !callEndedRef.current) {
+          callEndedRef.current = true
+          setCallEnded(true)
+          // Mark as read
+          try {
+            await fetch(`${API_BASE_URL}/notifications/${ended._id}/read`, {
+              method: 'PATCH', headers: { Authorization: `Bearer ${authToken}` }
+            })
+          } catch (_) {}
+          setTimeout(() => navigation.goBack(), 1500)
         }
-
-        const engine = AgoraModule.createAgoraRtcEngine()
-        agoraEngineRef.current = engine
-        engine.initialize({ appId })
-        engine.enableAudio()
-        await engine.joinChannel(token, channelName, uid, {})
-        console.log('[Driver ActiveCallScreen] Joined Agora channel:', channelName)
-      } catch (err) {
-        console.error('[Driver ActiveCallScreen] Agora init error:', err)
-      }
+      } catch (_) {}
     }
 
-    initAgora()
-    return () => {
-      mounted = false
-      if (agoraEngineRef.current) {
-        agoraEngineRef.current.leaveChannel()
-        agoraEngineRef.current.release()
-        agoraEngineRef.current = null
-      }
-    }
+    pollRef.current = setInterval(pollEnded, 2000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [authToken, callId])
+
+  // Cleanup
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
 
-  const getToken = async (): Promise<string> => {
-    return (await AsyncStorage.getItem('driverToken')) || ''
-  }
-
-  const handleEndCall = async () => {
-    if (callEnded) return
-    setCallEnded(true)
-
-    if (timerRef.current) clearInterval(timerRef.current)
-
-    if (agoraEngineRef.current) {
-      try { await agoraEngineRef.current.leaveChannel() } catch (_) {}
-    }
-
+  // Handle message from WebView  
+  const onWebViewMessage = useCallback((event: any) => {
     try {
-      const authToken = await getToken()
+      const msg = JSON.parse(event.nativeEvent.data)
+      if (msg.type === 'CALL_ENDED') {
+        if (!callEndedRef.current) {
+          callEndedRef.current = true
+          if (pollRef.current) clearInterval(pollRef.current)
+          navigation.goBack()
+        }
+      }
+    } catch (_) {}
+  }, [navigation])
+
+  // Emergency end call if WebView fails
+  const handleEmergencyEnd = async () => {
+    if (callEndedRef.current) return
+    callEndedRef.current = true
+    setCallEnded(true)
+    try {
       await fetch(`${API_BASE_URL}/call/end`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         body: JSON.stringify({ callId }),
       })
-    } catch (err: any) {
-      console.error('[Driver ActiveCallScreen] End call error:', err.message)
-    } finally {
-      navigation.goBack()
-    }
+    } catch (_) {}
+    navigation.goBack()
   }
 
-  const toggleMute = () => {
-    if (agoraEngineRef.current) {
-      const next = !isMuted
-      try { agoraEngineRef.current.muteLocalAudioStream(next) } catch (_) {}
-    }
-    setIsMuted((m) => !m)
+  // Build WebView URL (only when we have the auth token)
+  const roomUrl = authToken
+    ? `${API_BASE_URL}/call/room` +
+      `?appId=${encodeURIComponent(AGORA_APP_ID)}` +
+      `&channel=${encodeURIComponent(channelName)}` +
+      `&token=${encodeURIComponent(token || '')}` +
+      `&uid=${uid}` +
+      `&callId=${encodeURIComponent(callId)}` +
+      `&authToken=${encodeURIComponent(authToken)}` +
+      `&apiBase=${encodeURIComponent(API_BASE_URL)}` +
+      `&otherName=${encodeURIComponent(otherPartyName || 'Khách hàng')}`
+    : null
+
+  if (callEnded) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.center}>
+          <Text style={[styles.status, { color: '#ef4444', fontSize: 18 }]}>Đã kết thúc</Text>
+        </View>
+      </SafeAreaView>
+    )
   }
 
-  const formatDuration = (secs: number) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0')
-    const s = (secs % 60).toString().padStart(2, '0')
-    return `${m}:${s}`
+  // Show loading until authToken ready
+  if (!roomUrl) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={styles.center}>
+          <Text style={styles.status}>Đang chuẩn bị...</Text>
+        </View>
+      </SafeAreaView>
+    )
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-      <View style={styles.content}>
-        <View style={styles.avatarCircle}>
-          <MaterialIcons name="person" size={60} color="#3b82f6" />
-        </View>
-
-        <Text style={styles.callerName}>{otherPartyName || 'Người dùng'}</Text>
-        <Text style={styles.status}>{callEnded ? 'Đã kết thúc' : 'Đang gọi'}</Text>
-        <Text style={styles.timer}>{formatDuration(duration)}</Text>
-      </View>
-
-      <View style={styles.controls}>
-        <TouchableOpacity
-          style={[styles.controlBtn, isMuted && styles.controlBtnActive]}
-          onPress={toggleMute}
-        >
-          <MaterialIcons name={isMuted ? 'mic-off' : 'mic'} size={28} color="#fff" />
-          <Text style={styles.controlLabel}>{isMuted ? 'Bật mic' : 'Tắt mic'}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.endBtn} onPress={handleEndCall}>
-          <MaterialIcons name="call-end" size={36} color="#fff" />
-          <Text style={styles.controlLabel}>Kết thúc</Text>
-        </TouchableOpacity>
-      </View>
+      {/* WebView takes full screen */}
+      <WebView
+        style={styles.webview}
+        source={{ uri: roomUrl }}
+        onMessage={onWebViewMessage}
+        mediaPlaybackRequiresUserAction={false}
+        allowsInlineMediaPlayback={true}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        originWhitelist={['*']}
+        onError={(e) => {
+          console.error('[Driver ActiveCallScreen] WebView error:', e.nativeEvent)
+          Alert.alert(
+            'Lỗi kết nối',
+            'Không thể tải trang gọi điện.',
+            [{ text: 'Kết thúc', onPress: handleEmergencyEnd }]
+          )
+        }}
+      />
     </SafeAreaView>
   )
 }
@@ -150,75 +172,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0f172a',
-    justifyContent: 'space-between',
-    paddingVertical: 60,
   },
-  content: {
+  webview: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+  },
+  center: {
+    flex: 1,
     alignItems: 'center',
-    gap: 12,
-  },
-  avatarCircle: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
     justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(59, 130, 246, 0.5)',
-    marginBottom: 8,
-  },
-  callerName: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#fff',
   },
   status: {
     fontSize: 14,
     color: '#22c55e',
-  },
-  timer: {
-    fontSize: 32,
-    fontWeight: '200',
-    color: '#fff',
-    letterSpacing: 2,
-    marginTop: 8,
-  },
-  controls: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  controlBtn: {
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#1e293b',
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-  },
-  controlBtnActive: {
-    backgroundColor: '#334155',
-  },
-  endBtn: {
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#ef4444',
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    justifyContent: 'center',
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  controlLabel: {
-    fontSize: 11,
-    color: '#94a3b8',
-    fontWeight: '500',
   },
 })
