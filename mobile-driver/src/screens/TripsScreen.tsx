@@ -34,7 +34,7 @@ export default function TripsScreen() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeFilter, setActiveFilter] = useState<'all' | 'completed' | 'upcoming'>('all')
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'ride' | 'combined_trip' | 'delivery' | 'hourly'>('all')
   const [deletedTripIds, setDeletedTripIds] = useState<string[]>([])
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function TripsScreen() {
 
   useEffect(() => {
     fetchTrips()
-  }, [activeFilter])
+  }, [])
 
   const loadDeletedTripIds = async () => {
     try {
@@ -76,7 +76,7 @@ export default function TripsScreen() {
         return
       }
 
-      console.log('📱 Fetching trips with filter:', activeFilter, 'userId:', user.id)
+      console.log('📱 Fetching trips for userId:', user.id)
 
       // Fetch trips from all sources - pass driverId for backend filtering
       const [allRides, allCombinedTrips, allDeliveries, allHourlyServices] = await Promise.all([
@@ -186,6 +186,17 @@ export default function TripsScreen() {
       })
 
       console.log('✅ Formatted trips:', formattedTrips)
+
+      // Sort: chưa hoàn thành lên đầu, hoàn thành/hủy xuống cuối
+      const DONE = ['completed', 'cancelled', 'delivered']
+      formattedTrips.sort((a, b) => {
+        const aDone = DONE.includes((a.status || '').toLowerCase()) ? 1 : 0
+        const bDone = DONE.includes((b.status || '').toLowerCase()) ? 1 : 0
+        if (aDone !== bDone) return aDone - bDone
+        // Same group → newest first (parse date string)
+        return 0 // keep original order within group (already desc from API)
+      })
+
       setTrips(formattedTrips)
     } catch (err: any) {
       console.error('❌ Error fetching trips:', err)
@@ -256,11 +267,19 @@ export default function TripsScreen() {
   const renderTripCard = (trip: Trip) => {
     const statusConfig: any = {
       completed: { label: 'Hoàn thành', color: '#10b981', icon: 'check-circle' },
+      delivered: { label: 'Giao thành công', color: '#10b981', icon: 'check-circle' },
       cancelled: { label: 'Đã hủy', color: '#ef4444', icon: 'cancel' },
       upcoming: { label: 'Sắp tới', color: '#f59e0b', icon: 'schedule' },
       pending: { label: 'Chờ xử lý', color: '#f59e0b', icon: 'hourglass-empty' },
+      finding: { label: 'Đang tìm', color: '#f59e0b', icon: 'search' },
       accepted: { label: 'Đã chấp nhận', color: '#FF6B00', icon: 'thumb-up' },
+      assigned: { label: 'Đã phân công', color: '#FF6B00', icon: 'assignment-ind' },
       in_progress: { label: 'Đang thực hiện', color: '#FF6B00', icon: 'directions-car' },
+      picking_up: { label: 'Đi lấy hàng', color: '#f59e0b', icon: 'inventory' },
+      delivering: { label: 'Đang giao', color: '#3b82f6', icon: 'local-shipping' },
+      driver_arrived: { label: 'Tài xế đã đến', color: '#0ea5e9', icon: 'where-to-vote' },
+      arrived_at_pickup: { label: 'Đã đến điểm đón', color: '#0ea5e9', icon: 'where-to-vote' },
+      started: { label: 'Đã bắt đầu', color: '#3b82f6', icon: 'play-circle-filled' },
     }
 
     const config = statusConfig[trip.status] || { label: trip.status || 'Không xác định', color: '#64748b', icon: 'help' }
@@ -429,21 +448,23 @@ export default function TripsScreen() {
     )
   }
 
-  const filteredTrips = trips.filter((trip) => {
-    // Filter out deleted trips
-    const tripId = trip.id || trip._id || ''
-    if (deletedTripIds.includes(tripId)) {
-      return false
-    }
+  const DONE_STATUSES = ['completed', 'cancelled', 'delivered']
 
-    // Filter by status
-    if (activeFilter === 'completed') {
-      return trip.status === 'completed'
-    } else if (activeFilter === 'upcoming') {
-      return trip.status === 'upcoming'
-    }
-    return true
-  })
+  const filteredTrips = trips
+    .filter((trip) => {
+      const tripId = trip.id || trip._id || ''
+      if (deletedTripIds.includes(tripId)) return false
+      // Filter by service type only
+      if (sourceFilter !== 'all') {
+        if ((trip.sourceType || 'ride') !== sourceFilter) return false
+      }
+      return true
+    })
+    .sort((a, b) => {
+      const aDone = DONE_STATUSES.includes((a.status || '').toLowerCase()) ? 1 : 0
+      const bDone = DONE_STATUSES.includes((b.status || '').toLowerCase()) ? 1 : 0
+      return aDone - bDone
+    })
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -458,53 +479,45 @@ export default function TripsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Filter Tabs */}
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[styles.filterTab, activeFilter === 'all' && styles.filterTabActive]}
-            onPress={() => setActiveFilter('all')}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons
-              name="apps"
-              size={20}
-              color={activeFilter === 'all' ? '#fff' : '#64748b'}
-            />
-            <Text style={[styles.filterTabText, activeFilter === 'all' && styles.filterTabTextActive]}>
-              Tất cả
-            </Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.filterTab, activeFilter === 'completed' && styles.filterTabActive]}
-            onPress={() => setActiveFilter('completed')}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons
-              name="check-circle"
-              size={20}
-              color={activeFilter === 'completed' ? '#fff' : '#64748b'}
-            />
-            <Text style={[styles.filterTabText, activeFilter === 'completed' && styles.filterTabTextActive]}>
-              Hoàn thành
-            </Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.filterTab, activeFilter === 'upcoming' && styles.filterTabActive]}
-            onPress={() => setActiveFilter('upcoming')}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons
-              name="schedule"
-              size={20}
-              color={activeFilter === 'upcoming' ? '#fff' : '#64748b'}
-            />
-            <Text style={[styles.filterTabText, activeFilter === 'upcoming' && styles.filterTabTextActive]}>
-              Sắp tới
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Service Type Filter — horizontal scroll */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.typeFilterScroll}
+          contentContainerStyle={styles.typeFilterContent}
+        >
+          {([
+            { key: 'all',          label: 'Tất cả',   icon: 'apps',             color: '#FF6B00' },
+            { key: 'ride',         label: 'Lái xe hộ', icon: 'drive-eta',        color: '#6366f1' },
+            { key: 'combined_trip',label: 'Ghép xe',   icon: 'group',            color: '#10b981' },
+            { key: 'delivery',     label: 'Giao hàng', icon: 'local-shipping',   color: '#f59e0b' },
+            { key: 'hourly',       label: 'Vệ sinh',   icon: 'cleaning-services',color: '#8b5cf6' },
+          ] as const).map((item) => {
+            const isActive = sourceFilter === item.key
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[
+                  styles.typeFilterChip,
+                  isActive && { backgroundColor: item.color, borderColor: item.color },
+                ]}
+                onPress={() => setSourceFilter(item.key)}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name={item.icon as any}
+                  size={15}
+                  color={isActive ? '#fff' : item.color}
+                />
+                <Text style={[styles.typeFilterChipText, isActive && { color: '#fff' }]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
 
         {/* Loading State */}
         {loading && (
@@ -599,7 +612,31 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     paddingHorizontal: SPACING.xl,
     marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+  typeFilterScroll: {
     marginBottom: SPACING.xl,
+  },
+  typeFilterContent: {
+    paddingHorizontal: SPACING.xl,
+    gap: SPACING.sm,
+    flexDirection: 'row',
+  },
+  typeFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
+  },
+  typeFilterChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
   },
   filterTab: {
     flex: 1,

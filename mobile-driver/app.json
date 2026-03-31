@@ -22,8 +22,7 @@
           "locationAlwaysAndWhenInUsePermission": "Allow app to access your location for delivery tracking",
           "locationWhenInUsePermission": "Allow app to access your location while using the app"
         }
-      ],
-      "react-native-agora"
+      ]
     ],
     "ios": {
       "supportsTabletMode": true,

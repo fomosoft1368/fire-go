@@ -22,6 +22,7 @@ import { DriversService } from '../../drivers/drivers.service';
 import { Types } from 'mongoose';
 import { PricingConfig } from '../../pricing/pricing-config.schema';
 import { PushNotificationService } from '../../notifications/push-notification.service';
+import { NotificationType } from '../../notifications/schemas/notification.schema';
 
 @Controller('combined-trips')
 export class CombinedTripsController {
@@ -232,13 +233,14 @@ export class CombinedTripsController {
         newStatus: updatedTrip?.status,
       });
 
-      // ✅ Push notification to driver
-      const driverId = (updatedTrip as any)?.driverId?.toString();
+      // 📣 Notify driver: customer cancelled trip
+      const driverId = (updatedTrip as any)?.driverId?._id?.toString() || (updatedTrip as any)?.driverId?.toString();
       if (driverId) {
-        this.pushService.sendToDriver(
+        this.pushService.notifyDriver(
           driverId,
-          '❌ Khách hủy chuyến',
+          '❌ Khách hủy chuyến ghép',
           'Khách hàng đã hủy chuyến ghép xe.',
+          NotificationType.RIDE_CANCELLED,
           { type: 'COMBINED_TRIP_CANCELLED', tripId },
         ).catch(() => {});
       }
@@ -320,24 +322,28 @@ export class CombinedTripsController {
           walletBalance = driver.walletBalance || 0;
           walletWarning = driver.walletBalance < 200000;
 
-          // ✅ Push to driver: earnings notification
+          // 📣 Notify driver: earnings
           const fare = totalFare || (trip as any).totalFare || 0;
-          this.pushService.sendToDriver(
+          this.pushService.notifyDriver(
             driverId.toString(),
             '✅ Hoàn thành chuyến ghép xe!',
             `Thu nhập +${fare.toLocaleString('vi-VN')}đ đã được ghi nhận vào ví`,
+            NotificationType.RIDE_COMPLETED,
             { type: 'COMBINED_TRIP_COMPLETED', tripId: combinedTripId },
           ).catch(() => {});
         }
       }
 
-      // ✅ Push to all customers in the trip
-      const customerIds: string[] = ((trip as any).customerId || []).map((id: any) => id.toString());
+      // 📣 Notify all customers in the trip
+      const customerIds: string[] = ((trip as any).customerId || []).map(
+        (id: any) => id?._id?.toString() || id?.toString()
+      ).filter(Boolean);
       for (const cid of customerIds) {
-        this.pushService.sendToCustomer(
+        this.pushService.notifyCustomer(
           cid,
           '🎉 Chuyến đi hoàn thành!',
           'Cảm ơn bạn đã sử dụng dịch vụ ghép xe. Hãy đánh giá tài xế nhé!',
+          NotificationType.RIDE_COMPLETED,
           { type: 'COMBINED_TRIP_COMPLETED', tripId: combinedTripId },
         ).catch(() => {});
       }
@@ -1346,19 +1352,22 @@ export class CombinedTripsController {
         }
       }
 
-      // 📣 Push to customer: driver accepted combined-trip request
-      const cCustomerId = request.customerId?.toString();
-      const cDriverId = (request.driverId || (trip as any)?.driverId)?.toString();
-      const cDriverDoc = cDriverId ? await this.driverModel.findById(cDriverId).select('firstName lastName').lean() as any : null;
-      const cDriverName = cDriverDoc ? `${cDriverDoc.firstName} ${cDriverDoc.lastName}` : 'Tài xế';
-      console.log(`\n🚐 [Push] Combined-trip ACCEPTED — customerId: ${cCustomerId}, driver: ${cDriverName}`);
+      // 📣 Notify customer: driver accepted combined-trip request
+      const cCustomerId = request.customerId?._id?.toString() || request.customerId?.toString();
+      const cDriverId = (request.driverId || (trip as any)?.driverId)?._id?.toString()
+        || (request.driverId || (trip as any)?.driverId)?.toString();
+      const cDriverDoc = cDriverId
+        ? await this.driverModel.findById(cDriverId).select('firstName lastName').lean() as any
+        : null;
+      const cDriverName = cDriverDoc ? `${cDriverDoc.firstName || ''} ${cDriverDoc.lastName || ''}`.trim() : 'Tài xế';
       if (cCustomerId) {
-        this.pushService.sendToCustomer(
+        this.pushService.notifyCustomer(
           cCustomerId,
           '🚐 Tài xế đã nhận chuyến ghép!',
           `${cDriverName} đang trên đường đến đón bạn`,
+          NotificationType.RIDE_ACCEPTED,
           { type: 'COMBINED_TRIP_ACCEPTED', combinedTripId, requestId },
-        ).catch((e: any) => console.error('[Push] sendToCustomer failed:', e.message));
+        ).catch(() => {});
       }
 
       return { status: request.status };
@@ -1462,8 +1471,6 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      
-
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
         { status: 'arrived_at_pickup' },
@@ -1472,6 +1479,18 @@ export class CombinedTripsController {
 
       if (!request) {
         throw new BadRequestException('Request not found');
+      }
+
+      // 📣 Notify customer: driver arrived at pickup
+      const arrivedCustomerId = request.customerId?._id?.toString() || request.customerId?.toString();
+      if (arrivedCustomerId) {
+        this.pushService.notifyCustomer(
+          arrivedCustomerId,
+          '📍 Tài xế đã đến điểm đón!',
+          'Tài xế đang chờ bạn. Hãy ra xe ngay nhé!',
+          NotificationType.DRIVER_ARRIVED,
+          { type: 'COMBINED_TRIP_DRIVER_ARRIVED', combinedTripId, requestId },
+        ).catch(() => {});
       }
 
       return { status: request.status };
@@ -1554,17 +1573,18 @@ export class CombinedTripsController {
       // ✅ Recalculate fares for remaining passengers
       await this.combinedTripsService.recalculateFaresForCombinedTrip(combinedTripId);
 
-      // 📣 Push to driver: customer cancelled
+      // 📣 Notify driver: customer cancelled their request
       const tripForPush = await this.combinedTripsService.getCombinedTripsModel().findById(combinedTripId);
-      const cancelledDriverId = (tripForPush as any)?.driverId?.toString();
-      console.log(`\n❌ [Push] Customer CANCELLED combined-trip request — driverId: ${cancelledDriverId}`);
+      const cancelledDriverId = (tripForPush as any)?.driverId?._id?.toString()
+        || (tripForPush as any)?.driverId?.toString();
       if (cancelledDriverId) {
-        this.pushService.sendToDriver(
+        this.pushService.notifyDriver(
           cancelledDriverId,
           '❌ Khách hàng đã hủy chuyến',
           'Một hành khách đã hủy chuyến ghép',
+          NotificationType.RIDE_CANCELLED,
           { type: 'COMBINED_TRIP_CUSTOMER_CANCELLED', combinedTripId, requestId },
-        ).catch((e: any) => console.error('[Push] sendToDriver failed:', e.message));
+        ).catch(() => {});
       }
 
       return {
@@ -1592,8 +1612,6 @@ export class CombinedTripsController {
     @Param('requestId') requestId: string,
   ) {
     try {
-      
-
       const request = await this.rideRequestModel.findByIdAndUpdate(
         requestId,
         { status: 'in_progress' },
@@ -1602,6 +1620,18 @@ export class CombinedTripsController {
 
       if (!request) {
         throw new BadRequestException('Request not found');
+      }
+
+      // 📣 Notify customer: trip started
+      const startCustomerId = request.customerId?._id?.toString() || request.customerId?.toString();
+      if (startCustomerId) {
+        this.pushService.notifyCustomer(
+          startCustomerId,
+          '🚀 Chuyến ghép đã bắt đầu!',
+          'Tài xế đang đưa bạn đến điểm đến. Chúc bạn có chuyến đi vui!',
+          NotificationType.RIDE_STARTED,
+          { type: 'COMBINED_TRIP_STARTED', combinedTripId, requestId },
+        ).catch(() => {});
       }
 
       return { status: request.status };
@@ -1629,6 +1659,18 @@ export class CombinedTripsController {
 
       if (!request) {
         throw new BadRequestException('Request not found');
+      }
+
+      // 📣 Notify customer: their leg of the trip is complete
+      const completeCustomerId = request.customerId?._id?.toString() || request.customerId?.toString();
+      if (completeCustomerId) {
+        this.pushService.notifyCustomer(
+          completeCustomerId,
+          '🎉 Bạn đã đến nơi!',
+          'Cảm ơn bạn đã đi ghép xe. Hãy đánh giá tài xế nhé!',
+          NotificationType.RIDE_COMPLETED,
+          { type: 'COMBINED_TRIP_REQUEST_COMPLETED', combinedTripId, requestId },
+        ).catch(() => {});
       }
 
       // ⭐ DEDUCT commission IMMEDIATELY when each passenger completes

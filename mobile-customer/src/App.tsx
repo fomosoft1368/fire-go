@@ -12,7 +12,7 @@ import * as Device from 'expo-device'
 import Constants from 'expo-constants'
 import { store } from './redux/store'
 import { MaterialIcons } from '@expo/vector-icons'
-import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen, TopupScreen, WithdrawScreen, HourlyService, FindingServiceScreen, ServiceDetailScreen, ServiceRatingScreen, IncomingCallScreen, ActiveCallScreen  } from './screens'
+import { LoginScreen, Home, RideSharing, HireDriverScreen, Delivery, WalletScreen, ProfileScreen, EditProfileScreen, ChangePasswordScreen, PaymentMethodsScreen, TransactionHistoryScreen, NotificationScreen, NotificationDetailScreen, FindingRideScreen, FullscreenMapScreen, RideDetailRequestScreen, ConfirmDelivery, FindingDelivery, DeliveryTracking, DeliveryCompleted, DriverFoundScreen, RatingDriverScreen, ChatScreen, TripHistory, CancelTripScreen, PrivacyPolicyScreen, TermsOfServiceScreen, SupportScreen, TopupScreen, WithdrawScreen, HourlyService, FindingServiceScreen, ServiceDetailScreen, ServiceRatingScreen, IncomingCallScreen, ActiveCallScreen } from './screens'
 import { View, Text, ActivityIndicator, Platform } from 'react-native'
 import { COLORS } from './constants'
 import { restoreAuth } from './redux/slices/authSlice'
@@ -177,8 +177,8 @@ const MainNavigator = () => {
       isFirstLoadRef.current = true
       lastNotifIdRef.current = null
       fetchUnreadCount()
-      // Refresh every 30 seconds
-      const interval = setInterval(fetchUnreadCount, 30000)
+      // Refresh every 5 seconds
+      const interval = setInterval(fetchUnreadCount, 5000)
       return () => clearInterval(interval)
     }
   }, [token])
@@ -340,9 +340,9 @@ const RootNavigator = () => {
             // Then verify with backend (will auto-logout if invalid)
             await verifyAccountWithBackend(token)
             // Request local notification permission (works in Expo Go)
-            requestLocalNotificationPermission().catch(() => {})
+            requestLocalNotificationPermission().catch(() => { })
             // Register remote push token (only works in dev build, not Expo Go)
-            registerPushToken(token).catch(() => {})
+            registerPushToken(token).catch(() => { })
           } catch (parseError) {
             console.error('[App] User JSON parse error:', parseError)
             await AsyncStorage.multiRemove(['authToken', 'user'])
@@ -435,7 +435,7 @@ const RootNavigator = () => {
               method: 'PATCH',
               headers: { Authorization: `Bearer ${token}` },
             })
-          } catch (_) {}
+          } catch (_) { }
 
           // Navigate to IncomingCallScreen
           callNavigationRef.current?.navigate('IncomingCall', {

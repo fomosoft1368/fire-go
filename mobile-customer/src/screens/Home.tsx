@@ -217,7 +217,7 @@ const Home = () => {
                             <View style={[styles.serviceIcon, { backgroundColor: '#FFEDD5' }]}>
                                 <Ionicons name="time" size={32} color="#EA580C" />
                             </View>
-                            <Text style={styles.serviceText}>Dịch vụ theo yêu cầu</Text>
+                            <Text style={styles.serviceText}>Dịch vụ vệ sinh</Text>
                             <Text style={styles.serviceDesc}>Khám phá thêm</Text>
                         </TouchableOpacity>
                     </View>

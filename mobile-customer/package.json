@@ -26,11 +26,8 @@
     "axios": "^1.6.8",
     "emvqr": "^0.0.5",
     "expo": "^54.0.30",
-<<<<<<< Updated upstream
     "expo-application": "5.9.1",
-=======
     "expo-av": "~16.0.8",
->>>>>>> Stashed changes
     "expo-constants": "^18.0.0",
     "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.10",

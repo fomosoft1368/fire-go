@@ -469,7 +469,7 @@ const RootNavigator = () => {
               dispatch(loginSuccess({ token, user }))
 
               // ✅ Request local notification permission (works in Expo Go)
-              requestLocalNotificationPermission().catch(() => {})
+              requestLocalNotificationPermission().catch(() => { })
               // Register remote push token (only works in dev build, not Expo Go)
               registerPushToken(token).catch(err =>
                 console.warn('[Push] Token registration failed:', err.message)
@@ -701,7 +701,7 @@ const RootNavigator = () => {
         // json.data is already the array — NOT json.data.notifications
         const notifications = Array.isArray(json?.data) ? json.data
           : Array.isArray(json?.notifications) ? json.notifications
-          : []
+            : []
 
         console.log('[App] 📞 Call notifications polled:', notifications.length, 'items (unread:',
           notifications.filter(n => !n.isRead).length, ')')

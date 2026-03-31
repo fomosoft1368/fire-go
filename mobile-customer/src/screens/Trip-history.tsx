@@ -257,11 +257,16 @@ export default function TripHistoryScreen() {
         removed: allBookings.length - uniqueBookings.length,
       })
 
-      // Sort by booking time (newest first - mới nhất trước)
+      // Sort: chuyến chưa hoàn thành lên đầu, hoàn thành/hủy xuống cuối
+      const DONE_STATUSES = ['completed', 'cancelled', 'delivered']
       uniqueBookings.sort((a, b) => {
+        const aDone = DONE_STATUSES.includes((a.status || '').toLowerCase()) ? 1 : 0
+        const bDone = DONE_STATUSES.includes((b.status || '').toLowerCase()) ? 1 : 0
+        if (aDone !== bDone) return aDone - bDone  // active first
+        // Same group → newest first
         const timeA = (a as any).createdAtTimestamp || 0
         const timeB = (b as any).createdAtTimestamp || 0
-        return timeB - timeA  // Descending: newest first
+        return timeB - timeA
       })
 
       console.log('[BookingsScreen] Total bookings:', uniqueBookings.length)
@@ -455,17 +460,32 @@ export default function TripHistoryScreen() {
   })
 
   const getStatusBadge = (status: string, rideType?: string) => {
-    if (status === 'completed') {
+    const s = (status || '').toLowerCase()
+    // Terminal states
+    if (s === 'completed' || s === 'delivered') {
       return { label: 'HOÀN THÀNH', color: '#10b981', bgColor: '#dcfce7' }
-    } else if (status === 'cancelled') {
+    } else if (s === 'cancelled') {
       return { label: 'ĐÃ HỦY', color: '#ef4444', bgColor: '#fee2e2' }
-    } else if (status === 'in_progress') {
-      return { label: rideType === 'hourly' ? 'ĐANG LÀM VIỆC' : 'ĐANG ĐI', color: '#3b82f6', bgColor: '#dbeafe' }
-    } else if (status === 'pending' || status === 'finding') {
+    }
+    // Active states
+    if (s === 'in_progress' || s === 'delivering') {
+      return {
+        label: rideType === 'hourly' ? 'ĐANG LÀM VIỆC' : rideType === 'delivery' ? 'ĐANG GIAO' : 'ĐANG ĐI',
+        color: '#3b82f6', bgColor: '#dbeafe',
+      }
+    } else if (s === 'picking_up') {
+      return { label: 'ĐI LẤY HÀNG', color: '#f59e0b', bgColor: '#fef3c7' }
+    } else if (s === 'driver_arrived' || s === 'arrived_at_pickup') {
+      return { label: 'TÀI XẾ ĐÃ ĐẾN', color: '#0ea5e9', bgColor: '#e0f2fe' }
+    } else if (s === 'started') {
+      return { label: 'ĐÃ BẮT ĐẦU', color: '#3b82f6', bgColor: '#dbeafe' }
+    } else if (s === 'pending' || s === 'finding') {
       return { label: 'ĐANG TÌM NGƯỜI', color: '#f59e0b', bgColor: '#fef3c7' }
-    } else if (status === 'confirmed' || status === 'accepted') {
+    } else if (s === 'confirmed' || s === 'accepted' || s === 'assigned') {
       return { label: 'ĐÃ CÓ NGƯỜI NHẬN', color: '#8b5cf6', bgColor: '#ede9fe' }
     }
+    // Fallback: show raw status in orange
+    return { label: status.toUpperCase().replace(/_/g, ' '), color: '#f59e0b', bgColor: '#fef3c7' }
   }
 
   const getRideTypeIcon = (rideType: string) => {
