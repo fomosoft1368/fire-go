@@ -226,11 +226,36 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
   const handleHelp = () => { Alert.alert('Trợ giúp', 'Liên hệ hotline: 1900-xxxx') }
 
   const handleCancelRide = () => {
+    // ─── Guard: kiểm tra trạng thái trước khi làm bất cứ điều gì ───
+    if (ride?.status === 'cancelled') {
+      Alert.alert(
+        'Chuyến đã hủy',
+        'Chuyến đi này đã được hủy trước đó. Không thể hủy lần nữa.',
+        [{ text: 'OK', onPress: () => navigation?.goBack() }]
+      )
+      return
+    }
+
+    if (ride?.status === 'completed') {
+      Alert.alert('Không thể hủy', 'Chuyến đi đã hoàn thành, không thể hủy.')
+      return
+    }
+
+    if (ride?.status === 'in_progress') {
+      Alert.alert('Không thể hủy', 'Chuyến đi đang trong quá trình di chuyển, không thể hủy.')
+      return
+    }
+    // ────────────────────────────────────────────────────────────────
+
     const depositAmount = ride?.depositAmount || 0
     const depositPaid = ride?.depositPaid || false
+    const depositRefunded = ride?.depositRefunded || false   // ← chống hoàn cọc nhiều lần
     const hasDriver = !!ride?.driverId
 
-    const confirmMsg = depositPaid && !hasDriver
+    // Chỉ hiện thông tin hoàn cọc khi: có cọc, đã trừ, chưa hoàn, chưa có tài xế
+    const willRefundDeposit = depositPaid && !depositRefunded && !hasDriver && depositAmount > 0
+
+    const confirmMsg = willRefundDeposit
       ? `Bạn có chắc muốn hủy chuyến?\n\nTiền cọc ${depositAmount.toLocaleString('vi-VN')}đ sẽ được hoàn về ví của bạn.`
       : 'Bạn có chắc muốn hủy chuyến đi này?'
 
@@ -251,10 +276,33 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
               },
               body: JSON.stringify({ cancellationBy: 'customer', reason: 'Khách hủy chuyến' }),
             })
-            if (res.ok && depositPaid && !hasDriver) {
-              Alert.alert('Đã hủy chuyến', `Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ đã được hoàn về ví của bạn.`)
+            if (res.ok) {
+              // Cập nhật state ngay lập tức để UI phản ánh trạng thái đã hủy
+              setRide((prev: any) => prev ? { ...prev, status: 'cancelled' } : prev)
+              if (willRefundDeposit) {
+                Alert.alert(
+                  'Đã hủy chuyến',
+                  `Tiền cọc ${depositAmount.toLocaleString('vi-VN')}đ đã được hoàn về ví của bạn.`,
+                  [{ text: 'OK', onPress: () => navigation?.goBack() }]
+                )
+              } else {
+                Alert.alert('Đã hủy chuyến', 'Chuyến đi đã được hủy thành công.', [
+                  { text: 'OK', onPress: () => navigation?.goBack() }
+                ])
+              }
+            } else {
+              // Hiển thị lỗi từ server (bao gồm 'Ride cannot be cancelled' nếu đã bị hủy)
+              let errMsg = 'Không thể hủy chuyến. Vui lòng thử lại.'
+              try {
+                const errData = await res.json()
+                if (errData?.message) errMsg = errData.message
+              } catch (_) {}
+              // Nếu server báo đã hủy rồi → cập nhật UI luôn
+              if (res.status === 400) {
+                setRide((prev: any) => prev ? { ...prev, status: 'cancelled' } : prev)
+              }
+              Alert.alert('Lỗi', errMsg)
             }
-            navigation?.goBack()
           } catch (err) {
             Alert.alert('Lỗi', 'Không thể hủy chuyến. Vui lòng thử lại.')
           }
@@ -317,7 +365,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
+        <TouchableOpacity style={[styles.backButton, { backgroundColor: 'rgba(255, 255, 255, 0.8)' }]} onPress={() => navigation?.goBack()}>
           <MaterialIcons name="arrow-back" size={22} color="#FF6B00" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Theo dõi chuyến đi</Text>
@@ -649,16 +697,15 @@ const styles = StyleSheet.create({
   },
   loadingText: { marginTop: 12, fontSize: 14, color: '#fff', fontWeight: '600' },
   backButton: {
-    width: 50,
-    height: 45,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 5,
   },
 })

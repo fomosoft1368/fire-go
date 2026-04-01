@@ -119,7 +119,20 @@ const AssignmentRequestModal: React.FC<AssignmentRequestModalProps> = ({
       // Ensure we have basic data with proper fallbacks
       const pickupAddress = request.pickupAddress || data.pickupAddress || 'Địa điểm đón'
       const dropoffAddress = request.dropoffAddress || data.dropoffAddress || data.deliveryAddress || 'Địa điểm đến'
-      const customerName = request.customerId?.name || data.customerId?.name || request.customerName || 'Khách hàng'
+      // ✅ Customer chỉ có firstName + lastName, không có trường name
+      const buildName = (obj: any) => {
+        if (!obj) return ''
+        if (obj.firstName || obj.lastName) {
+          return `${obj.firstName || ''} ${obj.lastName || ''}`.trim()
+        }
+        return obj.name || '' // fallback nếu có trường name cũ
+      }
+      const customerName =
+        buildName(request.customerId) ||
+        buildName(data.customerId) ||
+        request.customerName ||
+        'Khách hàng'
+
       const customerRating = request.customerId?.rating || data.customerId?.rating || request.rating || 5.0
 
       // Determine service type and badge - FLEXIBLE logic

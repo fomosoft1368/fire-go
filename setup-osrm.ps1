@@ -88,7 +88,7 @@ Write-Host "🚀 Step 4: Starting OSRM server..." -ForegroundColor Yellow
 try {
     docker-compose -f docker-compose.osrm.yml up -d
     Write-Host "✅ OSRM server started" -ForegroundColor Green
-    Write-Host "   Port: http://192.168.1.10:5000" -ForegroundColor Gray
+    Write-Host "   Port: http://192.168.1.12:5000" -ForegroundColor Gray
 }
 catch {
     Write-Host "❌ Failed to start server: $_" -ForegroundColor Red
@@ -104,14 +104,14 @@ Start-Sleep -Seconds 3
 # Step 5: Verify
 Write-Host "🔍 Step 5: Testing OSRM server..." -ForegroundColor Yellow
 try {
-    $response = Invoke-WebRequest -Uri "http://192.168.1.10:5000/status" -TimeoutSec 10
+    $response = Invoke-WebRequest -Uri "http://192.168.1.12:5000/status" -TimeoutSec 10
     if ($response.StatusCode -eq 200) {
         Write-Host "✅ OSRM server is running and healthy" -ForegroundColor Green
     }
 }
 catch {
     Write-Host "⚠️  Server not ready yet. It may take a few more seconds..." -ForegroundColor Yellow
-    Write-Host "   Check status manually: curl http://192.168.1.10:5000/status" -ForegroundColor Gray
+    Write-Host "   Check status manually: curl http://192.168.1.12:5000/status" -ForegroundColor Gray
 }
 
 Write-Host ""
@@ -122,7 +122,7 @@ Write-Host ""
 
 Write-Host "📋 Next Steps:" -ForegroundColor Yellow
 <<<<<<< Updated upstream
-Write-Host "  1. Backend .env already has: OSRM_BASE_URL=http://192.168.1.10:5000" -ForegroundColor Gray
+Write-Host "  1. Backend .env already has: OSRM_BASE_URL=http://192.168.1.12:5000" -ForegroundColor Gray
 =======
 Write-Host "  1. Backend .env already has: OSRM_BASE_URL=http://192.168.1.14:5000" -ForegroundColor Gray
 >>>>>>> Stashed changes
@@ -135,7 +135,7 @@ Write-Host "💡 Useful commands:" -ForegroundColor Yellow
 Write-Host "   Stop server:     docker-compose -f docker-compose.osrm.yml down" -ForegroundColor Gray
 Write-Host "   View logs:       docker logs -f fire-go-osrm" -ForegroundColor Gray
 <<<<<<< Updated upstream
-Write-Host "   Test endpoint:   curl 'http://192.168.1.10:5000/route/v1/driving/106.6626,10.6644;106.6763,10.7743?geometries=geojson'" -ForegroundColor Gray
+Write-Host "   Test endpoint:   curl 'http://192.168.1.12:5000/route/v1/driving/106.6626,10.6644;106.6763,10.7743?geometries=geojson'" -ForegroundColor Gray
 =======
 Write-Host "   Test endpoint:   curl 'http://192.168.1.14:5000/route/v1/driving/106.6626,10.6644;106.6763,10.7743?geometries=geojson'" -ForegroundColor Gray
 >>>>>>> Stashed changes

@@ -183,6 +183,14 @@ export class CombinedTrip {
   
   @Prop()
   expiresAt?: Date; // When this trip expires (15 minutes for customer-created trips)
+
+  // ===== VEHICLE TYPE FILTERING =====
+  @Prop({ default: 'basic' })
+  vehicleType?: string; // Loại xe khách chọn: 'basic' | 'comfort' | 'premium'
+
+  @Prop({ type: [String], default: ['sedan'] })
+  driverVehicleTypes?: string[]; // Loại xe thực tế để filter tài xế: ['sedan'] | ['suv'] | ['sedan','suv']
+
 }
 
 export const CombinedTripSchema = SchemaFactory.createForClass(CombinedTrip);

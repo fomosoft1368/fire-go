@@ -5,11 +5,29 @@ export const ANIMATION_DURATION = 300
 export const DEBOUNCE_DELAY = 500
 
 // API Configuration
-// 🌐 Đọc từ .env file: REACT_APP_API_URL=http://<YOUR_LAN_IP>:3000/api
-// - Android Emulator: REACT_APP_API_URL=http://10.0.2.2:3000/api
-// - iOS Simulator: REACT_APP_API_URL=http://localhost:3000/api
-// - Physical Device: REACT_APP_API_URL=http://<YOUR_LAN_IP>:3000/api
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.10:3000/api'
+// 🌐 Tự động lấy IP từ Expo Metro (không cần sửa khi đổi mạng WiFi)
+// - Dev: dùng cùng IP với Expo Metro server (exp://192.168.x.x:8082)
+// - Production: trỏ về API server thật
+const getApiBaseUrl = (): string => {
+  if (__DEV__) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Constants = require('expo-constants').default
+      // hostUri = '192.168.1.12:8082' (IP hiện tại của máy chạy Expo Metro)
+      const hostUri: string | undefined = Constants.expoConfig?.hostUri
+      if (hostUri) {
+        const host = hostUri.split(':')[0] // Lấy IP, bỏ phần port
+        console.log('[Config] 📱 Auto-detected backend host:', host)
+        return `http://${host}:3000/api`
+      }
+    } catch (e) {
+      console.warn('[Config] expo-constants not available:', e)
+    }
+  }
+  return 'https://api.firego.vn/api' // Production fallback
+}
+
+export const API_BASE_URL = getApiBaseUrl()
 
 // ====== Agora Voice Call Config ======
 // ❗ Tạo tài khoản tại https://console.agora.io, tạo project, dán App ID vào đây

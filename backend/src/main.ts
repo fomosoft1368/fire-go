@@ -44,7 +44,7 @@ async function bootstrap() {
   app.use(require('express').urlencoded({ limit: '50mb', extended: true }));
 
   // Enable CORS
-  const corsOrigins = [
+  const corsStaticOrigins = [
     process.env.CORS_WEB_ADMIN_VITE,
     process.env.CORS_WEB_ADMIN_ALT,
     process.env.CORS_MOBILE_CUSTOMER,
@@ -53,12 +53,33 @@ async function bootstrap() {
     process.env.CORS_LOCAL_NETWORK_2,
     process.env.CORS_ANDROID_EMULATOR,
     process.env.CORS_WEB_ADMIN_SERVER,
-  ].filter(Boolean); // Remove undefined values
+  ].filter(Boolean) as string[];
+
+  const isDev = process.env.NODE_ENV !== 'production';
 
   app.enableCors({
-    origin: corsOrigins,
+    // Dùng callback để cho phép toàn bộ IP nội bộ (192.168.x.x, 10.x.x.x) trong dev
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Cho phép requests không có origin (mobile apps, Postman, curl...)
+      if (!origin) return callback(null, true);
+
+      // Luôn cho phép các origin trong danh sách tĩnh
+      if (corsStaticOrigins.includes(origin)) return callback(null, true);
+
+      // Trong môi trường dev: cho phép toàn bộ mạng nội bộ (IP thay đổi theo WiFi)
+      if (isDev) {
+        const localNetworkPattern = /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|localhost)(:\d+)?$/;
+        if (localNetworkPattern.test(origin)) return callback(null, true);
+
+        // Cho phép exp:// protocol của Expo Go
+        if (origin.startsWith('exp://')) return callback(null, true);
+      }
+
+      callback(new Error(`CORS blocked: ${origin}`));
+    },
     credentials: true,
   });
+
 
   // Global validation pipe
   app.useGlobalPipes(

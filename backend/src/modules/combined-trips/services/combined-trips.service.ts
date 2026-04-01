@@ -1208,8 +1208,7 @@ export class CombinedTripsService implements OnModuleInit {
       const locationHierarchy = extractLocationHierarchy(data.pickupAddress);
 
       const trip = new this.combinedTripModel({
-        pickupAddress: data.pickupAddress,
-        dropoffAddress: data.dropoffAddress,
+        ...data,
         pickupLocation: {
           type: 'Point',
           coordinates: data.pickupCoordinates || [0, 0],
@@ -1223,16 +1222,26 @@ export class CombinedTripsService implements OnModuleInit {
         pickupWard: locationHierarchy.ward,
         distance: data.distance || 0,
         duration: data.duration || 0,
-        baseFare: data.totalFare || 0, // Required field
+        baseFare: data.totalFare || 0,
         totalFare: data.totalFare || 0,
-        totalSeats: 4, // ✅ Sedan có 4 ghế
-        availableSeats: 4, // ✅ Ban đầu 4 ghế trống, sẽ trừ khi driver accept
+        // ✅ Tính số ghế theo loại xe khách chọn
+        // sedan: 4 ghế, suv: 6 ghế, premium (cả hai): 6 ghế (tối đa)
+        ...((): { totalSeats: number; availableSeats: number } => {
+          const types: string[] = data.driverVehicleTypes || ['sedan'];
+          const hasSuv = types.includes('suv');
+          const seats = hasSuv ? 6 : 4;
+          return { totalSeats: seats, availableSeats: seats };
+        })(),
+
         customerId: data.customerId ? [data.customerId] : [],
         status: CombinedTripStatus.PENDING,
         requestedAt: new Date(),
-        createdBy: 'customer', // Mark as created by customer
-        driverQueue: [], // Will be populated with nearby drivers
+        createdBy: 'customer',
+        driverQueue: [],
         currentDriverIndex: 0,
+        // ✅ Lưu loại xe khách chọn để filter tài xế phù hợp
+        vehicleType: data.vehicleType || 'basic',                           // 'basic'/'comfort'/'premium'
+        driverVehicleTypes: data.driverVehicleTypes || ['sedan'],           // ['sedan']/['suv']/['sedan','suv']
       });
 
       const savedTrip = await trip.save();
@@ -1244,6 +1253,7 @@ export class CombinedTripsService implements OnModuleInit {
       throw error;
     }
   }
+
 
   /**
    * Find nearby available drivers and send notification
@@ -1286,9 +1296,15 @@ export class CombinedTripsService implements OnModuleInit {
       // Only for customer-created trips, we need to find drivers
       const customerId = combinedTrip.customerId && combinedTrip.customerId[0] ? combinedTrip.customerId[0] : null;
       if (!customerId) {
-        console.log('⚠️ [findAndNotifyDrivers] No customer ID found for trip:', combinedTripId);
-        console.log('⚠️ Trip details:', { createdBy: combinedTrip.createdBy, status: combinedTrip.status });
-        throw new BadRequestException(`No customer ID found for trip: ${combinedTripId}`);
+        console.warn('⚠️ [findAndNotifyDrivers] No customer ID found for trip:', combinedTripId);
+        console.warn('⚠️ Possible reason: customer cancelled or was removed. Trip details:', {
+          createdBy: combinedTrip.createdBy,
+          status: combinedTrip.status,
+          customerIds: combinedTrip.customerId?.length || 0,
+        });
+        // ✅ Do NOT throw here — this runs inside a setTimeout and throwing would
+        // become an unhandledPromiseRejection → Node.js process crash (Node 24+)
+        return; // Stop gracefully
       }
 
       // Get list of drivers who already have active (accepted/in_progress) trips
@@ -1327,6 +1343,15 @@ export class CombinedTripsService implements OnModuleInit {
       const searchRadiusKm = (searchRadiusMeters / 1000).toFixed(1);
       const searchRadiusForSphere = searchRadiusMeters / 1000 / 6378.1;
 
+      // ✅ Đọc driverVehicleTypes từ trip để filter đúng loại xe
+      // basic→['sedan'], comfort→['suv'], premium→['sedan','suv']
+      const tripObj = combinedTrip.toObject ? combinedTrip.toObject() : combinedTrip;
+      const driverVehicleTypes: string[] = (tripObj.driverVehicleTypes && tripObj.driverVehicleTypes.length > 0)
+        ? tripObj.driverVehicleTypes
+        : ['sedan']; // fallback nếu không có (trip cũ trước khi deploy)
+      console.log(`[findAndNotifyDrivers] 🚗 driverVehicleTypes từ DB: ${JSON.stringify(tripObj.driverVehicleTypes)}`);
+      console.log(`[findAndNotifyDrivers] 🚗 Sẽ filter tài xế theo vehicleType: ${JSON.stringify(driverVehicleTypes)} (loại xe khách: ${tripObj.vehicleType || 'không có'})`);
+
       // Find available RIDESHARE drivers within configured radius
       const drivers = await this.driverModel.find({
         _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) },
@@ -1335,6 +1360,7 @@ export class CombinedTripsService implements OnModuleInit {
           { isOnline: true }
         ],
         driverTypes: { $in: ['rideshare'] },
+        vehicleType: { $in: driverVehicleTypes },   // ✅ Filter theo loại xe khách chọn
         currentLocation: {
           $geoWithin: {
             $centerSphere: [pickupCoordinates, searchRadiusForSphere]
@@ -1344,7 +1370,8 @@ export class CombinedTripsService implements OnModuleInit {
         .sort({ priorityScore: -1, averageRating: -1 })
         .limit(10);
 
-      console.log(`[findAndNotifyDrivers] ✅ Found RIDESHARE drivers within ${searchRadiusKm}km:`, drivers.length);
+      console.log(`[findAndNotifyDrivers] ✅ Found RIDESHARE drivers (${driverVehicleTypes.join('/')}) within ${searchRadiusKm}km:`, drivers.length);
+
 
       if (drivers.length === 0) {
         console.warn(`[findAndNotifyDrivers] ⚠️ No RIDESHARE drivers found within ${searchRadiusKm}km - retrying in 5s`);

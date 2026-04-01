@@ -312,7 +312,7 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
     navigation.navigate('ChatScreen', {
       customer: {
         id: typeof delivery.customerId === 'string' ? delivery.customerId : delivery.customerId._id,
-        name: typeof delivery.customerId === 'string' 
+        name: typeof delivery.customerId === 'string'
           ? 'Khách hàng'
           : `${delivery.customerId.firstName || ''} ${delivery.customerId.lastName || ''}`.trim() || 'Khách hàng',
         phone: typeof delivery.customerId === 'string' ? undefined : delivery.customerId.phone,
@@ -392,7 +392,7 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#111" />
+          <MaterialIcons name="arrow-back" size={24} color="#faf8f8ff" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Đơn #{delivery._id.slice(-8)}</Text>
@@ -618,9 +618,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   backBtn: {
-    width: 40,
-    height: 40,
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 3,
+    zIndex: 5,
   },
   headerContent: {
     flex: 1,

@@ -126,19 +126,24 @@ class EarningsService {
         deliveries: deliveries.length,
       })
 
-      // Filter by date range
+      // Filter by date range AND exclude cancelled/refunded trips
+      const CANCELLED_STATUSES = ['cancelled', 'canceled', 'refunded', 'failed']
+
       const filteredRides = rides.filter((r) => {
         const completedAt = new Date(r.completedAt)
+        if (CANCELLED_STATUSES.includes(r.status)) return false // ✅ Exclude cancelled
         return completedAt >= startDate && completedAt <= endDate
       })
 
       const filteredCombinedTrips = combinedTrips.filter((t) => {
         const completedAt = new Date(t.completedAt)
+        if (CANCELLED_STATUSES.includes(t.status)) return false // ✅ Exclude cancelled
         return completedAt >= startDate && completedAt <= endDate
       })
 
       const filteredDeliveries = deliveries.filter((d) => {
         const completedAt = new Date(d.completedAt || d.updatedAt)
+        if (CANCELLED_STATUSES.includes(d.status)) return false // ✅ Exclude cancelled
         return completedAt >= startDate && completedAt <= endDate
       })
 
@@ -249,8 +254,11 @@ class EarningsService {
       const url = `${API_BASE_URL}/rides/driver-list/${driverId}`
       console.log('[EarningsService] 🔍 Fetching rides from:', url)
       const response = await axios.get(url, { headers })
-      const completed = response.data.filter((r: any) => r.status === 'completed' && r.completedAt)
-      console.log('[EarningsService] ✅ Found', completed.length, 'completed rides')
+      // ✅ Only completed rides (explicitly exclude cancelled)
+      const completed = response.data.filter((r: any) =>
+        r.status === 'completed' && r.completedAt && r.status !== 'cancelled'
+      )
+      console.log('[EarningsService] ✅ Found', completed.length, 'completed rides (excluded cancelled)')
       return completed
     } catch (error: any) {
       console.error('[EarningsService] ❌ Error fetching rides:', error?.response?.status, error?.message)
@@ -264,8 +272,11 @@ class EarningsService {
       console.log('[EarningsService] 🔍 Fetching combined trips from:', url)
       const response = await axios.get(url, { headers })
       const trips = Array.isArray(response.data) ? response.data : []
-      const completed = trips.filter((t: any) => t.status === 'completed' && t.completedAt)
-      console.log('[EarningsService] ✅ Found', completed.length, 'completed combined trips')
+      // ✅ Only completed trips (explicitly exclude cancelled)
+      const completed = trips.filter((t: any) =>
+        t.status === 'completed' && t.completedAt && t.status !== 'cancelled'
+      )
+      console.log('[EarningsService] ✅ Found', completed.length, 'completed combined trips (excluded cancelled)')
       return completed
     } catch (error: any) {
       console.error('[EarningsService] ❌ Error fetching combined trips:', error?.response?.status, error?.message)

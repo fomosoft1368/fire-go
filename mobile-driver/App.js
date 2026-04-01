@@ -1507,11 +1507,26 @@ export default function App() {
       // NOW close modal and reset state
       const closedId = currentRequestIdRef.current
       currentRequestIdRef.current = null
-      markRequestClosed(closedId) // 🛡️ Debounce for 90s
+      markRequestClosed(closedId) // 🛡️ Debounce RideRequest ID for 90s
+
+      // ✅ FIX: Also debounce the combinedTripId for rideshare
+      // Without this, polling may re-deliver the same trip via the pending-requests endpoint
+      // even though the RideRequest ID was already debounced
+      if (requestType === 'rideshare' && tripId) {
+        const tripIdStr = typeof tripId === 'object' ? (tripId._id?.toString() || String(tripId)) : String(tripId)
+        console.log('[App] 🛡️ Also debouncing combinedTripId to prevent duplicate modal:', tripIdStr)
+        recentlyClosedIds.current.add(tripIdStr)
+        setTimeout(() => {
+          recentlyClosedIds.current.delete(tripIdStr)
+          console.log('[App] ✅ Debounce expired for combinedTripId:', tripIdStr)
+        }, 90_000)
+      }
+
       setShowAssignmentModal(false)
       setAssignmentRequest(null)
       setCountdown(45)
       showNextRequest()
+
 
       // Navigate based on type
       if (!callNavigationRef.isReady()) {

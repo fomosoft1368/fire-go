@@ -52,9 +52,9 @@ npm run dev
 
 **Truy cập:**
 <<<<<<< Updated upstream
-- 🚀 Backend API: http://192.168.1.10:3000/api
-- 💼 Web Admin: http://192.168.1.10:5173
-- 📊 API Docs: http://192.168.1.10:3000/api/docs
+- 🚀 Backend API: http://192.168.1.12:3000/api
+- 💼 Web Admin: http://192.168.1.12:5173
+- 📊 API Docs: http://192.168.1.12:3000/api/docs
 =======
 - 🚀 Backend API: http://192.168.1.14:3000/api
 - 💼 Web Admin: http://192.168.1.14:5173
@@ -73,8 +73,8 @@ npm run start:dev
 ```
 
 <<<<<<< Updated upstream
-**Server:** http://192.168.1.10:3000  
-**API Docs:** http://192.168.1.10:3000/api/docs
+**Server:** http://192.168.1.12:3000  
+**API Docs:** http://192.168.1.12:3000/api/docs
 =======
 **Server:** http://192.168.1.14:3000  
 **API Docs:** http://192.168.1.14:3000/api/docs
@@ -90,7 +90,7 @@ npm run dev
 ```
 
 <<<<<<< Updated upstream
-**Dashboard:** http://192.168.1.10:5173
+**Dashboard:** http://192.168.1.12:5173
 =======
 **Dashboard:** http://192.168.1.14:5173
 >>>>>>> Stashed changes
@@ -195,7 +195,7 @@ FireGo sử dụng **MongoDB** cho data storage.
 
 **Default Connection:**
 <<<<<<< Updated upstream
-- **Host:** 192.168.1.10
+- **Host:** 192.168.1.12
 =======
 - **Host:** 192.168.1.14
 >>>>>>> Stashed changes

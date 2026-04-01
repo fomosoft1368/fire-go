@@ -260,7 +260,7 @@ Response:
 
 ### **Trang: Wallet Transactions**
 <<<<<<< Updated upstream
-URL: `http://192.168.1.10:5173/wallet-transactions`
+URL: `http://192.168.1.12:5173/wallet-transactions`
 =======
 URL: `http://192.168.1.14:5173/wallet-transactions`
 >>>>>>> Stashed changes
@@ -303,7 +303,7 @@ URL: `http://192.168.1.14:5173/wallet-transactions`
 
 # Call test webhook endpoint
 <<<<<<< Updated upstream
-curl -X POST http://192.168.1.10:3000/api/wallet/sepay/test-webhook \
+curl -X POST http://192.168.1.12:3000/api/wallet/sepay/test-webhook \
 =======
 curl -X POST http://192.168.1.14:3000/api/wallet/sepay/test-webhook \
 >>>>>>> Stashed changes

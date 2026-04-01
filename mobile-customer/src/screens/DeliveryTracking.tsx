@@ -113,7 +113,7 @@ export default function DeliveryTracking() {
 
         // Update status
         setCurrentStatus(mapDeliveryStatus(data.status))
-        
+
         // Fetch driver details
         const driverId = getDriverId(data.driverId)
         if (driverId) {
@@ -182,7 +182,7 @@ export default function DeliveryTracking() {
       // Calculate route
       const pickup = extractCoordinates(data, 'pickup')
       const dropoff = extractCoordinates(data, 'dropoff')
-      
+
       if (pickup && dropoff && !('address' in pickup) && !('address' in dropoff)) {
         try {
           const routeInfo = await mapsService.getRouteInfo(
@@ -236,7 +236,7 @@ export default function DeliveryTracking() {
         // Update coordinates
         const pickup = extractCoordinates(data, 'pickup')
         const dropoff = extractCoordinates(data, 'dropoff')
-        
+
         if (pickup && !('address' in pickup)) setPickupCoords(pickup)
         if (dropoff && !('address' in dropoff)) setDropoffCoords(dropoff)
 
@@ -261,7 +261,7 @@ export default function DeliveryTracking() {
     // Setup polling
     const pollInterval = setInterval(async () => {
       const result = await pollDeliveryStatus()
-      
+
       if (result === 'completed') {
         clearInterval(pollInterval)
         const currentDelivery = await deliveryService.getDelivery(deliveryId!)
@@ -300,12 +300,12 @@ export default function DeliveryTracking() {
         avatar: driverData.avatar,
       }
     }
-    
+
     // Priority 3: Use route params
     if (routeDriver) {
       return routeDriver
     }
-    
+
     // Priority 4: Fallback to default
     return {
       id: '1',
@@ -442,8 +442,8 @@ export default function DeliveryTracking() {
       </View>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerButton, { backgroundColor: 'rgba(255, 255, 255, 0.8)' }]}>
+          <MaterialIcons name="arrow-back" size={24} color="#FF6B00" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Đơn hàng #{deliveryId?.slice(-8) || 'FG-2024'}</Text>
@@ -457,9 +457,9 @@ export default function DeliveryTracking() {
       </View>
       {/* Bottom Card */}
       <View style={styles.card}>
-                <View style={styles.handleBarContainer}>
-                  <View style={styles.handleBar} />
-                </View>
+        <View style={styles.handleBarContainer}>
+          <View style={styles.handleBar} />
+        </View>
         {/* Status Timeline */}
         {renderStatusTimeline()}
         {/* Driver Info */}
@@ -480,7 +480,7 @@ export default function DeliveryTracking() {
 
             <View style={styles.driverBasicInfo}>
               <Text style={styles.driverName}>{driver.name}</Text>
-              
+
               {/* Rating with Stars */}
               <View style={styles.ratingContainer}>
                 <View style={styles.ratingBadge}>
@@ -875,12 +875,16 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   card: {
     position: 'absolute',
@@ -900,7 +904,7 @@ const styles = StyleSheet.create({
     elevation: 15,
     maxHeight: '50%',
   },
-    handleBarContainer: {
+  handleBarContainer: {
     alignItems: 'center',
     paddingVertical: 8,
     marginBottom: 16,
