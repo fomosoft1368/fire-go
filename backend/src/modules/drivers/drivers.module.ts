@@ -21,6 +21,7 @@ import { RideRequest, RideRequestSchema } from '../combined-trips/schemas/ride-r
 import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
 import { HourlyService, HourlyServiceSchema } from '../hourly-services/schemas/hourly-service.schema';
+import { AppSettingsModule } from '../app-settings/app-settings.module';
 
 @Module({
   imports: [
@@ -40,8 +41,9 @@ import { HourlyService, HourlyServiceSchema } from '../hourly-services/schemas/h
         fileSize: 5 * 1024 * 1024, // 5MB per file
       },
     }),
-    PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
-    WalletsModule, // Import WalletsModule for customer wallet handling
+    PricingModule,       // Import PricingModule để WalletService có thể dùng PricingService
+    WalletsModule,       // Import WalletsModule for customer wallet handling
+    AppSettingsModule,   // Import để SepayService đọc keys từ DB
   ],
   controllers: [
     SepayWebhookController, // Webhook must be first (specific path)

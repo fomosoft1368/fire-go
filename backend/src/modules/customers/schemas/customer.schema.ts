@@ -131,6 +131,10 @@ export class Customer {
   // Push notifications
   @Prop()
   expoPushToken?: string;
+
+  // Single-session: increment mỗi lần login để vô hiệu hóa token cũ
+  @Prop({ default: 0 })
+  tokenVersion: number;
 }
 
 export const CustomerSchema = SchemaFactory.createForClass(Customer);

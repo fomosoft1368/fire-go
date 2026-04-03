@@ -126,7 +126,11 @@ export class User {
 
   // Push notification
   @Prop()
-  expoPushToken?: string; // Expo Push Token for push notifications
+  expoPushToken?: string;
+
+  // Single-session control: increment on every login to invalidate old tokens
+  @Prop({ default: 0 })
+  tokenVersion: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

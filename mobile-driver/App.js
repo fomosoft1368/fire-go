@@ -1,3 +1,5 @@
+import './src/services/apiClient' // ⚠️ Import sớm — đăng ký global axios interceptor trước mọi service
+import { remoteConfig } from './src/services/remoteConfig'
 import React, { useEffect, useState, useRef } from 'react'
 import { StyleSheet, ActivityIndicator, View, Alert, AppState, Platform } from 'react-native'
 import { Audio } from 'expo-av'
@@ -19,6 +21,7 @@ import { loginSuccess } from './src/redux/slices/authSlice'
 import { assignmentRequestPollingService } from './src/services/assignmentRequestPollingService'
 import { driverService } from './src/services/driverService'
 import { locationTrackingService } from './src/services/locationTrackingService'
+import { registerUnauthorizedHandler } from './src/services/apiClient'
 import AssignmentRequestModal from './src/components/AssignmentRequestModal'
 import LoginScreen from './src/screens/LoginScreen'
 import RegisterScreen from './src/screens/RegisterScreen'
@@ -436,6 +439,16 @@ const RootNavigator = () => {
   const [isLoading, setIsLoading] = React.useState(true)
 
   useEffect(() => {
+    // ✅ Fetch remote config từ backend trước mọi thứ (GOOGLE_MAPS_API_KEY, etc.)
+    remoteConfig.init().catch((e) => console.warn('[App] remoteConfig init failed:', e))
+
+    // ✅ Đăng ký handler 401: khi token hết hiệu lực (người khác đăng nhập cùng tài khoản)
+    registerUnauthorizedHandler(async () => {
+      console.log('[App] 🔒 401 detected — auto-logout (session on another device)')
+      await AsyncStorage.multiRemove(['token', 'refreshToken'])
+      dispatch(restoreAuth(null))
+    })
+
     // Check if user is already logged in
     const checkAuth = async () => {
       try {

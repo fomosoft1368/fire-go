@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Place, PlaceDocument } from './schemas/place.schema';
+import { AppSettingsService } from '../app-settings/app-settings.service';
 
 // Memory cache - {keyword: [{results}]}
 const placeCache = new Map<string, { results: any[]; timestamp: number }>();
@@ -40,13 +40,14 @@ interface GoogleDetailsResponse {
 
 @Injectable()
 export class PlacesService {
-  private googleMapsApiKey: string;
-
   constructor(
     @InjectModel(Place.name) private placeModel: Model<PlaceDocument>,
-    private configService: ConfigService,
-  ) {
-    this.googleMapsApiKey = this.configService.get<string>('GOOGLE_MAPS_API_KEY') || '';
+    private readonly appSettingsService: AppSettingsService,
+  ) {}
+
+  /** Lấy key từ file .env */
+  private get googleMapsApiKey() {
+    return process.env.GOOGLE_MAPS_API_KEY || '';
   }
 
   /**
@@ -359,6 +360,47 @@ export class PlacesService {
       console.log(`💾 Saved ${documents.length} places to database${userId ? ` for user ${userId}` : ''}`);
     } catch (error) {
       console.error('Error saving places:', error);
+    }
+  }
+
+  /**
+   * Reverse Geocoding: toạ độ → địa chỉ
+   * Proxy qua backend để mobile app không cần giữ API key
+   */
+  async reverseGeocode(lat: number, lng: number): Promise<{ address: string }> {
+    if (!this.googleMapsApiKey) {
+      return { address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` };
+    }
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${this.googleMapsApiKey}`;
+      const response = await fetch(url);
+      const data = await response.json() as any;
+      if (data.status === 'OK' && data.results?.length > 0) {
+        return { address: data.results[0].formatted_address };
+      }
+      return { address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` };
+    } catch {
+      return { address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` };
+    }
+  }
+
+  /**
+   * Geocoding: địa chỉ → toạ độ
+   * Proxy qua backend để mobile app không cần giữ API key
+   */
+  async geocodeAddress(address: string): Promise<{ lat: number; lng: number; formattedAddress: string } | null> {
+    if (!this.googleMapsApiKey) return null;
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${this.googleMapsApiKey}`;
+      const response = await fetch(url);
+      const data = await response.json() as any;
+      if (data.status === 'OK' && data.results?.length > 0) {
+        const loc = data.results[0].geometry.location;
+        return { lat: loc.lat, lng: loc.lng, formattedAddress: data.results[0].formatted_address };
+      }
+      return null;
+    } catch {
+      return null;
     }
   }
 

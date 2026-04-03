@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Đặt Xe - Khách hàng",
-    "slug": "dat-xe-customer",
+    "slug": "firego-customer",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
     ],
     "ios": {
       "supportsTabletMode": true,
-      "bundleIdentifier": "com.datxe.customer",
+      "bundleIdentifier": "com.firegotech.mobility",
       "jsEngine": "jsc",
       "runtimeVersion": {
         "policy": "sdkVersion"
@@ -29,11 +29,11 @@
         "NSMicrophoneUsageDescription": "App cần quyền micro để thực hiện cuộc gọi thoại với tài xế"
       },
       "config": {
-        "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
+        "googleMapsApiKey": ""
       }
     },
     "android": {
-      "package": "com.datxe.customer",
+      "package": "com.firegotech.mobility",
       "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
@@ -51,7 +51,7 @@
       },
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
+          "apiKey": ""
         }
       }
     },
@@ -74,7 +74,7 @@
     "extra": {
       "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo",
       "eas": {
-        "projectId": "9a5710ec-b650-46d5-9e18-f594a593533e"
+        "projectId": "2ceabbe4-e074-45ad-bb40-ffdf4965c0f0"
       }
     }
   }

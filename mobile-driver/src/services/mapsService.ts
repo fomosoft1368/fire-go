@@ -3,7 +3,15 @@
  * Dựa trên mapsService của mobile-customer
  */
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo'
+import Constants from 'expo-constants'
+
+/**
+ * Lấy Google Maps API key động từ remoteConfig (backend DB)
+ * Fallback về expo-constants (build-time) nếu chưa fetch xong
+ */
+function getApiKey(): string {
+  return Constants.expoConfig?.extra?.googleMapsApiKey || ''
+}
 
 interface Coordinates {
   latitude: number
@@ -86,7 +94,7 @@ export const mapsService = {
 
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
         pickupAddress
-      )}&destination=${encodeURIComponent(dropoffAddress)}&key=${GOOGLE_MAPS_API_KEY}&mode=driving`
+      )}&destination=${encodeURIComponent(dropoffAddress)}&key=${getApiKey()}&mode=driving`
 
       const response = await fetch(url)
       const data = await response.json()
@@ -95,11 +103,11 @@ export const mapsService = {
 
       if (data.status === 'REQUEST_DENIED') {
         console.warn('[MapsService] ⚠️ API key invalid, using mock data')
-        
+
         // Parse coordinates từ address string
         const pickupParts = pickupAddress.split(',')
         const dropoffParts = dropoffAddress.split(',')
-        
+
         const start = {
           latitude: parseFloat(pickupParts[0]),
           longitude: parseFloat(pickupParts[1]),
@@ -132,11 +140,11 @@ export const mapsService = {
 
       const route = data.routes[0]
       const leg = route.legs[0]
-      
+
       // Decode polyline
       const polyline = route.overview_polyline.points
       const routeCoordinates = decodePolyline(polyline)
-      
+
       console.log('[MapsService] ✅ Route decoded:', routeCoordinates.length, 'points')
       console.log('[MapsService] Distance:', leg.distance.value, 'meters')
       console.log('[MapsService] Duration:', leg.duration.value, 'seconds')
@@ -163,12 +171,12 @@ export const mapsService = {
       }
     } catch (error: any) {
       console.error('[MapsService] ❌ Error:', error.message)
-      
+
       // Fallback: tạo mock route
       try {
         const pickupParts = pickupAddress.split(',')
         const dropoffParts = dropoffAddress.split(',')
-        
+
         const start = {
           latitude: parseFloat(pickupParts[0]),
           longitude: parseFloat(pickupParts[1]),

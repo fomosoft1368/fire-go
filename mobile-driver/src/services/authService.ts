@@ -1,6 +1,7 @@
 import axios from 'axios'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { API_BASE_URL } from '../constants/config'
+import { registerPushToken } from './pushNotificationService'
 
 const API_URL = API_BASE_URL
 
@@ -33,6 +34,11 @@ const login = async (email: string, password: string) => {
 
     if (response.data.accessToken) {
       await AsyncStorage.setItem('token', response.data.accessToken)
+
+      // ✅ Đăng ký push notification token sau khi đăng nhập thành công
+      registerPushToken().catch(e =>
+        console.warn('[Auth] Driver push token registration failed (non-critical):', e.message)
+      )
     }
 
     return response.data

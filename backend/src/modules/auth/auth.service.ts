@@ -83,8 +83,12 @@ export class AuthService {
         throw new UnauthorizedException('Invalid email or password');
       }
 
+      // ✅ Increment tokenVersion — vô hiệu hóa mọi token cũ (thiết bị khác bị logout)
+      await this.driverModel.findByIdAndUpdate(driver._id, { $inc: { tokenVersion: 1 } });
+      const updatedDriver = await this.driverModel.findById(driver._id).select('tokenVersion').lean() as any;
+
       // Generate tokens for driver
-      return this.generateTokensForDriver(driver);
+      return this.generateTokensForDriver({ ...driver.toObject?.() ?? driver, tokenVersion: updatedDriver.tokenVersion } as any);
     }
 
     console.log('❌ Driver not found or no password, trying User collection...');
@@ -117,8 +121,11 @@ export class AuthService {
     user.lastLoginAt = new Date();
     await user.save();
 
-    // Generate tokens
-    return this.generateTokens(user);
+    // ✅ Increment tokenVersion — vô hiệu hóa mọi token cũ
+    await this.userModel.findByIdAndUpdate(user._id, { $inc: { tokenVersion: 1 } });
+    const updatedUser = await this.userModel.findById(user._id).select('tokenVersion').lean() as any;
+
+    return this.generateTokens({ ...user.toObject?.() ?? user, tokenVersion: updatedUser.tokenVersion } as any);
   }
 
   async logout(userId: string): Promise<void> {
@@ -174,6 +181,7 @@ export class AuthService {
       sub: user._id.toString(),
       email: user.email,
       role: user.role,
+      tv: (user as any).tokenVersion ?? 0, // tokenVersion — dùng để validate single-session
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -205,6 +213,7 @@ export class AuthService {
       sub: driver._id.toString(),
       email: driver.email,
       role: 'driver',
+      tv: (driver as any).tokenVersion ?? 0, // tokenVersion
     };
 
     const accessToken = this.jwtService.sign(payload, {

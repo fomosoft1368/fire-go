@@ -8,13 +8,13 @@ export class PlacesController {
   @Get('search')
   async search(
     @Query('keyword') keyword: string,
-    @Query('userId') userId?: string, // Customer ID or Driver ID for personalized history
+    @Query('userId') userId?: string,
   ): Promise<{
     results: PlaceResult[];
     source: 'cache' | 'database' | 'google' | 'validation';
   }> {
     console.log('🔥 [PlacesController] Search request received:', { keyword, userId });
-    
+
     if (!keyword || keyword.trim().length < 3) {
       console.log('⏭️ [PlacesController] Keyword too short:', keyword?.length);
       return { results: [], source: 'validation' };
@@ -30,6 +30,29 @@ export class PlacesController {
   async getDetails(@Param('placeId') placeId: string): Promise<PlaceResult> {
     console.log('🔍 [PlacesController] Getting details for:', placeId);
     return this.placesService.getPlaceDetails(placeId);
+  }
+
+  /**
+   * GET /api/places/reverse-geocode?lat=...&lng=...
+   * Toạ độ → địa chỉ — proxy qua backend (key lấy từ DB)
+   */
+  @Get('reverse-geocode')
+  async reverseGeocode(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+  ): Promise<{ address: string }> {
+    return this.placesService.reverseGeocode(parseFloat(lat), parseFloat(lng));
+  }
+
+  /**
+   * GET /api/places/geocode?address=...
+   * Địa chỉ → toạ độ — proxy qua backend (key lấy từ DB)
+   */
+  @Get('geocode')
+  async geocode(
+    @Query('address') address: string,
+  ): Promise<{ lat: number; lng: number; formattedAddress: string } | null> {
+    return this.placesService.geocodeAddress(address);
   }
 
   @Get('cache-stats')

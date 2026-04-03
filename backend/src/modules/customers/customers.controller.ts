@@ -1,8 +1,11 @@
 import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Delete, BadRequestException, UnauthorizedException, Query } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto, SavedAddressDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtService } from '@nestjs/jwt';
+import { Customer, CustomerDocument } from './schemas/customer.schema';
 import * as bcrypt from 'bcrypt';
 
 @Controller('customers')
@@ -10,6 +13,7 @@ export class CustomersController {
   constructor(
     private readonly customersService: CustomersService,
     private readonly jwtService: JwtService,
+    @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
   ) {
     console.log('[CustomersController] Initialized');
   }
@@ -42,12 +46,18 @@ export class CustomersController {
     try {
       const customer = await this.customersService.create(createCustomerDto);
       
+      // ✅ Increment tokenVersion trước khi generate token
+      await this.customerModel.findByIdAndUpdate(customer._id, { $inc: { tokenVersion: 1 } });
+      const freshCustomer = await this.customerModel.findById(customer._id).select('tokenVersion').lean() as any;
+      const tv = freshCustomer?.tokenVersion ?? 1;
+
       // Generate JWT tokens
       const accessToken = this.jwtService.sign(
         {
           sub: customer._id,
           email: customer.email,
           role: 'customer',
+          tv, // single-session token version
         }
       );
 
@@ -56,9 +66,7 @@ export class CustomersController {
           sub: customer._id,
           email: customer.email,
         },
-        {
-          expiresIn: '7d',
-        }
+        { expiresIn: '7d' }
       );
 
       return {
@@ -111,12 +119,18 @@ export class CustomersController {
         throw new UnauthorizedException('Invalid email or password');
       }
 
+      // ✅ Increment tokenVersion — vô hiệu hóa mọi token cũ (thiết bị khác bị logout)
+      await this.customerModel.findByIdAndUpdate(customer._id, { $inc: { tokenVersion: 1 } });
+      const freshCustomer = await this.customerModel.findById(customer._id).select('tokenVersion').lean() as any;
+      const tv = freshCustomer?.tokenVersion ?? 1;
+
       // Generate JWT tokens
       const accessToken = this.jwtService.sign(
         {
           sub: customer._id,
           email: customer.email,
           role: 'customer',
+          tv, // single-session token version
         }
       );
 

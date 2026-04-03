@@ -340,6 +340,10 @@ export class Driver {
 
   @Prop({ default: true })
   allowEmail: boolean;
+
+  // Single-session: increment mỗi lần login để vô hiệu hóa token cũ
+  @Prop({ default: 0 })
+  tokenVersion: number;
 }
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);

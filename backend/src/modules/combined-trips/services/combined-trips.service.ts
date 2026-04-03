@@ -11,6 +11,7 @@ import { PricingService } from '../../pricing/pricing.service';
 import { ConfigService } from '../../config/config.service';
 import { ServiceType } from '../../config/schemas/driver-search-config.schema';
 import { ModuleRef } from '@nestjs/core';
+import { AppSettingsService } from '../../app-settings/app-settings.service';
 
 @Injectable()
 export class CombinedTripsService implements OnModuleInit {
@@ -28,6 +29,7 @@ export class CombinedTripsService implements OnModuleInit {
     private eventEmitter: EventEmitter2,
     private moduleRef: ModuleRef,
     private configService: ConfigService,
+    private appSettingsService: AppSettingsService,
   ) { }
 
   /**
@@ -56,7 +58,20 @@ export class CombinedTripsService implements OnModuleInit {
     console.log(`[recalculateFaresForCombinedTrip] Found ${requests.length} ACTIVE requests for trip ${combinedTripId}`);
 
     if (!requests.length) {
-      console.log('[recalculateFaresForCombinedTrip] No active requests, skipping recalculation');
+      console.log('[recalculateFaresForCombinedTrip] ⚠️ No active requests — resetting trip fares to 0');
+      await this.combinedTripModel.findOneAndUpdate(
+        {
+          _id: combinedTripId,
+          status: { $ne: 'cancelled' },
+        },
+        {
+          totalFare: 0,
+          baseFare: 0,
+          distanceFare: 0,
+          timeFare: 0,
+          surgePricing: 0,
+        },
+      );
       return;
     }
 

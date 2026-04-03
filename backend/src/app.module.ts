@@ -22,6 +22,7 @@ import { DriverSearchConfigModule } from './modules/config/config.module';
 import { LegalDocsModule } from './modules/config/legal-docs.module';
 import { CallModule } from './modules/call/call.module';
 import { BonusesModule } from './modules/bonuses/bonuses.module';
+import { AppSettingsModule } from './modules/app-settings/app-settings.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { BonusesModule } from './modules/bonuses/bonuses.module';
       process.env.MONGODB_URI || 'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH',
     ),
     EventEmitterModule.forRoot(),
+    AppSettingsModule, // ← PHẢI đứng đầu để seed/cache trước các module khác
     AuthModule,
     DriversModule,
     CustomersModule,

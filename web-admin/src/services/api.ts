@@ -857,7 +857,10 @@ class ApiService {
       method: 'GET',
       headers: this.getHeaders(),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(`GET ${endpoint} failed: ${response.status} — ${err.message || response.statusText}`);
+    }
     return this.handleResponse(response);
   }
 
@@ -877,7 +880,10 @@ class ApiService {
       headers: this.getHeaders(),
       body: JSON.stringify(data),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(`PATCH ${endpoint} failed: ${response.status} — ${err.message || response.statusText}`);
+    }
     return this.handleResponse(response);
   }
 
@@ -899,6 +905,7 @@ class ApiService {
     if (!response.ok) return null;
     return this.handleResponse(response);
   }
+
 
   // ============================================
   // Driver Search Config APIs

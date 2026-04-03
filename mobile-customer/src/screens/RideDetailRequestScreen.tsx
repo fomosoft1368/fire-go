@@ -227,9 +227,16 @@ export default function RideDetailRequestScreen() {
         console.log('  → totalPassengers:', totalPassengers)
         console.log('  → Discount will be:', totalPassengers === 1 ? '0%' : totalPassengers === 2 ? '15%' : totalPassengers === 3 ? '25%' : '30%')
         
-        // Get vehicle type from ride (default to 'sedan' if not available)
-        // Valid types: 'sedan', 'suv', 'truck'
-        const vehicleType = tripData.vehicleType || tripData.driverId?.vehicleType || 'sedan'
+        // Get vehicle type from ride - Driver's actual vehicle type, NOT the service tier (basic/comfort/premium)
+        // tripData.vehicleType is the SERVICE TIER (basic/comfort/premium), driver's actual type is in driverId.vehicleType
+        const rawVehicleType = tripData.driverId?.vehicleType || tripData.vehicleType || 'sedan'
+        // Map service tiers to actual vehicle types for pricing
+        const vehicleTypeMap: Record<string, string> = {
+          basic: 'sedan',
+          comfort: 'suv',
+          premium: 'sedan',
+        }
+        const vehicleType = (vehicleTypeMap[rawVehicleType] ?? rawVehicleType) as 'sedan' | 'suv' | 'bike' | 'truck'
         
         console.log('[RideDetailRequestScreen] Pricing calculation:', {
           distanceKm,
@@ -398,9 +405,16 @@ export default function RideDetailRequestScreen() {
       } else {
         // Distance-based pricing: Tính lại fare để lấy peakMultiplier
         console.log('\n💰 ============ DISTANCE-BASED PRICING - SENDING REQUEST ============')
+        const rawVehicleType2 = tripData.driverId?.vehicleType || tripData.vehicleType || 'sedan'
+        const vehicleTypeMap2: Record<string, string> = {
+          basic: 'sedan',
+          comfort: 'suv',
+          premium: 'sedan',
+        }
+        const mappedVehicleType2 = (vehicleTypeMap2[rawVehicleType2] ?? rawVehicleType2) as 'sedan' | 'suv' | 'bike' | 'truck'
         const fareBreakdownForRequest = await calculateFare(
           distanceToUse,
-          tripData.vehicleType || tripData.driverId?.vehicleType || 'sedan',
+          mappedVehicleType2,
           bookedSeatsCount + selectedSeats.length,
           undefined,
           undefined

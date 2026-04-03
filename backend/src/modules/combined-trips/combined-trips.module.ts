@@ -10,6 +10,7 @@ import { CombinedTripsService } from './services/combined-trips.service';
 import { CombinedTripsController } from './controllers/combined-trips.controller';
 import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AppSettingsModule } from '../app-settings/app-settings.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       { name: Driver.name, schema: DriverSchema },
       { name: 'PricingConfig', schema: PricingConfigSchema },
     ]),
+    AppSettingsModule,
   ],
   controllers: [CombinedTripsController],
   providers: [CombinedTripsService],

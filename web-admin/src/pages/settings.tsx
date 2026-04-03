@@ -13,6 +13,16 @@ interface SystemConfig {
   lastModifiedAt?: string;
 }
 
+interface AppSetting {
+  _id?: string;
+  key: string;
+  value: string;
+  label: string;
+  description?: string;
+  group: string;
+  isSecret: boolean;
+}
+
 const Settings: React.FC = () => {
   const { language, setLanguage: setLanguageInContext, t } = useLanguage();
   const [activeTab, setActiveTab] = useState('profile');
@@ -45,11 +55,20 @@ const Settings: React.FC = () => {
     showSidebar: true
   });
 
+  // ── API Integration settings ──────────────────────────────────────────────
+  const [apiSettings, setApiSettings] = useState<AppSetting[]>([]);
+  const [apiSettingsLoading, setApiSettingsLoading] = useState(false);
+  const [apiSettingsError, setApiSettingsError] = useState<string | null>(null);
+  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
   const tabs = [
     { id: 'profile', label: t('settings.profile', 'Thông tin cá nhân'), icon: 'person' },
     { id: 'security', label: t('settings.security', 'Bảo mật'), icon: 'shield' },
     { id: 'notifications', label: t('settings.notifications', 'Thông báo'), icon: 'notifications' },
     { id: 'appearance', label: t('settings.appearance', 'Giao diện'), icon: 'palette' },
+    { id: 'api-integration', label: 'Tích hợp API', icon: 'api' },
     { id: 'system', label: t('settings.system', 'Hệ thống'), icon: 'settings' },
     { id: 'about', label: t('settings.about', 'Về ứng dụng'), icon: 'info' }
   ];
@@ -59,6 +78,7 @@ const Settings: React.FC = () => {
     loadSystemConfig();
     loadAdminProfile();
     loadThemeAndLanguage();
+    loadApiSettings();
   }, []);
 
   // Apply theme when it changes
@@ -204,6 +224,74 @@ const Settings: React.FC = () => {
     } catch (err) {
       // Silently fail - keep defaults
     }
+  };
+
+  // ── API Integration functions ───────────────────────────────────────────
+  const loadApiSettings = async () => {
+    setApiSettingsLoading(true);
+    setApiSettingsError(null);
+    try {
+      const data = await apiService.get('/app-settings');
+      console.log('[Settings] /app-settings response:', data);
+      const settings: AppSetting[] = Array.isArray(data) ? data : (data?.data || []);
+      setApiSettings(settings);
+      const vals: Record<string, string> = {};
+      settings.forEach((s) => { vals[s.key] = ''; });
+      setEditValues(vals);
+    } catch (err: any) {
+      console.error('[Settings] Load API settings error:', err);
+      setApiSettingsError(err?.message || 'Không thể tải cài đặt');
+    } finally {
+      setApiSettingsLoading(false);
+    }
+  };
+
+  const toggleReveal = async (key: string) => {
+    if (revealedKeys.has(key)) {
+      setRevealedKeys(prev => { const s = new Set(prev); s.delete(key); return s; });
+      return;
+    }
+    try {
+      const data = await apiService.get('/app-settings?showSecrets=true');
+      const settings: AppSetting[] = Array.isArray(data) ? data : data?.data || [];
+      const found = settings.find(s => s.key === key);
+      if (found) {
+        setApiSettings(prev => prev.map(s => s.key === key ? { ...s, value: found.value } : s));
+        setRevealedKeys(prev => new Set(prev).add(key));
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Không thể hiện giá trị' });
+    }
+  };
+
+  const handleSaveApiSetting = async (key: string) => {
+    const newVal = editValues[key];
+    if (!newVal || !newVal.trim()) {
+      setMessage({ type: 'error', text: 'Giá trị không được để trống' });
+      return;
+    }
+    setSavingKey(key);
+    try {
+      await apiService.patch(`/app-settings/${key}`, { value: newVal.trim() });
+      setApiSettings(prev =>
+        prev.map(s => s.key === key ? { ...s, value: newVal.trim() } : s)
+      );
+      setEditValues(prev => ({ ...prev, [key]: '' }));
+      setRevealedKeys(prev => { const s = new Set(prev); s.delete(key); return s; });
+      setMessage({ type: 'success', text: `Đã cập nhật ${key}` });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Lỗi cập nhật' });
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const GROUP_META: Record<string, { label: string; icon: string; color: string }> = {
+    payment_sepay: { label: 'Sepay (Thanh toán QR)', icon: 'qr_code_2', color: 'blue' },
+    payment_vnpay: { label: 'VNPay', icon: 'credit_card', color: 'green' },
+    maps: { label: 'Google Maps & Định tuyến', icon: 'map', color: 'orange' },
+    email: { label: 'Email (SMTP)', icon: 'email', color: 'purple' },
+    system: { label: 'Hệ thống', icon: 'settings', color: 'gray' },
   };
 
   const handleSaveProfile = async () => {
@@ -1278,6 +1366,147 @@ const Settings: React.FC = () => {
                     <p className="text-sm text-slate-500 dark:text-slate-400">
                       © 2024 FireGo. All rights reserved.
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── API Integration Tab ── */}
+              {activeTab === 'api-integration' && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Tích hợp API bên ngoài</h2>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Quản lý API keys, tài khoản thanh toán và các cấu hình dịch vụ. Thay đổi được áp dụng ngay không cần restart.
+                    </p>
+                  </div>
+
+                  {apiSettingsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin h-8 w-8 rounded-full border-4 border-[#FF6B00] border-t-transparent" />
+                    </div>
+                  ) : apiSettingsError ? (
+                    <div className="p-5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-red-500 mt-0.5">error</span>
+                        <div className="flex-1">
+                          <p className="font-semibold text-red-700 dark:text-red-400">Không thể tải cài đặt</p>
+                          <p className="text-sm text-red-600 dark:text-red-300 mt-1 font-mono">{apiSettingsError}</p>
+                          <p className="text-xs text-red-500 mt-2">Backend URL: <code>{import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'}</code></p>
+                          <button
+                            onClick={loadApiSettings}
+                            className="mt-3 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-medium text-sm hover:bg-red-200 transition-colors"
+                          >
+                            Thử lại
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    Object.entries(GROUP_META).map(([groupKey, groupMeta]) => {
+                      const groupSettings = apiSettings.filter(s => s.group === groupKey);
+                      if (!groupSettings.length) return null;
+                      const colorMap: Record<string, string> = {
+                        blue: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+                        green: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+                        orange: 'bg-orange-100 dark:bg-orange-900/30 text-orange-500 dark:text-orange-400',
+                        purple: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+                        gray: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400',
+                      };
+                      return (
+                        <div key={groupKey} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                          {/* Group header */}
+                          <div className="flex items-center gap-3 px-5 py-4 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                            <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${colorMap[groupMeta.color]}`}>
+                              <span className="material-symbols-outlined text-[20px]">{groupMeta.icon}</span>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900 dark:text-white">{groupMeta.label}</p>
+                              <p className="text-xs text-slate-500">{groupSettings.length} cấu hình</p>
+                            </div>
+                          </div>
+
+                          {/* Settings rows */}
+                          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {groupSettings.map(setting => (
+                              <div key={setting.key} className="px-5 py-4">
+                                <div className="flex items-start justify-between gap-4 mb-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                        {setting.label}
+                                      </span>
+                                      {setting.isSecret && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                                          SECRET
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-slate-400">{setting.key}</p>
+                                    {setting.description && (
+                                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{setting.description}</p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Current value display */}
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="flex-1 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-sm text-slate-700 dark:text-slate-300 truncate">
+                                    {setting.value || <span className="text-slate-400 italic">Chưa cài đặt</span>}
+                                  </div>
+                                  {setting.isSecret && (
+                                    <button
+                                      onClick={() => toggleReveal(setting.key)}
+                                      className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500"
+                                      title={revealedKeys.has(setting.key) ? 'Ẩn giá trị' : 'Hiện giá trị'}
+                                    >
+                                      <span className="material-symbols-outlined text-[18px]">
+                                        {revealedKeys.has(setting.key) ? 'visibility_off' : 'visibility'}
+                                      </span>
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Edit input */}
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type={setting.isSecret && !revealedKeys.has(setting.key) ? 'password' : 'text'}
+                                    placeholder={`Nhập giá trị mới cho ${setting.label}`}
+                                    value={editValues[setting.key] || ''}
+                                    onChange={(e) => setEditValues(prev => ({ ...prev, [setting.key]: e.target.value }))}
+                                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B00] focus:border-transparent"
+                                  />
+                                  <button
+                                    onClick={() => handleSaveApiSetting(setting.key)}
+                                    disabled={!editValues[setting.key]?.trim() || savingKey === setting.key}
+                                    className="px-4 py-2 rounded-lg bg-[#FF6B00] hover:bg-[#e56200] disabled:opacity-40 text-white text-sm font-medium transition-colors whitespace-nowrap"
+                                  >
+                                    {savingKey === setting.key ? (
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="animate-spin h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent" />
+                                        Lưu...
+                                      </span>
+                                    ) : 'Lưu'}
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+
+                  <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 mt-0.5">warning</span>
+                      <div>
+                        <p className="font-semibold text-amber-800 dark:text-amber-300 text-sm">Lưu ý</p>
+                        <p className="text-amber-700 dark:text-amber-400 text-xs mt-1">
+                          Thay đổi được lưu vào database và được cache trong 5 phút. Server không cần restart. 
+                          Giá trị <strong>SECRET</strong> được ẩn mặc định — bấm icon mắt để xem.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

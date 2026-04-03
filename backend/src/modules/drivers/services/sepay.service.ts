@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { AppSettingsService } from '../../app-settings/app-settings.service';
 
 interface SepayQRPayload {
   accountNo: string;
@@ -13,15 +14,16 @@ interface SepayQRPayload {
 
 @Injectable()
 export class SepayService {
-  // Sepay API credentials (load from .env)
-  private readonly SEPAY_API_KEY = process.env.SEPAY_API_KEY;
-  private readonly SEPAY_SECRET_KEY = process.env.SEPAY_SECRET_KEY;
-  
-  // Thông tin tài khoản nhận tiền (config từ .env trong production)
-  private readonly ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NUMBER || 'VQRQAHGIQ8468'; // Tài khoản VA
-  private readonly ACCOUNT_NAME = process.env.SEPAY_ACCOUNT_NAME || 'HO VAN TRINH'; // Tên chủ tài khoản
-  private readonly BANK_ID = process.env.SEPAY_BANK_ID || '970422'; // VCB: 970436, TCB: 970407, MB: 970422
-  private readonly BANK_NAME = process.env.SEPAY_BANK_NAME || 'MB'; // Tên ngân hàng
+  constructor(private readonly appSettingsService: AppSettingsService) {}
+
+  /** Lấy key từ DB (dynamic - phản ánh thay đổi từ web-admin) */
+  private get SEPAY_API_KEY() { return this.appSettingsService.getSync('SEPAY_API_KEY'); }
+  private get SEPAY_SECRET_KEY() { return this.appSettingsService.getSync('SEPAY_SECRET_KEY'); }
+  private get ACCOUNT_NO() { return this.appSettingsService.getSync('SEPAY_ACCOUNT_NUMBER') || 'VQRQAHGIQ8468'; }
+  private get ACCOUNT_NAME() { return this.appSettingsService.getSync('SEPAY_ACCOUNT_NAME') || 'HO VAN TRINH'; }
+  private get BANK_ID() { return this.appSettingsService.getSync('SEPAY_BANK_ID') || '970422'; }
+  private get BANK_NAME() { return this.appSettingsService.getSync('SEPAY_BANK_NAME') || 'MB'; }
+
 
   /**
    * Generate Sepay QR code URL for bank transfer

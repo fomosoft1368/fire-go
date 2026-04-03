@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "firego-driver",
+    "name": "Đặt Xe - Tài Xế",
     "slug": "firego-driver",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
@@ -33,10 +33,10 @@
         "NSMicrophoneUsageDescription": "App cần quyền micro để thực hiện cuộc gọi thoại với khách hàng",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.firego.driver"
+      "bundleIdentifier": "com.firegotech.driver"
     },
     "android": {
-      "package": "com.firego.driver",
+      "package": "com.firegotech.driver",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -58,8 +58,9 @@
       }
     },
     "extra": {
+      "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo",
       "eas": {
-        "projectId": "befe6cf1-a80d-4ba6-884b-4b0ab74eff44"
+        "projectId": "07dff804-0fce-4bbe-8274-64a9f5c2a316"
       }
     }
   }

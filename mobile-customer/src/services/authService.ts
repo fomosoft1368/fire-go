@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import type { User, LoginResponse, ApiResponse } from '../types'
+import type { User, LoginResponse } from '../types'
 import { API_BASE_URL } from '../constants'
+import { registerPushToken } from './pushNotificationService'
 
 const TOKEN_KEY = 'authToken'
 const REFRESH_TOKEN_KEY = 'refreshToken'
@@ -93,6 +94,11 @@ export const authService = {
       }
 
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
+
+      // ✅ Đăng ký push notification token sau khi đăng nhập thành công
+      registerPushToken().catch(e =>
+        console.warn('[Auth] Push token registration failed (non-critical):', e.message)
+      )
 
       return {
         token: data.accessToken,
@@ -196,6 +202,11 @@ export const authService = {
       }
 
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
+
+      // ✅ Đăng ký push notification token sau khi đăng ký thành công
+      registerPushToken().catch(e =>
+        console.warn('[Auth] Push token registration failed (non-critical):', e.message)
+      )
 
       return {
         token: data.accessToken,

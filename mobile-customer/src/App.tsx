@@ -1,4 +1,6 @@
 import React from 'react'
+import './services/apiClient' // ⚠️ Import sớm — đăng ký global axios interceptor
+import { remoteConfig } from './services/remoteConfig'
 import 'react-native-gesture-handler'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
@@ -19,6 +21,7 @@ import { restoreAuth } from './redux/slices/authSlice'
 import type { RootState } from './redux/store'
 import type { RootStackParamList } from './types'
 import { notificationService } from './services/notificationService'
+import { registerUnauthorizedHandler } from './services/apiClient'
 import { API_BASE_URL } from './constants'
 import RideTracking from './screens/RideTracking'
 
@@ -298,6 +301,17 @@ const RootNavigator = () => {
   const dispatch = useDispatch()
 
   useEffect(() => {
+    // ✅ Fetch remote config từ backend trước mọi thứ (GOOGLE_MAPS_API_KEY, etc.)
+    remoteConfig.init().catch((e) => console.warn('[App] remoteConfig init failed:', e))
+
+    // ✅ Đăng ký handler 401: khi token hết hiệu lực (người khác đăng nhập cùng tài khoản)
+    // apiClient sẽ gọi callback này → tự động logout
+    registerUnauthorizedHandler(async () => {
+      console.log('[App] 🔒 401 detected via apiClient — auto-logout')
+      await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'user'])
+      dispatch(restoreAuth(null))
+    })
+
     const performLogout = async (reason: string) => {
       console.log('[App] 🚫 Auto-logout:', reason)
       await AsyncStorage.multiRemove(['authToken', 'user'])
