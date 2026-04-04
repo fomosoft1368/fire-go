@@ -4,13 +4,14 @@
  */
 
 import Constants from 'expo-constants'
+import { remoteConfig } from './remoteConfig'
 
 /**
  * Lấy Google Maps API key động từ remoteConfig (backend DB)
  * Fallback về expo-constants (build-time) nếu chưa fetch xong
  */
 function getApiKey(): string {
-  return Constants.expoConfig?.extra?.googleMapsApiKey || ''
+  return remoteConfig.get('GOOGLE_MAPS_API_KEY') || Constants.expoConfig?.extra?.googleMapsApiKey || ''
 }
 
 interface Coordinates {
@@ -92,9 +93,13 @@ export const mapsService = {
     try {
       console.log('[MapsService] 🗺️ Getting route from:', pickupAddress, 'to:', dropoffAddress)
 
+      // Xoá khoảng trắng trùng lặp hoặc khoảng trắng sau dấu phẩy để Google API không bị hiểu nhầm toạ độ
+      const cleanOrigin = pickupAddress.replace(/,\s+/g, ',').trim()
+      const cleanDest = dropoffAddress.replace(/,\s+/g, ',').trim()
+
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
-        pickupAddress
-      )}&destination=${encodeURIComponent(dropoffAddress)}&key=${getApiKey()}&mode=driving`
+        cleanOrigin
+      )}&destination=${encodeURIComponent(cleanDest)}&key=${getApiKey()}&mode=driving`
 
       const response = await fetch(url)
       const data = await response.json()

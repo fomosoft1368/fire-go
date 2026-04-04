@@ -42,12 +42,12 @@ interface GoogleDetailsResponse {
 export class PlacesService {
   constructor(
     @InjectModel(Place.name) private placeModel: Model<PlaceDocument>,
-    private readonly appSettingsService: AppSettingsService,
-  ) {}
+    private readonly appSettings: AppSettingsService,
+  ) { }
 
-  /** Lấy key từ file .env */
+  /** Lấy key từ AppSettingsService (DB) — fallback về .env nếu chưa seed */
   private get googleMapsApiKey() {
-    return process.env.GOOGLE_MAPS_API_KEY || '';
+    return this.appSettings.getSync('GOOGLE_MAPS_API_KEY') || process.env.GOOGLE_MAPS_API_KEY || '';
   }
 
   /**
@@ -80,7 +80,7 @@ export class PlacesService {
     const dbQuery = userId
       ? { userId, keyword: new RegExp(normalizedKeyword, 'i') }
       : { keyword: new RegExp(normalizedKeyword, 'i') };
-    
+
     const dbResults = await this.placeModel.find(
       dbQuery,
       { _id: 0, placeId: 1, name: 1, address: 1, lat: 1, lng: 1 },
@@ -154,7 +154,7 @@ export class PlacesService {
       // Clean keyword: remove commas and extra spaces for better search
       // "Tan Giang, Quynh Bang" -> "Tan Giang Quynh Bang"
       const cleanKeyword = keyword.replace(/[,。，]/g, ' ').replace(/\s+/g, ' ').trim();
-      
+
       console.log('🧹 [PlacesService] Cleaned keyword:', {
         original: keyword,
         cleaned: cleanKeyword,
@@ -252,7 +252,7 @@ export class PlacesService {
       console.log('📡 Fetching place details from Google API for:', placeId);
       const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${this.googleMapsApiKey}`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         console.error('❌ Google API error:', response.status);
         return {
@@ -422,3 +422,4 @@ export class PlacesService {
     };
   }
 }
+

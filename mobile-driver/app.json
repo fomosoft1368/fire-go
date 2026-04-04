@@ -53,12 +53,12 @@
       },
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
+          "apiKey": ""
         }
       }
     },
     "extra": {
-      "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo",
+      "googleMapsApiKey": "",
       "eas": {
         "projectId": "07dff804-0fce-4bbe-8274-64a9f5c2a316"
       }

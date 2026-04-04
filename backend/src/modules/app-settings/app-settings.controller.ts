@@ -14,11 +14,11 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
 /** Keys được phép expose công khai cho mobile apps (không phải secret) */
-const PUBLIC_KEYS = ['OSRM_BASE_URL'];
+const PUBLIC_KEYS = ['OSRM_BASE_URL', 'GOOGLE_MAPS_API_KEY'];
 
 @Controller('app-settings')
 export class AppSettingsController {
-  constructor(private readonly appSettingsService: AppSettingsService) {}
+  constructor(private readonly appSettingsService: AppSettingsService) { }
 
   /**
    * GET /api/app-settings/public

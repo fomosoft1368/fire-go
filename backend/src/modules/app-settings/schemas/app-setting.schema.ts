@@ -16,7 +16,7 @@ export class AppSetting {
   @Prop({ required: true, unique: true })
   key: string;
 
-  @Prop({ required: true })
+  @Prop({ default: '' })
   value: string;
 
   @Prop({ required: true })

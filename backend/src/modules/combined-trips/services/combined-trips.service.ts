@@ -273,7 +273,7 @@ export class CombinedTripsService implements OnModuleInit {
         throw new BadRequestException('Invalid coordinates - must be numbers');
       }
 
-      const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+      const googleMapsApiKey = this.appSettingsService.getSync('GOOGLE_MAPS_API_KEY') || process.env.GOOGLE_MAPS_API_KEY;
       if (!googleMapsApiKey) {
         throw new BadRequestException('Google Maps API key not configured');
       }

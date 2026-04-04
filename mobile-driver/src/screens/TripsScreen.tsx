@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native'
+import { useState, useEffect, useRef } from 'react'
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Animated } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
 import { useSelector } from 'react-redux'
@@ -36,6 +36,36 @@ export default function TripsScreen() {
   const [error, setError] = useState<string | null>(null)
   const [sourceFilter, setSourceFilter] = useState<'all' | 'ride' | 'combined_trip' | 'delivery' | 'hourly'>('all')
   const [deletedTripIds, setDeletedTripIds] = useState<string[]>([])
+  const spinValue = useRef(new Animated.Value(0)).current
+  const spinAnimation = useRef<Animated.CompositeAnimation | null>(null)
+
+  const startSpin = () => {
+    spinValue.setValue(0)
+    spinAnimation.current = Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      })
+    )
+    spinAnimation.current.start()
+  }
+
+  const stopSpin = () => {
+    spinAnimation.current?.stop()
+    spinValue.setValue(0)
+  }
+
+  const handleReload = async () => {
+    startSpin()
+    await fetchTrips()
+    stopSpin()
+  }
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  })
 
   useEffect(() => {
     loadDeletedTripIds()
@@ -474,8 +504,10 @@ export default function TripsScreen() {
           <View>
             <Text style={styles.title}>Hoạt động</Text>
           </View>
-          <TouchableOpacity style={styles.filterIconButton}>
-            <MaterialIcons name="filter-list" size={24} color="#0f172a" />
+          <TouchableOpacity style={styles.filterIconButton} onPress={handleReload} activeOpacity={0.7}>
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <MaterialIcons name="refresh" size={24} color={loading ? '#FF6B00' : '#0f172a'} />
+            </Animated.View>
           </TouchableOpacity>
         </View>
 

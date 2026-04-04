@@ -37,7 +37,7 @@ class RemoteConfigService {
       }
 
       const json = await response.json()
-      const settings: Array<{ key: string; value: string }> = json?.data || []
+      const settings: Array<{ key: string; value: string }> = Array.isArray(json) ? json : (json?.data || [])
 
       settings.forEach(({ key, value }) => {
         if (value) this.config[key] = value

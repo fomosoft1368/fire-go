@@ -88,7 +88,14 @@ const DEFAULT_SETTINGS = [
     envFallback: 'VNPAY_RETURN_URL',
   },
   // ── Google Maps ───────────────────────────────────────────────────────────
-  
+  {
+    key: 'GOOGLE_MAPS_API_KEY',
+    label: 'Google Maps API Key',
+    group: SettingGroup.MAPS,
+    isSecret: true,
+    description: 'API Key lấy từ Google Cloud Console (cần bật Maps SDK, Places, Directions, Distance Matrix)',
+    envFallback: 'GOOGLE_MAPS_API_KEY',
+  },
   {
     key: 'OSRM_BASE_URL',
     label: 'OSRM Base URL',
