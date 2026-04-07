@@ -3,7 +3,7 @@
 ## Base URL
 ```
 <<<<<<< Updated upstream
-http://192.168.1.12:3000/api/pricing
+http://192.168.1.15:3000/api/pricing
 =======
 http://192.168.1.14:3000/api/pricing
 >>>>>>> Stashed changes
@@ -191,7 +191,7 @@ if (final_price < minimum_fare) {
 ```bash
 # Tính giá cho 3 người
 <<<<<<< Updated upstream
-curl -X POST http://192.168.1.12:3000/api/pricing/calculate \
+curl -X POST http://192.168.1.15:3000/api/pricing/calculate \
 =======
 curl -X POST http://192.168.1.14:3000/api/pricing/calculate \
 >>>>>>> Stashed changes
@@ -208,7 +208,7 @@ curl -X POST http://192.168.1.14:3000/api/pricing/calculate \
 ### Test với JavaScript:
 ```javascript
 <<<<<<< Updated upstream
-const response = await fetch('http://192.168.1.12:3000/api/pricing/calculate', {
+const response = await fetch('http://192.168.1.15:3000/api/pricing/calculate', {
 =======
 const response = await fetch('http://192.168.1.14:3000/api/pricing/calculate', {
 >>>>>>> Stashed changes

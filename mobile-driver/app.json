@@ -6,9 +6,9 @@
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./src/assets/fire-logo.png",
+    "icon": "./src/assets/logo-driver.png",
     "splash": {
-      "image": "./src/assets/fire-logo.png",
+      "image": "./src/assets/logo-driver.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -48,17 +48,17 @@
         "android.permission.BLUETOOTH_CONNECT"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/fire-logo.png",
+        "foregroundImage": "./src/assets/logo-driver.png",
         "backgroundColor": "#ffffff"
       },
       "config": {
         "googleMaps": {
-          "apiKey": ""
+          "apiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
         }
       }
     },
     "extra": {
-      "googleMapsApiKey": "",
+      "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo",
       "eas": {
         "projectId": "07dff804-0fce-4bbe-8274-64a9f5c2a316"
       }

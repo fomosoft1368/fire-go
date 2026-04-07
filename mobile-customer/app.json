@@ -7,9 +7,9 @@
     "userInterfaceStyle": "light",
     "sdkVersion": "54.0.0",
     "entryPoint": "./index.js",
-    "icon": "./src/assets/logooo.png",
+    "icon": "./src/assets/logo-firego1.png",
     "splash": {
-      "image": "./src/assets/logooo.png",
+      "image": "./src/assets/logo-firego1.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -46,12 +46,12 @@
         "android.permission.BLUETOOTH_CONNECT"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/logooo.png",
+        "foregroundImage": "./src/assets/logo-firego1.png",
         "backgroundColor": "#ffffff"
       },
       "config": {
         "googleMaps": {
-          "apiKey": ""
+          "apiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
         }
       }
     },
@@ -72,7 +72,7 @@
       ]
     ],
     "extra": {
-      "googleMapsApiKey": "",
+      "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo",
       "eas": {
         "projectId": "2ceabbe4-e074-45ad-bb40-ffdf4965c0f0"
       }

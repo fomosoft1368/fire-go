@@ -327,4 +327,117 @@ export const authService = {
       throw error
     }
   },
+
+  // Gửi OTP xác minh SĐT
+  async sendOtp(): Promise<{ message: string; expires: number }> {
+    try {
+      const token = await this.getToken()
+      const response = await fetch(`${API_BASE_URL}/auth/customer/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Lỗi gửi OTP')
+      }
+      return await response.json()
+    } catch (error: any) {
+      throw error
+    }
+  },
+
+  // Xác minh OTP SĐT
+  async verifyOtp(code: string): Promise<{ message: string }> {
+    try {
+      const token = await this.getToken()
+      const response = await fetch(`${API_BASE_URL}/auth/customer/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ code })
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'OTP không hợp lệ')
+      }
+      return await response.json()
+    } catch (error: any) {
+      throw error
+    }
+  },
+
+  // ===================== OTP LOGIN FLOW =====================
+  async sendLoginOtp(phone: string, name?: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/customer/login-otp/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, name })
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Lỗi gửi OTP')
+      }
+      return await response.json()
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async verifyLoginOtp(phone: string, code: string): Promise<LoginResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/customer/login-otp/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code })
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'OTP không hợp lệ')
+      }
+      
+      const data = await response.json()
+      
+      // Store tokens and set up session
+      await AsyncStorage.setItem(TOKEN_KEY, data.accessToken)
+      if (data.refreshToken) {
+        await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)
+      }
+
+      const user: User = {
+        id: data.user.id,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        email: data.user.email,
+        phone: data.user.phone || phone,
+        role: data.user.role || 'customer',
+        avatar: data.user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
+        completedRides: data.user.completedRides || 0,
+        averageRating: data.user.averageRating || 5,
+        totalSpent: data.user.totalSpent || 0,
+        savedAddresses: data.user.savedAddresses || [],
+        dateOfBirth: data.user.dateOfBirth,
+        preferredDriverGender: data.user.preferredDriverGender,
+        isPhoneVerified: data.user.isPhoneVerified,
+      }
+
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(user))
+
+      // Register push token
+      registerPushToken().catch(e =>
+        console.warn('[Auth] Push token registration failed:', e.message)
+      )
+
+      return {
+        token: data.accessToken,
+        user,
+      }
+    } catch (error) {
+      throw error
+    }
+  },
 }

@@ -56,7 +56,7 @@ ngrok http 3000
 ### Lấy URL:
 Sau khi chạy, copy URL:
 ```
-Forwarding    https://abc123.ngrok-free.app -> http://192.168.1.12:3000
+Forwarding    https://abc123.ngrok-free.app -> http://192.168.1.15:3000
 ```
 
 **Copy:** `https://abc123.ngrok-free.app`

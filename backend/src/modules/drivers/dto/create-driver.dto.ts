@@ -121,5 +121,9 @@ export class CreateDriverDto {
   @IsOptional()
   @IsEnum(VehicleType)
   vehicleType?: VehicleType; // Loại xe: sedan, suv, pickup, motorcycle
+
+  @IsOptional()
+  @IsString({ message: 'Mã giới thiệu phải là chuỗi ký tự' })
+  referralCode?: string; // Mã người giới thiệu
 }
 

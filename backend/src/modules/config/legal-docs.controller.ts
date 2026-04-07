@@ -53,7 +53,7 @@ export class LegalDocsController {
    */
   @Get('admin/terms')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async getAllTerms() {
     return this.legalDocsService.getAllTerms();
   }
@@ -64,7 +64,7 @@ export class LegalDocsController {
    */
   @Get('admin/terms/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async getTermsById(@Param('id') id: string) {
     return this.legalDocsService.getTermsById(id);
   }
@@ -75,7 +75,7 @@ export class LegalDocsController {
    */
   @Post('admin/terms')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async createTerms(@Body() data: any, @Request() req: any) {
     return this.legalDocsService.createTerms(data, req.user?.userId);
   }
@@ -86,7 +86,7 @@ export class LegalDocsController {
    */
   @Put('admin/terms/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async updateTerms(
     @Param('id') id: string,
     @Body() data: any,
@@ -101,7 +101,7 @@ export class LegalDocsController {
    */
   @Delete('admin/terms/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async deleteTerms(@Param('id') id: string) {
     await this.legalDocsService.deleteTerms(id);
     return { success: true, message: 'Terms of Service deleted successfully' };
@@ -115,7 +115,7 @@ export class LegalDocsController {
    */
   @Get('admin/privacy')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async getAllPrivacy() {
     return this.legalDocsService.getAllPrivacy();
   }
@@ -126,7 +126,7 @@ export class LegalDocsController {
    */
   @Get('admin/privacy/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async getPrivacyById(@Param('id') id: string) {
     return this.legalDocsService.getPrivacyById(id);
   }
@@ -137,7 +137,7 @@ export class LegalDocsController {
    */
   @Post('admin/privacy')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async createPrivacy(@Body() data: any, @Request() req: any) {
     return this.legalDocsService.createPrivacy(data, req.user?.userId);
   }
@@ -148,7 +148,7 @@ export class LegalDocsController {
    */
   @Put('admin/privacy/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async updatePrivacy(
     @Param('id') id: string,
     @Body() data: any,
@@ -163,7 +163,7 @@ export class LegalDocsController {
    */
   @Delete('admin/privacy/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'staff', 'superadmin', 'super_admin')
   async deletePrivacy(@Param('id') id: string) {
     await this.legalDocsService.deletePrivacy(id);
     return { success: true, message: 'Privacy Policy deleted successfully' };

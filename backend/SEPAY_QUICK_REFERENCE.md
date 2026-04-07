@@ -89,7 +89,7 @@ POST /api/wallets/sepay-topup
 **Create Driver Topup**
 ```bash
 <<<<<<< Updated upstream
-curl -X POST http://192.168.1.12:3000/api/wallet/sepay/create-topup \
+curl -X POST http://192.168.1.15:3000/api/wallet/sepay/create-topup \
 =======
 curl -X POST http://192.168.1.14:3000/api/wallet/sepay/create-topup \
 >>>>>>> Stashed changes
@@ -101,7 +101,7 @@ curl -X POST http://192.168.1.14:3000/api/wallet/sepay/create-topup \
 **Create Customer Topup**
 ```bash
 <<<<<<< Updated upstream
-curl -X POST http://192.168.1.12:3000/api/wallets/sepay-topup \
+curl -X POST http://192.168.1.15:3000/api/wallets/sepay-topup \
 =======
 curl -X POST http://192.168.1.14:3000/api/wallets/sepay-topup \
 >>>>>>> Stashed changes
@@ -113,7 +113,7 @@ curl -X POST http://192.168.1.14:3000/api/wallets/sepay-topup \
 **Simulate Driver Webhook**
 ```bash
 <<<<<<< Updated upstream
-curl -X POST http://192.168.1.12:3000/api/wallet/sepay/webhook \
+curl -X POST http://192.168.1.15:3000/api/wallet/sepay/webhook \
 =======
 curl -X POST http://192.168.1.14:3000/api/wallet/sepay/webhook \
 >>>>>>> Stashed changes
@@ -130,7 +130,7 @@ curl -X POST http://192.168.1.14:3000/api/wallet/sepay/webhook \
 **Simulate Customer Webhook**
 ```bash
 <<<<<<< Updated upstream
-curl -X POST http://192.168.1.12:3000/api/wallet/sepay/webhook \
+curl -X POST http://192.168.1.15:3000/api/wallet/sepay/webhook \
 =======
 curl -X POST http://192.168.1.14:3000/api/wallet/sepay/webhook \
 >>>>>>> Stashed changes

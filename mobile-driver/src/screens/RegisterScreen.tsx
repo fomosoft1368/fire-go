@@ -13,9 +13,6 @@ import {
   Platform,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
-import { useDispatch, useSelector } from 'react-redux'
-import { loginStart, loginSuccess, loginFailure } from '../redux/slices/authSlice'
-import type { RootState } from '../redux/store'
 import { API_BASE_URL } from '../constants/config'
 
 const COLORS = {
@@ -57,6 +54,14 @@ interface FormData {
 
   // Service Selection
   driverTypes: string[] // rideshare, hire, delivery
+
+  // Bank Info
+  bankName: string
+  bankAccount: string
+  bankAccountHolder: string
+
+  // Referral
+  referralCode: string
 }
 
 interface FormErrors {
@@ -69,6 +74,19 @@ export default function RegisterScreen({ navigation }: any) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
+  
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [countdown, setCountdown] = useState(0)
+
+  // Countdown timer for OTP
+  React.useEffect(() => {
+    let timer: NodeJS.Timeout
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+    }
+    return () => clearTimeout(timer)
+  }, [countdown])
 
   const [formData, setFormData] = useState<FormData>({
     fullName: '',
@@ -84,10 +102,11 @@ export default function RegisterScreen({ navigation }: any) {
     licenseNumber: '',
     licenseExpiry: '',
     driverTypes: ['rideshare'],
+    bankName: '',
+    bankAccount: '',
+    bankAccountHolder: '',
+    referralCode: '',
   })
-
-  const dispatch = useDispatch()
-  const { error } = useSelector((state: RootState) => state.auth)
 
   // Validation functions
   const validateStep1 = () => {
@@ -142,16 +161,8 @@ export default function RegisterScreen({ navigation }: any) {
       newErrors.vehiclePlate = 'Biển số xe không được để trống'
     }
 
-    if (!formData.vehicleLicense.trim()) {
-      newErrors.vehicleLicense = 'Số GPLX không được để trống'
-    }
-
     if (!formData.licenseNumber.trim()) {
       newErrors.licenseNumber = 'Số bằng lái không được để trống'
-    }
-
-    if (!formData.licenseExpiry.trim()) {
-      newErrors.licenseExpiry = 'Ngày hết hạn không được để trống'
     }
 
     if (formData.driverTypes.length === 0) {
@@ -210,7 +221,51 @@ export default function RegisterScreen({ navigation }: any) {
   const handleRegister = async () => {
     setIsLoading(true)
     try {
-      // Format the data for API
+      await sendOtpVerification(formData.phone)
+      setIsVerifyingOtp(true)
+    } catch (err: any) {
+      // Error handled in sendOtpVerification
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const sendOtpVerification = async (phone: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/driver/register-otp/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Lỗi gửi mã OTP')
+      }
+      setCountdown(60)
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.message || 'Không thể gửi mã OTP tới Zalo của bạn. Hoặc tài khoản SĐT này đã tồn tại.')
+      throw err; // Re-throw to be caught by handleRegister
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode || otpCode.length < 6) return
+    setIsLoading(true)
+    try {
+      // 1. Verify OTP first
+      const verifyResponse = await fetch(`${API_BASE_URL}/auth/driver/register-otp/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: formData.phone, code: otpCode }),
+      })
+      
+      const verifyData = await verifyResponse.json()
+      
+      if (!verifyResponse.ok) {
+        throw new Error(verifyData.message || 'Mã OTP không hợp lệ')
+      }
+
+      // 2. Format the data for API Creation
       const registrationData = {
         firstName: formData.fullName.split(' ')[0],
         lastName: formData.fullName.split(' ').slice(1).join(' '),
@@ -220,35 +275,22 @@ export default function RegisterScreen({ navigation }: any) {
         vehicleModel: formData.vehicleModel,
         vehicleColor: formData.vehicleColor,
         vehiclePlate: formData.vehiclePlate,
-        vehicleLicense: formData.vehicleLicense,
         vehicleType: formData.vehicleType,
         licenseNumber: formData.licenseNumber,
-        licenseExpiry: formData.licenseExpiry,
         driverTypes: formData.driverTypes,
+        referralCode: formData.referralCode,
       }
 
-      // Call registration API
-      console.log('🚀 Calling API:', `${API_BASE_URL}/drivers`)
-      console.log('📤 Registration Data:', registrationData)
-
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 30000) // 30s timeout
-
+      // 3. Call registration API
       const response = await fetch(`${API_BASE_URL}/drivers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(registrationData),
-        signal: controller.signal,
       })
 
-      clearTimeout(timeout)
-
-      console.log('📥 Response Status:', response.status)
-
       const data = await response.json()
-      console.log('📥 Response Data:', data)
 
       if (!response.ok) {
         throw new Error(data.message || `Lỗi ${response.status}: ${response.statusText}`)
@@ -258,11 +300,12 @@ export default function RegisterScreen({ navigation }: any) {
 
       Alert.alert(
         'Đăng ký thành công!',
-        'Tài khoản của bạn đang chờ duyệt. Vui lòng chờ admin duyệt hồ sơ của bạn.\n\nBạn sẽ nhận được thông báo khi hồ sơ được duyệt.',
+        'Tài khoản của bạn đã được xác thực mã OTP và tiến hành chờ Admin duyệt hồ sơ.\n\nBạn sẽ nhận được thông báo khi hồ sơ được duyệt.',
         [
           {
             text: 'OK',
             onPress: () => {
+              setIsVerifyingOtp(false)
               navigation?.goBack?.()
             },
           },
@@ -270,23 +313,15 @@ export default function RegisterScreen({ navigation }: any) {
       )
     } catch (err: any) {
       setIsLoading(false)
-
-      let errorMessage = 'Lỗi không xác định'
-
-      if (err.name === 'AbortError') {
-        errorMessage = 'Kết nối quá chậm (timeout 30 giây). Vui lòng kiểm tra kết nối mạng và thử lại.'
-      } else if (err instanceof TypeError) {
-        errorMessage = `Lỗi kết nối: ${err.message}. Vui lòng kiểm tra URL API và kết nối mạng.`
-      } else {
-        errorMessage = err.message
-      }
-
-      console.log('❌ Error:', errorMessage)
-      Alert.alert('Lỗi đăng ký', errorMessage)
+      Alert.alert('Lỗi', err.message || 'Có lỗi xảy ra khi xác thực OTP và nộp hồ sơ.')
     }
   }
 
   const handleGoBack = () => {
+    if (isVerifyingOtp) {
+      setIsVerifyingOtp(false)
+      return
+    }
     if (navigation?.goBack) {
       navigation.goBack()
     }
@@ -376,22 +411,61 @@ export default function RegisterScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* Progress Bar */}
-        <View style={styles.progressBar}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${(step / 2) * 100}%` },
-            ]}
-          />
-        </View>
+        {/* Progress Bar (Hide in OTP mode) */}
+        {!isVerifyingOtp && (
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${(step / 2) * 100}%` },
+              ]}
+            />
+          </View>
+        )}
 
         <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollViewContent}
         >
-          {/* Step 1: Personal Info */}
+          {isVerifyingOtp ? (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>Xác thực Zalo</Text>
+              <Text style={styles.stepDescription}>
+                Chúng tôi đã gửi mã OTP gồm 6 chữ số qua tin nhắn Zalo tới số {formData.phone}
+              </Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nhập mã OTP</Text>
+                <View style={[styles.inputWrapper, { height: 72 }]}>
+                  <MaterialIcons name="security" size={24} color={COLORS.primary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { fontSize: 24, letterSpacing: 8, fontWeight: '700' }]}
+                    placeholder="------"
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={otpCode}
+                    onChangeText={setOtpCode}
+                    editable={!isLoading}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    autoFocus
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity 
+                style={{ paddingVertical: 12, alignItems: 'center' }}
+                onPress={() => sendOtpVerification(formData.phone)}
+                disabled={countdown > 0}
+              >
+                <Text style={{ color: countdown > 0 ? COLORS.textTertiary : COLORS.primary, fontWeight: 'bold' }}>
+                  {countdown > 0 ? `Chưa nhận được? Gửi lại sau ${countdown}s` : 'Gửi lại mã OTP'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {/* Step 1: Personal Info */}
           {step === 1 && (
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Thông tin cá nhân</Text>
@@ -422,6 +496,7 @@ export default function RegisterScreen({ navigation }: any) {
                   onVisibilityToggle: () => setShowConfirmPassword(!showConfirmPassword),
                 },
               )}
+              {renderInput('Mã giới thiệu (không bắt buộc)', 'referralCode', 'card-giftcard', 'Nhập mã người giới thiệu')}
             </View>
           )}
 
@@ -465,13 +540,9 @@ export default function RegisterScreen({ navigation }: any) {
               {renderInput('Model xe', 'vehicleModel', 'directions-car', 'Ví dụ: Toyota Camry')}
               {renderInput('Màu xe', 'vehicleColor', 'palette', 'Ví dụ: Trắng')}
               {renderInput('Biển số xe', 'vehiclePlate', 'confirmation-number', 'Ví dụ: 51A-123.45')}
-              {renderInput('Số GPLX', 'vehicleLicense', 'card-travel', 'Nhập số GPLX')}
 
               <Text style={styles.sectionTitle}>Thông tin bằng lái xe</Text>
               {renderInput('Số bằng lái', 'licenseNumber', 'badge', 'Nhập số bằng lái')}
-              {renderInput('Ngày hết hạn', 'licenseExpiry', 'event', 'Ví dụ: 2025-12-31', {
-                keyboardType: 'numeric',
-              })}
 
               <Text style={styles.sectionTitle}>Loại dịch vụ</Text>
               <Text style={styles.stepDescription}>
@@ -535,45 +606,67 @@ export default function RegisterScreen({ navigation }: any) {
                 </Text>
               </View>
             </View>
-          )}        </ScrollView>
+          )}
+            </>
+          )}
+        </ScrollView>
 
         {/* Action Buttons */}
         <View style={styles.buttonContainer}>
-          {step > 1 && (
+          {isVerifyingOtp ? (
             <TouchableOpacity
-              style={[styles.button, styles.secondaryButton]}
-              onPress={handlePreviousStep}
-              disabled={isLoading}
-            >
-              <MaterialIcons name="arrow-back" size={20} color={COLORS.primary} />
-              <Text style={styles.secondaryButtonText}>Quay lại</Text>
-            </TouchableOpacity>
-          )}
-
-          {step < 2 ? (
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, !step && { flex: 1 }]}
-              onPress={handleNextStep}
-              disabled={isLoading}
-            >
-              <Text style={styles.primaryButtonText}>Tiếp tục</Text>
-              <MaterialIcons name="arrow-forward" size={20} color={COLORS.white} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, styles.successButton]}
-              onPress={handleNextStep}
-              disabled={isLoading}
+              style={[styles.button, styles.primaryButton, { flex: 1 }]}
+              onPress={handleVerifyOtp}
+              disabled={isLoading || otpCode.length < 6}
             >
               {isLoading ? (
                 <ActivityIndicator color={COLORS.white} />
               ) : (
                 <>
-                  <Text style={styles.primaryButtonText}>Hoàn thành đăng ký</Text>
-                  <MaterialIcons name="check" size={20} color={COLORS.white} />
+                  <Text style={styles.primaryButtonText}>Xác thực</Text>
+                  <MaterialIcons name="check-circle" size={20} color={COLORS.white} />
                 </>
               )}
             </TouchableOpacity>
+          ) : (
+            <>
+              {step > 1 && (
+                <TouchableOpacity
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={handlePreviousStep}
+                  disabled={isLoading}
+                >
+                  <MaterialIcons name="arrow-back" size={20} color={COLORS.primary} />
+                  <Text style={styles.secondaryButtonText}>Quay lại</Text>
+                </TouchableOpacity>
+              )}
+
+              {step < 2 ? (
+                <TouchableOpacity
+                  style={[styles.button, styles.primaryButton, !step && { flex: 1 }]}
+                  onPress={handleNextStep}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.primaryButtonText}>Tiếp tục</Text>
+                  <MaterialIcons name="arrow-forward" size={20} color={COLORS.white} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.button, styles.primaryButton, styles.successButton]}
+                  onPress={handleNextStep}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={COLORS.white} />
+                  ) : (
+                    <>
+                      <Text style={styles.primaryButtonText}>Hoàn thành đăng ký</Text>
+                      <MaterialIcons name="check" size={20} color={COLORS.white} />
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       </KeyboardAvoidingView>

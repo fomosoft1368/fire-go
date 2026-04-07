@@ -24,6 +24,9 @@ export class Customer {
   @Prop()
   avatar?: string;
 
+  @Prop({ default: false })
+  isPhoneVerified: boolean;
+
   // Contact information
   @Prop()
   dateOfBirth?: Date;

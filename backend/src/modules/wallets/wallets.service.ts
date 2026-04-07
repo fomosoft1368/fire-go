@@ -7,12 +7,15 @@ import { TopUpWalletDto, PaymentDto } from './dto';
 import { PricingService } from '../pricing/pricing.service';
 import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
 
+import { Customer, CustomerDocument } from '../customers/schemas/customer.schema';
+
 @Injectable()
 export class WalletsService {
   constructor(
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
     @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
+    @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
     private readonly pricingService: PricingService,
   ) {}
 
@@ -139,6 +142,11 @@ export class WalletsService {
     userId: string,
     amount: number,
   ): Promise<TransactionDocument> {
+    const customer = await this.customerModel.findById(userId);
+    if (customer && !customer.isPhoneVerified) {
+      throw new BadRequestException('Vui lòng xác thực số điện thoại trước khi nạp tiền');
+    }
+
     // Get dynamic limits from pricing config
     const minAmount = await this.pricingService.getMinTopupAmount('customer');
     const maxAmount = await this.pricingService.getMaxTopupAmount();
@@ -574,6 +582,11 @@ export class WalletsService {
   }
 
   async withdraw(customerId: string, amount: number, bankAccountId: string, description: string): Promise<TransactionDocument> {
+    const customer = await this.customerModel.findById(customerId);
+    if (customer && !customer.isPhoneVerified) {
+      throw new BadRequestException('Vui lòng xác thực số điện thoại trước khi rút tiền');
+    }
+
     if (amount <= 0) {
       throw new BadRequestException('Số tiền rút phải lớn hơn 0')
     }
@@ -638,6 +651,11 @@ export class WalletsService {
     accountHolderName: string,
     description?: string,
   ): Promise<TransactionDocument> {
+    const customer = await this.customerModel.findById(customerId);
+    if (customer && !customer.isPhoneVerified) {
+      throw new BadRequestException('Vui lòng xác thực số điện thoại trước khi rút tiền');
+    }
+
     if (amount <= 0) {
       throw new BadRequestException('Số tiền rút phải lớn hơn 0')
     }

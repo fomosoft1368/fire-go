@@ -172,6 +172,12 @@ export default function ProfileScreen() {
       onPress: () => navigation.navigate('EditProfile' as never),
     },
     {
+      icon: 'group-add',
+      label: 'Giới thiệu bạn bè',
+      value: 'Thưởng lớn',
+      onPress: () => navigation.navigate('ReferralScreen' as never),
+    },
+    {
       icon: 'phone',
       label: 'Số điện thoại',
       value: user?.phone || 'Chưa cập nhật',

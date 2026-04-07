@@ -310,6 +310,56 @@ export class WalletService {
 
     await driver.save();
 
+    // ============ XỬ LÝ HOA HỒNG GIỚI THIỆU (REFERRAL) ============
+    if (pricingConfig.referralEnabled && commissionAmount > 0) {
+      // Check điều kiện: số cuốc hợp lệ để bắt đầu trả thưởng
+      // Lấy referralMinTrips (mặc định 5), kiểm tra (driver.completedRides + 1) vì cuốc này vừa hoàn thành chưa được count trong DB nếu gọi trước khi lưu DB
+      const minTrips = pricingConfig.referralMinTrips || 5;
+      const completedTrips = driver.completedRides || 0;
+      
+      // Nếu thỏa điều kiện cuốc tối thiểu và tài xế đã KYC (chứng minh thư hợp lệ)
+      // Trong ví dụ này ta ưu tiên check completedTrips
+      if (completedTrips + 1 >= minTrips) {
+        
+        // F1
+        if (driver.referralF1 && pricingConfig.referralF1Rate > 0) {
+          await this.processReferralBonus(
+            driver.referralF1,
+            tripId,
+            commissionAmount,
+            pricingConfig.referralF1Rate,
+            1, // cấp độ
+            driver._id
+          );
+        }
+
+        // F2
+        if (driver.referralF2 && pricingConfig.referralF2Rate > 0) {
+          await this.processReferralBonus(
+            driver.referralF2,
+            tripId,
+            commissionAmount,
+            pricingConfig.referralF2Rate,
+            2,
+            driver._id
+          );
+        }
+
+        // F3
+        if (driver.referralF3 && pricingConfig.referralF3Rate > 0) {
+          await this.processReferralBonus(
+            driver.referralF3,
+            tripId,
+            commissionAmount,
+            pricingConfig.referralF3Rate,
+            3,
+            driver._id
+          );
+        }
+      }
+    }
+    // ============ END REFERRAL ============
+
     return {
       success: true,
       commissionAmount,
@@ -318,6 +368,62 @@ export class WalletService {
       newBalance: driver.walletBalance,
       isLocked: driver.isWalletLocked,
     };
+  }
+
+  /**
+   * Helper process and add referral bonus to wallet
+   */
+  private async processReferralBonus(
+    beneficiaryId: Types.ObjectId,
+    tripId: string | Types.ObjectId,
+    platformCommission: number,
+    ratePercent: number,
+    level: number,
+    sourceDriverId: Types.ObjectId
+  ) {
+    try {
+      const bonusAmount = Math.round(platformCommission * (ratePercent / 100));
+      if (bonusAmount <= 0) return;
+
+      const beneficiary = await this.driverModel.findById(beneficiaryId);
+      if (!beneficiary) return;
+
+      const balanceBefore = beneficiary.walletBalance || 0;
+      const balanceAfter = balanceBefore + bonusAmount;
+
+      // Cộng tiền vào ví
+      beneficiary.walletBalance = balanceAfter;
+      beneficiary.totalReferralEarnings = (beneficiary.totalReferralEarnings || 0) + bonusAmount;
+      
+      if (beneficiary.walletBalance >= beneficiary.minimumBalance) {
+        beneficiary.isWalletLocked = false;
+      }
+      
+      await beneficiary.save();
+
+      // Lưu transaction
+      const transaction = new this.transactionModel({
+        userType: UserType.DRIVER,
+        driverId: beneficiaryId,
+        type: TransactionType.REFERRAL_BONUS,
+        amount: bonusAmount,
+        balanceBefore,
+        balanceAfter,
+        status: TransactionStatus.COMPLETED,
+        tripId: new Types.ObjectId(tripId),
+        description: `Hoa hồng giới thiệu F${level} (${ratePercent}%) từ cuốc xe của tài xế ID ${sourceDriverId.toString().substring(0, 6)}...`,
+        completedAt: new Date(),
+        metadata: {
+          sourceDriverId: sourceDriverId,
+          level,
+          platformCommission
+        }
+      });
+
+      await transaction.save();
+    } catch (error) {
+      console.error(`[Referral Error] Failed to process F${level} bonus for ${beneficiaryId}:`, error.message);
+    }
   }
 
   /**

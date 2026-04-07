@@ -48,7 +48,7 @@ Account                       Free Plan
 Version                       3.x.x
 Region                        Asia Pacific (ap)
 <<<<<<< Updated upstream
-Forwarding                    https://abc123.ngrok-free.app -> http://192.168.1.12:3000
+Forwarding                    https://abc123.ngrok-free.app -> http://192.168.1.15:3000
 =======
 Forwarding                    https://abc123.ngrok-free.app -> http://192.168.1.14:3000
 >>>>>>> Stashed changes
@@ -201,7 +201,7 @@ Phải thấy:
 Mobile App (Driver)
     ↓ (1) Tạo nạp tiền 10,000đ
 <<<<<<< Updated upstream
-Backend (192.168.1.12:3000)
+Backend (192.168.1.15:3000)
 =======
 Backend (192.168.1.14:3000)
 >>>>>>> Stashed changes

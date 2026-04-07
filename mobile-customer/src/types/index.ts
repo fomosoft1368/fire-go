@@ -15,6 +15,7 @@ export interface User {
   savedAddresses?: Array<{ address: string; label: string }>
   dateOfBirth?: string
   preferredDriverGender?: string
+  isPhoneVerified?: boolean
 }
 
 // Import ride types

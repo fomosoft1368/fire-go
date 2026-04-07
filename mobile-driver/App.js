@@ -60,6 +60,7 @@ import IncomingCallScreen from './src/screens/IncomingCallScreen'
 import ActiveCallScreen from './src/screens/ActiveCallScreen'
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import BonusScreen from './src/screens/BonusScreen'
+import ReferralScreen from './src/screens/ReferralScreen'
 
 
 //
@@ -427,6 +428,11 @@ const HomeStackNavigator = () => {
       <Stack.Screen
         name='DriverBonus'
         component={BonusScreen}
+        options={{ animationEnabled: true }}
+      />
+      <Stack.Screen
+        name='ReferralScreen'
+        component={ReferralScreen}
         options={{ animationEnabled: true }}
       />
     </Stack.Navigator>

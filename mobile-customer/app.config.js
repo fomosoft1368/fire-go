@@ -1,6 +1,6 @@
 // app.config.js — đọc .env và inject vào Constants.expoConfig.extra
 // Expo CLI tự load .env trước khi chạy file này (Node context)
-const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.12:3000/api'
+const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.15:3000/api'
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ''
 
 console.log('[app.config.js] 🌐 API_URL from .env:', API_URL)

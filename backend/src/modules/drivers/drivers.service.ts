@@ -23,7 +23,27 @@ export class DriversService {
       ...createDriverDto,
       status: DriverStatus.OFFLINE,
       approvalStatus: DocumentStatus.PENDING, // ✅ Set to pending when driver registers
+      isPhoneVerified: true, // Zalo verified
     };
+
+    // Tạo mã giới thiệu độc nhất cho tài xế mới (VD: FG + 6 ký tự)
+    driverData.referralCode = 'FG' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // Check mã người giới thiệu nhập vào (nếu có)
+    if (createDriverDto.referralCode) {
+      const referrer = await this.driverModel.findOne({ referralCode: createDriverDto.referralCode.toUpperCase() });
+      if (referrer) {
+        driverData.referredBy = referrer._id;
+        driverData.referralF1 = referrer._id;
+        driverData.referralF2 = referrer.referralF1; // F1 của người giới thiệu sẽ là F2 của tài xế mới
+        driverData.referralF3 = referrer.referralF2; // F2 của người giới thiệu sẽ là F3 của tài xế mới
+
+        // Tăng số lượng F1 của người giới thiệu
+        await this.driverModel.findByIdAndUpdate(referrer._id, {
+          $inc: { totalReferrals: 1 }
+        });
+      }
+    }
 
     // Only add userId if provided and valid
     if (userId && userId.trim()) {
@@ -67,6 +87,30 @@ export class DriversService {
     }
 
     return driver;
+  }
+
+  async findByReferralCode(code: string): Promise<DriverDocument | null> {
+    return this.driverModel.findOne({ referralCode: code.toUpperCase() });
+  }
+
+  async getOrCreateReferralCode(driverId: string) {
+    let driver = await this.driverModel.findById(driverId);
+    if (!driver) throw new NotFoundException('Driver not found');
+
+    if (!driver.referralCode) {
+      driver.referralCode = 'FG' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      // Initialize zero stats if missing
+      if (driver.totalReferrals === undefined) driver.totalReferrals = 0;
+      if (driver.totalReferralEarnings === undefined) driver.totalReferralEarnings = 0;
+      await driver.save();
+    }
+
+    return {
+      referralCode: driver.referralCode,
+      totalReferrals: driver.totalReferrals || 0,
+      totalReferralEarnings: driver.totalReferralEarnings || 0,
+      completedRides: driver.completedRides || 0
+    };
   }
 
   async findAll(filters?: { status?: string; search?: string; page?: number; limit?: number }): Promise<DriverDocument[]> {

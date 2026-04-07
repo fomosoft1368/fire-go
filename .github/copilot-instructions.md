@@ -26,9 +26,9 @@ FireGo is a rideshare platform with four main components: **backend/** (NestJS A
 ## Developer Workflows
 - **Full setup**: `npm install` (monorepo) → `docker-compose up -d` (MongoDB) → `npm run dev` (backend + web) or `npm run dev:full`
 <<<<<<< Updated upstream
-- **Backend**: `cd backend && npm run start:dev` → Swagger at `http://192.168.1.12:3000/api/docs`
-- **Web Admin**: `cd web-admin && npm run dev` → Vite at `http://192.168.1.12:5173`
-- **Mobile**: Expo-managed (`npm run android` / `npm run ios`); Android emulator uses `10.0.2.2` for 192.168.1.12, real devices use `192.168.x.x`
+- **Backend**: `cd backend && npm run start:dev` → Swagger at `http://192.168.1.15:3000/api/docs`
+- **Web Admin**: `cd web-admin && npm run dev` → Vite at `http://192.168.1.15:5173`
+- **Mobile**: Expo-managed (`npm run android` / `npm run ios`); Android emulator uses `10.0.2.2` for 192.168.1.15, real devices use `192.168.x.x`
 =======
 - **Backend**: `cd backend && npm run start:dev` → Swagger at `http://192.168.1.14:3000/api/docs`
 - **Web Admin**: `cd web-admin && npm run dev` → Vite at `http://192.168.1.14:5173`

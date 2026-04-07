@@ -12,5 +12,6 @@ export class AuthResponseDto {
     isOnline?: boolean;
     isAvailable?: boolean;
     status?: string;
+    isPhoneVerified?: boolean;
   };
 }

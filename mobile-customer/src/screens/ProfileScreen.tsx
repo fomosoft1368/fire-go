@@ -8,11 +8,14 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigation } from '@react-navigation/native'
-import { logout } from '../redux/slices/authSlice'
+import { logout, loginSuccess } from '../redux/slices/authSlice'
 import { authService } from '../services/authService'
 import type { RootState } from '../redux/store'
 import { COLORS, SPACING } from '../constants'
@@ -34,7 +37,66 @@ export default function ProfileScreen() {
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const [isDarkMode, setIsDarkMode] = useState(themeMode === 'dark')
 
+  // OTP State
+  const [isOtpModalVisible, setIsOtpModalVisible] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [countdown, setCountdown] = useState(0)
+  const [isLoadingOtp, setIsLoadingOtp] = useState(false)
+
   console.log('User data in ProfileScreen:', user)
+
+  const requestPhoneVerify = async () => {
+    if (!user?.phone) {
+      Alert.alert('Chưa có SĐT', 'Vui lòng cập nhật số điện thoại trước khi xác minh.')
+      return
+    }
+    
+    setIsLoadingOtp(true)
+    try {
+      const res = await authService.sendOtp()
+      console.log('Send OTP res:', res)
+      setIsOtpModalVisible(true)
+      setCountdown(60) // 1 phút
+      
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) clearInterval(timer)
+          return prev - 1
+        })
+      }, 1000)
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.message || 'Không thể gửi mã OTP')
+    } finally {
+      setIsLoadingOtp(false)
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length < 6) {
+      Alert.alert('Thông báo', 'Mã OTP bao gồm 6 chữ số')
+      return
+    }
+    
+    setIsLoadingOtp(true)
+    try {
+      await authService.verifyOtp(otpCode)
+      Alert.alert('Thành công', 'Số điện thoại đã được xác thực')
+      setIsOtpModalVisible(false)
+      
+      // trigger redux update by refreshing the profile
+      const updatedUser = await authService.updateProfile(user!.id, { phone: user!.phone })
+      // Keep existing token from Redux state since updateProfile does not return token
+      const currentToken = await authService.getToken() || ''
+      dispatch(loginSuccess({
+        token: currentToken,
+        user: updatedUser
+      }))
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.message || 'Mã OTP không hợp lệ')
+    } finally {
+      setIsLoadingOtp(false)
+    }
+  }
 
   const handleLogout = async () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất?', [
@@ -129,8 +191,19 @@ export default function ProfileScreen() {
     {
       icon: 'phone',
       label: 'Số điện thoại',
-      value: user?.phone || 'N/A',
-      onPress: () => Alert.alert('Số điện thoại', user?.phone || 'Chưa cập nhật'),
+      value: user?.phone 
+        ? `${user.phone} ${user.isPhoneVerified ? '(✓)' : '(Chưa xác minh)'}` 
+        : 'N/A',
+      onPress: () => {
+        if (!user?.isPhoneVerified) {
+          Alert.alert('Xác thực Zalo', 'Bạn có muốn nhận mã xác thực qua Zalo của số điện thoại này?', [
+            { text: 'Huỷ', style: 'cancel' },
+            { text: 'Gửi OTP', onPress: requestPhoneVerify }
+          ])
+        } else {
+          Alert.alert('Số điện thoại', 'Số điện thoại đã được xác thực.')
+        }
+      },
     },
     {
       icon: 'email',
@@ -295,6 +368,60 @@ export default function ProfileScreen() {
       </View>
 
       <View style={{ height: SPACING.xxl }} />
+
+      {/* OTP Verification Modal */}
+      <Modal
+        visible={isOtpModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsOtpModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Xác thực số điện thoại</Text>
+            <Text style={styles.modalDesc}>Mã OTP 6 số đã được gửi qua Zalo của số {user?.phone}</Text>
+            
+            <TextInput
+              style={styles.otpInput}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="Nhập 6 số OTP"
+              value={otpCode}
+              onChangeText={setOtpCode}
+            />
+
+            <TouchableOpacity 
+              style={[styles.primaryButton, (!otpCode || otpCode.length < 6) && styles.disabledButton]}
+              onPress={handleVerifyOtp}
+              disabled={isLoadingOtp || otpCode.length < 6}
+            >
+              {isLoadingOtp ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Xác nhận</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.resendButton}
+              onPress={requestPhoneVerify}
+              disabled={countdown > 0 || isLoadingOtp}
+            >
+              <Text style={[styles.resendText, countdown > 0 && styles.disabledText]}>
+                {countdown > 0 ? `Gửi lại sau ${countdown}s` : 'Gửi lại mã OTP'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.cancelLink}
+              onPress={() => setIsOtpModalVisible(false)}
+            >
+              <Text style={styles.cancelText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </ScrollView>
   )
 }
@@ -575,5 +702,74 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#ef4444',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '85%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  modalDesc: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  otpInput: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 24,
+    letterSpacing: 4,
+    width: '100%',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  primaryButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  resendButton: {
+    marginBottom: 16,
+  },
+  resendText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  disabledText: {
+    color: '#94a3b8',
+  },
+  cancelLink: {
+    padding: 8,
+  },
+  cancelText: {
+    color: '#64748b',
+    fontSize: 14,
   },
 })

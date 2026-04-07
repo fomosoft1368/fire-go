@@ -221,6 +221,9 @@ export class Driver {
   isVerified: boolean;
 
   @Prop({ default: false })
+  isPhoneVerified: boolean;
+
+  @Prop({ default: false })
   isOnline: boolean;
 
   @Prop({ default: false })
@@ -344,6 +347,29 @@ export class Driver {
   // Single-session: increment mỗi lần login để vô hiệu hóa token cũ
   @Prop({ default: 0 })
   tokenVersion: number;
+
+  // ============ REFERRAL SYSTEM ============
+  @Prop({ unique: true, sparse: true })
+  referralCode?: string; // Mã giới thiệu của tài xế này
+
+  @Prop({ type: Types.ObjectId, ref: 'Driver' })
+  referredBy?: Types.ObjectId; // ID người giới thiệu trực tiếp
+
+  @Prop({ type: Types.ObjectId, ref: 'Driver' })
+  referralF1?: Types.ObjectId; // Sao lưu ID người giới thiệu F1 (truy vấn nhanh O(1))
+
+  @Prop({ type: Types.ObjectId, ref: 'Driver' })
+  referralF2?: Types.ObjectId; // Sao lưu ID người giới thiệu F2
+
+  @Prop({ type: Types.ObjectId, ref: 'Driver' })
+  referralF3?: Types.ObjectId; // Sao lưu ID người giới thiệu F3
+
+  @Prop({ default: 0 })
+  totalReferrals: number; // Tổng số F1 đã đăng kí thành công
+
+  @Prop({ default: 0 })
+  totalReferralEarnings: number; // Tổng thu nhập thụ động kiếm được
+  // ============ END REFERRAL SYSTEM ============
 }
 
 export const DriverSchema = SchemaFactory.createForClass(Driver);

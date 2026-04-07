@@ -254,6 +254,23 @@ export class PricingConfig {
   @Prop({ default: 100000000 })
   maxTopupAmount: number; // Số tiền nạp tối đa mỗi lần (VNĐ)
   // ============ END WALLET & TOPUP LIMITS ============
+
+  // ============ REFERRAL & BONUS - Giới thiệu tài xế ============
+  @Prop({ default: true })
+  referralEnabled: boolean; // Bật tắt tính năng Referral
+
+  @Prop({ default: 8 })
+  referralF1Rate: number; // Hoa hồng % cho F1 (tính trên phí nền tảng thu)
+
+  @Prop({ default: 3 })
+  referralF2Rate: number; // Hoa hồng % cho F2
+
+  @Prop({ default: 1 })
+  referralF3Rate: number; // Hoa hồng % cho F3
+
+  @Prop({ default: 5 })
+  referralMinTrips: number; // Số cuốc tối thiểu để nhận hoa hồng
+  // ============ END REFERRAL & BONUS ============
 }
 
 export const PricingConfigSchema = SchemaFactory.createForClass(PricingConfig);

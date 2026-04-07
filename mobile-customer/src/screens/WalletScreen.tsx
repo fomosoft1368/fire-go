@@ -17,6 +17,8 @@ import {
   Platform,
 } from 'react-native'
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons'
+import { useSelector } from 'react-redux'
+import type { RootState } from '../redux/store'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import { walletService, Wallet, Transaction } from '../services/walletService'
 import { paymentMethodService, PaymentMethod } from '../services/paymentMethodService'
@@ -44,6 +46,8 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [bankAccounts, setBankAccounts] = useState<PaymentMethod[]>([])
   const [topupDiscount, setTopupDiscount] = useState<number>(0)
+  
+  const user = useSelector((state: RootState) => state.auth.user)
 
   // Deposit form state
   const [depositAmount, setDepositAmount] = useState('')
@@ -286,7 +290,13 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionBtn, styles.depositBtn]}
-              onPress={() => navigation.navigate('Topup')}
+              onPress={() => {
+                if (!user?.isPhoneVerified) {
+                  Alert.alert('Chưa xác minh SĐT', 'Vui lòng xác minh số điện thoại trong Hồ sơ để nạp tiền.')
+                  return
+                }
+                navigation.navigate('Topup')
+              }}
             >
               <MaterialIcons name="arrow-downward" size={20} color="#FF6B00" />
               <Text style={styles.actionBtnText}>Nạp tiền</Text>
@@ -294,7 +304,13 @@ export default function WalletScreen({ navigation }: WalletScreenProps) {
 
             <TouchableOpacity
               style={[styles.actionBtn, styles.withdrawBtn]}
-              onPress={() => navigation.navigate('Withdraw')}
+              onPress={() => {
+                if (!user?.isPhoneVerified) {
+                  Alert.alert('Chưa xác minh SĐT', 'Vui lòng xác minh số điện thoại trong Hồ sơ để rút tiền.')
+                  return
+                }
+                navigation.navigate('Withdraw')
+              }}
             >
               <MaterialIcons name="arrow-upward" size={20} color="#fff" />
               <Text style={[styles.actionBtnText, { color: '#fff' }]}>Rút tiền</Text>

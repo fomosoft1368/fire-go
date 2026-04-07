@@ -127,6 +127,37 @@ export class DriversController {
   }
 
   /**
+   * GET /api/drivers/referral/:code
+   * Kiểm tra thông tin người giới thiệu từ mã
+   */
+  @Get('referral/:code')
+  async checkReferralCode(@Param('code') code: string) {
+    if (!code || code.length < 5) return { valid: false, message: 'Mã không hợp lệ' };
+    const referrer = await this.driversService.findByReferralCode(code);
+    if (!referrer) {
+      return { valid: false, message: 'Không tìm thấy mã giới thiệu' };
+    }
+    return {
+      valid: true,
+      referrer: {
+        id: referrer._id,
+        name: `${referrer.firstName} ${referrer.lastName}`.trim(),
+        avatar: (referrer as any).portraitImage || referrer.vehicleImage,
+      }
+    };
+  }
+
+  /**
+   * GET /api/drivers/me/referral
+   * Lấy thông tin referral của tài xế đang đăng nhập. Nếu chưa có mã thì tự sinh.
+   */
+  @Get('me/referral')
+  @UseGuards(JwtAuthGuard)
+  async getMyReferral(@Request() req: any) {
+    return this.driversService.getOrCreateReferralCode(req.user.id);
+  }
+
+  /**
    * GET /api/drivers/:id
    * Lấy thông tin tài xế theo ID
    */
@@ -143,6 +174,7 @@ export class DriversController {
   async getStats(@Param('id') id: string) {
     return this.driversService.getStats(id);
   }
+
 
   /**
    * PATCH /api/drivers/me/accepting-rides

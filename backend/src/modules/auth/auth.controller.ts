@@ -70,4 +70,49 @@ export class AuthController {
   ): Promise<any> {
     return this.authService.updateProfile(req.user.id, updateData);
   }
+
+  @Post('customer/send-otp')
+  @UseGuards(JwtAuthGuard)
+  async sendCustomerOtp(@Request() req: any): Promise<{ message: string; expires: number }> {
+    return this.authService.sendCustomerPhoneOtp(req.user.id);
+  }
+
+  @Post('customer/verify-otp')
+  @UseGuards(JwtAuthGuard)
+  async verifyCustomerOtp(
+    @Request() req: any,
+    @Body() { code }: { code: string },
+  ): Promise<{ message: string }> {
+    return this.authService.verifyCustomerPhoneOtp(req.user.id, code);
+  }
+
+  // ==================== NEW: OTP LOGIN FLOW ====================
+  @Post('customer/login-otp/send')
+  async sendCustomerLoginOtp(
+    @Body() { phone, name }: { phone: string; name?: string },
+  ): Promise<{ message: string; expires: number }> {
+    return this.authService.sendCustomerLoginOtp(phone, name);
+  }
+
+  @Post('customer/login-otp/verify')
+  async verifyCustomerLoginOtp(
+    @Body() { phone, code }: { phone: string; code: string },
+  ): Promise<AuthResponseDto> {
+    return this.authService.verifyCustomerLoginOtp(phone, code);
+  }
+
+  // ==================== DRIVER OTP FLOW ====================
+  @Post('driver/register-otp/send')
+  async sendDriverRegisterOtp(
+    @Body() { phone }: { phone: string },
+  ): Promise<{ message: string; expires: number }> {
+    return this.authService.sendDriverRegisterOtp(phone);
+  }
+
+  @Post('driver/register-otp/verify')
+  async verifyDriverRegisterOtp(
+    @Body() { phone, code }: { phone: string; code: string },
+  ): Promise<{ message: string }> {
+    return this.authService.verifyDriverRegisterOtp(phone, code);
+  }
 }

@@ -26,6 +26,7 @@ export enum TransactionType {
   COMMISSION = 'commission',
   BONUS = 'bonus',
   PENALTY = 'penalty',
+  REFERRAL_BONUS = 'referral_bonus',
 }
 
 export enum TransactionStatus {

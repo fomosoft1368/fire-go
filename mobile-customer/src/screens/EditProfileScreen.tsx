@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useSelector, useDispatch } from 'react-redux'
@@ -28,13 +29,25 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
   const dispatch = useDispatch()
   const [loading, setLoading] = useState(false)
   
+  const formatDateForUI = (dateStr?: string | Date) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr as string;
+      const day = d.getDate().toString().padStart(2, '0');
+      const month = (d.getMonth() + 1).toString().padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch {
+      return dateStr as string;
+    }
+  }
+
   const [formData, setFormData] = useState({
     firstName: user?.firstName || (user?.name?.split(' ')[0] ?? ''),
     lastName: user?.lastName || (user?.name?.split(' ').slice(1).join(' ') ?? ''),
     email: user?.email || '',
-    phone: user?.phone || '',
-    address: user?.savedAddresses?.[0]?.address || '',
-    dateOfBirth: user?.dateOfBirth || '',
+    dateOfBirth: formatDateForUI(user?.dateOfBirth),
     gender: user?.preferredDriverGender || '',
   })
 
@@ -54,11 +67,6 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Email không hợp lệ'
     }
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Số điện thoại không được để trống'
-    } else if (!/^[0-9]{10,}$/.test(formData.phone.replace(/\D/g, ''))) {
-      newErrors.phone = 'Số điện thoại không hợp lệ'
-    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -73,34 +81,26 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
     try {
       setLoading(true)
       
-      // Call API to update profile
+      let parsedDateOfBirth: Date | undefined;
+      if (formData.dateOfBirth && formData.dateOfBirth.length === 10) {
+        const parts = formData.dateOfBirth.split('/');
+        if (parts.length === 3) {
+          parsedDateOfBirth = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00Z`);
+        }
+      }
+      
       const updatedUser = await authService.updateProfile(user?.id, {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        phone: formData.phone,
-        dateOfBirth: formData.dateOfBirth,
+        dateOfBirth: parsedDateOfBirth as any,
         preferredDriverGender: formData.gender,
       })
       
-      // Update Redux with new user data
+      const currentToken = await authService.getToken() || ''
       dispatch(loginSuccess({
-        token: '',
-        user: {
-          id: updatedUser.id,
-          firstName: updatedUser.firstName,
-          lastName: updatedUser.lastName,
-          email: updatedUser.email,
-          phone: updatedUser.phone,
-          completedRides: updatedUser.completedRides,
-          averageRating: updatedUser.averageRating,
-          totalSpent: updatedUser.totalSpent,
-          dateOfBirth: updatedUser.dateOfBirth,
-          preferredDriverGender: updatedUser.preferredDriverGender,
-          savedAddresses: updatedUser.savedAddresses,
-          role: updatedUser.role,
-          avatar: updatedUser.avatar,
-        },
+        token: currentToken,
+        user: { ...user, ...updatedUser }, // Merge properly to retain other Redux properties if necessary
       }))
       
       Alert.alert('Thành công', 'Hồ sơ đã được cập nhật')
@@ -113,83 +113,15 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
     }
   }
 
-  const FormInput = ({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    keyboardType = 'default',
-    error,
-  }: {
-    label: string
-    value: string
-    onChangeText: (text: string) => void
-    placeholder?: string
-    keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric'
-    error?: string
-  }) => (
-    <View style={styles.formGroup}>
-      <Text style={styles.formLabel}>{label}</Text>
-      <TextInput
-        style={[styles.formInput, error && styles.formInputError]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.textSecondary}
-        keyboardType={keyboardType}
-      />
-      {error && <Text style={styles.errorText}>{error}</Text>}
-    </View>
-  )
-
-  const SelectInput = ({
-    label,
-    value,
-    options,
-    onSelect,
-  }: {
-    label: string
-    value: string
-    options: { label: string; value: string }[]
-    onSelect: (value: string) => void
-  }) => (
-    <View style={styles.formGroup}>
-      <Text style={styles.formLabel}>{label}</Text>
-      <View style={styles.selectContainer}>
-        {options.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.selectOption,
-              value === option.value && styles.selectOptionActive,
-            ]}
-            onPress={() => onSelect(option.value)}
-          >
-            <Text
-              style={[
-                styles.selectOptionText,
-                value === option.value && styles.selectOptionTextActive,
-              ]}
-            >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  )
-
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <MaterialIcons name="arrow-back-ios" size={20} color="#1e293b" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chỉnh sửa hồ sơ</Text>
-        <View style={{ width: 40 }} />
+        <Text style={styles.headerTitle}>Thông tin cá nhân</Text>
+        <View style={{ width: 44 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -197,150 +129,101 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
         keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 20}
         style={{ flex: 1 }}
       >
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.contentContainer}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Profile Section */}
-          <View style={styles.profileSection}>
-          <View style={styles.avatarContainer}>
-            <MaterialIcons name="person" size={60} color={COLORS.card} />
-            <TouchableOpacity style={styles.editAvatarButton}>
-              <MaterialIcons name="edit" size={16} color="#fff" />
-            </TouchableOpacity>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarContainer}>
+              {user?.avatar && !user.avatar.includes('api.dicebear.com') ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+              ) : (
+                <MaterialIcons name="person" size={50} color={COLORS.primary} />
+              )}
+              <TouchableOpacity style={styles.editAvatarBadge}>
+                <MaterialIcons name="photo-camera" size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.roleBadge}>
+              <MaterialIcons name="star" size={14} color="#f59e0b" />
+              <Text style={styles.roleText}>Thành viên thiết yếu</Text>
+            </View>
           </View>
-          <Text style={styles.profileText}>
-            {formData.firstName} {formData.lastName}
-          </Text>
-          <Text style={styles.emailText}>{formData.email}</Text>
-        </View>
 
-        {/* Form Inputs */}
-        <View style={styles.formContainer}>
-          <FormInput
-            label="Tên"
-            value={formData.firstName}
-            onChangeText={(text) =>
-              setFormData({ ...formData, firstName: text })
-            }
-            placeholder="Nhập tên của bạn"
-            error={errors.firstName}
-          />
-
-          <FormInput
-            label="Họ"
-            value={formData.lastName}
-            onChangeText={(text) =>
-              setFormData({ ...formData, lastName: text })
-            }
-            placeholder="Nhập họ của bạn"
-            error={errors.lastName}
-          />
-
-          <FormInput
-            label="Email"
-            value={formData.email}
-            onChangeText={(text) =>
-              setFormData({ ...formData, email: text })
-            }
-            placeholder="Nhập email của bạn"
-            keyboardType="email-address"
-            error={errors.email}
-          />
-
-          <FormInput
-            label="Số điện thoại"
-            value={formData.phone}
-            onChangeText={(text) =>
-              setFormData({ ...formData, phone: text })
-            }
-            placeholder="Nhập số điện thoại"
-            keyboardType="phone-pad"
-            error={errors.phone}
-          />
-
-          <FormInput
-            label="Địa chỉ"
-            value={formData.address}
-            onChangeText={(text) =>
-              setFormData({ ...formData, address: text })
-            }
-            placeholder="Nhập địa chỉ của bạn"
-          />
-
-          <FormInput
-            label="Ngày sinh"
-            value={formData.dateOfBirth}
-            onChangeText={(text) =>
-              setFormData({ ...formData, dateOfBirth: text })
-            }
-            placeholder="DD/MM/YYYY"
-          />
-
-          <SelectInput
-            label="Giới tính"
-            value={formData.gender}
-            options={[
-              { label: 'Nam', value: 'male' },
-              { label: 'Nữ', value: 'female' },
-              { label: 'Khác', value: 'other' },
-            ]}
-            onSelect={(value) =>
-              setFormData({ ...formData, gender: value })
-            }
-          />
-        </View>
-
-        {/* Additional Options */}
-        <View style={styles.optionsSection}>
-          <TouchableOpacity style={styles.optionItem}>
-            <MaterialIcons name="lock-outline" size={20} color={COLORS.card} />
-            <Text style={styles.optionText}>Đổi mật khẩu</Text>
-            <MaterialIcons
-              name="chevron-right"
-              size={20}
-              color={COLORS.textSecondary}
+          <View style={styles.cardSection}>
+            <FormInput
+              label="Số điện thoại"
+              value={user?.phone || 'Chưa cập nhật'}
+              icon="phone-iphone"
+              editable={false}
+              keyboardType="phone-pad"
             />
-          </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity style={styles.optionItem}>
-            <MaterialIcons
-              name="verified-user"
-              size={20}
-              color={COLORS.card}
+          <View style={styles.cardSection}>
+            <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
+            <FormInput
+              label="Họ"
+              value={formData.lastName}
+              onChangeText={(text) => setFormData({ ...formData, lastName: text })}
+              placeholder="Vd: Nguyễn Văn"
+              error={errors.lastName}
+              icon="badge"
             />
-            <Text style={styles.optionText}>Xác minh tài khoản</Text>
-            <MaterialIcons
-              name="chevron-right"
-              size={20}
-              color={COLORS.textSecondary}
-            />
-          </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionItem}>
-            <MaterialIcons name="location-on" size={20} color={COLORS.card} />
-            <Text style={styles.optionText}>Địa chỉ tiết kiệm</Text>
-            <MaterialIcons
-              name="chevron-right"
-              size={20}
-              color={COLORS.textSecondary}
+            <FormInput
+              label="Tên"
+              value={formData.firstName}
+              onChangeText={(text) => setFormData({ ...formData, firstName: text })}
+              placeholder="Vd: A"
+              error={errors.firstName}
+              icon="person"
             />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+
+            <FormInput
+              label="Email"
+              value={formData.email}
+              onChangeText={(text) => setFormData({ ...formData, email: text })}
+              placeholder="Vd: example@gmail.com"
+              keyboardType="email-address"
+              error={errors.email}
+              icon="email"
+            />
+
+            <FormInput
+              label="Ngày sinh"
+              value={formData.dateOfBirth}
+              onChangeText={(text) => {
+                let cleaned = text.replace(/\D/g, '')
+                if (cleaned.length >= 5) {
+                  cleaned = `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4, 8)}`
+                } else if (cleaned.length >= 3) {
+                  cleaned = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`
+                }
+                setFormData({ ...formData, dateOfBirth: cleaned })
+              }}
+              placeholder="DD/MM/YYYY"
+              icon="cake"
+              keyboardType="number-pad"
+              maxLength={10}
+            />
+
+            <SelectInput
+              label="Giới tính"
+              value={formData.gender}
+              options={[
+                { label: 'Nam', value: 'male' },
+                { label: 'Nữ', value: 'female' },
+                { label: 'Khác', value: 'other' },
+              ]}
+              onSelect={(value) => setFormData({ ...formData, gender: value })}
+              icon="wc"
+            />
+          </View>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Action Buttons */}
-      <View style={styles.actionContainer}>
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.cancelButtonText}>Hủy</Text>
-        </TouchableOpacity>
-
+      <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           onPress={handleSave}
@@ -349,10 +232,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <>
-              <MaterialIcons name="check" size={20} color="#fff" />
-              <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
-            </>
+            <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -360,10 +240,88 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
   )
 }
 
+const FormInput = ({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = 'default',
+  error,
+  icon,
+  editable = true,
+  maxLength,
+}: {
+  label: string
+  value: string
+  onChangeText?: (text: string) => void
+  placeholder?: string
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric' | 'number-pad'
+  error?: string
+  icon: keyof typeof MaterialIcons.glyphMap
+  editable?: boolean
+  maxLength?: number
+}) => (
+  <View style={styles.formGroup}>
+    <Text style={styles.formLabel}>{label}</Text>
+    <View style={[styles.inputWrapper, !editable && styles.inputWrapperDisabled, error ? styles.inputWrapperError : null]}>
+      <MaterialIcons name={icon} size={20} color={editable ? "#94a3b8" : "#cbd5e1"} style={styles.inputIcon} />
+      <TextInput
+        style={[styles.input, !editable && styles.inputDisabled]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#94a3b8"
+        keyboardType={keyboardType as any}
+        editable={editable}
+        maxLength={maxLength}
+      />
+      {!editable && <MaterialIcons name="verified" size={18} color="#10b981" style={{ marginLeft: 8 }} />}
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+)
+
+const SelectInput = ({
+  label,
+  value,
+  options,
+  onSelect,
+  icon,
+}: {
+  label: string
+  value: string
+  options: { label: string; value: string }[]
+  onSelect: (value: string) => void
+  icon: keyof typeof MaterialIcons.glyphMap
+}) => (
+  <View style={styles.formGroup}>
+    <Text style={styles.formLabel}>{label}</Text>
+    <View style={{ flexDirection: 'row', gap: SPACING.md }}>
+      <MaterialIcons name={icon} size={20} color="#94a3b8" style={{ marginTop: 12, marginRight: 2 }} />
+      <View style={styles.selectContainer}>
+        {options.map((option) => {
+          const isActive = value === option.value
+          return (
+            <TouchableOpacity
+              key={option.value}
+              style={[styles.selectOption, isActive && styles.selectOptionActive]}
+              onPress={() => onSelect(option.value)}
+            >
+              <Text style={[styles.selectOptionText, isActive && styles.selectOptionTextActive]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+    </View>
+  </View>
+)
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fdfbfb',
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
@@ -371,45 +329,54 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    borderBottomColor: '#f1f5f9',
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: BORDER_RADIUS.full,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#f1f5f9',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0a0a0a',
+    fontWeight: '700',
+    color: '#0f172a',
   },
   content: {
     flex: 1,
   },
-  contentContainer: {
-    paddingBottom: 200,
-  },
-  profileSection: {
+  profileHeader: {
     alignItems: 'center',
     paddingVertical: SPACING.xl,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    borderBottomColor: '#f1f5f9',
   },
   avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: COLORS.primary,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.md,
-    position: 'relative',
+    borderWidth: 4,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  editAvatarButton: {
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 48,
+  },
+  editAvatarBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
@@ -419,135 +386,145 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
   },
-  profileText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#080808',
-    marginBottom: SPACING.sm,
+  roleBadge: {
+    marginTop: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
   },
-  emailText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+  roleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#d97706',
   },
-  formContainer: {
+  cardSection: {
+    backgroundColor: '#fff',
+    marginTop: SPACING.md,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: SPACING.lg,
   },
   formGroup: {
     marginBottom: SPACING.lg,
   },
   formLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#0f0f0f',
+    color: '#64748b',
     marginBottom: SPACING.sm,
+    marginLeft: 4,
   },
-  formInput: {
-    backgroundColor: COLORS.primary,
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    borderRadius: BORDER_RADIUS.md,
+    borderColor: '#e2e8f0',
+    borderRadius: BORDER_RADIUS.xl,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    color: '#fff',
-    fontSize: 14,
+    height: 54,
   },
-  formInputError: {
-    borderColor: COLORS.danger,
+  inputWrapperDisabled: {
+    backgroundColor: '#f1f5f9',
+    borderColor: '#cbd5e1',
+  },
+  inputWrapperError: {
+    borderColor: '#ef4444',
+    backgroundColor: '#fef2f2',
+  },
+  inputIcon: {
+    marginRight: SPACING.sm,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#0f172a',
+  },
+  inputDisabled: {
+    color: '#94a3b8',
   },
   errorText: {
-    color: COLORS.danger,
+    color: '#ef4444',
     fontSize: 12,
-    marginTop: SPACING.xs,
+    marginTop: 6,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   selectContainer: {
+    flex: 1,
     flexDirection: 'row',
-    gap: SPACING.md,
+    gap: SPACING.sm,
   },
   selectOption: {
     flex: 1,
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.sm,
+    height: 48,
+    borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    borderRadius: BORDER_RADIUS.md,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   selectOptionActive: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '20',
+    backgroundColor: 'rgba(255, 107, 0, 0.05)',
   },
   selectOptionText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
   },
   selectOptionTextActive: {
     color: COLORS.primary,
   },
-  optionsSection: {
+  footer: {
+    backgroundColor: '#fff',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  optionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  optionText: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  actionContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    gap: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    backgroundColor: '#e5e6e9',
+    paddingTop: SPACING.md,
+    paddingBottom: Platform.OS === 'ios' ? 34 : SPACING.lg,
     borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: 'bold',
+    borderTopColor: '#f1f5f9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 10,
   },
   saveButton: {
-    flex: 1,
-    flexDirection: 'row',
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
     backgroundColor: COLORS.primary,
+    height: 56,
+    borderRadius: BORDER_RADIUS.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SPACING.sm,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   saveButtonDisabled: {
     opacity: 0.6,
   },
   saveButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 })

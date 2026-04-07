@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Google Maps API Service
  * Cung cáº¥p cÃ¡c chá»©c nÄƒng:
  * - Geocoding: Chuyá»ƒn Ä‘á»‹a chá»‰ thÃ nh tá»a Ä‘á»™
@@ -11,13 +11,9 @@ import Constants from 'expo-constants'
 import { API_BASE_URL } from '../constants/config'
 import { remoteConfig } from './remoteConfig'
 
-/**
- * LÃ¡ÂºÂ¥y Google Maps API key Ã„â€˜Ã¡Â»â„¢ng tÃ¡Â»Â« remoteConfig (backend DB)
- * Fallback vÃ¡Â»Â expo-constants (build-time) nÃ¡ÂºÂ¿u chÃ†Â°a fetch xong
- */
+
 function getApiKey(): string {
-  // Ã†Â¯ u tiÃƒÂªn remoteConfig (tÃ¡Â»Â« DB) Ã¢â‚¬â€ cÃƒÂ³ sau khi app Ã„â€˜ÃƒÂ£ khÃ¡Â»Å¸i Ã„â€˜Ã¡Â»â„¢ng
-  // Fallback vÃ¡Â»Â giÃƒÂ¡ trÃ¡Â»â€¹ build-time tÃ¡Â»Â« app.config.js
+
   return remoteConfig.get('GOOGLE_MAPS_API_KEY') || Constants.expoConfig?.extra?.googleMapsApiKey || ''
 }
 
@@ -507,9 +503,9 @@ export const mapsService = {
         this.geocodeAddress(pickupAddress),
         this.geocodeAddress(dropoffAddress)
       ])
-      const o = pickupGeocode?.coordinates?.latitude && pickupGeocode?.coordinates?.longitude 
+      const o = pickupGeocode?.coordinates?.latitude && pickupGeocode?.coordinates?.longitude
         ? `${pickupGeocode.coordinates.latitude},${pickupGeocode.coordinates.longitude}` : pickupAddress;
-      const d = dropoffGeocode?.coordinates?.latitude && dropoffGeocode?.coordinates?.longitude 
+      const d = dropoffGeocode?.coordinates?.latitude && dropoffGeocode?.coordinates?.longitude
         ? `${dropoffGeocode.coordinates.latitude},${dropoffGeocode.coordinates.longitude}` : dropoffAddress;
       const [distanceMatrix, routeCoordinates] = await Promise.all([
         this.getDistanceMatrix(o, d),
