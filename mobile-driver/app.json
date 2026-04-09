@@ -6,9 +6,9 @@
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./src/assets/logo-driver.png",
+    "icon": "./src/assets/icon-driver-Photoroom.png",
     "splash": {
-      "image": "./src/assets/logo-driver.png",
+      "image": "./src/assets/icon-driver-Photoroom.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -48,7 +48,7 @@
         "android.permission.BLUETOOTH_CONNECT"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/logo-driver.png",
+        "foregroundImage": "./src/assets/icon-driver-Photoroom.png",
         "backgroundColor": "#ffffff"
       },
       "config": {

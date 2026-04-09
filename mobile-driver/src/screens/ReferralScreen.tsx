@@ -43,8 +43,6 @@ export default function ReferralScreen() {
   }, []);
 
   const { referralCode, totalReferrals, totalEarnings, completedRides } = referralData;
-  const minTripsRequired = 5; // Có thể lấy từ config API nếu có
-  const isEligible = completedRides >= minTripsRequired;
 
   // Xóa copyToClipboard vì sử dụng Share là đủ và tránh lỗi native module
 
@@ -115,26 +113,6 @@ export default function ReferralScreen() {
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* Eligibility Status */}
-        <View style={styles.eligibilityContainer}>
-          <View style={styles.eligibilityHeader}>
-            <MaterialIcons 
-              name={isEligible ? "check-circle" : "pending-actions"} 
-              size={24} 
-              color={isEligible ? "#10b981" : "#f59e0b"} 
-            />
-            <Text style={styles.eligibilityTitle}>Điều kiện nhận thưởng</Text>
-          </View>
-          {isEligible ? (
-            <Text style={styles.eligibilityDescSuccess}>
-              Bạn đã đủ điều kiện nhận hoa hồng hệ thống (Đã hoàn thành {completedRides} cuốc xe).
-            </Text>
-          ) : (
-            <Text style={styles.eligibilityDescPending}>
-              Bạn cần hoàn thành ít nhất {minTripsRequired} cuốc xe để bắt đầu nhận hoa hồng từ bạn bè. (Đã chạy: {completedRides}/{minTripsRequired})
-            </Text>
-          )}
-        </View>
 
         {/* Stats */}
         <View style={styles.statsContainer}>
@@ -160,10 +138,10 @@ export default function ReferralScreen() {
         </View>
 
         {/* How it works */}
-        <View style={styles.rulesContainer}>
+        <View style={[styles.rulesContainer, { marginTop: SPACING.md }]}>
           <Text style={styles.sectionTitle}>Cơ chế hoa hồng 3 tầng</Text>
           <Text style={styles.rulesDesc}>
-            Khi bạn của bạn hoàn thành cuốc xe (từ cuốc thứ 5), hệ thống sẽ trích một phần chiết khấu nền tảng để trả thẳng vào Ví của bạn.
+            Khi Tài xế do bạn giới thiệu hoàn thành các cuốc xe, hệ thống sẽ tự động trích một phần chiết khấu nền tảng để trả thẳng vào Ví của bạn. Cấp độ F1, F2, F3 tương ứng với các tầng giới thiệu.
           </Text>
 
           <TierItem level="F1" percent="8%" color="#FF6B00" />
@@ -406,41 +384,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '500',
   },
-  eligibilityContainer: {
-    backgroundColor: '#fff',
-    marginHorizontal: SPACING.xl,
-    marginTop: -SPACING.xl,
-    padding: SPACING.lg,
-    borderRadius: 20,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  eligibilityHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  eligibilityTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginLeft: SPACING.sm,
-  },
-  eligibilityDescPending: {
-    fontSize: 13,
-    color: '#b45309',
-    lineHeight: 20,
-    fontWeight: '500',
-  },
-  eligibilityDescSuccess: {
-    fontSize: 13,
-    color: '#10b981',
-    lineHeight: 20,
-    fontWeight: '500',
-  },
+
 });

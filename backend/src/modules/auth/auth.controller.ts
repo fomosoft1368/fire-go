@@ -89,9 +89,9 @@ export class AuthController {
   // ==================== NEW: OTP LOGIN FLOW ====================
   @Post('customer/login-otp/send')
   async sendCustomerLoginOtp(
-    @Body() { phone, name }: { phone: string; name?: string },
+    @Body() { phone, email, name }: { phone: string; email?: string; name?: string },
   ): Promise<{ message: string; expires: number }> {
-    return this.authService.sendCustomerLoginOtp(phone, name);
+    return this.authService.sendCustomerLoginOtp(phone, email, name);
   }
 
   @Post('customer/login-otp/verify')
@@ -104,9 +104,9 @@ export class AuthController {
   // ==================== DRIVER OTP FLOW ====================
   @Post('driver/register-otp/send')
   async sendDriverRegisterOtp(
-    @Body() { phone }: { phone: string },
+    @Body() { phone, email }: { phone: string; email: string },
   ): Promise<{ message: string; expires: number }> {
-    return this.authService.sendDriverRegisterOtp(phone);
+    return this.authService.sendDriverRegisterOtp(phone, email);
   }
 
   @Post('driver/register-otp/verify')

@@ -30,6 +30,7 @@ export default function LoginScreen() {
 
   // Step 1 states
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
 
   // Step 2 states
   const [otpCode, setOtpCode] = useState('')
@@ -46,10 +47,15 @@ export default function LoginScreen() {
     return () => clearTimeout(timer)
   }, [countdown])
 
-  // Step 1 handler
   const handleSendOtp = async () => {
     if (!phone) {
       Alert.alert('Thông báo', 'Vui lòng nhập số điện thoại')
+      return
+    }
+
+    // Basic email validation if provided
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      Alert.alert('Thông báo', 'Email không hợp lệ')
       return
     }
 
@@ -57,7 +63,7 @@ export default function LoginScreen() {
     try {
       await authService.logout()
 
-      await authService.sendLoginOtp(phone)
+      await authService.sendLoginOtp(phone, email ? email.trim().toLowerCase() : undefined)
       dispatch(loginFailure('')) // clear error
 
       setLoginStep(2)
@@ -113,7 +119,7 @@ export default function LoginScreen() {
 
           <View style={styles.logoWrapper}>
             <Image
-              source={require('../assets/logo-firego1.png')}
+              source={require('../assets/icon-customer-Photoroom.png')}
               style={{ width: 39, height: 39 }}
               resizeMode="contain"
             />
@@ -132,7 +138,7 @@ export default function LoginScreen() {
           <View style={styles.greetingSection}>
             <Text style={styles.greeting}>Xin chào!</Text>
             <Text style={styles.tagline}>
-              Xác thực nhanh bằng Zalo, không cần mật khẩu
+              Xác thực nhanh qua Email, an toàn & bảo mật
             </Text>
           </View>
 
@@ -163,6 +169,23 @@ export default function LoginScreen() {
                   </View>
                 </View>
 
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email (Bắt buộc nếu mới Đăng ký)</Text>
+                  <View style={styles.inputWrapper}>
+                    <MaterialIcons name="email" size={20} color="#94a3b8" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Nhập Email để nhận mã OTP..."
+                      placeholderTextColor="#64748b"
+                      value={email}
+                      onChangeText={setEmail}
+                      editable={!isLoading}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </View>
+
                 <TouchableOpacity
                   style={[styles.continueButton, isLoading && styles.buttonDisabled]}
                   onPress={handleSendOtp}
@@ -172,7 +195,7 @@ export default function LoginScreen() {
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <>
-                      <Text style={styles.continueButtonText}>Nhận mã xác thực qua Zalo</Text>
+                      <Text style={styles.continueButtonText}>Nhận mã xác thực qua Email</Text>
                       <MaterialIcons name="arrow-forward" size={20} color="#fff" style={styles.buttonIcon} />
                     </>
                   )}
@@ -186,7 +209,7 @@ export default function LoginScreen() {
                     <MaterialIcons name="message" size={20} color="#94a3b8" style={styles.inputIcon} />
                     <TextInput
                       style={styles.input}
-                      placeholder="Nhập 6 số OTP (Gửi qua Zalo)"
+                      placeholder="Nhập 6 số OTP (Gửi qua Email)"
                       placeholderTextColor="#64748b"
                       value={otpCode}
                       onChangeText={setOtpCode}

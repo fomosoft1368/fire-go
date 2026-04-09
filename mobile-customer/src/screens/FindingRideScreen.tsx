@@ -715,17 +715,6 @@ export default function FindingRideScreen({ navigation }: any) {
       console.log('[FindingRideScreen] 🆔', requestId, 'API URL:', `${API_BASE_URL}/combined-trips/customer-request`)
       console.log('[FindingRideScreen] 🆔', requestId, 'Token:', token ? 'EXISTS' : 'MISSING')
 
-      // ✅ Map loại xe khách chọn → vehicleType thực tế trong DB tài xế
-      // basic  = Tiêu chuẩn (4-5 chỗ) → sedan
-      // comfort = Thoải mái (5-7 chỗ) → suv
-      // premium = Cao cấp → tìm cả sedan + suv
-      const vehicleTypeMap: Record<string, string[]> = {
-        basic: ['sedan'],
-        comfort: ['suv'],
-        premium: ['sedan', 'suv'],
-      }
-      const driverVehicleTypes = vehicleTypeMap[selectedVehicleType] || ['sedan']
-
       const requestPayload = {
         pickupAddress,
         dropoffAddress,
@@ -735,15 +724,13 @@ export default function FindingRideScreen({ navigation }: any) {
         duration,
         totalFare: fareToSend,
         seats,
-        vehicleType: selectedVehicleType,        // Loại xe khách chọn ('basic'/'comfort'/'premium')
-        driverVehicleTypes,                       // Loại xe thực tế trong DB (['sedan']/['suv']/['sedan','suv'])
+        vehicleType: selectedVehicleType,
         interProvincialRoute: interProvincialRoute ? {
           routeId: interProvincialRoute.id,
           routeName: interProvincialRoute.name,
           fixedPrice: interProvincialRoute.fixedPrice,
-        } : undefined,
+        } : undefined, // 🔥 Pass inter-provincial route info to backend
       }
-
 
       console.log('[FindingRideScreen] 🆔', requestId, '📤 SENDING REQUEST TO BACKEND')
 
@@ -892,12 +879,10 @@ export default function FindingRideScreen({ navigation }: any) {
 
   const handleSelectRide = (trip: any) => {
     // Navigate to ride detail screen to request joining
-    const tripId = trip._id?.toString() || trip.id?.toString() || trip._id
-    console.log('[FindingRideScreen] Selecting combined trip:', {
-      combinedTripId: tripId,
-      combinedTripId_raw: trip._id,
+    console.log('[FindingRideScreen] Selecting combined trip with customer coordinates:', {
+      combinedTripId: trip._id,
       pickupCoordinates: [startLng, startLat],
-      dropoffCoordinates: [endLng, endLat],
+      dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
       hasInterProvincialRoute: !!interProvincialRoute,
     })
     
@@ -911,14 +896,14 @@ export default function FindingRideScreen({ navigation }: any) {
     }
     
     navigation.navigate('RideDetailRequest', {
-      combinedTripId: tripId,  // ✅ Always string
+      combinedTripId: trip._id,
       ride: trip,
       pickupCoordinates: [startLng, startLat],
-      dropoffCoordinates: [endLng, endLat],
+      dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
       pickupAddress: pickupAddress,
       dropoffAddress: dropoffAddress,
       tripType: 'combined_trip',
-      interProvincialRoute: interProvincialRoute,
+      interProvincialRoute: interProvincialRoute, // 🔥 Pass fixed-price route info
     })
   }
 
@@ -1411,106 +1396,103 @@ export default function FindingRideScreen({ navigation }: any) {
               )}
             </View>
 
-            {/* Creating Trip State - PREMIUM UI */}
+            {/* Creating Trip State */}
             {creatingNewTrip ? (
               <View style={styles.creatingTripContainer}>
-
-                {/* Multi-ring pulse animation */}
                 <View style={styles.scanningAnimation}>
-                  {/* Ring 3 - outermost */}
-                  <Animated.View style={[styles.scanRingOuter, {
-                    opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.08, 0.25, 0.08] }),
-                    transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.6] }) }],
-                  }]} />
-                  {/* Ring 2 - middle */}
-                  <Animated.View style={[styles.scanRingMid, {
-                    opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.15, 0.5, 0.15] }),
-                    transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.35] }) }],
-                  }]} />
-                  {/* Ring 1 - inner */}
-                  <Animated.View style={[styles.scanRingInnerCircle, {
-                    opacity: scanAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 0.9, 0.3] }),
-                    transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.15] }) }],
-                  }]} />
-                  {/* Center icon */}
-                  <LinearGradient colors={['#FF6B00', '#FF8C42']} style={styles.scanIconGradient}>
-                    <MaterialIcons name="search" size={32} color="#fff" />
-                  </LinearGradient>
+                  <Animated.View
+                    style={[
+                      styles.scanRing,
+                      {
+                        opacity: scanAnim.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [0.3, 0.8, 0.3],
+                        }),
+                        transform: [
+                          {
+                            scale: scanAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.8, 1.4],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <View style={[styles.scanRingInner, { borderColor: '#f79503' }]} />
+                  </Animated.View>
+                  <MaterialIcons name="search" size={48} color="#f79503" />
                 </View>
 
-                <Text style={styles.scanningTitlePremium}>Đang tìm tài xế cho bạn</Text>
-                <Text style={[styles.scanningSubtitlePremium, { color: colors.textSecondary }]}>
-                  {tripExpiredAt
-                    ? `⏱ Còn ${Math.max(0, Math.ceil((tripExpiredAt.getTime() - Date.now()) / 60000))} phút • Tự động hủy nếu không tìm thấy`
-                    : '🔍 Đang quét bán kính 10km...'
-                  }
+                <Text style={[styles.scanningTitle, { color: colors.text }]}>
+                  Đang quét tài xế gần bạn
+                </Text>
+                <Text style={[styles.scanningSubtitle, { color: colors.textSecondary }]}>
+                  {tripExpiredAt ? `Tự động hủy sau ${Math.max(0, Math.ceil((tripExpiredAt.getTime() - Date.now()) / 60000))} phút` : 'Quét mỗi giây cho đến khi tìm thấy tài xế'}
                 </Text>
 
-                {/* Trip summary card */}
-                <LinearGradient
-                  colors={['#FFF8F3', '#FFF3EA']}
-                  style={styles.tripSummaryCard}
-                >
-                  {/* Header */}
-                  <View style={styles.tripSummaryHeader}>
-                    <LinearGradient colors={['#FF6B00', '#FF8534']} style={styles.tripSummaryIconBadge}>
-                      <MaterialIcons
-                        name={selectedVehicleType === 'comfort' ? 'airport-shuttle' : selectedVehicleType === 'premium' ? 'car-rental' : 'directions-car'}
-                        size={18} color="#fff"
-                      />
-                    </LinearGradient>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.tripSummaryTitle}>
-                        {selectedVehicleType === 'basic' ? 'Xe Tiêu Chuẩn (Sedan)' : selectedVehicleType === 'comfort' ? 'Xe Thoải Mái (SUV)' : 'Xe Cao Cấp (VIP)'}
+                <View style={styles.tripInfoBox}>
+                  <View style={styles.tripInfoRow}>
+                    <MaterialIcons name="directions-car" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
+                      Loại xe:
+                    </Text>
+                    <Text style={[styles.tripInfoValue, { color: colors.text }]}>
+                      {selectedVehicleType === 'basic' ? 'Sedan' : selectedVehicleType === 'comfort' ? 'SUV' : 'Truck'}
+                    </Text>
+                  </View>
+                  <View style={styles.tripInfoRow}>
+                    <MaterialIcons name="people" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
+                      Số ghế đặt:
+                    </Text>
+                    <Text style={[styles.tripInfoValue, { color: colors.text }]}>
+                      {seats} người
+                    </Text>
+                  </View>
+                  <View style={styles.tripInfoRow}>
+                    <MaterialIcons name="attach-money" size={20} color={colors.textSecondary} />
+                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
+                      Giá gốc (1 người):
+                    </Text>
+                    <Text style={[styles.tripInfoValue, { color: colors.textSecondary }]}>
+                      ₫{vehiclePrices[selectedVehicleType].toLocaleString('vi-VN')}
+                    </Text>
+                  </View>
+                  {seats > 1 && (
+                    <View style={styles.tripInfoRow}>
+                      <MaterialIcons name="local-offer" size={20} color="#ff9800" />
+                      <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
+                        Giảm ghép xe:
                       </Text>
-                      <Text style={styles.tripSummarySubtitle}>{seats} hành khách</Text>
+                      <Text style={[styles.tripInfoValue, { color: '#ff9800' }]}>
+                        {seats === 2 ? '-15%' : seats === 3 ? '-25%' : '-30%'}
+                      </Text>
                     </View>
-                    <View style={styles.tripSummaryStatusDot} />
-                  </View>
-
-                  <View style={styles.tripSummaryDivider} />
-
-                  {/* Info rows */}
-                  <View style={styles.tripSummaryRows}>
-                    <View style={styles.tripSummaryRow}>
-                      <Text style={[styles.tripSummaryLabel, { color: colors.textSecondary }]}>Đơn giá</Text>
-                      <Text style={styles.tripSummaryValue}>₫{vehiclePrices[selectedVehicleType].toLocaleString('vi-VN')}</Text>
-                    </View>
-                    {seats > 1 && (
-                      <View style={styles.tripSummaryRow}>
-                        <Text style={[styles.tripSummaryLabel, { color: colors.textSecondary }]}>Giảm ghép xe</Text>
-                        <Text style={[styles.tripSummaryValue, { color: '#FF6B00' }]}>
-                          {seats === 2 ? '-15%' : seats === 3 ? '-25%' : '-30%'}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Total row */}
-                  <LinearGradient colors={['#FF6B00', '#FF8534']} style={styles.tripTotalRow}>
-                    <Text style={styles.tripTotalLabel}>Tổng thanh toán</Text>
-                    <Text style={styles.tripTotalAmount}>
+                  )}
+                  <View style={[styles.tripInfoRow, { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border + '30' }]}>
+                    <MaterialIcons name="payments" size={20} color="#0c0c0c" />
+                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary, fontWeight: '700' }]}>
+                      Tổng thanh toán:
+                    </Text>
+                    <Text style={[styles.tripInfoValue, { color: '#38e07b', fontSize: 16 }]}>
                       ₫{(() => {
                         const basePrice = vehiclePrices[selectedVehicleType]
                         const discount = seats === 1 ? 0 : seats === 2 ? 0.15 : seats === 3 ? 0.25 : 0.30
                         return Math.round(basePrice * (1 - discount)).toLocaleString('vi-VN')
                       })()}
                     </Text>
-                  </LinearGradient>
-                </LinearGradient>
-
-                {/* Cancel button */}
-                <TouchableOpacity
-                  style={styles.cancelTripBtnPremium}
-                  onPress={handleCancelTrip}
-                  activeOpacity={0.75}
-                >
-                  <View style={styles.cancelTripBtnInner}>
-                    <MaterialIcons name="close" size={18} color="#FF4444" />
-                    <Text style={styles.cancelTripBtnText}>Hủy tìm kiếm</Text>
                   </View>
-                </TouchableOpacity>
+                </View>
 
+                <TouchableOpacity
+                  style={[styles.cancelModalButton, { backgroundColor: colors.card, borderColor: '#ff4444' }]}
+                  onPress={handleCancelTrip}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="close" size={20} color="#ff4444" />
+                  <Text style={[styles.cancelModalButtonText, { color: '#ff4444' }]}>Hủy chuyến</Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <>
@@ -2529,180 +2511,76 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  /* Creating Trip State - PREMIUM */
+  /* Creating Trip State */
   creatingTripContainer: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xxl,
+    padding: SPACING.xxl,
     alignItems: 'center',
   },
   scanningAnimation: {
-    width: 140,
-    height: 140,
+    width: 120,
+    height: 120,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.xl,
   },
-  scanRingOuter: {
+  scanRing: {
     position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 2,
-    borderColor: '#FF6B00',
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  scanRingMid: {
-    position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 2.5,
-    borderColor: '#FF6B00',
-  },
-  scanRingInnerCircle: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  scanRingInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60,
     borderWidth: 3,
-    borderColor: '#FF6B00',
   },
-  scanIconGradient: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  scanningTitlePremium: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1a1a1a',
-    marginBottom: 6,
+  scanningTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
     textAlign: 'center',
-    letterSpacing: -0.3,
   },
-  scanningSubtitlePremium: {
-    fontSize: 12,
+  scanningSubtitle: {
+    fontSize: 13,
     textAlign: 'center',
     marginBottom: SPACING.xl,
-    lineHeight: 18,
   },
-  /* Trip summary card */
-  tripSummaryCard: {
+  tripInfoBox: {
     width: '100%',
-    borderRadius: BORDER_RADIUS.xl,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,107,0,0.2)',
-    overflow: 'hidden',
-    marginBottom: SPACING.lg,
-    shadowColor: '#FF6B00',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  tripSummaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: '#f8f9fa', // Light gray
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
     gap: SPACING.md,
-    padding: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
-  tripSummaryIconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+  tripInfoRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  tripSummaryTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#1a1a1a',
-    letterSpacing: -0.2,
-  },
-  tripSummarySubtitle: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 2,
-  },
-  tripSummaryStatusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#22C55E',
-    shadowColor: '#22C55E',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  tripSummaryDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,107,0,0.15)',
-    marginHorizontal: SPACING.lg,
-  },
-  tripSummaryRows: {
-    padding: SPACING.lg,
     gap: SPACING.sm,
   },
-  tripSummaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  tripInfoLabel: {
+    fontSize: 14,
+    flex: 1,
   },
-  tripSummaryLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  tripSummaryValue: {
-    fontSize: 13,
+  tripInfoValue: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#1a1a1a',
   },
-  tripTotalRow: {
+  cancelModalButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
+    gap: SPACING.sm,
     paddingVertical: SPACING.md,
-  },
-  tripTotalLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  tripTotalAmount: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -0.5,
-  },
-  /* Cancel button premium */
-  cancelTripBtnPremium: {
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 2,
     width: '100%',
-    borderRadius: BORDER_RADIUS.xl,
-    borderWidth: 1.5,
-    borderColor: '#FF4444',
-    overflow: 'hidden',
   },
-  cancelTripBtnInner: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingVertical: 14,
-    backgroundColor: 'rgba(255,68,68,0.06)',
-  },
-  cancelTripBtnText: {
+  cancelModalButtonText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#FF4444',
-    letterSpacing: 0.3,
+    fontWeight: '600',
   },
 })
 

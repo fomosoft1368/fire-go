@@ -3,16 +3,22 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import axios from 'axios';
+import * as jwt from 'jsonwebtoken';
 import { User, UserDocument } from './schemas/user.schema';
 import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
 import { Customer, CustomerDocument } from '../customers/schemas/customer.schema';
 import { RegisterDto, LoginDto, AuthResponseDto } from './dto';
 import { jwtConfig } from '../../config/app.config';
+import { ZaloRsaHelper } from './zalo-rsa.helper';
+import twilio from "twilio";
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class AuthService {
-  private otpCache = new Map<string, { code: string; expiresAt: number }>();
-  private loginOtpCache = new Map<string, { code: string; expiresAt: number; name?: string }>();
+  private otpCache = new Map<string, { code: string; expiresAt: number; email?: string }>();
+  private loginOtpCache = new Map<string, { code: string; expiresAt: number; name?: string; email?: string }>();
 
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
@@ -432,24 +438,30 @@ export class AuthService {
     return { message: 'Xác thực số điện thoại thành công!' };
   }
 
-  // ===================== DRIVER OTP VERIFICATION SỬ DỤNG ZALO OA =====================
-  async sendDriverRegisterOtp(phone: string): Promise<{ message: string; expires: number }> {
+  // ===================== DRIVER OTP VERIFICATION SỬ DỤNG EMAIL =====================
+  async sendDriverRegisterOtp(phone: string, email: string): Promise<{ message: string; expires: number }> {
     const rawPhone = phone.trim();
     // Validate driver does not exist yet
     const driver = await this.driverModel.findOne({ phone: rawPhone });
     if (driver) throw new BadRequestException('Số điện thoại này đã được đăng ký');
+    if (email) {
+       const driverEmail = await this.driverModel.findOne({ email });
+       if (driverEmail) throw new BadRequestException('Email này đã được đăng ký');
+    }
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    this.otpCache.set(`driver_${rawPhone}`, { code: otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+    this.otpCache.set(`driver_${rawPhone}`, { code: otp, expiresAt: Date.now() + 5 * 60 * 1000, email });
 
     console.log(`\n=======================================\n`);
-    console.log(`🔥 [ZALO OA] Sắp gửi mã OTP Đăng ký Tài xế [${otp}] qua Zalo tới số: ${rawPhone}`);
+    console.log(`🔥 [EMAIL OTP] Sắp gửi mã OTP Đăng ký Tài xế [${otp}] tới email: ${email}`);
     console.log(`\n=======================================\n`);
 
-    this.sendZaloOtp(rawPhone, otp).catch(e => console.error('Lỗi khi gửi Zalo Driver OTP:', e.message));
+    if (email) {
+      await this.sendEmailOtp(email, otp, 'Mã xác nhận đăng ký tài xế FireGo');
+    }
 
-    return { message: 'Đã gửi mã OTP đăng ký tài xế qua Zalo', expires: 300 };
+    return { message: 'Đã gửi mã OTP đăng ký tài xế qua Email', expires: 300 };
   }
 
   async verifyDriverRegisterOtp(phone: string, code: string): Promise<{ message: string }> {
@@ -473,21 +485,54 @@ export class AuthService {
     return { message: 'Xác thực số điện thoại tài xế thành công!' };
   }
 
-  // ===================== CUSTOMER OTP LOGIN =====================
-  async sendCustomerLoginOtp(phone: string, name?: string): Promise<{ message: string; expires: number }> {
+  // ===================== CUSTOMER OTP LOGIN/REGISTER =====================
+  async sendCustomerLoginOtp(phone: string, email?: string, name?: string): Promise<{ message: string; expires: number }> {
     const rawPhone = phone.trim();
+    let customer = await this.customerModel.findOne({ phone: rawPhone });
+    let targetEmail = email?.trim().toLowerCase();
+
+    if (customer) {
+      // Khách cũ
+      const currentRealEmail = customer.email && !customer.email.includes('@firego.local') ? customer.email : null;
+      
+      if (currentRealEmail) {
+        // Khách đã có email thật
+        if (targetEmail && targetEmail !== currentRealEmail.toLowerCase()) {
+           throw new BadRequestException('Email nhập vào không khớp với email đã đăng ký của số điện thoại này.');
+        }
+        targetEmail = currentRealEmail;
+      } else {
+        // Khách đang dùng email ảo
+        if (!targetEmail) {
+           throw new BadRequestException('Tài khoản của bạn chưa cập nhật Email. Vui lòng nhập Email để nhận OTP.');
+        }
+      }
+    } else {
+      // Khách mới
+      if (!targetEmail) {
+         throw new BadRequestException('Vui lòng cung cấp Email để đăng ký tài khoản mới');
+      }
+      const existingEmail = await this.customerModel.findOne({ email: targetEmail });
+      if (existingEmail) {
+         throw new BadRequestException('Email đã được sử dụng bởi một tài khoản khác');
+      }
+    }
+
+    if (!targetEmail) {
+       throw new BadRequestException('Không tìm thấy email hợp lệ để gửi OTP.');
+    }
+
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    this.loginOtpCache.set(rawPhone, { code: otp, expiresAt: Date.now() + 5 * 60 * 1000, name });
+    this.loginOtpCache.set(rawPhone, { code: otp, expiresAt: Date.now() + 5 * 60 * 1000, email: targetEmail, name });
 
     console.log(`\n=======================================\n`);
-    console.log(`🔥 [ZALO LOGIN] Sắp gửi mã OTP Đăng nhập [${otp}] tới số: ${rawPhone}`);
+    console.log(`🔥 [EMAIL LOGIN] Sắp gửi mã OTP Đăng nhập [${otp}] tới email: ${targetEmail}`);
     console.log(`\n=======================================\n`);
 
-    // Gọi thực tế API Zalo
-    this.sendZaloOtp(rawPhone, otp).catch(e => console.error('Lỗi khi gửi Zalo Login OTP:', e.message));
+    await this.sendEmailOtp(targetEmail, otp, 'Mã xác nhận FireGo');
 
-    return { message: 'Đã gửi mã OTP đăng nhập qua Zalo', expires: 300 };
+    return { message: 'Đã gửi mã OTP qua Email', expires: 300 };
   }
 
   async verifyCustomerLoginOtp(phone: string, code: string): Promise<AuthResponseDto> {
@@ -511,7 +556,7 @@ export class AuthService {
       const lastName = nameParts.length > 1 ? nameParts.pop() : '';
       const firstName = nameParts.join(' ') || defaultName;
 
-      const pseudoEmail = `${rawPhone}@firego.local`;
+      const pseudoEmail = entry.email || `${rawPhone}@firego.local`;
       const pseudoPassword = await bcrypt.hash(Math.random().toString(36).slice(-8), 10);
 
       customer = await this.customerModel.create({
@@ -523,8 +568,16 @@ export class AuthService {
         isPhoneVerified: true
       });
     } else {
+      let isModified = false;
+      if (entry.email && customer.email !== entry.email) {
+        customer.email = entry.email;
+        isModified = true;
+      }
       if (!customer.isPhoneVerified) {
         customer.isPhoneVerified = true;
+        isModified = true;
+      }
+      if (isModified) {
         await customer.save();
       }
     }
@@ -538,6 +591,40 @@ export class AuthService {
     const updatedCustomer = await this.customerModel.findById(customer._id).select('tokenVersion').lean() as any;
 
     return this.generateTokens({ ...customer.toObject?.() ?? customer, tokenVersion: updatedCustomer.tokenVersion, role: 'customer' } as any);
+  }
+
+  // ===================== PRIVATE EMAIL METHODS =====================
+  private async sendEmailOtp(email: string, otp: string, subject: string): Promise<void> {
+    try {
+      if (!process.env.MAIL_HOST) {
+        console.warn(`[EMAIL OTP] Chưa cấu hình SMTP (MAIL_HOST). BỎ QUA GỬI THỰC TẾ, CHỈ IN TERMINAL.`);
+        return;
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: process.env.MAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.MAIL_PORT || '587'),
+        secure: process.env.MAIL_SECURE === 'true',
+        auth: {
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
+        },
+      });
+
+      const mailOptions = {
+        from: `"FireGo App" <${process.env.MAIL_USER}>`,
+        to: email,
+        subject: subject,
+        text: `Mã xác thực OTP của bạn là: ${otp}. Mã này sẽ hết hạn trong 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.`,
+        html: `<p>Mã xác thực OTP của bạn là: <strong style="font-size:24px;">${otp}</strong>.</p><p>Mã này sẽ hết hạn trong 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>`
+      };
+
+      const info = await transporter.sendMail(mailOptions);
+      console.log('[EMAIL OTP] Gửi thành công:', info.messageId);
+    } catch (e: any) {
+      console.error('[EMAIL OTP EXCEPTION]', e.message);
+      throw new BadRequestException('Không thể gửi email OTP, vui lòng kiểm tra lại cấu hình.');
+    }
   }
 
   // ===================== PRIVATE ZALO METHODS =====================
@@ -603,56 +690,36 @@ export class AuthService {
 
   private async sendZaloOtp(phone: string, otp: string): Promise<void> {
     try {
-      // 1. Chuyển điện thoại về dạng 84... (nếu cần theo Zalo)
+      // ── 1. Định dạng số điện thoại  ─────────────────────────────────────────
       let formattedPhone = phone.replace(/^0/, '84').replace(/[^0-9]/g, '');
-      if (!formattedPhone.startsWith('84')) {
-        formattedPhone = '84' + formattedPhone;
-      }
+      if (!formattedPhone.startsWith('84')) formattedPhone = '84' + formattedPhone;
 
       console.log(`\n=======================================`);
       console.log(`🔥 [CHÚ Ý] MÃ OTP CỦA SĐT ${phone} LÀ: [ ${otp} ]`);
       console.log(`=======================================\n`);
 
-      // 2. Lấy access token
-      let accessToken;
+      // ── 2. Lấy Zalo Access Token  ────────────────────────────────────────────
+      let accessToken: string;
       try {
         accessToken = await this.getZaloAccessToken();
       } catch (err) {
-        console.log(`[ZALO ZNS MOCK] Bỏ qua lỗi Zalo. Đang chạy mô phỏng qua Terminal.`);
+        console.log('[ZALO ZNS MOCK] Bỏ qua lỗi Zalo. Đang chạy mô phỏng qua Terminal.');
         return;
       }
 
-      // 3. Gửi ZNS API. Lưu ý: Cần có template_id từ Zalo Cloud Account.
-      const znsUrl = 'https://business.openapi.zalo.me/message/template';
-      const templateId = '562700'; // Đã cập nhật Template ID được duyệt
+      // ── 3. Xác định chế độ gửi: RSA hay Plain  ───────────────────────────────
+      //
+      //  ZALO_USE_RSA=true  → Chế độ mã hóa RSA (ĐƯỢC DUYỆT THẲNG)
+      //  ZALO_USE_RSA=false → Chế độ bình thường (template đã duyệt)
+      //
+      const useRsa = process.env.ZALO_USE_RSA === 'true';
 
-      console.log(`[ZALO ZNS] Đang nhắn tới SĐT ${formattedPhone} (Mẫu ${templateId})...`);
-
-      const response = await fetch(znsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'access_token': accessToken
-        },
-        body: JSON.stringify({
-          phone: formattedPhone,
-          template_id: templateId,
-          template_data: {
-            otp: otp
-          },
-          tracking_id: "tracking_" + Date.now().toString()
-        })
-      });
-
-      const data = await response.json() as any;
-      console.log('[ZALO ZNS RESPONSE]', data);
-
-      if (data.error && data.error !== 0) {
-        console.warn(`[ZNS ERROR ${data.error}] SĐT ${phone} từ chối/không có Zalo. Kích hoạt chuyển đổi sang SMS...`);
-        await this.sendSmsOtp(phone, otp);
+      if (useRsa) {
+        await this.sendZaloOtpRsa(accessToken, formattedPhone, phone, otp);
       } else {
-        console.log('[ZALO ZNS SUCCESS] Gửi thành công mã OTP qua Zalo!');
+        await this.sendZaloOtpPlain(accessToken, formattedPhone, phone, otp);
       }
+
     } catch (e: any) {
       console.error('[ZALO ZNS EXCEPTION]', e.message);
       console.log('[FALLBACK TỰ ĐỘNG] Lỗi mạng khi gọi Zalo, chuyển sang gửi SMS...');
@@ -661,38 +728,170 @@ export class AuthService {
   }
 
   /**
-   * FALLBACK SMS KHI ZALO THẤT BẠI
+   * Lựa chọn 1 – Plain ZNS (template đã được duyệt thủ công)
+   * Template KHÔNG có "Không được chia sẻ mã này"
    */
-  private async sendSmsOtp(phone: string, otp: string): Promise<void> {
-    try {
-      console.log(`\n---------------------------------------`);
-      console.log(`🚀 [SMS FALLBACK] KÍCH HOẠT GỬI SMS TỚI: ${phone}`);
-      console.log(`Nội dung: "Ma xac thuc ung dung Firego cua ban la ${otp}"`);
-      console.log(`---------------------------------------\n`);
 
-      // TODO: Tích hợp API của nhà mạng (Ví dụ: SpeedSMS / eSMS / Twilio)
-      // Bắt đầu code SMS
-      const speedsmsToken = 'zJjODLrNMBa9aN8eb6ZlFwFkSNZZuM1T';
-      const response = await fetch('https://api.speedsms.vn/index.php/sms/send', {
+  private twilioClient = twilio(
+    process.env.TWILIO_ACCOUNT_SID!,
+    process.env.TWILIO_AUTH_TOKEN!
+  );
+  private async sendZaloOtpPlain(
+    accessToken: string,
+    formattedPhone: string,
+    rawPhone: string,
+    otp: string,
+  ): Promise<void> {
+    const znsUrl = 'https://business.openapi.zalo.me/message/template';
+    // Template ID được duyệt (plain – không có câu cấm)
+    const templateId = process.env.ZALO_ZNS_TEMPLATE_ID || '562700';
+
+    console.log(`[ZALO ZNS PLAIN] Đang gửi tới SĐT ${formattedPhone} (Template: ${templateId})...`);
+
+    const response = await fetch(znsUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'access_token': accessToken,
+      },
+      body: JSON.stringify({
+        phone: formattedPhone,
+        template_id: templateId,
+        template_data: { otp },
+        tracking_id: 'fg_' + Date.now(),
+      }),
+    });
+
+    const data = await response.json() as any;
+    console.log('[ZALO ZNS PLAIN RESPONSE]', JSON.stringify(data));
+
+    if (data.error && data.error !== 0) {
+      console.warn(`[ZNS PLAIN ERROR ${data.error}] ${data.message || ''} – Fallback SMS...`);
+      await this.sendSmsOtp(rawPhone, otp);
+    } else {
+      console.log('[ZALO ZNS PLAIN] ✅ Gửi OTP thành công!');
+    }
+  }
+
+  /**
+   * Lựa chọn 2 – RSA Encrypted ZNS (Mẫu xác thực mặc định Zalo – DUYỆT THẲNG)
+   *
+   * Điều kiện cần:
+   *  - ZALO_USE_RSA=true
+   *  - ZALO_RSA_PUBLIC_KEY=<nội dung PEM từ Zalo Developers > Cài đặt kỹ thuật>
+   *  - ZALO_ZNS_ENCRYPTED_TEMPLATE_ID=<template_id mẫu xác thực>
+   *
+   * Cipher: RSA/ECB/OAEPWITHSHA-256ANDMGF1PADDING  (Node.js: RSA_PKCS1_OAEP_PADDING + sha256)
+   */
+  private async sendZaloOtpRsa(
+    accessToken: string,
+    formattedPhone: string,
+    rawPhone: string,
+    otp: string,
+  ): Promise<void> {
+    const znsUrl = 'https://business.openapi.zalo.me/message/template';
+    const templateId = process.env.ZALO_ZNS_ENCRYPTED_TEMPLATE_ID || process.env.ZALO_ZNS_TEMPLATE_ID || '562700';
+    const rsaPublicKey = (process.env.ZALO_RSA_PUBLIC_KEY || '').replace(/\\n/g, '\n');
+
+    if (!ZaloRsaHelper.isValidPem(rsaPublicKey)) {
+      console.error(
+        '[ZALO RSA] ❌ ZALO_RSA_PUBLIC_KEY không hợp lệ hoặc chưa được set!\n' +
+        '  → Vào Zalo Developers > App > Cài đặt kỹ thuật > RSA Public Key\n' +
+        '  → Copy PEM rồi dán vào .env: ZALO_RSA_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----"',
+      );
+      // Không crash server, fallback về plain mode rồi SMS
+      await this.sendZaloOtpPlain(accessToken, formattedPhone, rawPhone, otp);
+      return;
+    }
+
+    try {
+      console.log(`[ZALO ZNS RSA] 🔐 Đang mã hóa RSA và gửi tới ${formattedPhone} (Template: ${templateId})...`);
+
+      // Mã hóa từng trường theo yêu cầu Zalo
+      const encryptedPhone = ZaloRsaHelper.encrypt(formattedPhone, rsaPublicKey);
+      const encryptedTemplateData = ZaloRsaHelper.encryptTemplateData({ otp }, rsaPublicKey);
+
+      const payload = {
+        phone: encryptedPhone,
+        template_id: templateId,
+        template_data: encryptedTemplateData,
+        tracking_id: 'fg_rsa_' + Date.now(),
+        options: {
+          encrypted: true,   // ← BẮT BUỘC: báo Zalo backend biết đây là RSA payload
+        },
+      };
+
+      console.log('[ZALO ZNS RSA] Payload (đã mã hóa):', JSON.stringify({
+        ...payload,
+        phone: payload.phone.substring(0, 20) + '...[encrypted]',
+        template_data: { otp: '[encrypted]' },
+      }));
+
+      const response = await fetch(znsUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Basic ' + Buffer.from(speedsmsToken + ':x').toString('base64')
+          'access_token': accessToken,
         },
-        body: JSON.stringify({
-          to: [phone],
-          content: `Ma xac thuc ung dung cua ban la ${otp}. Ma co hieu luc trong 5 phut.`,
-          sms_type: 4 // SMS Đầu số cá nhân (Không cần brandname)
-
-        })
+        body: JSON.stringify(payload),
       });
-      const smsData = await response.json();
-      console.log('[SMS XỬ LÝ]', smsData);
-      // Kết thúc Code SMS
 
-      console.log(`✅ [SMS MOCK] (Chế độ mô phỏng) Gửi SMS thành công mã ${otp} tới ${phone}!`);
+      const data = await response.json() as any;
+      console.log('[ZALO ZNS RSA RESPONSE]', JSON.stringify(data));
+
+      if (data.error && data.error !== 0) {
+        console.warn(`[ZNS RSA ERROR ${data.error}] ${data.message || ''} – Fallback SMS...`);
+        await this.sendSmsOtp(rawPhone, otp);
+      } else {
+        console.log('[ZALO ZNS RSA] ✅ Gửi OTP RSA thành công! Template được duyệt thẳng.');
+      }
+    } catch (rsaErr: any) {
+      console.error('[ZALO ZNS RSA ERROR]', rsaErr.message);
+      console.log('[FALLBACK] Lỗi RSA – chuyển sang plain mode...');
+      await this.sendZaloOtpPlain(accessToken, formattedPhone, rawPhone, otp);
+    }
+  }
+
+  /**
+   * FALLBACK SMS KHI ZALO THẤT BẠI
+   * Sử dụng Stringee API để gửi SMS
+   */
+
+
+  /**
+   * Gửi OTP qua Twilio Verify
+   * @param phone Số điện thoại người nhận (VN, 0xxxxxxx)
+   */
+  private async sendSmsOtp(phone: string, otp: string): Promise<void> {
+    try {
+      // Format số VN -> +84xxxxxxxx
+      let formattedPhone = phone.replace(/^0/, "84").replace(/[^0-9]/g, "");
+      if (!formattedPhone.startsWith("84")) formattedPhone = "84" + formattedPhone;
+      formattedPhone = `+${formattedPhone}`;
+
+      console.log(`[TWILIO OTP] Gửi OTP tới ${formattedPhone}...`);
+
+      const client = twilio(
+        process.env.TWILIO_ACCOUNT_SID!,
+        process.env.TWILIO_AUTH_TOKEN!
+      );
+
+      // Gửi OTP
+      const response = await client.verify.v2
+        .services(process.env.TWILIO_SERVICE_SID!)
+        .verifications.create({
+          to: formattedPhone,
+          channel: "sms",
+        });
+
+      if (response.status === "pending") {
+        console.log(`✅ OTP đã gửi thành công tới ${formattedPhone}`);
+      } else {
+        console.warn(`⚠️ Trạng thái không như mong đợi: ${response.status}`);
+      }
     } catch (error: any) {
-      console.error('[SMS ERROR] Không thể gửi SMS fallback:', error.message);
+      console.error(`[TWILIO ERROR] Không thể gửi OTP:`, error.message || error);
     }
   }
 }
+

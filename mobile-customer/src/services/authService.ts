@@ -371,12 +371,12 @@ export const authService = {
   },
 
   // ===================== OTP LOGIN FLOW =====================
-  async sendLoginOtp(phone: string, name?: string): Promise<any> {
+  async sendLoginOtp(phone: string, email?: string, name?: string): Promise<any> {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/customer/login-otp/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, name })
+        body: JSON.stringify({ phone, email, name })
       })
       if (!response.ok) {
         const errorData = await response.json()

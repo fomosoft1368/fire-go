@@ -221,7 +221,7 @@ export default function RegisterScreen({ navigation }: any) {
   const handleRegister = async () => {
     setIsLoading(true)
     try {
-      await sendOtpVerification(formData.phone)
+      await sendOtpVerification(formData.phone, formData.email)
       setIsVerifyingOtp(true)
     } catch (err: any) {
       // Error handled in sendOtpVerification
@@ -230,12 +230,12 @@ export default function RegisterScreen({ navigation }: any) {
     }
   }
 
-  const sendOtpVerification = async (phone: string) => {
+  const sendOtpVerification = async (phone: string, email: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/driver/register-otp/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, email }),
       })
       if (!response.ok) {
         const errorData = await response.json()
@@ -243,7 +243,7 @@ export default function RegisterScreen({ navigation }: any) {
       }
       setCountdown(60)
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể gửi mã OTP tới Zalo của bạn. Hoặc tài khoản SĐT này đã tồn tại.')
+      Alert.alert('Lỗi', err.message || 'Không thể gửi mã OTP tới Email của bạn. Hoặc tài khoản này đã tồn tại.')
       throw err; // Re-throw to be caught by handleRegister
     }
   }
@@ -430,9 +430,9 @@ export default function RegisterScreen({ navigation }: any) {
         >
           {isVerifyingOtp ? (
             <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Xác thực Zalo</Text>
+              <Text style={styles.stepTitle}>Xác thực Email</Text>
               <Text style={styles.stepDescription}>
-                Chúng tôi đã gửi mã OTP gồm 6 chữ số qua tin nhắn Zalo tới số {formData.phone}
+                Chúng tôi đã gửi mã OTP gồm 6 chữ số qua Email tới địa chỉ {formData.email}
               </Text>
               
               <View style={styles.inputGroup}>
@@ -455,7 +455,7 @@ export default function RegisterScreen({ navigation }: any) {
 
               <TouchableOpacity 
                 style={{ paddingVertical: 12, alignItems: 'center' }}
-                onPress={() => sendOtpVerification(formData.phone)}
+                onPress={() => sendOtpVerification(formData.phone, formData.email)}
                 disabled={countdown > 0}
               >
                 <Text style={{ color: countdown > 0 ? COLORS.textTertiary : COLORS.primary, fontWeight: 'bold' }}>

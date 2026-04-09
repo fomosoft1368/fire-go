@@ -84,7 +84,7 @@ export default function LoginScreen({ navigation }: any) {
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Image
-                source={require('../assets/logo-firego.png')}
+                source={require('../assets/icon-driver-Photoroom.png')}
                 style={{ width: 39, height: 39 }}
                 resizeMode="contain"
               />

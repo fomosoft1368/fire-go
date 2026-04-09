@@ -7,9 +7,9 @@
     "userInterfaceStyle": "light",
     "sdkVersion": "54.0.0",
     "entryPoint": "./index.js",
-    "icon": "./src/assets/logo-firego1.png",
+    "icon": "./src/assets/icon-customer-Photoroom.png",
     "splash": {
-      "image": "./src/assets/logo-firego1.png",
+      "image": "./src/assets/icon-customer-Photoroom.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -18,7 +18,7 @@
     ],
     "ios": {
       "supportsTabletMode": true,
-      "bundleIdentifier": "com.firegotech.mobility",
+      "bundleIdentifier": "com.firegotech.customer",
       "jsEngine": "jsc",
       "runtimeVersion": {
         "policy": "sdkVersion"
@@ -29,11 +29,11 @@
         "NSMicrophoneUsageDescription": "App cần quyền micro để thực hiện cuộc gọi thoại với tài xế"
       },
       "config": {
-        "googleMapsApiKey": ""
+        "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
       }
     },
     "android": {
-      "package": "com.firegotech.mobility",
+      "package": "com.firegotech.customer",
       "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
@@ -46,7 +46,7 @@
         "android.permission.BLUETOOTH_CONNECT"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/logo-firego1.png",
+        "foregroundImage": "./src/assets/icon-customer-Photoroom.png",
         "backgroundColor": "#ffffff"
       },
       "config": {

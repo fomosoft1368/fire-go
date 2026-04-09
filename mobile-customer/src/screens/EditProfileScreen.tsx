@@ -181,11 +181,11 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
             <FormInput
               label="Email"
               value={formData.email}
-              onChangeText={(text) => setFormData({ ...formData, email: text })}
               placeholder="Vd: example@gmail.com"
               keyboardType="email-address"
               error={errors.email}
               icon="email"
+              editable={false}
             />
 
             <FormInput
