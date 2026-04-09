@@ -1801,43 +1801,59 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                     {/* Action Buttons – Premium redesign */}
                     <View style={styles.actionsContainer}>
                       {/* Status-based primary action */}
-                      {(currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted') && (
-                        <TouchableOpacity onPress={handleMarkArrived} disabled={updating} activeOpacity={0.85}>
-                          <LinearGradient colors={['#FF8A3D', '#FF6B00']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.actionBtn}>
-                            <View style={styles.actionBtnIconCircle}>
-                              <MaterialIcons name="location-on" size={22} color="#FF6B00" />
-                            </View>
-                            <Text style={styles.actionBtnText}>Đã đến điểm đón</Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      )}
+                      {ride?.status !== 'cancelled' ? (
+                        <>
+                          {(currentPassenger?.status === 'pending' || currentPassenger?.status === 'accepted') && (
+                            <TouchableOpacity onPress={handleMarkArrived} disabled={updating} activeOpacity={0.85}>
+                              <LinearGradient colors={['#FF8A3D', '#FF6B00']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.actionBtn}>
+                                <View style={styles.actionBtnIconCircle}>
+                                  <MaterialIcons name="location-on" size={22} color="#FF6B00" />
+                                </View>
+                                <Text style={styles.actionBtnText}>Đã đến điểm đón</Text>
+                              </LinearGradient>
+                            </TouchableOpacity>
+                          )}
 
-                      {currentPassenger?.status === 'arrived_at_pickup' && (
-                        <TouchableOpacity onPress={handleStartRide} disabled={updating} activeOpacity={0.85}>
-                          <LinearGradient colors={['#60a5fa', '#3b82f6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.actionBtn}>
-                            <View style={styles.actionBtnIconCircle}>
-                              <MaterialIcons name="play-arrow" size={24} color="#3b82f6" />
-                            </View>
-                            <Text style={styles.actionBtnText}>Bắt đầu đón khách</Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      )}
+                          {currentPassenger?.status === 'arrived_at_pickup' && (
+                            <TouchableOpacity onPress={handleStartRide} disabled={updating} activeOpacity={0.85}>
+                              <LinearGradient colors={['#60a5fa', '#3b82f6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.actionBtn}>
+                                <View style={styles.actionBtnIconCircle}>
+                                  <MaterialIcons name="play-arrow" size={24} color="#3b82f6" />
+                                </View>
+                                <Text style={styles.actionBtnText}>Bắt đầu đón khách</Text>
+                              </LinearGradient>
+                            </TouchableOpacity>
+                          )}
 
-                      {currentPassenger?.status === 'in_progress' && (
-                        <TouchableOpacity onPress={handleCompletePassenger} disabled={updating} activeOpacity={0.85}>
-                          <LinearGradient colors={['#34d399', '#10b981']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.actionBtn}>
-                            <View style={styles.actionBtnIconCircle}>
-                              <MaterialIcons name="check-circle" size={22} color="#10b981" />
-                            </View>
-                            <Text style={styles.actionBtnText}>Hoàn thành chuyến</Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      )}
+                          {currentPassenger?.status === 'in_progress' && (
+                            <TouchableOpacity onPress={handleCompletePassenger} disabled={updating} activeOpacity={0.85}>
+                              <LinearGradient colors={['#34d399', '#10b981']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.actionBtn}>
+                                <View style={styles.actionBtnIconCircle}>
+                                  <MaterialIcons name="check-circle" size={22} color="#10b981" />
+                                </View>
+                                <Text style={styles.actionBtnText}>Hoàn thành chuyến</Text>
+                              </LinearGradient>
+                            </TouchableOpacity>
+                          )}
 
-                      {currentPassenger?.status === 'completed' && (
-                        <View style={styles.completedBadge}>
-                          <MaterialIcons name="done-all" size={20} color="#10b981" />
-                          <Text style={styles.completedBadgeText}>Hành khách đã hoàn thành</Text>
+                          {currentPassenger?.status === 'completed' && (
+                            <View style={styles.completedBadge}>
+                              <MaterialIcons name="done-all" size={20} color="#10b981" />
+                              <Text style={styles.completedBadgeText}>Hành khách đã hoàn thành</Text>
+                            </View>
+                          )}
+
+                          {currentPassenger?.status === 'cancelled' && (
+                            <View style={[styles.completedBadge, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}>
+                              <MaterialIcons name="cancel" size={20} color="#ef4444" />
+                              <Text style={[styles.completedBadgeText, { color: '#b91c1c' }]}>Khách đã hủy cuốc</Text>
+                            </View>
+                          )}
+                        </>
+                      ) : (
+                        <View style={[styles.completedBadge, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}>
+                          <MaterialIcons name="cancel" size={20} color="#ef4444" />
+                          <Text style={[styles.completedBadgeText, { color: '#b91c1c' }]}>Chuyến đi đã bị hủy</Text>
                         </View>
                       )}
 

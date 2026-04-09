@@ -146,13 +146,15 @@ export default function TripHistoryScreen() {
       // Filter out rejected and timeout requests
       const formattedCombinedTrips = (combinedTrips || [])
         .filter((trip: any) => {
-          const status = trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase()
-          const isRejectedOrTimeout = status === 'rejected' || status === 'timeout'
+          const mainStatus = trip.status?.toLowerCase()
+          const reqStatus = trip.requestStatus?.toLowerCase()
+          
+          const isRejectedOrTimeout = reqStatus === 'rejected' || reqStatus === 'timeout'
 
           if (isRejectedOrTimeout) {
             console.log('[BookingsScreen] ⚠️ Filtering out rejected/timeout trip:', {
               tripId: trip._id,
-              status: status,
+              status: reqStatus || mainStatus,
               reason: 'Driver rejected or did not respond',
             })
           }
@@ -173,7 +175,9 @@ export default function TripHistoryScreen() {
             dropoffLocation: trip.customerDropoffAddress || trip.dropoffLocationAddress || trip.dropoffAddress || 'Điểm đến',
             pickupDistrict: 'Việt Nam',
             dropoffDistrict: 'Việt Nam',
-            status: trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase() || 'pending',
+            status: (trip.status?.toLowerCase() === 'cancelled' || trip.requestStatus?.toLowerCase() === 'cancelled') 
+              ? 'cancelled' 
+              : (trip.requestStatus?.toLowerCase() || trip.status?.toLowerCase() || 'pending'),
             driverName: trip.driverId?.firstName + ' ' + trip.driverId?.lastName || 'N/A',
             carPlate: trip.driverId?.vehiclePlate || 'N/A',
             // Thêm trường để track combined trip ID
