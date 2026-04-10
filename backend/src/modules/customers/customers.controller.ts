@@ -119,6 +119,11 @@ export class CustomersController {
         throw new UnauthorizedException('Invalid email or password');
       }
 
+      const anyCustomer = customer as any;
+      if (anyCustomer.deletionRequestedAt) {
+        throw new UnauthorizedException('Tài khoản này đã yêu cầu xóa, nếu muốn khôi phục thì liên hệ quản trị để được hỗ trợ.');
+      }
+
       // ✅ Increment tokenVersion — vô hiệu hóa mọi token cũ (thiết bị khác bị logout)
       await this.customerModel.findByIdAndUpdate(customer._id, { $inc: { tokenVersion: 1 } });
       const freshCustomer = await this.customerModel.findById(customer._id).select('tokenVersion').lean() as any;
@@ -289,5 +294,14 @@ export class CustomersController {
   @Get(':id/stats')
   async getStats(@Param('id') id: string) {
     return this.customersService.getStats(id);
+  }
+
+  @Post('me/request-deletion')
+  @UseGuards(JwtAuthGuard)
+  async requestDeletion(@Request() req: any) {
+    if (req.user?.role !== 'customer') {
+      throw new UnauthorizedException('This endpoint is only for customers.');
+    }
+    return this.customersService.requestDeletion(req.user.sub);
   }
 }

@@ -101,6 +101,17 @@ export class DriversController {
   }
 
   /**
+   * POST /api/drivers/me/request-deletion
+   * Yêu cầu xóa tài khoản 
+   */
+  @Post('me/request-deletion')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async requestDeletion(@Request() req: any) {
+    return this.driversService.requestDeletion(req.user.id);
+  }
+
+  /**
    * GET /api/drivers/available
    * Lấy danh sách tài xế online và sẵn sàng nhận cuốc
    */

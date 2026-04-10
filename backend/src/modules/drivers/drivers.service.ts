@@ -327,6 +327,22 @@ export class DriversService {
     }
   }
 
+  async requestDeletion(driverId: string): Promise<{ message: string }> {
+    const driver = await this.driverModel.findById(driverId);
+    if (!driver) {
+      throw new NotFoundException('Không tìm thấy tài xế');
+    }
+
+    await this.driverModel.findByIdAndUpdate(driverId, {
+      deletionRequestedAt: new Date(),
+      isOnline: false,
+      status: 'offline',
+      isAvailable: false
+    });
+
+    return { message: 'Đã ghi nhận yêu cầu xóa tài khoản' };
+  }
+
   async incrementRideStats(driverId: string, completed: boolean = true): Promise<void> {
     const updateData: any = {
       $inc: { totalRides: 1 },

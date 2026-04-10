@@ -275,4 +275,18 @@ export class CustomersService {
 
     return { message: 'Password changed successfully' };
   }
+
+  async requestDeletion(customerId: string): Promise<{ message: string }> {
+    const customer = await this.customerModel.findById(customerId);
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    await this.customerModel.findByIdAndUpdate(customerId, {
+      deletionRequestedAt: new Date(),
+    });
+
+    return { message: 'Yêu cầu xóa tài khoản đã được ghi nhận. Tài khoản sẽ bị xóa sau 30 ngày.' };
+  }
 }

@@ -131,6 +131,9 @@ export class Customer {
   @Prop({ default: false })
   isAccountLocked: boolean;
 
+  @Prop()
+  deletionRequestedAt?: Date;
+
   // Push notifications
   @Prop()
   expoPushToken?: string;

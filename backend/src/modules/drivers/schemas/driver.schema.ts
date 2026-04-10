@@ -250,6 +250,9 @@ export class Driver {
   isSuspended: boolean;
 
   @Prop()
+  deletionRequestedAt?: Date;
+
+  @Prop()
   suspensionReason?: string;
 
   @Prop()

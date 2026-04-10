@@ -314,6 +314,39 @@ export const authService = {
     }
   },
 
+  // Request account deletion
+  async requestDeletion(): Promise<any> {
+    try {
+      const token = await this.getToken()
+      if (!token) {
+        throw new Error('No auth token found')
+      }
+
+      const response = await fetch(`${API_BASE_URL}/customers/me/request-deletion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        let errorData: any
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = { message: `HTTP ${response.status}` }
+        }
+        throw new Error(errorData.message || 'Yêu cầu xóa tài khoản thất bại')
+      }
+
+      return await response.json()
+    } catch (error: any) {
+      console.error('[Auth] Request deletion failed:', error.message || error)
+      throw error
+    }
+  },
+
   // Get current user ID
   async getUserId(): Promise<string> {
     try {

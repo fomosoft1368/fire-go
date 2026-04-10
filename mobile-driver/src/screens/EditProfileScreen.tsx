@@ -8,8 +8,11 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  StatusBar,
   ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
@@ -17,7 +20,8 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
 import type { RootState } from '../redux/store'
 import { driverService } from '../services/driverService'
-import { updateUser } from '../redux/slices/authSlice'
+import { updateUser, logout } from '../redux/slices/authSlice'
+import { requestDeletion, logout as authServiceLogout } from '../services/authService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export default function EditProfileScreen() {
@@ -36,6 +40,10 @@ export default function EditProfileScreen() {
   const [selectedDriverTypes, setSelectedDriverTypes] = useState<string[]>(
     user?.driverTypes || ['rideshare']
   )
+
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Log để debug
   useEffect(() => {
@@ -160,6 +168,34 @@ export default function EditProfileScreen() {
     navigation.goBack()
   }
 
+  const isConfirmValid = deleteConfirmText.trim().toLowerCase().replace('xoá', 'xóa') === 'tôi muốn xóa tài khoản này'
+
+  const handleDeleteAccount = () => {
+    setDeleteConfirmText('')
+    setDeleteModalVisible(true)
+  }
+
+  const confirmDeleteAccount = async () => {
+    if (!isConfirmValid) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đúng câu xác nhận.')
+      return
+    }
+
+    try {
+      setIsDeleting(true)
+      setDeleteModalVisible(false)
+      await requestDeletion()
+      Alert.alert('Thành công', 'Yêu cầu xóa tài khoản đã được ghi nhận. Bạn sẽ được đăng xuất khỏi tài khoản.')
+      await authServiceLogout()
+      dispatch(logout())
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể yêu cầu xóa tài khoản')
+      setDeleteModalVisible(true)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.lightBg} />
@@ -188,11 +224,11 @@ export default function EditProfileScreen() {
                 color={COLORS.primary}
               />
             </View>
-            <TouchableOpacity style={styles.cameraButton} activeOpacity={0.8}>
+            {/* <TouchableOpacity style={styles.cameraButton} activeOpacity={0.8}>
               <MaterialIcons name="camera-alt" size={20} color={COLORS.text} />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
-          <Text style={styles.changePhotoText}>Thay đổi ảnh đại diện</Text>
+          {/* <Text style={styles.changePhotoText}>Thay đổi ảnh đại diện</Text> */}
         </View>
 
         {/* Form Section */}
@@ -310,8 +346,8 @@ export default function EditProfileScreen() {
 
         {/* Additional Info Section */}
         <View style={styles.infoSection}>
-          <TouchableOpacity 
-            style={styles.infoItem} 
+          <TouchableOpacity
+            style={styles.infoItem}
             activeOpacity={0.7}
             onPress={() => (navigation as any).navigate('VehicleInfo')}
           >
@@ -332,8 +368,8 @@ export default function EditProfileScreen() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.infoItem} 
+          <TouchableOpacity
+            style={styles.infoItem}
             activeOpacity={0.7}
             onPress={() => (navigation as any).navigate('DocumentVerification')}
           >
@@ -377,6 +413,31 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Danger Section */}
+        <View style={[styles.infoSection, { borderColor: '#fca5a5', marginBottom: SPACING.lg }]}>
+          <TouchableOpacity
+            style={[styles.infoItem, { borderBottomWidth: 0 }]}
+            activeOpacity={0.7}
+            onPress={handleDeleteAccount}
+          >
+            <View style={styles.infoLeft}>
+              <View style={[styles.infoIconContainer, { backgroundColor: '#fee2e2' }]}>
+                <MaterialIcons
+                  name="delete-outline"
+                  size={20}
+                  color="#ef4444"
+                />
+              </View>
+              <Text style={[styles.infoLabel, { color: '#ef4444' }]}>Yêu cầu xóa tài khoản</Text>
+            </View>
+            <MaterialIcons
+              name="chevron-right"
+              size={24}
+              color="#ef4444"
+            />
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: SPACING.xxl }} />
       </ScrollView>
 
@@ -402,6 +463,55 @@ export default function EditProfileScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Xác nhận xóa tài khoản</Text>
+            <Text style={styles.modalDescription}>
+              Tài khoản sẽ bị xóa trong vòng 30 ngày. Để xác nhận, vui lòng nhập chính xác dòng chữ dưới đây:
+            </Text>
+            <Text style={styles.modalHighlightText}>tôi muốn xóa tài khoản này</Text>
+            
+            <TextInput
+              style={styles.modalInput}
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              placeholder="Nhập câu xác nhận..."
+              placeholderTextColor="#94a3b8"
+              autoCapitalize="none"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setDeleteModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalConfirmButton,
+                  !isConfirmValid && styles.modalConfirmButtonDisabled
+                ]}
+                onPress={confirmDeleteAccount}
+                disabled={!isConfirmValid || isDeleting}
+              >
+                {isDeleting ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalConfirmText}>Xóa tài khoản</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -642,5 +752,88 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.lg,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: SPACING.sm,
+    lineHeight: 20,
+  },
+  modalHighlightText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ef4444',
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: BORDER_RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+    height: 48,
+    fontSize: 15,
+    color: '#0f172a',
+    backgroundColor: '#f8fafc',
+    marginBottom: SPACING.xl,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  modalCancelButton: {
+    flex: 1,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#f1f5f9',
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  modalConfirmButton: {
+    flex: 1,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#ef4444',
+  },
+  modalConfirmButtonDisabled: {
+    opacity: 0.5,
+  },
+  modalConfirmText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
 })

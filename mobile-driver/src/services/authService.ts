@@ -185,4 +185,19 @@ const changePassword = async (currentPassword: string, newPassword: string) => {
   }
 }
 
-export { login, register, registerDriver, logout, getCurrentUser, changePassword }
+const requestDeletion = async () => {
+  try {
+    const token = await AsyncStorage.getItem('token')
+    if (!token) throw new Error('No token found')
+    const response = await axios.post(
+      `${API_URL}/drivers/me/request-deletion`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    return response.data
+  } catch (error) {
+    throw error
+  }
+}
+
+export { login, register, registerDriver, logout, getCurrentUser, changePassword, requestDeletion }
