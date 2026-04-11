@@ -252,7 +252,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
 
           <View style={styles.dangerSection}>
             <Text style={styles.sectionTitle}>Cài đặt tài khoản</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.deleteAccountButton}
               onPress={handleDeleteAccount}
             >
@@ -286,8 +286,8 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
         animationType="fade"
         onRequestClose={() => setDeleteModalVisible(false)}
       >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
           <View style={styles.modalContent}>
@@ -296,7 +296,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
               Tài khoản sẽ bị xóa trong vòng 30 ngày. Để xác nhận, vui lòng nhập chính xác dòng chữ dưới đây:
             </Text>
             <Text style={styles.modalHighlightText}>tôi muốn xóa tài khoản này</Text>
-            
+
             <TextInput
               style={styles.modalInput}
               value={deleteConfirmText}
