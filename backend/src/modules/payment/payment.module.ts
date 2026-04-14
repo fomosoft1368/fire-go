@@ -1,12 +1,12 @@
-import { Module } from '@nestjs/common'
-import { MongooseModule } from '@nestjs/mongoose'
-import { PaymentService } from './payment.service'
-import { PaymentMethodService } from './payment-method.service'
-import { PaymentController } from './payment.controller'
-import { PaymentMethodController } from './payment-method.controller'
-import { PaymentSchema } from './schemas/payment.schema'
-import { PaymentMethodSchema } from './schemas/payment-method.schema'
-import { Driver, DriverSchema } from '../drivers/schemas/driver.schema'
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { PaymentService } from './payment.service';
+import { PaymentMethodService } from './payment-method.service';
+import { PaymentController } from './payment.controller';
+import { PaymentMethodController } from './payment-method.controller';
+import { PaymentSchema } from './schemas/payment.schema';
+import { PaymentMethodSchema } from './schemas/payment-method.schema';
+import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 
 @Module({
   imports: [

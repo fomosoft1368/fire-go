@@ -50,7 +50,8 @@ export class TermsOfService {
   lastModifiedAt?: Date;
 }
 
-export const TermsOfServiceSchema = SchemaFactory.createForClass(TermsOfService);
+export const TermsOfServiceSchema =
+  SchemaFactory.createForClass(TermsOfService);
 
 // Indexes
 TermsOfServiceSchema.index({ language: 1, userType: 1, isActive: 1 });

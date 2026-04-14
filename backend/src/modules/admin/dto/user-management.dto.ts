@@ -1,5 +1,18 @@
-import { IsString, IsEmail, IsPhoneNumber, IsEnum, IsArray, IsOptional, MinLength, IsBoolean } from 'class-validator';
-import { UserStatus, UserPermission, UserRole } from '../../auth/schemas/user.schema';
+import {
+  IsString,
+  IsEmail,
+  IsPhoneNumber,
+  IsEnum,
+  IsArray,
+  IsOptional,
+  MinLength,
+  IsBoolean,
+} from 'class-validator';
+import {
+  UserStatus,
+  UserPermission,
+  UserRole,
+} from '../../auth/schemas/user.schema';
 
 export class CreateUserDto {
   @IsString()
@@ -32,6 +45,24 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(UserStatus)
   status?: UserStatus;
+
+  @IsOptional()
+  @IsString()
+  @IsOptional()
+  @IsString()
+  regionId?: string;
+
+  @IsOptional()
+  @IsString()
+  regionName?: string;
+
+  @IsOptional()
+  @IsString()
+  marketingReferrerId?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
 }
 
 export class UpdateUserDto {

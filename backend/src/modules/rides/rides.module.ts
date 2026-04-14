@@ -1,20 +1,27 @@
-import { Module } from '@nestjs/common'
-import { MongooseModule } from '@nestjs/mongoose'
-import { MulterModule } from '@nestjs/platform-express'
-import { RidesService } from './services/rides.service'
-import { RidesController } from './controllers/rides.controller'
-import { Ride, RideSchema } from './schemas/ride.schema'
-import { Pricing, PricingSchema } from './schemas/pricing.schema'
-import { AssignmentRequest, AssignmentRequestSchema } from './schemas/assignment-request.schema'
-import { AutoAssignService } from './services/auto-assign.service'
-import { Driver, DriverSchema } from '../drivers/schemas/driver.schema'
-import { DriversModule } from '../drivers/drivers.module'
-import { CombinedTripsModule } from '../combined-trips/combined-trips.module'
-import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema'
-import { DriverSearchConfigModule } from '../config/config.module'
-import { Customer, CustomerSchema } from '../customers/schemas/customer.schema'
-import { Wallet, WalletSchema } from '../wallets/schemas/wallet.schema'
-import { NotificationsModule } from '../notifications/notifications.module'
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { MulterModule } from '@nestjs/platform-express';
+import { RidesService } from './services/rides.service';
+import { RidesController } from './controllers/rides.controller';
+import { Ride, RideSchema } from './schemas/ride.schema';
+import { Pricing, PricingSchema } from './schemas/pricing.schema';
+import {
+  AssignmentRequest,
+  AssignmentRequestSchema,
+} from './schemas/assignment-request.schema';
+import { AutoAssignService } from './services/auto-assign.service';
+import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
+import { DriversModule } from '../drivers/drivers.module';
+import { CombinedTripsModule } from '../combined-trips/combined-trips.module';
+import {
+  PricingConfig,
+  PricingConfigSchema,
+} from '../pricing/pricing-config.schema';
+import { DriverSearchConfigModule } from '../config/config.module';
+import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
+import { Wallet, WalletSchema } from '../wallets/schemas/wallet.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { TeamsModule } from '../teams/teams.module';
 
 @Module({
   imports: [
@@ -36,6 +43,7 @@ import { NotificationsModule } from '../notifications/notifications.module'
     }),
     CombinedTripsModule,
     NotificationsModule,
+    TeamsModule,
   ],
   controllers: [RidesController],
   providers: [RidesService, AutoAssignService],

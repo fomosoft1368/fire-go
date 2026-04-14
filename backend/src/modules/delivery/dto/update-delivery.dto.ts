@@ -1,4 +1,10 @@
-import { IsEnum, IsOptional, IsNumber, IsString, IsDate } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsNumber,
+  IsString,
+  IsDate,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum DeliveryStatus {

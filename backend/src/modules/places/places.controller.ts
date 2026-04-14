@@ -13,16 +13,27 @@ export class PlacesController {
     results: PlaceResult[];
     source: 'cache' | 'database' | 'google' | 'validation';
   }> {
-    console.log('🔥 [PlacesController] Search request received:', { keyword, userId });
+    console.log('🔥 [PlacesController] Search request received:', {
+      keyword,
+      userId,
+    });
 
     if (!keyword || keyword.trim().length < 3) {
       console.log('⏭️ [PlacesController] Keyword too short:', keyword?.length);
       return { results: [], source: 'validation' };
     }
 
-    console.log('✅ [PlacesController] Calling service for:', keyword, 'userId:', userId);
+    console.log(
+      '✅ [PlacesController] Calling service for:',
+      keyword,
+      'userId:',
+      userId,
+    );
     const result = await this.placesService.searchPlaces(keyword, 0, 0, userId);
-    console.log('📤 [PlacesController] Service returned:', { source: result.source, count: result.results.length });
+    console.log('📤 [PlacesController] Service returned:', {
+      source: result.source,
+      count: result.results.length,
+    });
     return result;
   }
 

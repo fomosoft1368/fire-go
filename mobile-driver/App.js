@@ -61,6 +61,23 @@ import ActiveCallScreen from './src/screens/ActiveCallScreen'
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import BonusScreen from './src/screens/BonusScreen'
 import ReferralScreen from './src/screens/ReferralScreen'
+import { loggerService } from './src/services/loggerService'
+
+// Global Unhandled Error Logger
+const defaultErrorHandler = ErrorUtils.getGlobalHandler();
+ErrorUtils.setGlobalHandler((error, isFatal) => {
+  try {
+    loggerService.logFrontendError('GlobalUnhandledError', error, { isFatal });
+  } catch (e) {
+    console.error('Failed to log global error', e);
+  }
+  
+  if (defaultErrorHandler) {
+    defaultErrorHandler(error, isFatal);
+  } else {
+    console.error(error, isFatal);
+  }
+});
 
 
 //

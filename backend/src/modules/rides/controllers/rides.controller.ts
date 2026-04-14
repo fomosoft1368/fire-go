@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Param, Patch, Query, Request, BadRequestException, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Patch,
+  Query,
+  Request,
+  BadRequestException,
+  UseGuards,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { RidesService } from '../services/rides.service';
@@ -6,7 +17,10 @@ import { AutoAssignService } from '../services/auto-assign.service';
 import { CreateRideDto } from '../dto';
 import { UploadVehicleConditionDto } from '../dto/upload-vehicle-condition.dto';
 import { Ride, RideDocument, RideType } from '../schemas/ride.schema';
-import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignment-request.schema';
+import {
+  AssignmentRequest,
+  AssignmentRequestDocument,
+} from '../schemas/assignment-request.schema';
 import { Pricing } from '../schemas/pricing.schema';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
@@ -21,7 +35,8 @@ export class RidesController {
     private readonly pushService: PushNotificationService,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Pricing.name) private pricingModel: Model<Pricing>,
-    @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
+    @InjectModel(AssignmentRequest.name)
+    private assignmentRequestModel: Model<AssignmentRequestDocument>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
   ) {}
   @Get('analytics/revenue')
@@ -57,7 +72,10 @@ export class RidesController {
   }
 
   @Get('analytics/peak-hours')
-  async getPeakHours(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+  async getPeakHours(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
     return this.ridesService.getPeakHours(
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,
@@ -78,7 +96,14 @@ export class RidesController {
   // Calculate fare based on distance, duration and vehicle type
   @Post('calculate-fare')
   async calculateFare(
-    @Body() body: { distance: number; duration: number; vehicleType: string; isPeakHour?: boolean; isRainy?: boolean }
+    @Body()
+    body: {
+      distance: number;
+      duration: number;
+      vehicleType: string;
+      isPeakHour?: boolean;
+      isRainy?: boolean;
+    },
   ) {
     return this.ridesService.calculateFare(
       body.distance,
@@ -116,9 +141,13 @@ export class RidesController {
   // Create or update pricing for vehicle type
   @Post('pricing')
   async createPricing(@Body() pricingData: any) {
-    const existing = await this.pricingModel.findOne({ vehicleType: pricingData.vehicleType });
+    const existing = await this.pricingModel.findOne({
+      vehicleType: pricingData.vehicleType,
+    });
     if (existing) {
-      return this.pricingModel.findByIdAndUpdate(existing._id, pricingData, { new: true });
+      return this.pricingModel.findByIdAndUpdate(existing._id, pricingData, {
+        new: true,
+      });
     }
     return this.pricingModel.create(pricingData);
   }
@@ -131,12 +160,19 @@ export class RidesController {
     @Query('endLng') endLng?: string,
     @Query('endLat') endLat?: string,
   ) {
-    console.log('🔍 Directions endpoint called with:', { startLng, startLat, endLng, endLat });
-    
+    console.log('🔍 Directions endpoint called with:', {
+      startLng,
+      startLat,
+      endLng,
+      endLat,
+    });
+
     if (!startLng || !startLat || !endLng || !endLat) {
-      throw new Error('Missing required parameters: startLng, startLat, endLng, endLat');
+      throw new Error(
+        'Missing required parameters: startLng, startLat, endLng, endLat',
+      );
     }
-    
+
     return this.ridesService.getDirections(
       parseFloat(startLng),
       parseFloat(startLat),
@@ -149,22 +185,29 @@ export class RidesController {
   @UseGuards(JwtAuthGuard)
   async create(@Body() createRideDto: CreateRideDto, @Request() req: any) {
     const customerId = req.user?.id || req.user?.sub;
-    
+
     if (!customerId) {
-      throw new BadRequestException('Customer ID not found in authentication token');
+      throw new BadRequestException(
+        'Customer ID not found in authentication token',
+      );
     }
-    
+
     console.log('🆕 [RidesController] Creating ride for customer:', customerId);
     const ride = await this.ridesService.create(createRideDto, customerId);
-    
+
     // Auto-assign driver for HIRE rides (default enabled unless explicitly disabled)
-    const shouldAutoAssign = ride.rideType === RideType.HIRE && 
-                            (createRideDto.autoAssign !== false); // Default to true
-    
+    const shouldAutoAssign =
+      ride.rideType === RideType.HIRE && createRideDto.autoAssign !== false; // Default to true
+
     if (shouldAutoAssign) {
-      console.log('🤖 [RidesController] Auto-assigning driver for ride:', ride._id);
+      console.log(
+        '🤖 [RidesController] Auto-assigning driver for ride:',
+        ride._id,
+      );
       try {
-        const assignResult = await this.ridesService.autoAssignDriver(ride._id.toString());
+        const assignResult = await this.ridesService.autoAssignDriver(
+          ride._id.toString(),
+        );
         console.log('✅ [RidesController] Auto-assign result:', assignResult);
         // Return ride with assignment info
         return {
@@ -177,12 +220,15 @@ export class RidesController {
         return ride;
       }
     }
-    
+
     return ride;
   }
 
   @Get()
-  async findAll(@Query('status') status?: string, @Query('rideType') rideType?: string) {
+  async findAll(
+    @Query('status') status?: string,
+    @Query('rideType') rideType?: string,
+  ) {
     const filters: any = {};
     if (status) filters.status = status;
     if (rideType) filters.rideType = rideType;
@@ -196,7 +242,12 @@ export class RidesController {
     @Query('maxDistance') maxDistance?: number,
     @Query('rideType') rideType?: string,
   ) {
-    return this.ridesService.findNearbyRides(longitude, latitude, maxDistance, rideType);
+    return this.ridesService.findNearbyRides(
+      longitude,
+      latitude,
+      maxDistance,
+      rideType,
+    );
   }
 
   // Find share rides with location hierarchy filtering
@@ -232,7 +283,7 @@ export class RidesController {
   // }
 
   // ============ Assignment Request Endpoints ============
-  
+
   /**
    * Driver lấy danh sách pending assignment requests
    */
@@ -240,8 +291,11 @@ export class RidesController {
   @UseGuards(JwtAuthGuard)
   async getPendingAssignmentRequests(@Request() req: any) {
     const driverId = req.user.id;
-    console.log('[RidesController] 🔍 Getting pending assignment requests for driver:', driverId);
-    
+    console.log(
+      '[RidesController] 🔍 Getting pending assignment requests for driver:',
+      driverId,
+    );
+
     const now = new Date();
     const requests = await this.assignmentRequestModel
       .find({
@@ -251,11 +305,16 @@ export class RidesController {
       })
       .populate({
         path: 'rideId',
-        select: '_id customerId pickupAddress dropoffAddress totalFare rideType status distance duration pickupCoordinates dropoffCoordinates'
+        select:
+          '_id customerId pickupAddress dropoffAddress totalFare rideType status distance duration pickupCoordinates dropoffCoordinates',
       })
       .sort({ createdAt: -1 });
 
-    console.log('[RidesController] 📋 Found', requests.length, 'pending assignment requests');
+    console.log(
+      '[RidesController] 📋 Found',
+      requests.length,
+      'pending assignment requests',
+    );
     return requests;
   }
 
@@ -269,15 +328,18 @@ export class RidesController {
     @Request() req: any,
   ) {
     const driverId = req.user.id;
-    const ride = await this.autoAssignService.acceptAssignmentRequest(requestId, driverId);
-    
+    const ride = await this.autoAssignService.acceptAssignmentRequest(
+      requestId,
+      driverId,
+    );
+
     // Fetch driver's wallet info to include in response
     const driver = await this.driverModel.findById(driverId);
     const walletBalance = driver?.walletBalance || 0;
     const walletWarning = walletBalance < 200000;
 
     return {
-      ...ride.toObject?.() || ride,
+      ...(ride.toObject?.() || ride),
       walletBalance,
       walletWarning,
       walletWarningMessage: walletWarning
@@ -297,7 +359,11 @@ export class RidesController {
     @Body('reason') reason?: string,
   ) {
     const driverId = req.user.id;
-    return this.autoAssignService.rejectAssignmentRequest(requestId, driverId, reason);
+    return this.autoAssignService.rejectAssignmentRequest(
+      requestId,
+      driverId,
+      reason,
+    );
   }
 
   @Get(':id')
@@ -312,25 +378,38 @@ export class RidesController {
 
   @Patch(':id/accept')
   @UseGuards(JwtAuthGuard)
-  async acceptRide(@Param('id') id: string, @Body('driverId') driverId: string) {
-    console.log('[RidesController] Accept ride request:', { rideId: id, driverId });
+  async acceptRide(
+    @Param('id') id: string,
+    @Body('driverId') driverId: string,
+  ) {
+    console.log('[RidesController] Accept ride request:', {
+      rideId: id,
+      driverId,
+    });
     try {
       const result = await this.ridesService.acceptRide(id, driverId);
       console.log('[RidesController] Ride accepted successfully:', result._id);
 
       // 📣 Notify customer: driver accepted
       const customerId = result.customerId?.toString();
-      const driver = await this.driverModel.findById(driverId).select('firstName lastName').lean() as any;
-      const driverName = driver ? `${driver.firstName} ${driver.lastName}`.trim() : 'Tài xế';
+      const driver = (await this.driverModel
+        .findById(driverId)
+        .select('firstName lastName')
+        .lean()) as any;
+      const driverName = driver
+        ? `${driver.firstName} ${driver.lastName}`.trim()
+        : 'Tài xế';
       if (customerId) {
-        this.pushService.notifyCustomer(
-          customerId,
-          '🚗 Tài xế đã nhận chuyến!',
-          `${driverName} đang trên đường đến đón bạn`,
-          NotificationType.RIDE_ACCEPTED,
-          { type: 'RIDE_ACCEPTED', rideId: id },
-          id,
-        ).catch(() => {});
+        this.pushService
+          .notifyCustomer(
+            customerId,
+            '🚗 Tài xế đã nhận chuyến!',
+            `${driverName} đang trên đường đến đón bạn`,
+            NotificationType.RIDE_ACCEPTED,
+            { type: 'RIDE_ACCEPTED', rideId: id },
+            id,
+          )
+          .catch(() => {});
       }
 
       return result;
@@ -341,7 +420,10 @@ export class RidesController {
   }
 
   @Patch(':id/assign')
-  async assignDriver(@Param('id') id: string, @Body('driverId') driverId: string) {
+  async assignDriver(
+    @Param('id') id: string,
+    @Body('driverId') driverId: string,
+  ) {
     return this.ridesService.assignDriver(id, driverId);
   }
 
@@ -358,14 +440,16 @@ export class RidesController {
     // 📣 Notify customer: trip started
     const customerId = result.customerId?.toString();
     if (customerId) {
-      this.pushService.notifyCustomer(
-        customerId,
-        '🚀 Chuyến đi bắt đầu!',
-        'Tài xế đang đưa bạn đến điểm đến. Chúc bạn có chuyến đi vui!',
-        NotificationType.RIDE_STARTED,
-        { type: 'RIDE_STARTED', rideId: id },
-        id,
-      ).catch(() => {});
+      this.pushService
+        .notifyCustomer(
+          customerId,
+          '🚀 Chuyến đi bắt đầu!',
+          'Tài xế đang đưa bạn đến điểm đến. Chúc bạn có chuyến đi vui!',
+          NotificationType.RIDE_STARTED,
+          { type: 'RIDE_STARTED', rideId: id },
+          id,
+        )
+        .catch(() => {});
     }
 
     return result;
@@ -379,18 +463,21 @@ export class RidesController {
     if (!ride) throw new BadRequestException('Ride not found');
 
     const customerId = ride.customerId
-      ? (ride.customerId as any)?._id?.toString() || (ride.customerId as any)?.toString()
+      ? (ride.customerId as any)?._id?.toString() ||
+        (ride.customerId as any)?.toString()
       : null;
 
     if (customerId) {
-      this.pushService.notifyCustomer(
-        customerId,
-        '📍 Tài xế đã đến điểm đón!',
-        'Tài xế đang chờ bạn. Hãy ra xe ngay nhé!',
-        NotificationType.DRIVER_ARRIVED,
-        { type: 'DRIVER_ARRIVED', rideId: id },
-        id,
-      ).catch(() => {});
+      this.pushService
+        .notifyCustomer(
+          customerId,
+          '📍 Tài xế đã đến điểm đón!',
+          'Tài xế đang chờ bạn. Hãy ra xe ngay nhé!',
+          NotificationType.DRIVER_ARRIVED,
+          { type: 'DRIVER_ARRIVED', rideId: id },
+          id,
+        )
+        .catch(() => {});
     }
 
     return { success: true, message: 'Customer notified of driver arrival' };
@@ -412,7 +499,8 @@ export class RidesController {
     let walletWarning = false;
 
     if (ride.driverId) {
-      const driverId = typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
+      const driverId =
+        typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
       const driver = await this.driverModel.findById(driverId);
 
       if (driver) {
@@ -421,28 +509,32 @@ export class RidesController {
 
         // 📣 Notify driver: earnings
         const fare = (ride as any).fare || totalFare || ride.totalFare || 0;
-        this.pushService.notifyDriver(
-          driverId.toString(),
-          '✅ Hoàn thành chuyến đi!',
-          `Thu nhập +${fare.toLocaleString('vi-VN')}đ đã được ghi nhận vào ví`,
-          NotificationType.RIDE_COMPLETED,
-          { type: 'RIDE_COMPLETED', rideId: id },
-          id,
-        ).catch(() => {});
+        this.pushService
+          .notifyDriver(
+            driverId.toString(),
+            '✅ Hoàn thành chuyến đi!',
+            `Thu nhập +${fare.toLocaleString('vi-VN')}đ đã được ghi nhận vào ví`,
+            NotificationType.RIDE_COMPLETED,
+            { type: 'RIDE_COMPLETED', rideId: id },
+            id,
+          )
+          .catch(() => {});
       }
     }
 
     // 📣 Notify customer: trip completed
     const customerId = ride.customerId?.toString();
     if (customerId) {
-      this.pushService.notifyCustomer(
-        customerId,
-        '🎉 Chuyến đi hoàn thành!',
-        'Cảm ơn bạn đã sử dụng dịch vụ. Hãy đánh giá tài xế nhé!',
-        NotificationType.RIDE_COMPLETED,
-        { type: 'RIDE_COMPLETED', rideId: id },
-        id,
-      ).catch(() => {});
+      this.pushService
+        .notifyCustomer(
+          customerId,
+          '🎉 Chuyến đi hoàn thành!',
+          'Cảm ơn bạn đã sử dụng dịch vụ. Hãy đánh giá tài xế nhé!',
+          NotificationType.RIDE_COMPLETED,
+          { type: 'RIDE_COMPLETED', rideId: id },
+          id,
+        )
+        .catch(() => {});
     }
 
     return {
@@ -462,31 +554,39 @@ export class RidesController {
     @Body('cancellationBy') cancellationBy: 'driver' | 'customer',
     @Body('reason') reason?: string,
   ) {
-    const result = await this.ridesService.cancelRide(id, cancellationBy, reason);
+    const result = await this.ridesService.cancelRide(
+      id,
+      cancellationBy,
+      reason,
+    );
 
     const customerId = result.customerId?.toString();
     const driverId = result.driverId?.toString();
 
     if (cancellationBy === 'driver' && customerId) {
       // Customer gets notified that driver cancelled
-      this.pushService.notifyCustomer(
-        customerId,
-        '❌ Chuyến bị hủy',
-        'Tài xế đã hủy chuyến. Chúng tôi đang tìm tài xế khác cho bạn...',
-        NotificationType.RIDE_CANCELLED,
-        { type: 'RIDE_CANCELLED_BY_DRIVER', rideId: id },
-        id,
-      ).catch(() => {});
+      this.pushService
+        .notifyCustomer(
+          customerId,
+          '❌ Chuyến bị hủy',
+          'Tài xế đã hủy chuyến. Chúng tôi đang tìm tài xế khác cho bạn...',
+          NotificationType.RIDE_CANCELLED,
+          { type: 'RIDE_CANCELLED_BY_DRIVER', rideId: id },
+          id,
+        )
+        .catch(() => {});
     } else if (cancellationBy === 'customer' && driverId) {
       // Driver gets notified that customer cancelled
-      this.pushService.notifyDriver(
-        driverId,
-        '❌ Khách hủy chuyến',
-        'Khách hàng đã hủy chuyến này.',
-        NotificationType.RIDE_CANCELLED,
-        { type: 'RIDE_CANCELLED_BY_CUSTOMER', rideId: id },
-        id,
-      ).catch(() => {});
+      this.pushService
+        .notifyDriver(
+          driverId,
+          '❌ Khách hủy chuyến',
+          'Khách hàng đã hủy chuyến này.',
+          NotificationType.RIDE_CANCELLED,
+          { type: 'RIDE_CANCELLED_BY_CUSTOMER', rideId: id },
+          id,
+        )
+        .catch(() => {});
     }
 
     return result;
@@ -528,7 +628,11 @@ export class RidesController {
       throw new BadRequestException('Maximum 5 images allowed');
     }
 
-    const result = await this.ridesService.uploadVehicleCondition(rideId, dto.phase, dto.images);
+    const result = await this.ridesService.uploadVehicleCondition(
+      rideId,
+      dto.phase,
+      dto.images,
+    );
     console.log('✅ [Vehicle Condition Upload] Success');
     return result;
   }

@@ -7,9 +7,7 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Place.name, schema: PlaceSchema },
-    ]),
+    MongooseModule.forFeature([{ name: Place.name, schema: PlaceSchema }]),
     AppSettingsModule,
   ],
   controllers: [PlacesController],

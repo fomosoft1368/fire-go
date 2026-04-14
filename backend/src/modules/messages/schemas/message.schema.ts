@@ -17,7 +17,7 @@ export class Message {
   @Prop({ type: Types.ObjectId, ref: 'Delivery', required: false })
   deliveryId?: Types.ObjectId;
   @Prop({ type: Types.ObjectId, ref: 'CombinedTrip', required: false })
- combinedTripId?: Types.ObjectId;
+  combinedTripId?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
   senderId: Types.ObjectId;

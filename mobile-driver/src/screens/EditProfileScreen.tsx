@@ -15,6 +15,7 @@ import {
   StatusBar,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import { COLORS, SPACING, BORDER_RADIUS } from '../constants'
@@ -93,14 +94,8 @@ export default function EditProfileScreen() {
   ]
 
   const toggleDriverType = (type: string) => {
-    if (selectedDriverTypes.includes(type)) {
-      // Không cho bỏ chọn hết tất cả
-      if (selectedDriverTypes.length > 1) {
-        setSelectedDriverTypes(selectedDriverTypes.filter(t => t !== type))
-      }
-    } else {
-      setSelectedDriverTypes([...selectedDriverTypes, type])
-    }
+    // Disabled as requested by user
+    // Alert.alert('Thông báo', 'Loại tài xế không được thay đổi ở đây. Vui lòng liên hệ tổng đài hỗ trợ.')
   }
 
   const handleSave = async () => {
@@ -198,41 +193,54 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.lightBg} />
+      <StatusBar barStyle="light-content" backgroundColor="#FF6B00" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleCancel}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={COLORS.textDark} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chỉnh sửa hồ sơ</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      {/* Header với Gradient */}
+      <LinearGradient
+        colors={['#e0e0e0', '#f1ebe7']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleCancel}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Chỉnh sửa hồ sơ</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </LinearGradient>
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Avatar Section */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatarInner}>
-              <MaterialIcons
-                name="person"
-                size={60}
-                color={COLORS.primary}
-              />
-            </View>
-            {/* <TouchableOpacity style={styles.cameraButton} activeOpacity={0.8}>
-              <MaterialIcons name="camera-alt" size={20} color={COLORS.text} />
-            </TouchableOpacity> */}
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
+      >
+        {/* User Card */}
+        <View style={styles.userCard}>
+          <View style={styles.userAvatar}>
+            <Text style={styles.avatarLetter}>
+              {formData.name ? formData.name.charAt(0).toUpperCase() : 'D'}
+            </Text>
           </View>
-          {/* <Text style={styles.changePhotoText}>Thay đổi ảnh đại diện</Text> */}
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{formData.name || 'Người dùng'}</Text>
+            <Text style={styles.userPhone}>{formData.phone || 'Chưa có SĐT'}</Text>
+            <View style={styles.userBadge}>
+              <MaterialIcons name="verified" size={14} color="#4CAF50" />
+              <Text style={styles.userBadgeText}>Đã xác thực</Text>
+            </View>
+          </View>
         </View>
 
         {/* Form Section */}
-        <View style={styles.formSection}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>THÔNG TIN CÁ NHÂN</Text>
+          <View style={styles.cardContainer}>
           {/* Name Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Họ và tên</Text>
@@ -298,19 +306,20 @@ export default function EditProfileScreen() {
 
           {/* Driver Type Selection */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Loại tài xế</Text>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xs / 2}}>
+              <Text style={styles.label}>Hạng dịch vụ đăng ký</Text>
+              <MaterialIcons name="lock" size={14} color={COLORS.textDarkSecondary} />
+            </View>
             <View style={styles.driverTypeContainer}>
               {driverTypeOptions.map((option) => {
                 const isSelected = selectedDriverTypes.includes(option.value)
                 return (
-                  <TouchableOpacity
+                  <View
                     key={option.value}
                     style={[
                       styles.driverTypeCard,
                       isSelected && styles.driverTypeCardSelected,
                     ]}
-                    onPress={() => toggleDriverType(option.value)}
-                    activeOpacity={0.7}
                   >
                     <View
                       style={[
@@ -334,38 +343,34 @@ export default function EditProfileScreen() {
                     </Text>
                     {isSelected && (
                       <View style={styles.checkmarkBadge}>
-                        <MaterialIcons name="check" size={16} color="#fff" />
+                        <MaterialIcons name="check" size={12} color="#fff" />
                       </View>
                     )}
-                  </TouchableOpacity>
+                  </View>
                 )
               })}
             </View>
+            <Text style={styles.driverTypeHint}>* Không thể tự thay đổi hạng dịch vụ. Vui lòng liên hệ tổng đài hỗ trợ.</Text>
+          </View>
           </View>
         </View>
 
         {/* Additional Info Section */}
-        <View style={styles.infoSection}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>THÔNG TIN KHÁC</Text>
+          <View style={styles.settingsList}>
           <TouchableOpacity
             style={styles.infoItem}
             activeOpacity={0.7}
             onPress={() => (navigation as any).navigate('VehicleInfo')}
           >
-            <View style={styles.infoLeft}>
-              <View style={styles.infoIconContainer}>
-                <MaterialIcons
-                  name="directions-car"
-                  size={20}
-                  color={COLORS.primary}
-                />
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
+                <MaterialIcons name="directions-car" size={22} color="#2196F3" />
               </View>
-              <Text style={styles.infoLabel}>Thông tin xe</Text>
+              <Text style={styles.settingTitle}>Thông tin xe</Text>
             </View>
-            <MaterialIcons
-              name="chevron-right"
-              size={24}
-              color={COLORS.textDarkSecondary}
-            />
+            <MaterialIcons name="chevron-right" size={24} color="#9CA3AF" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -373,21 +378,13 @@ export default function EditProfileScreen() {
             activeOpacity={0.7}
             onPress={() => (navigation as any).navigate('DocumentVerification')}
           >
-            <View style={styles.infoLeft}>
-              <View style={styles.infoIconContainer}>
-                <MaterialIcons
-                  name="description"
-                  size={20}
-                  color={COLORS.primary}
-                />
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: '#E0F2F1' }]}>
+                <MaterialIcons name="description" size={22} color="#009688" />
               </View>
-              <Text style={styles.infoLabel}>Tài liệu xác thực</Text>
+              <Text style={styles.settingTitle}>Tài liệu xác thực</Text>
             </View>
-            <MaterialIcons
-              name="chevron-right"
-              size={24}
-              color={COLORS.textDarkSecondary}
-            />
+            <MaterialIcons name="chevron-right" size={24} color="#9CA3AF" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -395,47 +392,35 @@ export default function EditProfileScreen() {
             activeOpacity={0.7}
             onPress={() => (navigation as any).navigate('ChangePassword')}
           >
-            <View style={styles.infoLeft}>
-              <View style={styles.infoIconContainer}>
-                <MaterialIcons
-                  name="lock-outline"
-                  size={20}
-                  color={COLORS.primary}
-                />
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: '#FFEBEE' }]}>
+                <MaterialIcons name="lock" size={22} color="#F44336" />
               </View>
-              <Text style={styles.infoLabel}>Đổi mật khẩu</Text>
+              <Text style={styles.settingTitle}>Đổi mật khẩu</Text>
             </View>
-            <MaterialIcons
-              name="chevron-right"
-              size={24}
-              color={COLORS.textDarkSecondary}
-            />
+            <MaterialIcons name="chevron-right" size={24} color="#9CA3AF" />
           </TouchableOpacity>
+          </View>
         </View>
 
         {/* Danger Section */}
-        <View style={[styles.infoSection, { borderColor: '#fca5a5', marginBottom: SPACING.lg }]}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>NGUY HIỂM</Text>
+          <View style={[styles.settingsList, { borderWidth: 1, borderColor: '#fca5a5' }]}>
           <TouchableOpacity
-            style={[styles.infoItem, { borderBottomWidth: 0 }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={handleDeleteAccount}
           >
-            <View style={styles.infoLeft}>
-              <View style={[styles.infoIconContainer, { backgroundColor: '#fee2e2' }]}>
-                <MaterialIcons
-                  name="delete-outline"
-                  size={20}
-                  color="#ef4444"
-                />
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: '#fee2e2' }]}>
+                <MaterialIcons name="delete-outline" size={22} color="#ef4444" />
               </View>
-              <Text style={[styles.infoLabel, { color: '#ef4444' }]}>Yêu cầu xóa tài khoản</Text>
+              <Text style={[styles.settingTitle, { color: '#ef4444' }]}>Yêu cầu xóa tài khoản</Text>
             </View>
-            <MaterialIcons
-              name="chevron-right"
-              size={24}
-              color="#ef4444"
-            />
+            <MaterialIcons name="chevron-right" size={24} color="#ef4444" />
           </TouchableOpacity>
+          </View>
         </View>
 
         <View style={{ height: SPACING.xxl }} />
@@ -519,77 +504,174 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.lightBg,
+    backgroundColor: '#F9FAFB',
   },
   header: {
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightBorder,
   },
   backButton: {
     width: 40,
     height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(58, 55, 55, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.textDark,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111111',
+    letterSpacing: 0.5,
   },
-  container: {
+  headerSpacer: {
+    width: 40,
+  },
+  content: {
     flex: 1,
   },
-
-  // Avatar Section
-  avatarSection: {
-    alignItems: 'center',
-    paddingVertical: SPACING.xxl,
+  contentContainer: {
+    paddingBottom: SPACING.xl,
   },
-  avatarContainer: {
-    position: 'relative',
+  // User Card styling from Settings
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
     marginBottom: SPACING.md,
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  avatarInner: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.primary + '15',
+  userAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FFF5F0',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
-    borderColor: COLORS.primary,
+    borderColor: '#FF6B00',
   },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: COLORS.lightBg,
+  avatarLetter: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FF6B00',
   },
-  changePhotoText: {
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  userPhone: {
     fontSize: 14,
-    color: COLORS.primary,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  userBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  userBadgeText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: '#4CAF50',
   },
 
-  // Form Section
-  formSection: {
-    paddingHorizontal: SPACING.lg,
-    gap: SPACING.lg,
+  // Section Title + Card List Container
+  section: {
+    marginTop: SPACING.md,
   },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    letterSpacing: 1.2,
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.xs,
+  },
+  cardContainer: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: SPACING.lg,
+    borderRadius: 16,
+    padding: SPACING.lg,
+    gap: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  settingsList: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: SPACING.lg,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  settingTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+  },
+  // Used in Form Card
   inputGroup: {
-    gap: SPACING.sm,
+    gap: SPACING.xs,
   },
   label: {
     fontSize: 13,
@@ -600,10 +682,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#F9FAFB',
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderColor: '#E5E7EB',
     paddingHorizontal: SPACING.md,
   },
   inputIcon: {
@@ -612,50 +694,51 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: COLORS.textDark,
+    color: '#1F2937',
     paddingVertical: SPACING.md,
   },
   inputDisabled: {
-    backgroundColor: COLORS.lightBg,
-    opacity: 0.6,
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
   },
   inputTextDisabled: {
     color: COLORS.textDarkSecondary,
   },
 
-  // Driver Type Section
   driverTypeContainer: {
     flexDirection: 'row',
     gap: SPACING.md,
   },
   driverTypeCard: {
     flex: 1,
-    backgroundColor: COLORS.lightCard,
+    backgroundColor: '#F9FAFB',
     borderRadius: BORDER_RADIUS.md,
-    borderWidth: 2,
-    borderColor: COLORS.lightBorder,
-    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: SPACING.sm,
     alignItems: 'center',
     position: 'relative',
+    opacity: 0.7,
   },
   driverTypeCardSelected: {
     borderColor: COLORS.primary,
     backgroundColor: COLORS.primary + '08',
+    opacity: 1,
   },
   driverTypeIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.lightBg,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   driverTypeIconWrapperSelected: {
-    backgroundColor: COLORS.primary + '15',
+    backgroundColor: 'transparent',
   },
   driverTypeLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: COLORS.textDarkSecondary,
     textAlign: 'center',
@@ -666,52 +749,20 @@ const styles = StyleSheet.create({
   },
   checkmarkBadge: {
     position: 'absolute',
-    top: SPACING.xs,
-    right: SPACING.xs,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    top: 6,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  // Info Section
-  infoSection: {
-    marginTop: SPACING.xl,
-    marginHorizontal: SPACING.lg,
-    backgroundColor: COLORS.lightCard,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.lightBorder,
-    overflow: 'hidden',
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightBorder,
-  },
-  infoLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  infoIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.primary + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textDark,
+  driverTypeHint: {
+    fontSize: 12,
+    color: COLORS.textDarkSecondary,
+    fontStyle: 'italic',
+    marginTop: SPACING.xs,
   },
 
   // Bottom Actions
@@ -720,29 +771,27 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: COLORS.lightBorder,
-    backgroundColor: COLORS.lightBg,
+    borderTopColor: '#F3F4F6',
   },
   cancelButton: {
     flex: 1,
     paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.lightCard,
-    borderWidth: 1,
-    borderColor: COLORS.lightBorder,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.textDark,
+    color: '#4B5563',
   },
   saveButton: {
     flex: 1,
     paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    backgroundColor: '#FF6B00',
     alignItems: 'center',
   },
   saveButtonDisabled: {

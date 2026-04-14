@@ -1,9 +1,17 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { Ride, RideDocument } from '../schemas/ride.schema';
-import { AssignmentRequest, AssignmentRequestDocument } from '../schemas/assignment-request.schema';
+import {
+  AssignmentRequest,
+  AssignmentRequestDocument,
+} from '../schemas/assignment-request.schema';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService as DriverSearchConfigService } from '../../config/config.service';
 import { ServiceType } from '../../config/schemas/driver-search-config.schema';
@@ -28,7 +36,8 @@ export class AutoAssignService {
   constructor(
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
-    @InjectModel(AssignmentRequest.name) private assignmentRequestModel: Model<AssignmentRequestDocument>,
+    @InjectModel(AssignmentRequest.name)
+    private assignmentRequestModel: Model<AssignmentRequestDocument>,
     private eventEmitter: EventEmitter2,
     private driverSearchConfigService: DriverSearchConfigService,
     private driversService: DriversService,
@@ -38,7 +47,9 @@ export class AutoAssignService {
    * Tự động chỉ định tài xế cho chuyến đi
    * FLOW MỚI: Gửi request tới tài xế phù hợp nhất, đợi accept/reject
    */
-  async autoAssignDriver(rideId: string): Promise<{ success: boolean; message: string; requestId?: string }> {
+  async autoAssignDriver(
+    rideId: string,
+  ): Promise<{ success: boolean; message: string; requestId?: string }> {
     const ride = await this.rideModel.findById(rideId);
     if (!ride) {
       throw new NotFoundException(`Không tìm thấy chuyến xe với ID: ${rideId}`);
@@ -58,21 +69,26 @@ export class AutoAssignService {
     // Tính điểm cho từng tài xế
     const driverScores = await Promise.all(
       availableDrivers.map(async (driver) =>
-        this.calculateDriverScore(driver, ride)
-      )
+        this.calculateDriverScore(driver, ride),
+      ),
     );
 
     // Sắp xếp theo điểm cao nhất
     driverScores.sort((a, b) => b.score - a.score);
 
-    this.logger.debug(`Driver scores for ride ${rideId}:`, driverScores.map(ds => ({
-      driverId: ds.driver._id,
-      score: ds.score,
-      breakdown: ds.breakdown
-    })));
+    this.logger.debug(
+      `Driver scores for ride ${rideId}:`,
+      driverScores.map((ds) => ({
+        driverId: ds.driver._id,
+        score: ds.score,
+        breakdown: ds.breakdown,
+      })),
+    );
 
     // Get timeout from config
-    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(ServiceType.HIRE);
+    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(
+      ServiceType.HIRE,
+    );
 
     // Tạo assignment request cho tài xế đầu tiên
     const selectedDriver = driverScores[0];
@@ -80,11 +96,11 @@ export class AutoAssignService {
       ride._id.toString(),
       selectedDriver.driver._id.toString(),
       selectedDriver.score,
-      1 // Attempt 1
+      1, // Attempt 1
     );
 
     this.logger.log(
-      `Created assignment request ${assignmentRequest._id} for driver ${selectedDriver.driver._id} (score: ${selectedDriver.score})`
+      `Created assignment request ${assignmentRequest._id} for driver ${selectedDriver.driver._id} (score: ${selectedDriver.score})`,
     );
 
     // Emit event để notify driver (via polling hoặc socket)
@@ -98,7 +114,11 @@ export class AutoAssignService {
     });
 
     // Lên lịch timeout check
-    this.scheduleTimeoutCheck(assignmentRequest._id.toString(), driverScores, timeoutMs);
+    this.scheduleTimeoutCheck(
+      assignmentRequest._id.toString(),
+      driverScores,
+      timeoutMs,
+    );
 
     return {
       success: true,
@@ -117,10 +137,14 @@ export class AutoAssignService {
     attemptNumber: number,
   ): Promise<AssignmentRequestDocument> {
     // Get timeout from config (HIRE service)
-    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(ServiceType.HIRE);
+    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(
+      ServiceType.HIRE,
+    );
     const expiresAt = new Date(Date.now() + timeoutMs);
 
-    this.logger.log(`[createAssignmentRequest] Creating request for driver: ${driverId}, ride: ${rideId}, expires: ${expiresAt}, timeout: ${timeoutMs}ms`);
+    this.logger.log(
+      `[createAssignmentRequest] Creating request for driver: ${driverId}, ride: ${rideId}, expires: ${expiresAt}, timeout: ${timeoutMs}ms`,
+    );
 
     const request = new this.assignmentRequestModel({
       rideId: new Types.ObjectId(rideId),
@@ -132,23 +156,31 @@ export class AutoAssignService {
     });
 
     const saved = await request.save();
-    this.logger.log(`[createAssignmentRequest] ✅ Saved request ${saved._id} with driverId: ${saved.driverId}`);
+    this.logger.log(
+      `[createAssignmentRequest] ✅ Saved request ${saved._id} with driverId: ${saved.driverId}`,
+    );
     return saved;
   }
 
   /**
    * Lên lịch kiểm tra timeout
    */
-  private scheduleTimeoutCheck(requestId: string, driverScores: DriverScore[], timeoutMs: number) {
+  private scheduleTimeoutCheck(
+    requestId: string,
+    driverScores: DriverScore[],
+    timeoutMs: number,
+  ) {
     const timeoutHandler = setTimeout(async () => {
       const request = await this.assignmentRequestModel.findById(requestId);
-      
+
       if (!request || request.status !== 'pending') {
         this.timeoutHandlers.delete(requestId); // Cleanup
         return; // Đã được xử lý rồi
       }
 
-      this.logger.warn(`Assignment request ${requestId} timeout, retrying with next driver`);
+      this.logger.warn(
+        `Assignment request ${requestId} timeout, retrying with next driver`,
+      );
 
       // Update status sang timeout
       await this.assignmentRequestModel.findByIdAndUpdate(requestId, {
@@ -173,22 +205,26 @@ export class AutoAssignService {
     driverScores: DriverScore[],
   ): Promise<void> {
     const attemptNumber = previousRequest.attemptNumber + 1;
-    
-    // Lấy danh sách drivers đã được request rồi
-    const previousRequests = await this.assignmentRequestModel.find({
-      rideId: previousRequest.rideId,
-    }).select('driverId');
 
-    const triedDriverIds = previousRequests.map(r => r.driverId.toString());
+    // Lấy danh sách drivers đã được request rồi
+    const previousRequests = await this.assignmentRequestModel
+      .find({
+        rideId: previousRequest.rideId,
+      })
+      .select('driverId');
+
+    const triedDriverIds = previousRequests.map((r) => r.driverId.toString());
 
     // Tìm driver tiếp theo chưa được request
     const nextDriver = driverScores.find(
-      ds => !triedDriverIds.includes(ds.driver._id.toString())
+      (ds) => !triedDriverIds.includes(ds.driver._id.toString()),
     );
 
     if (!nextDriver) {
-      this.logger.error(`No more drivers available for ride ${previousRequest.rideId}`);
-      
+      this.logger.error(
+        `No more drivers available for ride ${previousRequest.rideId}`,
+      );
+
       // Update ride status
       await this.rideModel.findByIdAndUpdate(previousRequest.rideId, {
         status: 'no_driver_available',
@@ -198,7 +234,7 @@ export class AutoAssignService {
       this.eventEmitter.emit('ride.no_driver_available', {
         rideId: previousRequest.rideId,
       });
-      
+
       return;
     }
 
@@ -211,11 +247,13 @@ export class AutoAssignService {
     );
 
     this.logger.log(
-      `Retry attempt ${attemptNumber}: Created assignment request ${newRequest._id} for driver ${nextDriver.driver._id}`
+      `Retry attempt ${attemptNumber}: Created assignment request ${newRequest._id} for driver ${nextDriver.driver._id}`,
     );
 
     // Get timeout from config
-    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(ServiceType.HIRE);
+    const timeoutMs = await this.driverSearchConfigService.getRequestTimeout(
+      ServiceType.HIRE,
+    );
 
     // Emit event
     this.eventEmitter.emit('assignment.request.created', {
@@ -227,14 +265,24 @@ export class AutoAssignService {
     });
 
     // Lên lịch timeout check
-    this.scheduleTimeoutCheck(newRequest._id.toString(), driverScores, timeoutMs);
+    this.scheduleTimeoutCheck(
+      newRequest._id.toString(),
+      driverScores,
+      timeoutMs,
+    );
   }
 
   /**
    * Driver accept assignment request
    */
-  async acceptAssignmentRequest(requestId: string, driverId: string): Promise<RideDocument> {
-    this.logger.log('[AcceptAssignment] Starting acceptance process:', { requestId, driverId });
+  async acceptAssignmentRequest(
+    requestId: string,
+    driverId: string,
+  ): Promise<RideDocument> {
+    this.logger.log('[AcceptAssignment] Starting acceptance process:', {
+      requestId,
+      driverId,
+    });
 
     const request = await this.assignmentRequestModel.findById(requestId);
 
@@ -275,7 +323,7 @@ export class AutoAssignService {
         status: 'accepted',
         respondedAt: new Date(),
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedRequest) {
@@ -292,17 +340,21 @@ export class AutoAssignService {
     }
 
     // Update ride
-    const updatedRide = await this.rideModel.findByIdAndUpdate(
-      request.rideId,
-      {
-        driverId: new Types.ObjectId(driverId),
-        status: 'accepted',
-        acceptedAt: new Date(),
-      },
-      { new: true }
-    ).populate(['customerId', 'driverId']);
+    const updatedRide = await this.rideModel
+      .findByIdAndUpdate(
+        request.rideId,
+        {
+          driverId: new Types.ObjectId(driverId),
+          status: 'accepted',
+          acceptedAt: new Date(),
+        },
+        { new: true },
+      )
+      .populate(['customerId', 'driverId']);
 
-    this.logger.log(`Driver ${driverId} accepted assignment request ${requestId}`);
+    this.logger.log(
+      `Driver ${driverId} accepted assignment request ${requestId}`,
+    );
 
     // Cancel tất cả pending requests khác của ride này
     await this.assignmentRequestModel.updateMany(
@@ -314,7 +366,7 @@ export class AutoAssignService {
       {
         status: 'cancelled',
         respondedAt: new Date(),
-      }
+      },
     );
 
     // Emit event
@@ -336,7 +388,10 @@ export class AutoAssignService {
     driverId: string,
     reason?: string,
   ): Promise<void> {
-    this.logger.log('[RejectAssignment] Starting rejection process:', { requestId, driverId });
+    this.logger.log('[RejectAssignment] Starting rejection process:', {
+      requestId,
+      driverId,
+    });
 
     const request = await this.assignmentRequestModel.findById(requestId);
 
@@ -386,7 +441,7 @@ export class AutoAssignService {
         respondedAt: new Date(),
         rejectionReason: reason,
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedRequest) {
@@ -394,15 +449,17 @@ export class AutoAssignService {
       throw new BadRequestException('Không thể từ chối yêu cầu này');
     }
 
-    this.logger.log(`Driver ${driverId} rejected assignment request ${requestId}${reason ? `: ${reason}` : ''}`);
+    this.logger.log(
+      `Driver ${driverId} rejected assignment request ${requestId}${reason ? `: ${reason}` : ''}`,
+    );
 
     // Lấy lại driver scores để retry
     const ride = await this.rideModel.findById(request.rideId);
     const availableDrivers = await this.getAvailableDrivers(ride);
     const driverScores = await Promise.all(
       availableDrivers.map(async (driver) =>
-        this.calculateDriverScore(driver, ride)
-      )
+        this.calculateDriverScore(driver, ride),
+      ),
     );
     driverScores.sort((a, b) => b.score - a.score);
 
@@ -412,7 +469,9 @@ export class AutoAssignService {
   /**
    * Lấy danh sách tài xế sẵn có
    */
-  private async getAvailableDrivers(ride: RideDocument): Promise<DriverDocument[]> {
+  private async getAvailableDrivers(
+    ride: RideDocument,
+  ): Promise<DriverDocument[]> {
     // ✅ Get ALL busy driver IDs across ALL services (rides, delivery, combined-trips, hourly-services)
     const busyDriverIds = await this.driversService.getBusyDriverIds();
 
@@ -427,16 +486,17 @@ export class AutoAssignService {
       requiredDriverType = 'share';
     }
 
-    this.logger.log(`[AutoAssignService] Looking for drivers with type: ${requiredDriverType} for ride type: ${ride.rideType}`);
-    this.logger.log(`[AutoAssignService] Excluding ${busyDriverIds.length} busy drivers (across all services)`);
+    this.logger.log(
+      `[AutoAssignService] Looking for drivers with type: ${requiredDriverType} for ride type: ${ride.rideType}`,
+    );
+    this.logger.log(
+      `[AutoAssignService] Excluding ${busyDriverIds.length} busy drivers (across all services)`,
+    );
 
     // FIX: Query should consider both status='online' OR isOnline=true
     // AND filter by driverTypes array
     const drivers = await this.driverModel.find({
-      $or: [
-        { status: 'online' },
-        { isOnline: true }
-      ],
+      $or: [{ status: 'online' }, { isOnline: true }],
       isAcceptingRides: true,
       isSuspended: false,
       currentLocation: { $exists: true }, // Có vị trí hiện tại
@@ -448,7 +508,8 @@ export class AutoAssignService {
       total: drivers.length,
       busyCount: busyDriverIds.length,
       requiredType: requiredDriverType,
-      query: 'status=online OR isOnline=true AND driverTypes includes requiredType AND NOT busy in ANY service',
+      query:
+        'status=online OR isOnline=true AND driverTypes includes requiredType AND NOT busy in ANY service',
     });
 
     return drivers;
@@ -459,7 +520,7 @@ export class AutoAssignService {
    */
   private async calculateDriverScore(
     driver: DriverDocument,
-    ride: RideDocument
+    ride: RideDocument,
   ): Promise<DriverScore> {
     // 1️⃣ Điểm khoảng cách (40%) - Tài xế càng gần thì điểm càng cao
     const distanceScore = this.calculateDistanceScore(driver, ride);
@@ -473,7 +534,8 @@ export class AutoAssignService {
     // 4️⃣ Điểm thời gian online (10%) - Tài xế online lâu hơn được điểm cao hơn
     const onlineTimeScore = this.calculateOnlineTimeScore(driver);
 
-    const totalScore = distanceScore + ratingScore + completionScore + onlineTimeScore;
+    const totalScore =
+      distanceScore + ratingScore + completionScore + onlineTimeScore;
 
     return {
       driver,
@@ -491,8 +553,14 @@ export class AutoAssignService {
    * Tính điểm dựa trên khoảng cách (Sử dụng MongoDB geospatial)
    * Tài xế gần nhất = 40 điểm, sau đó giảm dần
    */
-  private calculateDistanceScore(driver: DriverDocument, ride: RideDocument): number {
-    if (!driver.currentLocation?.coordinates || !ride.pickupLocation?.coordinates) {
+  private calculateDistanceScore(
+    driver: DriverDocument,
+    ride: RideDocument,
+  ): number {
+    if (
+      !driver.currentLocation?.coordinates ||
+      !ride.pickupLocation?.coordinates
+    ) {
       return 0;
     }
 
@@ -502,7 +570,7 @@ export class AutoAssignService {
     // Tính khoảng cách bằng Haversine formula (đơn giản hóa)
     const distance = this.haversineDistance(
       [driverCoords[1], driverCoords[0]], // [lat, lng]
-      [pickupCoords[1], pickupCoords[0]]
+      [pickupCoords[1], pickupCoords[0]],
     );
 
     // distance tính bằng km
@@ -550,7 +618,7 @@ export class AutoAssignService {
    */
   private haversineDistance(
     [lat1, lng1]: [number, number],
-    [lat2, lng2]: [number, number]
+    [lat2, lng2]: [number, number],
   ): number {
     const R = 6371; // Bán kính Trái Đất (km)
     const dLat = this.toRad(lat2 - lat1);

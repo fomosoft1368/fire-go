@@ -1,9 +1,21 @@
-import { Injectable, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { CombinedTrip, CombinedTripDocument, CombinedTripStatus } from '../schemas/combined-trip.schema';
-import { RideRequest, RideRequestDocument } from '../schemas/ride-request.schema';
+import {
+  CombinedTrip,
+  CombinedTripDocument,
+  CombinedTripStatus,
+} from '../schemas/combined-trip.schema';
+import {
+  RideRequest,
+  RideRequestDocument,
+} from '../schemas/ride-request.schema';
 import { Driver, DriverDocument } from '../../drivers/schemas/driver.schema';
 import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 
@@ -19,27 +31,32 @@ export class CombinedTripsService implements OnModuleInit {
   private pendingTripScannerInterval: NodeJS.Timeout | null = null; // ✅ NEW: Scanner for pending customer trips
   private processingTrips: Set<string> = new Set(); // Track trips being processed
 
-
   private pricingService: PricingService;
 
   constructor(
-    @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTripDocument>,
-    @InjectModel(RideRequest.name) private rideRequestModel: Model<RideRequestDocument>,
+    @InjectModel(CombinedTrip.name)
+    private combinedTripModel: Model<CombinedTripDocument>,
+    @InjectModel(RideRequest.name)
+    private rideRequestModel: Model<RideRequestDocument>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     private eventEmitter: EventEmitter2,
     private moduleRef: ModuleRef,
     private configService: ConfigService,
     private appSettingsService: AppSettingsService,
-  ) { }
+  ) {}
 
   /**
    * Called after all modules are initialized
    */
   onModuleInit() {
     this.pricingService = this.moduleRef.get(PricingService, { strict: false });
-    console.log('🚀 CombinedTripsService initialized - starting timeout checker');
+    console.log(
+      '🚀 CombinedTripsService initialized - starting timeout checker',
+    );
     this.startTimeoutChecker();
-    console.log('🚀 CombinedTripsService initialized - starting pending trip scanner');
+    console.log(
+      '🚀 CombinedTripsService initialized - starting pending trip scanner',
+    );
     this.startPendingTripScanner(); // ✅ NEW: Start scanner for pending customer trips
   }
 
@@ -55,10 +72,14 @@ export class CombinedTripsService implements OnModuleInit {
       status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] }, // ✅ CHỈ lấy requests đang active
     });
 
-    console.log(`[recalculateFaresForCombinedTrip] Found ${requests.length} ACTIVE requests for trip ${combinedTripId}`);
+    console.log(
+      `[recalculateFaresForCombinedTrip] Found ${requests.length} ACTIVE requests for trip ${combinedTripId}`,
+    );
 
     if (!requests.length) {
-      console.log('[recalculateFaresForCombinedTrip] ⚠️ No active requests — resetting trip fares to 0');
+      console.log(
+        '[recalculateFaresForCombinedTrip] ⚠️ No active requests — resetting trip fares to 0',
+      );
       await this.combinedTripModel.findOneAndUpdate(
         {
           _id: combinedTripId,
@@ -77,26 +98,37 @@ export class CombinedTripsService implements OnModuleInit {
 
     // 🚍 CRITICAL: SKIP inter-provincial fixed price requests
     // Chỉ tính lại fare cho distance-based requests
-    const dynamicPriceRequests = requests.filter(req => !req.hasFixedPrice);
-    const fixedPriceRequests = requests.filter(req => req.hasFixedPrice);
+    const dynamicPriceRequests = requests.filter((req) => !req.hasFixedPrice);
+    const fixedPriceRequests = requests.filter((req) => req.hasFixedPrice);
 
     console.log(`[recalculateFaresForCombinedTrip] 📊 Breakdown:`);
-    console.log(`  → ${dynamicPriceRequests.length} distance-based requests (will recalculate)`);
-    console.log(`  → ${fixedPriceRequests.length} fixed-price requests (keep original price)`);
+    console.log(
+      `  → ${dynamicPriceRequests.length} distance-based requests (will recalculate)`,
+    );
+    console.log(
+      `  → ${fixedPriceRequests.length} fixed-price requests (keep original price)`,
+    );
 
     if (fixedPriceRequests.length > 0) {
-      fixedPriceRequests.forEach(req => {
-        console.log(`    🚍 Fixed price: Request ${req._id} - ${req.fare?.toLocaleString()}đ (${req.seats} ghế)`);
+      fixedPriceRequests.forEach((req) => {
+        console.log(
+          `    🚍 Fixed price: Request ${req._id} - ${req.fare?.toLocaleString()}đ (${req.seats} ghế)`,
+        );
       });
     }
 
     // 🚍 CRITICAL FIX: Nếu TẤT CẢ requests đều là fixed price → VẪN CẦN recalculate discount!
     // Vì discount phụ thuộc vào TỔNG SỐ NGƯỜI trong xe
     if (dynamicPriceRequests.length === 0) {
-      console.log('[recalculateFaresForCombinedTrip] 🚍 ALL requests use fixed price - recalculating discount based on total passengers');
+      console.log(
+        '[recalculateFaresForCombinedTrip] 🚍 ALL requests use fixed price - recalculating discount based on total passengers',
+      );
 
       // Tính tổng số ghế để xác định discount
-      const totalSeats = fixedPriceRequests.reduce((sum, req) => sum + (req.seats || 1), 0);
+      const totalSeats = fixedPriceRequests.reduce(
+        (sum, req) => sum + (req.seats || 1),
+        0,
+      );
 
       // ✅ Lấy discount rate từ pricing config (carpoolDiscounts)
       const pricingConfig = await this.pricingService.getConfig();
@@ -105,23 +137,33 @@ export class CombinedTripsService implements OnModuleInit {
       );
       const discountRate = discountConfig ? discountConfig.discount / 100 : 0;
 
-      console.log(`[recalculateFaresForCombinedTrip] 📊 Total seats: ${totalSeats}, Discount: ${Math.round(discountRate * 100)}% (from config)`);
+      console.log(
+        `[recalculateFaresForCombinedTrip] 📊 Total seats: ${totalSeats}, Discount: ${Math.round(discountRate * 100)}% (from config)`,
+      );
 
       // Recalculate fare cho TẤT CẢ fixed-price requests với discount mới
-      await Promise.all(fixedPriceRequests.map(async (req) => {
-        const baseFare = req.baseFare || req.fare || 0;
-        const newFare = Math.round(baseFare * (1 - discountRate));
+      await Promise.all(
+        fixedPriceRequests.map(async (req) => {
+          const baseFare = req.baseFare || req.fare || 0;
+          const newFare = Math.round(baseFare * (1 - discountRate));
 
-        console.log(`  → Request ${req._id}: ${baseFare.toLocaleString()}đ → ${newFare.toLocaleString()}đ (${Math.round(discountRate * 100)}% off)`);
+          console.log(
+            `  → Request ${req._id}: ${baseFare.toLocaleString()}đ → ${newFare.toLocaleString()}đ (${Math.round(discountRate * 100)}% off)`,
+          );
 
-        return this.rideRequestModel.findByIdAndUpdate(req._id, { fare: newFare });
-      }));
+          return this.rideRequestModel.findByIdAndUpdate(req._id, {
+            fare: newFare,
+          });
+        }),
+      );
 
       // Update trip totalFare
-      const tripTotalFare = await this.rideRequestModel.find({
-        combinedTripId: new Types.ObjectId(combinedTripId),
-        status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] },
-      }).then(reqs => reqs.reduce((sum, req) => sum + (req.fare || 0), 0));
+      const tripTotalFare = await this.rideRequestModel
+        .find({
+          combinedTripId: new Types.ObjectId(combinedTripId),
+          status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] },
+        })
+        .then((reqs) => reqs.reduce((sum, req) => sum + (req.fare || 0), 0));
 
       // ✅ Only update if trip is not cancelled
       await this.combinedTripModel.findOneAndUpdate(
@@ -131,21 +173,33 @@ export class CombinedTripsService implements OnModuleInit {
         },
         {
           totalFare: tripTotalFare,
-        }
+        },
       );
 
-      console.log(`[recalculateFaresForCombinedTrip] ✅ Updated ${fixedPriceRequests.length} fixed-price requests. Trip total: ${tripTotalFare.toLocaleString()}đ`);
+      console.log(
+        `[recalculateFaresForCombinedTrip] ✅ Updated ${fixedPriceRequests.length} fixed-price requests. Trip total: ${tripTotalFare.toLocaleString()}đ`,
+      );
       return;
     }
 
     // ✅ Tính TỔNG SỐ GHẾ trong xe (bao gồm CẢ fixed-price requests)
     // Điều này quan trọng để tính discount đúng!
-    const totalSeatsFromFixedPrice = fixedPriceRequests.reduce((sum, req) => sum + (req.seats || 1), 0);
-    const totalSeatsFromDynamic = dynamicPriceRequests.reduce((sum, req) => sum + (req.seats || 1), 0);
+    const totalSeatsFromFixedPrice = fixedPriceRequests.reduce(
+      (sum, req) => sum + (req.seats || 1),
+      0,
+    );
+    const totalSeatsFromDynamic = dynamicPriceRequests.reduce(
+      (sum, req) => sum + (req.seats || 1),
+      0,
+    );
     const totalSeatsInTrip = totalSeatsFromFixedPrice + totalSeatsFromDynamic;
 
-    console.log(`[recalculateFaresForCombinedTrip] 🎫 Total seats in trip: ${totalSeatsInTrip}`);
-    console.log(`  → ${totalSeatsFromFixedPrice} ghế (fixed-price) + ${totalSeatsFromDynamic} ghế (distance-based)`);
+    console.log(
+      `[recalculateFaresForCombinedTrip] 🎫 Total seats in trip: ${totalSeatsInTrip}`,
+    );
+    console.log(
+      `  → ${totalSeatsFromFixedPrice} ghế (fixed-price) + ${totalSeatsFromDynamic} ghế (distance-based)`,
+    );
 
     // ✅ CHỈ tính lại giá cho distance-based requests
     // Chuẩn bị dữ liệu cho pricing
@@ -183,57 +237,83 @@ export class CombinedTripsService implements OnModuleInit {
       }
     }
 
-    console.log(`[recalculateFaresForCombinedTrip] Calculating price with ${passengers.length} passengers (${totalSeatsFromFixedPrice} dummy + ${totalSeatsFromDynamic} real)`);
-    console.log(`  → Distance-based requests: ${dynamicPriceRequests.map(r => `${r.seats || 1} ghế`).join(', ')}`);
+    console.log(
+      `[recalculateFaresForCombinedTrip] Calculating price with ${passengers.length} passengers (${totalSeatsFromFixedPrice} dummy + ${totalSeatsFromDynamic} real)`,
+    );
+    console.log(
+      `  → Distance-based requests: ${dynamicPriceRequests.map((r) => `${r.seats || 1} ghế`).join(', ')}`,
+    );
 
     // Tính lại giá CHỈ cho distance-based requests
-    const pricingResult = await this.pricingService.calculatePrice({ passengers });
+    const pricingResult = await this.pricingService.calculatePrice({
+      passengers,
+    });
     const breakdown = pricingResult.breakdown;
 
-    console.log(`[recalculateFaresForCombinedTrip] 💡 Discount applied: ${breakdown[0]?.discountApplied || 0}% (based on ${passengers.length} total seats)`);
+    console.log(
+      `[recalculateFaresForCombinedTrip] 💡 Discount applied: ${breakdown[0]?.discountApplied || 0}% (based on ${passengers.length} total seats)`,
+    );
 
     // 🚍 NEW: Tính lại fare cho FIXED-PRICE requests với discount MỚI
     // Fixed-price requests CŨNG ĐƯỢC giảm giá khi có thêm người ghép!
     const newDiscountRate = (breakdown[0]?.discountApplied || 0) / 100;
 
     if (fixedPriceRequests.length > 0) {
-      console.log(`[recalculateFaresForCombinedTrip] 🚍 Recalculating ${fixedPriceRequests.length} fixed-price requests with NEW discount ${Math.round(newDiscountRate * 100)}%`);
+      console.log(
+        `[recalculateFaresForCombinedTrip] 🚍 Recalculating ${fixedPriceRequests.length} fixed-price requests with NEW discount ${Math.round(newDiscountRate * 100)}%`,
+      );
 
-      await Promise.all(fixedPriceRequests.map(async (req) => {
-        // baseFare = giá gốc TRƯỚC discount
-        const baseFare = req.baseFare || req.fare || 0;
+      await Promise.all(
+        fixedPriceRequests.map(async (req) => {
+          // baseFare = giá gốc TRƯỚC discount
+          const baseFare = req.baseFare || req.fare || 0;
 
-        // Áp dụng discount MỚI
-        const newFare = Math.round(baseFare * (1 - newDiscountRate));
+          // Áp dụng discount MỚI
+          const newFare = Math.round(baseFare * (1 - newDiscountRate));
 
-        console.log(`  → Fixed-price Request ${req._id}: baseFare ${baseFare.toLocaleString()}đ → newFare ${newFare.toLocaleString()}đ (discount ${Math.round(newDiscountRate * 100)}%)`);
+          console.log(
+            `  → Fixed-price Request ${req._id}: baseFare ${baseFare.toLocaleString()}đ → newFare ${newFare.toLocaleString()}đ (discount ${Math.round(newDiscountRate * 100)}%)`,
+          );
 
-        return this.rideRequestModel.findByIdAndUpdate(req._id, { fare: newFare });
-      }));
+          return this.rideRequestModel.findByIdAndUpdate(req._id, {
+            fare: newFare,
+          });
+        }),
+      );
 
-      console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${fixedPriceRequests.length} fixed-price requests`);
+      console.log(
+        `[recalculateFaresForCombinedTrip] ✅ Updated fares for ${fixedPriceRequests.length} fixed-price requests`,
+      );
     }
 
     // ✅ Cập nhật fare CHỈ cho distance-based requests
     // Mỗi request có thể có nhiều ghế, cần lấy tổng giá cho TẤT CẢ ghế của request đó
     // 🚍 CRITICAL: Skip dummy passengers (fixed-price) ở đầu breakdown!
     let passengerIndex = totalSeatsFromFixedPrice; // Bắt đầu từ sau dummy passengers
-    await Promise.all(dynamicPriceRequests.map(async (req) => {
-      const seatsCount = req.seats || 1;
-      let totalFareForRequest = 0;
+    await Promise.all(
+      dynamicPriceRequests.map(async (req) => {
+        const seatsCount = req.seats || 1;
+        let totalFareForRequest = 0;
 
-      // Cộng giá của TẤT CẢ ghế thuộc request này
-      for (let i = 0; i < seatsCount; i++) {
-        const farePerSeat = breakdown[passengerIndex]?.finalPrice || 0;
-        totalFareForRequest += farePerSeat;
-        passengerIndex++;
-      }
+        // Cộng giá của TẤT CẢ ghế thuộc request này
+        for (let i = 0; i < seatsCount; i++) {
+          const farePerSeat = breakdown[passengerIndex]?.finalPrice || 0;
+          totalFareForRequest += farePerSeat;
+          passengerIndex++;
+        }
 
-      console.log(`  → Distance-based Request ${req._id}: ${req.distance}km, ${seatsCount} ghế, tổng: ${totalFareForRequest.toLocaleString()}đ (${(totalFareForRequest / seatsCount).toLocaleString()}đ/ghế)`);
-      return this.rideRequestModel.findByIdAndUpdate(req._id, { fare: totalFareForRequest });
-    }));
+        console.log(
+          `  → Distance-based Request ${req._id}: ${req.distance}km, ${seatsCount} ghế, tổng: ${totalFareForRequest.toLocaleString()}đ (${(totalFareForRequest / seatsCount).toLocaleString()}đ/ghế)`,
+        );
+        return this.rideRequestModel.findByIdAndUpdate(req._id, {
+          fare: totalFareForRequest,
+        });
+      }),
+    );
 
-    console.log(`[recalculateFaresForCombinedTrip] ✅ Updated fares for ${dynamicPriceRequests.length} distance-based requests`);
+    console.log(
+      `[recalculateFaresForCombinedTrip] ✅ Updated fares for ${dynamicPriceRequests.length} distance-based requests`,
+    );
 
     // ✅ CRITICAL: Update combinedTrip totalFare = sum of ALL request fares (fixed + dynamic)
     const allUpdatedRequests = await this.rideRequestModel.find({
@@ -241,7 +321,10 @@ export class CombinedTripsService implements OnModuleInit {
       status: { $in: ['accepted', 'arrived_at_pickup', 'in_progress'] },
     });
 
-    const tripTotalFare = allUpdatedRequests.reduce((sum, req) => sum + (req.fare || 0), 0);
+    const tripTotalFare = allUpdatedRequests.reduce(
+      (sum, req) => sum + (req.fare || 0),
+      0,
+    );
 
     // ✅ Only update if trip is not cancelled
     await this.combinedTripModel.findOneAndUpdate(
@@ -251,10 +334,12 @@ export class CombinedTripsService implements OnModuleInit {
       },
       {
         totalFare: tripTotalFare,
-      }
+      },
     );
 
-    console.log(`[recalculateFaresForCombinedTrip] 💰 Updated trip totalFare: ${tripTotalFare.toLocaleString()}đ (${fixedPriceRequests.length} fixed + ${dynamicPriceRequests.length} dynamic)`);
+    console.log(
+      `[recalculateFaresForCombinedTrip] 💰 Updated trip totalFare: ${tripTotalFare.toLocaleString()}đ (${fixedPriceRequests.length} fixed + ${dynamicPriceRequests.length} dynamic)`,
+    );
   }
 
   /**
@@ -269,11 +354,18 @@ export class CombinedTripsService implements OnModuleInit {
   ): Promise<any> {
     try {
       // Validate numbers
-      if (isNaN(startLng) || isNaN(startLat) || isNaN(endLng) || isNaN(endLat)) {
+      if (
+        isNaN(startLng) ||
+        isNaN(startLat) ||
+        isNaN(endLng) ||
+        isNaN(endLat)
+      ) {
         throw new BadRequestException('Invalid coordinates - must be numbers');
       }
 
-      const googleMapsApiKey = this.appSettingsService.getSync('GOOGLE_MAPS_API_KEY') || process.env.GOOGLE_MAPS_API_KEY;
+      const googleMapsApiKey =
+        this.appSettingsService.getSync('GOOGLE_MAPS_API_KEY') ||
+        process.env.GOOGLE_MAPS_API_KEY;
       if (!googleMapsApiKey) {
         throw new BadRequestException('Google Maps API key not configured');
       }
@@ -309,7 +401,9 @@ export class CombinedTripsService implements OnModuleInit {
       if (!response.ok) {
         const errorBody = await response.text();
         console.error('Google Maps API error:', response.status, errorBody);
-        throw new BadRequestException(`Google Maps API error: ${response.status}`);
+        throw new BadRequestException(
+          `Google Maps API error: ${response.status}`,
+        );
       }
 
       const data: any = await response.json();
@@ -323,14 +417,25 @@ export class CombinedTripsService implements OnModuleInit {
       if (data.status === 'OK' && data.routes && data.routes.length > 0) {
         // ✅ SIMPLE: Pick the ABSOLUTE SHORTEST route (like Google Maps mobile)
         // No complex scoring - distance is king!
-        console.log(`🔍 Found ${data.routes.length} alternative routes, analyzing...`);
+        console.log(
+          `🔍 Found ${data.routes.length} alternative routes, analyzing...`,
+        );
 
         let shortestRoute = data.routes[0];
-        let shortestDistance = data.routes[0].legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
+        let shortestDistance = data.routes[0].legs.reduce(
+          (sum: number, leg: any) => sum + leg.distance.value,
+          0,
+        );
 
         for (const route of data.routes) {
-          const totalDistance = route.legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
-          const totalDuration = route.legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0);
+          const totalDistance = route.legs.reduce(
+            (sum: number, leg: any) => sum + leg.distance.value,
+            0,
+          );
+          const totalDuration = route.legs.reduce(
+            (sum: number, leg: any) => sum + leg.duration.value,
+            0,
+          );
 
           console.log(`📏 Route ${data.routes.indexOf(route) + 1}:`);
           console.log(`   Distance: ${(totalDistance / 1000).toFixed(2)}km`);
@@ -345,20 +450,32 @@ export class CombinedTripsService implements OnModuleInit {
           }
         }
 
-        console.log(`✅ Selected SHORTEST route: ${(shortestDistance / 1000).toFixed(2)}km - ${shortestRoute.summary}`);
+        console.log(
+          `✅ Selected SHORTEST route: ${(shortestDistance / 1000).toFixed(2)}km - ${shortestRoute.summary}`,
+        );
 
         const route = shortestRoute;
 
         // ✅ Calculate distance and duration from selected route
-        const totalDistance = route.legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
-        const totalDuration = route.legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0);
+        const totalDistance = route.legs.reduce(
+          (sum: number, leg: any) => sum + leg.distance.value,
+          0,
+        );
+        const totalDuration = route.legs.reduce(
+          (sum: number, leg: any) => sum + leg.duration.value,
+          0,
+        );
 
         const distanceKm = totalDistance / 1000; // Convert meters to km
         const durationMinutes = Math.ceil(totalDuration / 60); // Convert seconds to minutes
 
         // Format text
         const distanceText = `${distanceKm.toFixed(1)} km`;
-        const durationText = `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`.replace('0h ', '');
+        const durationText =
+          `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60}m`.replace(
+            '0h ',
+            '',
+          );
 
         console.log('✅ Route found:', {
           distanceKm: distanceKm.toFixed(2),
@@ -370,8 +487,13 @@ export class CombinedTripsService implements OnModuleInit {
 
         // Decode the polyline
         console.log('📍 Decoding polyline from Google Maps...');
-        const decodedCoordinates = this.decodePolyline(route.overview_polyline.points);
-        console.log('📍 Polyline decoded, coordinates:', decodedCoordinates.length);
+        const decodedCoordinates = this.decodePolyline(
+          route.overview_polyline.points,
+        );
+        console.log(
+          '📍 Polyline decoded, coordinates:',
+          decodedCoordinates.length,
+        );
 
         const response = {
           distance: distanceKm, // in km
@@ -389,10 +511,10 @@ export class CombinedTripsService implements OnModuleInit {
                   distance: totalDistance,
                   duration: totalDuration,
                   routeSummary: route.summary, // Include route name (e.g., "via QL1A")
-                }
-              }
-            }
-          ]
+                },
+              },
+            },
+          ],
         };
 
         console.log('📍 Final response:', {
@@ -409,8 +531,13 @@ export class CombinedTripsService implements OnModuleInit {
         throw new BadRequestException(`No route found. Status: ${data.status}`);
       }
     } catch (err: any) {
-      console.error('❌ Error fetching directions from Google Maps:', err.message);
-      throw new BadRequestException(err.message || 'Failed to fetch directions');
+      console.error(
+        '❌ Error fetching directions from Google Maps:',
+        err.message,
+      );
+      throw new BadRequestException(
+        err.message || 'Failed to fetch directions',
+      );
     }
   }
 
@@ -424,7 +551,10 @@ export class CombinedTripsService implements OnModuleInit {
     let previous = [0, 0];
     let i = 0;
 
-    console.log('[decodePolyline] Decoding polyline of length:', encoded.length);
+    console.log(
+      '[decodePolyline] Decoding polyline of length:',
+      encoded.length,
+    );
 
     while (i < encoded.length) {
       let ll = [0, 0];
@@ -452,7 +582,10 @@ export class CombinedTripsService implements OnModuleInit {
     console.log('[decodePolyline] Decoded total coordinates:', decoded.length);
     if (decoded.length > 0) {
       console.log('[decodePolyline] Sample coordinates:', decoded.slice(0, 3));
-      console.log('[decodePolyline] Last coordinate:', decoded[decoded.length - 1]);
+      console.log(
+        '[decodePolyline] Last coordinate:',
+        decoded[decoded.length - 1],
+      );
     }
 
     return decoded;
@@ -472,13 +605,13 @@ export class CombinedTripsService implements OnModuleInit {
     // ✅ Main Vietnam highway waypoints (North to South)
     // These are strategic points along Vietnam's main North-South highway
     const vietnamHighwayWaypoints = [
-      { lng: 105.8542, lat: 21.0285, name: 'Hà Nội' },           // North
-      { lng: 105.8500, lat: 19.8000, name: 'Thanh Hóa' },
-      { lng: 106.5000, lat: 18.0000, name: 'Huế' },
-      { lng: 107.0000, lat: 16.0000, name: 'Đà Nẵng' },
-      { lng: 109.2000, lat: 13.8000, name: 'Quy Nhơn' },
-      { lng: 108.0000, lat: 12.0000, name: 'Nha Trang' },
-      { lng: 107.5000, lat: 10.8000, name: 'TP.HCM area' },      // South
+      { lng: 105.8542, lat: 21.0285, name: 'Hà Nội' }, // North
+      { lng: 105.85, lat: 19.8, name: 'Thanh Hóa' },
+      { lng: 106.5, lat: 18.0, name: 'Huế' },
+      { lng: 107.0, lat: 16.0, name: 'Đà Nẵng' },
+      { lng: 109.2, lat: 13.8, name: 'Quy Nhơn' },
+      { lng: 108.0, lat: 12.0, name: 'Nha Trang' },
+      { lng: 107.5, lat: 10.8, name: 'TP.HCM area' }, // South
     ];
 
     let coordinates = `${startLng},${startLat}`;
@@ -489,9 +622,12 @@ export class CombinedTripsService implements OnModuleInit {
 
       // Tìm 3-5 waypoints gần nhất trên đường chính
       const relevantWaypoints = this.findRelevantWaypoints(
-        startLng, startLat, endLng, endLat,
+        startLng,
+        startLat,
+        endLng,
+        endLat,
         vietnamHighwayWaypoints,
-        Math.min(5, Math.ceil(directDistance / 200)) // 1 waypoint per 200km
+        Math.min(5, Math.ceil(directDistance / 200)), // 1 waypoint per 200km
       );
 
       for (const wp of relevantWaypoints) {
@@ -509,8 +645,9 @@ export class CombinedTripsService implements OnModuleInit {
 
       // Tìm waypoint gần nhất trên đường chính
       const nearestWaypoint = this.findNearestWaypoint(
-        adjustedMidLng, midLat,
-        vietnamHighwayWaypoints
+        adjustedMidLng,
+        midLat,
+        vietnamHighwayWaypoints,
       );
 
       if (nearestWaypoint) {
@@ -538,10 +675,17 @@ export class CombinedTripsService implements OnModuleInit {
   ): any[] {
     // Sort waypoints by their position along the route
     const sorted = allWaypoints
-      .map(wp => ({
+      .map((wp) => ({
         ...wp,
         // Score based on proximity to route and progression from start to end
-        score: this.calculateWaypointScore(startLat, startLng, endLat, endLng, wp.lat, wp.lng),
+        score: this.calculateWaypointScore(
+          startLat,
+          startLng,
+          endLat,
+          endLng,
+          wp.lat,
+          wp.lng,
+        ),
       }))
       .sort((a, b) => a.score - b.score)
       .slice(0, maxCount);
@@ -552,13 +696,14 @@ export class CombinedTripsService implements OnModuleInit {
   /**
    * Find nearest waypoint to a given coordinate
    */
-  private findNearestWaypoint(
-    lng: number,
-    lat: number,
-    waypoints: any[],
-  ): any {
+  private findNearestWaypoint(lng: number, lat: number, waypoints: any[]): any {
     let nearest = waypoints[0];
-    let minDistance = this.calculateHaversineDistance(lat, lng, nearest.lat, nearest.lng);
+    let minDistance = this.calculateHaversineDistance(
+      lat,
+      lng,
+      nearest.lat,
+      nearest.lng,
+    );
 
     for (const wp of waypoints) {
       const dist = this.calculateHaversineDistance(lat, lng, wp.lat, wp.lng);
@@ -584,9 +729,24 @@ export class CombinedTripsService implements OnModuleInit {
   ): number {
     // Distance from waypoint to route line
     // Using simple projection: how close waypoint is to line between start and end
-    const totalDistance = this.calculateHaversineDistance(startLat, startLng, endLat, endLng);
-    const distToStart = this.calculateHaversineDistance(startLat, startLng, waypointLat, waypointLng);
-    const distToEnd = this.calculateHaversineDistance(waypointLat, waypointLng, endLat, endLng);
+    const totalDistance = this.calculateHaversineDistance(
+      startLat,
+      startLng,
+      endLat,
+      endLng,
+    );
+    const distToStart = this.calculateHaversineDistance(
+      startLat,
+      startLng,
+      waypointLat,
+      waypointLng,
+    );
+    const distToEnd = this.calculateHaversineDistance(
+      waypointLat,
+      waypointLng,
+      endLat,
+      endLng,
+    );
 
     // Score = how much waypoint deviates from straight line
     // Lower score = better alignment with route
@@ -613,8 +773,9 @@ export class CombinedTripsService implements OnModuleInit {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(this.toRadians(lat1)) *
-      Math.cos(this.toRadians(lat2)) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        Math.cos(this.toRadians(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
@@ -628,7 +789,9 @@ export class CombinedTripsService implements OnModuleInit {
    * Start interval to check for expired requests every 5 seconds
    */
   private startTimeoutChecker() {
-    console.log('⏰ Starting timeout checker - will check expired requests every 5 seconds');
+    console.log(
+      '⏰ Starting timeout checker - will check expired requests every 5 seconds',
+    );
 
     this.timeoutCheckInterval = setInterval(async () => {
       try {
@@ -639,46 +802,76 @@ export class CombinedTripsService implements OnModuleInit {
         });
 
         if (expiredRequests.length > 0) {
-          console.log('⏰ [Timeout Checker] Found', expiredRequests.length, 'expired requests');
+          console.log(
+            '⏰ [Timeout Checker] Found',
+            expiredRequests.length,
+            'expired requests',
+          );
 
           for (const expiredReq of expiredRequests) {
-            console.log('⏰ Processing expired request:', expiredReq._id, 'for trip:', expiredReq.combinedTripId);
+            console.log(
+              '⏰ Processing expired request:',
+              expiredReq._id,
+              'for trip:',
+              expiredReq.combinedTripId,
+            );
 
             // Find next driver for the trip
             const combinedTripId = expiredReq.combinedTripId?.toString();
             if (combinedTripId) {
               // ✅ PREVENT DUPLICATE PROCESSING - skip if already processing this trip
               if (this.processingTrips.has(combinedTripId)) {
-                console.log('⚠️ [Timeout Checker] Trip', combinedTripId, 'already being processed, skipping');
+                console.log(
+                  '⚠️ [Timeout Checker] Trip',
+                  combinedTripId,
+                  'already being processed, skipping',
+                );
                 continue;
               }
 
               // Mark trip as being processed
               this.processingTrips.add(combinedTripId);
-              console.log('🔒 [Timeout Checker] Locked trip', combinedTripId, 'for processing');
+              console.log(
+                '🔒 [Timeout Checker] Locked trip',
+                combinedTripId,
+                'for processing',
+              );
 
               // ✅ MARK AS TIMEOUT with status guard to prevent race condition:
               // Driver may have just accepted while this checker was finding expired requests.
               // Using findOneAndUpdate with status:'pending' ensures we never overwrite 'accepted'→'timeout'.
-              const timeoutUpdateResult = await this.rideRequestModel.findOneAndUpdate(
-                { _id: expiredReq._id, status: 'pending' },
-                { status: 'timeout', updatedAt: new Date() },
-                { new: true },
-              );
+              const timeoutUpdateResult =
+                await this.rideRequestModel.findOneAndUpdate(
+                  { _id: expiredReq._id, status: 'pending' },
+                  { status: 'timeout', updatedAt: new Date() },
+                  { new: true },
+                );
 
               if (!timeoutUpdateResult) {
                 // Request was already accepted/rejected by the driver — do NOT override
                 this.processingTrips.delete(combinedTripId);
-                console.log('⚠️ [Timeout Checker] Request already handled (accepted/rejected), skipping:', expiredReq._id);
+                console.log(
+                  '⚠️ [Timeout Checker] Request already handled (accepted/rejected), skipping:',
+                  expiredReq._id,
+                );
                 continue;
               }
 
-              console.log('⏰ [Timeout Checker] Marked request as TIMEOUT (not deleted):', expiredReq._id);
-              console.log('📝 [Timeout Checker] This driver will be EXCLUDED from next search');
+              console.log(
+                '⏰ [Timeout Checker] Marked request as TIMEOUT (not deleted):',
+                expiredReq._id,
+              );
+              console.log(
+                '📝 [Timeout Checker] This driver will be EXCLUDED from next search',
+              );
 
-              const trip = await this.combinedTripModel.findById(combinedTripId);
+              const trip =
+                await this.combinedTripModel.findById(combinedTripId);
               if (trip && trip.status === 'pending') {
-                const pickupCoordinates = trip.pickupLocation?.coordinates as [number, number];
+                const pickupCoordinates = trip.pickupLocation?.coordinates as [
+                  number,
+                  number,
+                ];
                 if (pickupCoordinates) {
                   // ✅ ALWAYS delay 15 seconds from when request expired before finding next driver
                   const expiredAt = expiredReq.expiresAt.getTime();
@@ -686,41 +879,65 @@ export class CombinedTripsService implements OnModuleInit {
                   const delayNeeded = targetTime - now.getTime();
 
                   if (delayNeeded > 0) {
-                    console.log(`⏰ [Timeout Checker] Request expired at ${expiredReq.expiresAt.toISOString()}`);
-                    console.log(`⏰ [Timeout Checker] Will find next driver in ${delayNeeded}ms (15s from expiry)`);
+                    console.log(
+                      `⏰ [Timeout Checker] Request expired at ${expiredReq.expiresAt.toISOString()}`,
+                    );
+                    console.log(
+                      `⏰ [Timeout Checker] Will find next driver in ${delayNeeded}ms (15s from expiry)`,
+                    );
                     setTimeout(async () => {
                       // ✅ CRITICAL FIX: Re-check trip status when timeout executes (not just when scheduling)
                       // Customer may have cancelled during the 15s delay
-                      const tripRecheck = await this.combinedTripModel.findById(combinedTripId);
+                      const tripRecheck =
+                        await this.combinedTripModel.findById(combinedTripId);
                       if (!tripRecheck || tripRecheck.status !== 'pending') {
-                        console.log('⚠️ [Timeout Checker] Trip no longer pending (cancelled/completed), skipping driver search');
+                        console.log(
+                          '⚠️ [Timeout Checker] Trip no longer pending (cancelled/completed), skipping driver search',
+                        );
                         this.processingTrips.delete(combinedTripId);
-                        console.log('🔓 [Timeout Checker] Unlocked trip', combinedTripId);
+                        console.log(
+                          '🔓 [Timeout Checker] Unlocked trip',
+                          combinedTripId,
+                        );
                         return;
                       }
 
-                      console.log('🔄 [Timeout Checker] 15 seconds passed, finding next driver for trip:', combinedTripId);
-                      this.findAndNotifyDrivers(combinedTripId, pickupCoordinates)
-                        .catch(err => {
+                      console.log(
+                        '🔄 [Timeout Checker] 15 seconds passed, finding next driver for trip:',
+                        combinedTripId,
+                      );
+                      this.findAndNotifyDrivers(
+                        combinedTripId,
+                        pickupCoordinates,
+                      )
+                        .catch((err) => {
                           console.error('❌ Error finding next driver:', err);
                         })
                         .finally(() => {
                           // Release lock after processing
                           this.processingTrips.delete(combinedTripId);
-                          console.log('🔓 [Timeout Checker] Unlocked trip', combinedTripId);
+                          console.log(
+                            '🔓 [Timeout Checker] Unlocked trip',
+                            combinedTripId,
+                          );
                         });
                     }, delayNeeded);
                   } else {
                     // Already more than 15s since expiry (shouldn't happen with 5s interval)
-                    console.log('🔄 [Timeout Checker] Finding next driver immediately (>15s since expiry)');
+                    console.log(
+                      '🔄 [Timeout Checker] Finding next driver immediately (>15s since expiry)',
+                    );
                     this.findAndNotifyDrivers(combinedTripId, pickupCoordinates)
-                      .catch(err => {
+                      .catch((err) => {
                         console.error('❌ Error finding next driver:', err);
                       })
                       .finally(() => {
                         // Release lock after processing
                         this.processingTrips.delete(combinedTripId);
-                        console.log('🔓 [Timeout Checker] Unlocked trip', combinedTripId);
+                        console.log(
+                          '🔓 [Timeout Checker] Unlocked trip',
+                          combinedTripId,
+                        );
                       });
                   }
                 } else {
@@ -730,7 +947,10 @@ export class CombinedTripsService implements OnModuleInit {
               } else {
                 // Trip no longer pending, release lock
                 this.processingTrips.delete(combinedTripId);
-                console.log('🔓 [Timeout Checker] Trip not pending, unlocked', combinedTripId);
+                console.log(
+                  '🔓 [Timeout Checker] Trip not pending, unlocked',
+                  combinedTripId,
+                );
               }
             }
           }
@@ -746,7 +966,9 @@ export class CombinedTripsService implements OnModuleInit {
    * Runs every 30 seconds to catch newly available drivers
    */
   private startPendingTripScanner() {
-    console.log('🔄 Starting pending trip scanner - will scan every 30 seconds');
+    console.log(
+      '🔄 Starting pending trip scanner - will scan every 30 seconds',
+    );
 
     this.pendingTripScannerInterval = setInterval(async () => {
       try {
@@ -763,14 +985,18 @@ export class CombinedTripsService implements OnModuleInit {
         });
 
         if (pendingTrips.length > 0) {
-          console.log(`🔄 [Pending Trip Scanner] Found ${pendingTrips.length} pending customer trips`);
+          console.log(
+            `🔄 [Pending Trip Scanner] Found ${pendingTrips.length} pending customer trips`,
+          );
 
           for (const trip of pendingTrips) {
             const tripId = (trip as any)._id.toString();
 
             // Skip if already being processed
             if (this.processingTrips.has(tripId)) {
-              console.log(`⚠️ [Pending Trip Scanner] Trip ${tripId} already being processed, skipping`);
+              console.log(
+                `⚠️ [Pending Trip Scanner] Trip ${tripId} already being processed, skipping`,
+              );
               continue;
             }
 
@@ -782,23 +1008,39 @@ export class CombinedTripsService implements OnModuleInit {
 
             // Only re-scan if there are NO pending requests (means all previous requests were timeout/rejected)
             if (pendingRequests === 0) {
-              console.log(`🔄 [Pending Trip Scanner] Trip ${tripId} has no pending requests - re-scanning for available drivers`);
+              console.log(
+                `🔄 [Pending Trip Scanner] Trip ${tripId} has no pending requests - re-scanning for available drivers`,
+              );
 
-              const pickupCoordinates = trip.pickupLocation?.coordinates as [number, number];
+              const pickupCoordinates = trip.pickupLocation?.coordinates as [
+                number,
+                number,
+              ];
               if (pickupCoordinates) {
                 // Re-trigger driver search
-                this.findAndNotifyDrivers(tripId, pickupCoordinates).catch(err => {
-                  console.error(`❌ [Pending Trip Scanner] Error finding drivers for trip ${tripId}:`, err);
-                });
+                this.findAndNotifyDrivers(tripId, pickupCoordinates).catch(
+                  (err) => {
+                    console.error(
+                      `❌ [Pending Trip Scanner] Error finding drivers for trip ${tripId}:`,
+                      err,
+                    );
+                  },
+                );
               } else {
-                console.warn(`⚠️ [Pending Trip Scanner] Trip ${tripId} has no pickup coordinates`);
+                console.warn(
+                  `⚠️ [Pending Trip Scanner] Trip ${tripId} has no pickup coordinates`,
+                );
               }
             } else {
-              console.log(`⏳ [Pending Trip Scanner] Trip ${tripId} has ${pendingRequests} pending requests - waiting for driver response`);
+              console.log(
+                `⏳ [Pending Trip Scanner] Trip ${tripId} has ${pendingRequests} pending requests - waiting for driver response`,
+              );
             }
           }
         } else {
-          console.log('🔄 [Pending Trip Scanner] No pending customer trips found');
+          console.log(
+            '🔄 [Pending Trip Scanner] No pending customer trips found',
+          );
         }
       } catch (error) {
         console.error('❌ Error in pending trip scanner:', error);
@@ -836,7 +1078,10 @@ export class CombinedTripsService implements OnModuleInit {
 
       const trips = await this.combinedTripModel
         .find(filters || {})
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
+        .populate(
+          'driverId',
+          'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType',
+        )
         .populate('customerId', 'firstName lastName phone avatar')
         .sort({ requestedAt: -1 });
 
@@ -859,11 +1104,15 @@ export class CombinedTripsService implements OnModuleInit {
   ): Promise<CombinedTrip[]> {
     try {
       // Get search radius from config (default to 10000m if not set)
-      const searchRadius = maxDistance ?? await this.configService.getSearchRadius(ServiceType.RIDESHARE);
+      const searchRadius =
+        maxDistance ??
+        (await this.configService.getSearchRadius(ServiceType.RIDESHARE));
 
       // Build query with both geospatial filter AND address filter
       const query: any = {
-        status: { $in: [CombinedTripStatus.PENDING, CombinedTripStatus.ACCEPTED] },
+        status: {
+          $in: [CombinedTripStatus.PENDING, CombinedTripStatus.ACCEPTED],
+        },
         // Geospatial query: find trips with pickup location within maxDistance from user
         pickupLocation: {
           $near: {
@@ -876,15 +1125,15 @@ export class CombinedTripsService implements OnModuleInit {
         },
       };
 
-
-
       const trips = await this.combinedTripModel
         .find(query)
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
+        .populate(
+          'driverId',
+          'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType',
+        )
         .populate('customerId', 'firstName lastName phone avatar')
         .sort({ requestedAt: -1 })
         .limit(10);
-
 
       return trips;
     } catch (error) {
@@ -898,7 +1147,6 @@ export class CombinedTripsService implements OnModuleInit {
    */
   async getCombinedTripDetail(combinedTripId: string): Promise<any> {
     try {
-
       const tripIdObj = new Types.ObjectId(combinedTripId);
 
       const trip = await this.combinedTripModel
@@ -906,7 +1154,8 @@ export class CombinedTripsService implements OnModuleInit {
         .populate({
           path: 'driverId',
           // ✅ Include currentLocation so DriverFoundScreen can display driver on map
-          select: 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType vehicleColor phone currentLocation',
+          select:
+            'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType vehicleColor phone currentLocation',
           // Don't fail if driver is null
           options: { strictPopulate: false },
         })
@@ -918,11 +1167,12 @@ export class CombinedTripsService implements OnModuleInit {
         });
 
       if (!trip) {
-        console.error('[CombinedTripsService] ❌ Trip not found in database:', combinedTripId);
+        console.error(
+          '[CombinedTripsService] ❌ Trip not found in database:',
+          combinedTripId,
+        );
         throw new NotFoundException('Combined trip not found');
       }
-
-
 
       // Enrich with RideRequest data
       return this.enrichCombinedTripWithCustomers(combinedTripId, trip);
@@ -940,23 +1190,22 @@ export class CombinedTripsService implements OnModuleInit {
     trip: any,
   ): Promise<any> {
     try {
-
-
       let tripIdObj: Types.ObjectId;
       try {
         tripIdObj = new Types.ObjectId(combinedTripId);
-
       } catch (e) {
-        console.error('❌ Failed to convert combinedTripId to ObjectId:', combinedTripId, e);
+        console.error(
+          '❌ Failed to convert combinedTripId to ObjectId:',
+          combinedTripId,
+          e,
+        );
         tripIdObj = new Types.ObjectId(combinedTripId);
       }
 
-      const requests = await this.rideRequestModel
+      const requests = (await this.rideRequestModel
         .find({ combinedTripId: tripIdObj })
         .populate('customerId', 'name phone rating firstName lastName avatar')
-        .exec() as any[];
-
-
+        .exec()) as any[];
 
       let enrichedCustomers = [];
 
@@ -964,7 +1213,6 @@ export class CombinedTripsService implements OnModuleInit {
       // This ensures driver rotation works - even if trip.customerId is empty/wrong,
       // we get customer data from RideRequests which always has current data
       if (requests.length > 0) {
-
         enrichedCustomers = requests.map((customerRequest: any) => {
           const customer = customerRequest.customerId; // This is populated customer object
 
@@ -976,10 +1224,18 @@ export class CombinedTripsService implements OnModuleInit {
             firstName: customer?.firstName || '',
             lastName: customer?.lastName || '',
             avatar: customer?.avatar || '',
-            pickupAddress: customerRequest?.pickupAddress || trip.pickupAddress || '',
-            dropoffAddress: customerRequest?.dropoffAddress || trip.dropoffAddress || '',
-            pickupCoordinates: customerRequest?.pickupCoordinates || trip.pickupLocation?.coordinates || [],
-            dropoffCoordinates: customerRequest?.dropoffCoordinates || trip.dropoffLocation?.coordinates || [],
+            pickupAddress:
+              customerRequest?.pickupAddress || trip.pickupAddress || '',
+            dropoffAddress:
+              customerRequest?.dropoffAddress || trip.dropoffAddress || '',
+            pickupCoordinates:
+              customerRequest?.pickupCoordinates ||
+              trip.pickupLocation?.coordinates ||
+              [],
+            dropoffCoordinates:
+              customerRequest?.dropoffCoordinates ||
+              trip.dropoffLocation?.coordinates ||
+              [],
             distance: customerRequest?.distance || trip.distance || 0,
             fare: customerRequest?.fare || trip.totalFare || 0,
             status: customerRequest?.status || 'pending',
@@ -989,7 +1245,10 @@ export class CombinedTripsService implements OnModuleInit {
       } else if (trip.customerId && trip.customerId.length > 0) {
         // ✅ FALLBACK: Use trip.customerId only if no RideRequests found
 
-        const isPopulated = trip.customerId[0] && typeof trip.customerId[0] === 'object' && trip.customerId[0]._id;
+        const isPopulated =
+          trip.customerId[0] &&
+          typeof trip.customerId[0] === 'object' &&
+          trip.customerId[0]._id;
 
         if (isPopulated) {
           enrichedCustomers = (trip.customerId || []).map((customer: any) => {
@@ -1014,17 +1273,14 @@ export class CombinedTripsService implements OnModuleInit {
         }
       }
 
-
-
       const tripObject = trip.toObject ? trip.toObject() : trip;
       const enrichedTrip = {
         ...tripObject,
         customerId: enrichedCustomers,
         // ✅ Add bookedSeats calculation for frontend display
-        bookedSeats: (tripObject.totalSeats || 4) - (tripObject.availableSeats || 4),
+        bookedSeats:
+          (tripObject.totalSeats || 4) - (tripObject.availableSeats || 4),
       };
-
-
 
       return enrichedTrip;
     } catch (error) {
@@ -1064,10 +1320,19 @@ export class CombinedTripsService implements OnModuleInit {
   ): Promise<CombinedTrip> {
     try {
       // ✅ CRITICAL: Cannot change status of cancelled trip
-      const existingTrip = await this.combinedTripModel.findById(combinedTripId);
-      if (existingTrip?.status === 'cancelled' && status !== CombinedTripStatus.CANCELLED) {
-        console.error('❌ Cannot change status of cancelled trip:', combinedTripId);
-        throw new BadRequestException('Cannot change status of a cancelled trip');
+      const existingTrip =
+        await this.combinedTripModel.findById(combinedTripId);
+      if (
+        existingTrip?.status === 'cancelled' &&
+        status !== CombinedTripStatus.CANCELLED
+      ) {
+        console.error(
+          '❌ Cannot change status of cancelled trip:',
+          combinedTripId,
+        );
+        throw new BadRequestException(
+          'Cannot change status of a cancelled trip',
+        );
       }
 
       const trip = await this.combinedTripModel.findByIdAndUpdate(
@@ -1105,15 +1370,14 @@ export class CombinedTripsService implements OnModuleInit {
       }
 
       // Check if customer already in trip
-      const alreadyExists = trip.customerId?.some(c =>
-        c._id?.toString() === customerIdObj.toString(),
+      const alreadyExists = trip.customerId?.some(
+        (c) => c._id?.toString() === customerIdObj.toString(),
       );
 
       if (!alreadyExists) {
         trip.customerId = trip.customerId || [];
         trip.customerId.push(customerIdObj);
         await trip.save();
-
       }
 
       return trip;
@@ -1126,16 +1390,25 @@ export class CombinedTripsService implements OnModuleInit {
   /**
    * Accept a combined trip (driver accepts the share ride)
    */
-  async acceptCombinedTrip(combinedTripId: string, driverId: string): Promise<CombinedTrip> {
+  async acceptCombinedTrip(
+    combinedTripId: string,
+    driverId: string,
+  ): Promise<CombinedTrip> {
     try {
       const timestamp = new Date().toISOString();
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('🚗 [CombinedTripsService] DRIVER ACCEPTING TRIP');
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('⏰ Timestamp:', timestamp);
       console.log('🆔 Trip ID:', combinedTripId);
       console.log('👤 Driver ID:', driverId);
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
 
       const trip = await this.combinedTripModel.findById(combinedTripId);
 
@@ -1160,32 +1433,43 @@ export class CombinedTripsService implements OnModuleInit {
       }
 
       if (trip.status !== CombinedTripStatus.PENDING) {
-        console.error('❌ Trip not available for acceptance. Status:', trip.status);
-        throw new BadRequestException(`Combined trip is not available for acceptance. Current status: ${trip.status}`);
+        console.error(
+          '❌ Trip not available for acceptance. Status:',
+          trip.status,
+        );
+        throw new BadRequestException(
+          `Combined trip is not available for acceptance. Current status: ${trip.status}`,
+        );
       }
 
       if (trip.driverId) {
         console.error('❌ Trip already accepted by driver:', trip.driverId);
-        throw new BadRequestException('Combined trip has already been accepted by another driver');
+        throw new BadRequestException(
+          'Combined trip has already been accepted by another driver',
+        );
       }
 
       console.log('✅ Trip is available - updating to ACCEPTED...');
 
       // ✅ Use atomic update with status check to prevent race conditions
-      const updatedTrip = await this.combinedTripModel.findOneAndUpdate(
-        {
-          _id: combinedTripId,
-          status: CombinedTripStatus.PENDING, // Only update if still pending
-          driverId: { $exists: false }, // And no driver assigned yet
-        },
-        {
-          driverId: new Types.ObjectId(driverId),
-          status: CombinedTripStatus.ACCEPTED,
-          acceptedAt: new Date(),
-        },
-        { new: true },
-      )
-        .populate('driverId', 'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType')
+      const updatedTrip = await this.combinedTripModel
+        .findOneAndUpdate(
+          {
+            _id: combinedTripId,
+            status: CombinedTripStatus.PENDING, // Only update if still pending
+            driverId: { $exists: false }, // And no driver assigned yet
+          },
+          {
+            driverId: new Types.ObjectId(driverId),
+            status: CombinedTripStatus.ACCEPTED,
+            acceptedAt: new Date(),
+          },
+          { new: true },
+        )
+        .populate(
+          'driverId',
+          'firstName lastName avatar rating averageRating totalReviews vehicleModel vehiclePlate vehicleType',
+        )
         .populate('customerId', 'firstName lastName phone avatar')
         .exec();
 
@@ -1194,21 +1478,35 @@ export class CombinedTripsService implements OnModuleInit {
         throw new NotFoundException('Failed to update combined trip');
       }
 
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('✅✅✅ TRIP ACCEPTED SUCCESSFULLY ✅✅✅');
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('🆔 Trip ID:', updatedTrip._id);
-      console.log('👤 Driver:', updatedTrip.driverId ? `${(updatedTrip.driverId as any).firstName} ${(updatedTrip.driverId as any).lastName}` : 'Unknown');
+      console.log(
+        '👤 Driver:',
+        updatedTrip.driverId
+          ? `${(updatedTrip.driverId as any).firstName} ${(updatedTrip.driverId as any).lastName}`
+          : 'Unknown',
+      );
       console.log('📍 Pickup:', updatedTrip.pickupAddress);
       console.log('📍 Dropoff:', updatedTrip.dropoffAddress);
       console.log('💰 Fare:', updatedTrip.baseFare);
       console.log('⏰ Accepted at:', updatedTrip.acceptedAt);
       console.log('🔔 Status changed from PENDING → ACCEPTED');
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
 
       return updatedTrip;
     } catch (error) {
-      console.error('[CombinedTripsService] Error accepting combined trip:', error);
+      console.error(
+        '[CombinedTripsService] Error accepting combined trip:',
+        error,
+      );
       throw error;
     }
   }
@@ -1218,8 +1516,6 @@ export class CombinedTripsService implements OnModuleInit {
    */
   async createCustomerCombinedTrip(data: any): Promise<CombinedTrip> {
     try {
-
-
       const locationHierarchy = extractLocationHierarchy(data.pickupAddress);
 
       const trip = new this.combinedTripModel({
@@ -1255,12 +1551,11 @@ export class CombinedTripsService implements OnModuleInit {
         driverQueue: [],
         currentDriverIndex: 0,
         // ✅ Lưu loại xe khách chọn để filter tài xế phù hợp
-        vehicleType: data.vehicleType || 'basic',                           // 'basic'/'comfort'/'premium'
-        driverVehicleTypes: data.driverVehicleTypes || ['sedan'],           // ['sedan']/['suv']/['sedan','suv']
+        vehicleType: data.vehicleType || 'basic', // 'basic'/'comfort'/'premium'
+        driverVehicleTypes: data.driverVehicleTypes || ['sedan'], // ['sedan']/['suv']/['sedan','suv']
       });
 
       const savedTrip = await trip.save();
-
 
       return savedTrip;
     } catch (error) {
@@ -1269,54 +1564,79 @@ export class CombinedTripsService implements OnModuleInit {
     }
   }
 
-
   /**
    * Find nearby available drivers and send notification
    * Implements Grab-like queue system: send to closest driver, if timeout, send to next
    */
   // hàm tìm và thông báo cho tài xế
-  async findAndNotifyDrivers(combinedTripId: string, pickupCoordinates: [number, number]): Promise<void> {
+  async findAndNotifyDrivers(
+    combinedTripId: string,
+    pickupCoordinates: [number, number],
+  ): Promise<void> {
     try {
       const callId = Date.now();
       const stack = new Error().stack;
       console.log('');
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('🆔 [findAndNotifyDrivers] CALL ID:', callId);
       console.log('🔍 [findAndNotifyDrivers] Trip:', combinedTripId);
       console.log('📍 Pickup coordinates:', pickupCoordinates);
-      console.log('📞 Called from:', stack?.split('\n')[2]?.trim() || 'unknown');
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '📞 Called from:',
+        stack?.split('\n')[2]?.trim() || 'unknown',
+      );
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('');
 
       // Get the combined trip to get customerId
-      const combinedTrip = await this.combinedTripModel.findById(combinedTripId);
+      const combinedTrip =
+        await this.combinedTripModel.findById(combinedTripId);
       if (!combinedTrip) {
-        throw new NotFoundException(`Combined trip not found: ${combinedTripId}`);
+        throw new NotFoundException(
+          `Combined trip not found: ${combinedTripId}`,
+        );
       }
 
       // ✅ CRITICAL: Check if trip is cancelled - do NOT send to drivers
       if (combinedTrip.status === 'cancelled') {
-        console.log('⚠️ [findAndNotifyDrivers] Trip is CANCELLED - skipping driver search');
+        console.log(
+          '⚠️ [findAndNotifyDrivers] Trip is CANCELLED - skipping driver search',
+        );
         console.log('🚫 Cancelled at:', combinedTrip.cancelledAt);
         return; // Early return - trip was cancelled
       }
 
       // ⭐ CRITICAL FIX: If trip is driver-created, skip finding drivers (driver already assigned)
       if (combinedTrip.createdBy === 'driver') {
-        console.log('⚠️ [findAndNotifyDrivers] Trip created by DRIVER - skipping driver search (driver already assigned)');
+        console.log(
+          '⚠️ [findAndNotifyDrivers] Trip created by DRIVER - skipping driver search (driver already assigned)',
+        );
         console.log('🚗 Assigned driver:', combinedTrip.driverId);
         return; // Early return - no need to find drivers
       }
 
       // Only for customer-created trips, we need to find drivers
-      const customerId = combinedTrip.customerId && combinedTrip.customerId[0] ? combinedTrip.customerId[0] : null;
+      const customerId =
+        combinedTrip.customerId && combinedTrip.customerId[0]
+          ? combinedTrip.customerId[0]
+          : null;
       if (!customerId) {
-        console.warn('⚠️ [findAndNotifyDrivers] No customer ID found for trip:', combinedTripId);
-        console.warn('⚠️ Possible reason: customer cancelled or was removed. Trip details:', {
-          createdBy: combinedTrip.createdBy,
-          status: combinedTrip.status,
-          customerIds: combinedTrip.customerId?.length || 0,
-        });
+        console.warn(
+          '⚠️ [findAndNotifyDrivers] No customer ID found for trip:',
+          combinedTripId,
+        );
+        console.warn(
+          '⚠️ Possible reason: customer cancelled or was removed. Trip details:',
+          {
+            createdBy: combinedTrip.createdBy,
+            status: combinedTrip.status,
+            customerIds: combinedTrip.customerId?.length || 0,
+          },
+        );
         // ✅ Do NOT throw here — this runs inside a setTimeout and throwing would
         // become an unhandledPromiseRejection → Node.js process crash (Node 24+)
         return; // Stop gracefully
@@ -1327,18 +1647,30 @@ export class CombinedTripsService implements OnModuleInit {
         driverId: { $exists: true, $ne: null },
         status: { $in: ['accepted', 'in_progress'] },
       });
-      const busyDriverIds = activeTrips.map(trip => trip.driverId?.toString()).filter(Boolean);
-      console.log('[findAndNotifyDrivers] Busy drivers (accepted/in_progress):', busyDriverIds.length);
+      const busyDriverIds = activeTrips
+        .map((trip) => trip.driverId?.toString())
+        .filter(Boolean);
+      console.log(
+        '[findAndNotifyDrivers] Busy drivers (accepted/in_progress):',
+        busyDriverIds.length,
+      );
 
       // ✅ FIX: Get list of drivers who already have a PENDING RideRequest from ANY other customer
       // This prevents the same driver from receiving 2 requests simultaneously
       const now = new Date();
-      const pendingRequests = await this.rideRequestModel.find({
-        status: 'pending',
-        expiresAt: { $gt: now }, // Only non-expired pending requests
-      }).select('driverId');
-      const pendingDriverIds = pendingRequests.map(req => req.driverId?.toString()).filter(Boolean);
-      console.log('[findAndNotifyDrivers] Drivers with pending requests (cannot receive new):', pendingDriverIds.length);
+      const pendingRequests = await this.rideRequestModel
+        .find({
+          status: 'pending',
+          expiresAt: { $gt: now }, // Only non-expired pending requests
+        })
+        .select('driverId');
+      const pendingDriverIds = pendingRequests
+        .map((req) => req.driverId?.toString())
+        .filter(Boolean);
+      console.log(
+        '[findAndNotifyDrivers] Drivers with pending requests (cannot receive new):',
+        pendingDriverIds.length,
+      );
 
       // Get list of drivers who already REJECTED or TIMED OUT for THIS trip (last 30 min)
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
@@ -1347,54 +1679,78 @@ export class CombinedTripsService implements OnModuleInit {
         status: { $in: ['rejected', 'timeout'] },
         createdAt: { $gte: thirtyMinutesAgo },
       });
-      const rejectedDriverIds = rejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
-      console.log('[findAndNotifyDrivers] Rejected/timeout drivers for this trip:', rejectedDriverIds.length);
+      const rejectedDriverIds = rejectedRequests
+        .map((req) => req.driverId?.toString())
+        .filter(Boolean);
+      console.log(
+        '[findAndNotifyDrivers] Rejected/timeout drivers for this trip:',
+        rejectedDriverIds.length,
+      );
 
       // Combine ALL exclusion lists: busy + pending + rejected drivers
-      const excludedDriverIds = [...new Set([...busyDriverIds, ...pendingDriverIds, ...rejectedDriverIds])];
+      const excludedDriverIds = [
+        ...new Set([
+          ...busyDriverIds,
+          ...pendingDriverIds,
+          ...rejectedDriverIds,
+        ]),
+      ];
 
       // Get search radius from config
-      const searchRadiusMeters = await this.configService.getSearchRadius(ServiceType.RIDESHARE);
+      const searchRadiusMeters = await this.configService.getSearchRadius(
+        ServiceType.RIDESHARE,
+      );
       const searchRadiusKm = (searchRadiusMeters / 1000).toFixed(1);
       const searchRadiusForSphere = searchRadiusMeters / 1000 / 6378.1;
 
       // ✅ Đọc driverVehicleTypes từ trip để filter đúng loại xe
       // basic→['sedan'], comfort→['suv'], premium→['sedan','suv']
-      const tripObj = combinedTrip.toObject ? combinedTrip.toObject() : combinedTrip;
-      const driverVehicleTypes: string[] = (tripObj.driverVehicleTypes && tripObj.driverVehicleTypes.length > 0)
-        ? tripObj.driverVehicleTypes
-        : ['sedan']; // fallback nếu không có (trip cũ trước khi deploy)
-      console.log(`[findAndNotifyDrivers] 🚗 driverVehicleTypes từ DB: ${JSON.stringify(tripObj.driverVehicleTypes)}`);
-      console.log(`[findAndNotifyDrivers] 🚗 Sẽ filter tài xế theo vehicleType: ${JSON.stringify(driverVehicleTypes)} (loại xe khách: ${tripObj.vehicleType || 'không có'})`);
+      const tripObj = combinedTrip.toObject
+        ? combinedTrip.toObject()
+        : combinedTrip;
+      const driverVehicleTypes: string[] =
+        tripObj.driverVehicleTypes && tripObj.driverVehicleTypes.length > 0
+          ? tripObj.driverVehicleTypes
+          : ['sedan']; // fallback nếu không có (trip cũ trước khi deploy)
+      console.log(
+        `[findAndNotifyDrivers] 🚗 driverVehicleTypes từ DB: ${JSON.stringify(tripObj.driverVehicleTypes)}`,
+      );
+      console.log(
+        `[findAndNotifyDrivers] 🚗 Sẽ filter tài xế theo vehicleType: ${JSON.stringify(driverVehicleTypes)} (loại xe khách: ${tripObj.vehicleType || 'không có'})`,
+      );
 
       // Find available RIDESHARE drivers within configured radius
-      const drivers = await this.driverModel.find({
-        _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) },
-        $or: [
-          { status: 'online' },
-          { isOnline: true }
-        ],
-        driverTypes: { $in: ['rideshare'] },
-        vehicleType: { $in: driverVehicleTypes },   // ✅ Filter theo loại xe khách chọn
-        currentLocation: {
-          $geoWithin: {
-            $centerSphere: [pickupCoordinates, searchRadiusForSphere]
+      const drivers = await this.driverModel
+        .find({
+          _id: { $nin: excludedDriverIds.map((id) => new Types.ObjectId(id)) },
+          $or: [{ status: 'online' }, { isOnline: true }],
+          driverTypes: { $in: ['rideshare'] },
+          vehicleType: { $in: driverVehicleTypes }, // ✅ Filter theo loại xe khách chọn
+          currentLocation: {
+            $geoWithin: {
+              $centerSphere: [pickupCoordinates, searchRadiusForSphere],
+            },
           },
-        },
-      })
+        })
         .sort({ priorityScore: -1, averageRating: -1 })
         .limit(10);
 
-      console.log(`[findAndNotifyDrivers] ✅ Found RIDESHARE drivers (${driverVehicleTypes.join('/')}) within ${searchRadiusKm}km:`, drivers.length);
-
+      console.log(
+        `[findAndNotifyDrivers] ✅ Found RIDESHARE drivers (${driverVehicleTypes.join('/')}) within ${searchRadiusKm}km:`,
+        drivers.length,
+      );
 
       if (drivers.length === 0) {
-        console.warn(`[findAndNotifyDrivers] ⚠️ No RIDESHARE drivers found within ${searchRadiusKm}km - retrying in 5s`);
+        console.warn(
+          `[findAndNotifyDrivers] ⚠️ No RIDESHARE drivers found within ${searchRadiusKm}km - retrying in 5s`,
+        );
         // Retry after 5 seconds (reduced from 30s for faster response)
         setTimeout(async () => {
           const trip = await this.combinedTripModel.findById(combinedTripId);
           if (!trip || trip.status !== 'pending') {
-            console.log('[findAndNotifyDrivers] [Retry] Trip no longer pending, skipping driver search');
+            console.log(
+              '[findAndNotifyDrivers] [Retry] Trip no longer pending, skipping driver search',
+            );
             return;
           }
           console.log('[findAndNotifyDrivers] 🔄 Retrying driver search...');
@@ -1408,15 +1764,29 @@ export class CombinedTripsService implements OnModuleInit {
       const targetDriver = drivers[0];
 
       console.log('');
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('📬 [findAndNotifyDrivers] CREATING RIDE REQUEST');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('📬 Sending notification to closest driver:', targetDriver._id);
-      console.log('📬 Driver name:', `${targetDriver.firstName} ${targetDriver.lastName}`);
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
+      console.log(
+        '📬 Sending notification to closest driver:',
+        targetDriver._id,
+      );
+      console.log(
+        '📬 Driver name:',
+        `${targetDriver.firstName} ${targetDriver.lastName}`,
+      );
       console.log('📬 Trip ID:', combinedTripId);
       console.log('📬 Customer ID:', customerId);
-      console.log('📬 🎯 THIS IS THE ONLY DRIVER WHO WILL RECEIVE THIS REQUEST');
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '📬 🎯 THIS IS THE ONLY DRIVER WHO WILL RECEIVE THIS REQUEST',
+      );
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('');
 
       // Update trip with current driver being notified (NOT a queue)
@@ -1431,18 +1801,25 @@ export class CombinedTripsService implements OnModuleInit {
           currentDriverId: targetDriver._id,
           notificationSentAt: new Date(),
         },
-        { new: true }
+        { new: true },
       );
 
       if (!updateResult) {
-        console.log('⚠️ [findAndNotifyDrivers] Trip was cancelled or no longer exists - aborting driver notification');
-        console.log('🚫 NOT creating ride request for driver:', targetDriver._id);
+        console.log(
+          '⚠️ [findAndNotifyDrivers] Trip was cancelled or no longer exists - aborting driver notification',
+        );
+        console.log(
+          '🚫 NOT creating ride request for driver:',
+          targetDriver._id,
+        );
         return; // Early return - trip was cancelled
       }
 
       // Create ride request for this driver with complete trip details
       // Get timeout from config (RIDESHARE service) — fallback to 45s if config missing/zero
-      const timeoutMsRaw = await this.configService.getRequestTimeout(ServiceType.RIDESHARE);
+      const timeoutMsRaw = await this.configService.getRequestTimeout(
+        ServiceType.RIDESHARE,
+      );
       const timeoutMs = Math.max(10000, timeoutMsRaw || 45000);
 
       const rideRequest = new this.rideRequestModel({
@@ -1475,11 +1852,12 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('Expires at:', rideRequest.expiresAt);
       console.log('Timeout configured:', `${timeoutMs}ms`);
       console.log('⏰ Timeout will be checked by polling endpoint');
-      console.log('═══════════════════════════════════════════════════════════');
+      console.log(
+        '═══════════════════════════════════════════════════════════',
+      );
       console.log('');
 
       // ✅ NO setTimeout - timeout is handled by polling endpoint checking expiresAt
-
     } catch (error) {
       console.error('❌ Error finding and notifying drivers:', error);
       throw error;
@@ -1489,9 +1867,15 @@ export class CombinedTripsService implements OnModuleInit {
   /**
    * Handle driver timeout - find another driver instead of using queue
    */
-  async handleDriverTimeout(combinedTripId: string, rideRequestId: string): Promise<void> {
+  async handleDriverTimeout(
+    combinedTripId: string,
+    rideRequestId: string,
+  ): Promise<void> {
     try {
-      console.log('⏰ [CombinedTripsService] Checking driver timeout for trip:', combinedTripId);
+      console.log(
+        '⏰ [CombinedTripsService] Checking driver timeout for trip:',
+        combinedTripId,
+      );
 
       const rideRequest = await this.rideRequestModel.findById(rideRequestId);
 
@@ -1515,7 +1899,10 @@ export class CombinedTripsService implements OnModuleInit {
       }
 
       const rejectedDriverId = rideRequest.driverId;
-      const pickupCoordinates = trip.pickupLocation?.coordinates as [number, number];
+      const pickupCoordinates = trip.pickupLocation?.coordinates as [
+        number,
+        number,
+      ];
 
       if (!pickupCoordinates) {
         console.error('❌ No pickup coordinates found');
@@ -1527,7 +1914,9 @@ export class CombinedTripsService implements OnModuleInit {
         driverId: { $exists: true, $ne: null },
         status: { $in: ['pending', 'accepted', 'in_progress'] },
       });
-      const busyDriverIds = activeTrips.map(trip => trip.driverId?.toString()).filter(Boolean);
+      const busyDriverIds = activeTrips
+        .map((trip) => trip.driverId?.toString())
+        .filter(Boolean);
 
       // ✅ CRITICAL FIX: Get ALL drivers who recently rejected/timeout for THIS trip
       // Only exclude drivers with requests from last 30 minutes (not old expired ones)
@@ -1537,32 +1926,40 @@ export class CombinedTripsService implements OnModuleInit {
         status: 'rejected',
         createdAt: { $gte: thirtyMinutesAgo }, // ✅ Only from last 30 minutes
       });
-      const allRejectedDriverIds = allRejectedRequests.map(req => req.driverId?.toString()).filter(Boolean);
-      console.log('📊 All recently rejected drivers (last 30 min):', allRejectedDriverIds.length, allRejectedDriverIds);
+      const allRejectedDriverIds = allRejectedRequests
+        .map((req) => req.driverId?.toString())
+        .filter(Boolean);
+      console.log(
+        '📊 All recently rejected drivers (last 30 min):',
+        allRejectedDriverIds.length,
+        allRejectedDriverIds,
+      );
 
       // Combine all exclusion lists: busy drivers + ALL rejected drivers (not just current one)
       const excludedDriverIds = [...busyDriverIds, ...allRejectedDriverIds];
-      console.log('📊 Total excluded drivers (busy + all rejected):', excludedDriverIds.length);
+      console.log(
+        '📊 Total excluded drivers (busy + all rejected):',
+        excludedDriverIds.length,
+      );
 
       // Find another driver (excluding busy drivers and the one who timed out)
       // ✅ NGHIỆP VỤ: Chỉ tìm driver ONLINE + có loại RIDESHARE
-      const drivers = await this.driverModel.find({
-        _id: { $nin: excludedDriverIds.map(id => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
-        $or: [
-          { status: 'online' },
-          { isOnline: true }
-        ], // ✅ Check both status fields
-        driverTypes: { $in: ['rideshare'] }, // ✅ CHỈ lấy driver có loại RIDESHARE
-        currentLocation: {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: pickupCoordinates,
+      const drivers = await this.driverModel
+        .find({
+          _id: { $nin: excludedDriverIds.map((id) => new Types.ObjectId(id)) }, // ✅ Exclude busy + rejected drivers
+          $or: [{ status: 'online' }, { isOnline: true }], // ✅ Check both status fields
+          driverTypes: { $in: ['rideshare'] }, // ✅ CHỈ lấy driver có loại RIDESHARE
+          currentLocation: {
+            $near: {
+              $geometry: {
+                type: 'Point',
+                coordinates: pickupCoordinates,
+              },
+              $maxDistance: 50000, // 50km (increased for testing)
             },
-            $maxDistance: 50000, // 50km (increased for testing)
           },
-        },
-      }).limit(1); // Get only the closest driver
+        })
+        .limit(1); // Get only the closest driver
 
       if (drivers.length === 0) {
         console.warn('⚠️ No other available drivers found - will retry in 30s');
@@ -1570,9 +1967,12 @@ export class CombinedTripsService implements OnModuleInit {
         setTimeout(async () => {
           // ✅ CRITICAL FIX: Re-check trip status when retry executes
           // Customer may have cancelled during the 30s delay
-          const tripCheck = await this.combinedTripModel.findById(combinedTripId);
+          const tripCheck =
+            await this.combinedTripModel.findById(combinedTripId);
           if (!tripCheck || tripCheck.status !== 'pending') {
-            console.log('⚠️ [Retry] Trip no longer pending (cancelled/completed), skipping driver search');
+            console.log(
+              '⚠️ [Retry] Trip no longer pending (cancelled/completed), skipping driver search',
+            );
             return;
           }
           console.log('🔄 Retrying driver search after timeout...');
@@ -1595,20 +1995,25 @@ export class CombinedTripsService implements OnModuleInit {
           currentDriverId: nextDriver._id,
           notificationSentAt: new Date(),
         },
-        { new: true }
+        { new: true },
       );
 
       if (!updateResult) {
-        console.log('⚠️ [Retry] Trip was cancelled or no longer exists - aborting driver notification');
+        console.log(
+          '⚠️ [Retry] Trip was cancelled or no longer exists - aborting driver notification',
+        );
         console.log('🚫 NOT creating ride request for driver:', nextDriver._id);
         return; // Early return - trip was cancelled
       }
 
       // Get customerId from trip
-      const customerId = trip.customerId && trip.customerId[0] ? trip.customerId[0] : null;
+      const customerId =
+        trip.customerId && trip.customerId[0] ? trip.customerId[0] : null;
 
       // Get timeout from config (RIDESHARE service)
-      const timeoutMs = await this.configService.getRequestTimeout(ServiceType.RIDESHARE);
+      const timeoutMs = await this.configService.getRequestTimeout(
+        ServiceType.RIDESHARE,
+      );
 
       // Create new ride request for next driver
       const newRideRequest = new this.rideRequestModel({
@@ -1638,7 +2043,6 @@ export class CombinedTripsService implements OnModuleInit {
       console.log('⏰ Timeout will be checked by polling endpoint');
 
       // ✅ NO setTimeout - timeout is handled by polling endpoint checking expiresAt
-
     } catch (error) {
       console.error('❌ Error handling driver timeout:', error);
     }
@@ -1669,21 +2073,24 @@ export class CombinedTripsService implements OnModuleInit {
       const existingTrip = await this.combinedTripModel.findById(tripIdObj);
       if (existingTrip?.status === 'cancelled') {
         // ✅ BLOCK ALL updates to cancelled trips (except re-confirming cancellation)
-        const isCancellationUpdate = updateData.status === 'cancelled' ||
+        const isCancellationUpdate =
+          updateData.status === 'cancelled' ||
           updateData.cancelledAt ||
           updateData.cancellationBy;
 
         if (!isCancellationUpdate) {
           console.error('❌ Cannot update cancelled trip:', tripId);
           console.error('❌ Attempted update:', Object.keys(updateData));
-          throw new BadRequestException('Cannot update a cancelled trip. Trip was cancelled and is immutable.');
+          throw new BadRequestException(
+            'Cannot update a cancelled trip. Trip was cancelled and is immutable.',
+          );
         }
       }
 
       const updatedTrip = await this.combinedTripModel.findByIdAndUpdate(
         tripIdObj,
         { $set: updateData }, // Use $set to ensure fields are updated
-        { new: true }
+        { new: true },
       );
 
       console.log('✅ Trip updated:', {

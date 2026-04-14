@@ -10,18 +10,18 @@ import {
   Request,
   Query,
   HttpCode,
-} from '@nestjs/common'
-import { HourlyServiceService } from '../services/hourly-service.service'
+} from '@nestjs/common';
+import { HourlyServiceService } from '../services/hourly-service.service';
 import {
   CreateHourlyServiceDto,
   UpdateHourlyServiceDto,
   RateHourlyServiceDto,
   GetPricingDto,
-} from '../dto/create-hourly-service.dto'
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
-import { DriversService } from '../../drivers/drivers.service'
-import { PushNotificationService } from '../../notifications/push-notification.service'
-import { NotificationType } from '../../notifications/schemas/notification.schema'
+} from '../dto/create-hourly-service.dto';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { DriversService } from '../../drivers/drivers.service';
+import { PushNotificationService } from '../../notifications/push-notification.service';
+import { NotificationType } from '../../notifications/schemas/notification.schema';
 
 @Controller('hourly-services')
 @UseGuards(JwtAuthGuard)
@@ -40,27 +40,27 @@ export class HourlyServiceController {
   @HttpCode(201)
   async create(@Body() createDto: CreateHourlyServiceDto, @Request() req: any) {
     try {
-      console.log('[HourlyServiceController] Creating service:', createDto)
+      console.log('[HourlyServiceController] Creating service:', createDto);
 
       // Set customerId from JWT token if not provided
       if (!createDto.customerId && req.user?.id) {
-        createDto.customerId = req.user.id
+        createDto.customerId = req.user.id;
       }
 
-      const service = await this.hourlyServiceService.create(createDto)
+      const service = await this.hourlyServiceService.create(createDto);
 
       return {
         success: true,
         message: 'Service created successfully',
         data: service,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error creating service:', error)
+      console.error('[HourlyServiceController] Error creating service:', error);
       return {
         success: false,
         message: error.message || 'Failed to create service',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -75,24 +75,31 @@ export class HourlyServiceController {
     @Query('skip') skip: string = '0',
   ) {
     try {
-      const limitNum = parseInt(limit) || 100
-      const skipNum = parseInt(skip) || 0
+      const limitNum = parseInt(limit) || 100;
+      const skipNum = parseInt(skip) || 0;
 
-      const services = await this.hourlyServiceService.findAll(status, limitNum, skipNum)
+      const services = await this.hourlyServiceService.findAll(
+        status,
+        limitNum,
+        skipNum,
+      );
 
       return {
         success: true,
         message: 'Services retrieved successfully',
         data: services,
         total: services.length,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error fetching all services:', error)
+      console.error(
+        '[HourlyServiceController] Error fetching all services:',
+        error,
+      );
       return {
         success: false,
         message: error.message || 'Failed to fetch services',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -103,28 +110,32 @@ export class HourlyServiceController {
   @Get('my-services')
   async getMyServices(@Request() req: any) {
     try {
-      const customerId = req.user?.id
+      const customerId = req.user?.id;
       if (!customerId) {
         return {
           success: false,
           message: 'User not authenticated',
-        }
+        };
       }
 
-      const services = await this.hourlyServiceService.findByCustomerId(customerId)
+      const services =
+        await this.hourlyServiceService.findByCustomerId(customerId);
 
       return {
         success: true,
         message: 'Services retrieved successfully',
         data: services,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error fetching services:', error)
+      console.error(
+        '[HourlyServiceController] Error fetching services:',
+        error,
+      );
       return {
         success: false,
         message: error.message || 'Failed to fetch services',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -133,25 +144,34 @@ export class HourlyServiceController {
    * GET /api/hourly-services/pending
    */
   @Get('pending')
-  async getPendingServices(@Query('limit') limit: string = '20', @Query('skip') skip: string = '0') {
+  async getPendingServices(
+    @Query('limit') limit: string = '20',
+    @Query('skip') skip: string = '0',
+  ) {
     try {
-      const limitNum = parseInt(limit) || 20
-      const skipNum = parseInt(skip) || 0
+      const limitNum = parseInt(limit) || 20;
+      const skipNum = parseInt(skip) || 0;
 
-      const services = await this.hourlyServiceService.findPending(limitNum, skipNum)
+      const services = await this.hourlyServiceService.findPending(
+        limitNum,
+        skipNum,
+      );
 
       return {
         success: true,
         message: 'Pending services retrieved successfully',
         data: services,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error fetching pending services:', error)
+      console.error(
+        '[HourlyServiceController] Error fetching pending services:',
+        error,
+      );
       return {
         success: false,
         message: error.message || 'Failed to fetch pending services',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -162,20 +182,23 @@ export class HourlyServiceController {
   @Get('statistics')
   async getStatistics() {
     try {
-      const stats = await this.hourlyServiceService.getStatistics()
+      const stats = await this.hourlyServiceService.getStatistics();
 
       return {
         success: true,
         message: 'Statistics retrieved successfully',
         data: stats,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error getting statistics:', error)
+      console.error(
+        '[HourlyServiceController] Error getting statistics:',
+        error,
+      );
       return {
         success: false,
         message: error.message || 'Failed to get statistics',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -184,32 +207,46 @@ export class HourlyServiceController {
    * GET /api/hourly-services/worker-services
    */
   @Get('worker-services')
-  async getWorkerServices(@Request() req: any, @Query('status') status?: string) {
+  async getWorkerServices(
+    @Request() req: any,
+    @Query('status') status?: string,
+  ) {
     try {
-      const workerId = req.user?.id
+      const workerId = req.user?.id;
       if (!workerId) {
         return {
           success: false,
           message: 'User not authenticated',
-        }
+        };
       }
 
-      console.log('[HourlyServiceController] Fetching services for worker:', workerId, 'status:', status)
+      console.log(
+        '[HourlyServiceController] Fetching services for worker:',
+        workerId,
+        'status:',
+        status,
+      );
 
-      const services = await this.hourlyServiceService.findByWorkerId(workerId, status)
+      const services = await this.hourlyServiceService.findByWorkerId(
+        workerId,
+        status,
+      );
 
       return {
         success: true,
         message: 'Services retrieved successfully',
         data: services,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error fetching worker services:', error)
+      console.error(
+        '[HourlyServiceController] Error fetching worker services:',
+        error,
+      );
       return {
         success: false,
         message: error.message || 'Failed to fetch services',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -220,20 +257,20 @@ export class HourlyServiceController {
   @Get(':id')
   async getServiceDetail(@Param('id') id: string) {
     try {
-      const service = await this.hourlyServiceService.findById(id)
+      const service = await this.hourlyServiceService.findById(id);
 
       return {
         success: true,
         message: 'Service retrieved successfully',
         data: service,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error fetching service:', error)
+      console.error('[HourlyServiceController] Error fetching service:', error);
       return {
         success: false,
         message: error.message || 'Failed to fetch service',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -242,59 +279,72 @@ export class HourlyServiceController {
    * PATCH /api/hourly-services/:id/assign-worker
    */
   @Patch(':id/assign-worker')
-  async assignWorker(@Param('id') id: string, @Body() body: { workerId: string }, @Request() req: any) {
+  async assignWorker(
+    @Param('id') id: string,
+    @Body() body: { workerId: string },
+    @Request() req: any,
+  ) {
     try {
       // Use workerId from body or from JWT token
-      const workerId = body.workerId || req.user?.id
+      const workerId = body.workerId || req.user?.id;
 
       if (!workerId) {
         return {
           success: false,
           message: 'Worker ID is required',
-        }
+        };
       }
 
       // ✅ Check if driver is busy with ANY service
-      const busyDriverIds = await this.driversService.getBusyDriverIds()
+      const busyDriverIds = await this.driversService.getBusyDriverIds();
       if (busyDriverIds.includes(workerId)) {
         return {
           success: false,
-          message: 'Tài xế đang bận với một dịch vụ khác. Vui lòng chọn tài xế khác.',
-        }
+          message:
+            'Tài xế đang bận với một dịch vụ khác. Vui lòng chọn tài xế khác.',
+        };
       }
 
       const service = await this.hourlyServiceService.update(id, {
         workerId: workerId,
         status: 'confirmed',
-      })
+      });
 
       // 📣 Notify customer: driver accepted
-      const customerId = (service as any).customerId?._id?.toString() || (service as any).customerId?.toString()
+      const customerId =
+        (service as any).customerId?._id?.toString() ||
+        (service as any).customerId?.toString();
       if (customerId) {
         // Get worker name
-        const worker = await this.driversService.findById(workerId).catch(() => null)
-        const workerName = worker ? `${(worker as any).firstName || ''} ${(worker as any).lastName || ''}`.trim() : 'Tài xế'
-        this.pushService.notifyCustomer(
-          customerId,
-          '👍 Dịch vụ đã được xác nhận!',
-          `${workerName} đã nhận dịch vụ theo giờ của bạn`,
-          NotificationType.HOURLY_ACCEPTED,
-          { type: 'HOURLY_ACCEPTED', serviceId: id },
-        ).catch(() => {})
+        const worker = await this.driversService
+          .findById(workerId)
+          .catch(() => null);
+        const workerName = worker
+          ? `${(worker as any).firstName || ''} ${(worker as any).lastName || ''}`.trim()
+          : 'Tài xế';
+        this.pushService
+          .notifyCustomer(
+            customerId,
+            '👍 Dịch vụ đã được xác nhận!',
+            `${workerName} đã nhận dịch vụ theo giờ của bạn`,
+            NotificationType.HOURLY_ACCEPTED,
+            { type: 'HOURLY_ACCEPTED', serviceId: id },
+          )
+          .catch(() => {});
       }
 
       return {
         success: true,
         message: 'Worker assigned successfully',
         data: service,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error assigning worker:', error)
+      console.error('[HourlyServiceController] Error assigning worker:', error);
       return {
         success: false,
         message: error.message || 'Failed to assign worker',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -303,45 +353,63 @@ export class HourlyServiceController {
    * PATCH /api/hourly-services/:id/cancel
    */
   @Patch(':id/cancel')
-  async cancelService(@Param('id') id: string, @Body() body: { cancelReason: string }, @Request() req: any) {
+  async cancelService(
+    @Param('id') id: string,
+    @Body() body: { cancelReason: string },
+    @Request() req: any,
+  ) {
     try {
-      const service = await this.hourlyServiceService.cancel(id, body.cancelReason)
+      const service = await this.hourlyServiceService.cancel(
+        id,
+        body.cancelReason,
+      );
 
       // 📣 Notify the other party
-      const customerId = (service as any).customerId?._id?.toString() || (service as any).customerId?.toString()
-      const workerId = (service as any).workerId?._id?.toString() || (service as any).workerId?.toString()
-      const cancelledByDriver = req.user?.role === 'driver'
+      const customerId =
+        (service as any).customerId?._id?.toString() ||
+        (service as any).customerId?.toString();
+      const workerId =
+        (service as any).workerId?._id?.toString() ||
+        (service as any).workerId?.toString();
+      const cancelledByDriver = req.user?.role === 'driver';
 
       if (cancelledByDriver && customerId) {
-        this.pushService.notifyCustomer(
-          customerId,
-          '❌ Dịch vụ bị hủy',
-          'Tài xế đã hủy dịch vụ theo giờ của bạn',
-          NotificationType.HOURLY_CANCELLED,
-          { type: 'HOURLY_CANCELLED', serviceId: id },
-        ).catch(() => {})
+        this.pushService
+          .notifyCustomer(
+            customerId,
+            '❌ Dịch vụ bị hủy',
+            'Tài xế đã hủy dịch vụ theo giờ của bạn',
+            NotificationType.HOURLY_CANCELLED,
+            { type: 'HOURLY_CANCELLED', serviceId: id },
+          )
+          .catch(() => {});
       } else if (!cancelledByDriver && workerId) {
-        this.pushService.notifyDriver(
-          workerId,
-          '❌ Dịch vụ bị hủy',
-          'Khách hàng đã hủy dịch vụ theo giờ',
-          NotificationType.HOURLY_CANCELLED,
-          { type: 'HOURLY_CANCELLED', serviceId: id },
-        ).catch(() => {})
+        this.pushService
+          .notifyDriver(
+            workerId,
+            '❌ Dịch vụ bị hủy',
+            'Khách hàng đã hủy dịch vụ theo giờ',
+            NotificationType.HOURLY_CANCELLED,
+            { type: 'HOURLY_CANCELLED', serviceId: id },
+          )
+          .catch(() => {});
       }
 
       return {
         success: true,
         message: 'Service cancelled successfully',
         data: service,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error cancelling service:', error)
+      console.error(
+        '[HourlyServiceController] Error cancelling service:',
+        error,
+      );
       return {
         success: false,
         message: error.message || 'Failed to cancel service',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -350,63 +418,78 @@ export class HourlyServiceController {
    * PATCH /api/hourly-services/:id
    */
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateDto: UpdateHourlyServiceDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateHourlyServiceDto,
+  ) {
     try {
-      const service = await this.hourlyServiceService.update(id, updateDto)
+      const service = await this.hourlyServiceService.update(id, updateDto);
 
       // 📣 Notify on key status changes
-      const customerId = (service as any).customerId?._id?.toString() || (service as any).customerId?.toString()
-      const workerId = (service as any).workerId?._id?.toString() || (service as any).workerId?.toString()
+      const customerId =
+        (service as any).customerId?._id?.toString() ||
+        (service as any).customerId?.toString();
+      const workerId =
+        (service as any).workerId?._id?.toString() ||
+        (service as any).workerId?.toString();
 
       if (updateDto.status === 'in_progress' && customerId) {
-        this.pushService.notifyCustomer(
-          customerId,
-          '🚀 Dịch vụ đã bắt đầu!',
-          'Tài xế đang thực hiện dịch vụ cho bạn',
-          NotificationType.HOURLY_STARTED,
-          { type: 'HOURLY_STARTED', serviceId: id },
-        ).catch(() => {})
+        this.pushService
+          .notifyCustomer(
+            customerId,
+            '🚀 Dịch vụ đã bắt đầu!',
+            'Tài xế đang thực hiện dịch vụ cho bạn',
+            NotificationType.HOURLY_STARTED,
+            { type: 'HOURLY_STARTED', serviceId: id },
+          )
+          .catch(() => {});
       } else if (updateDto.status === 'completed') {
         if (customerId) {
-          this.pushService.notifyCustomer(
-            customerId,
-            '✅ Dịch vụ hoàn thành!',
-            'Dịch vụ theo giờ đã hoàn thành. Cảm ơn bạn!',
-            NotificationType.HOURLY_COMPLETED,
-            { type: 'HOURLY_COMPLETED', serviceId: id },
-          ).catch(() => {})
+          this.pushService
+            .notifyCustomer(
+              customerId,
+              '✅ Dịch vụ hoàn thành!',
+              'Dịch vụ theo giờ đã hoàn thành. Cảm ơn bạn!',
+              NotificationType.HOURLY_COMPLETED,
+              { type: 'HOURLY_COMPLETED', serviceId: id },
+            )
+            .catch(() => {});
         }
         if (workerId) {
-          this.pushService.notifyDriver(
-            workerId,
-            '✅ Hoàn thành dịch vụ!',
-            'Dịch vụ theo giờ đã hoàn thành',
-            NotificationType.HOURLY_COMPLETED,
-            { type: 'HOURLY_COMPLETED', serviceId: id },
-          ).catch(() => {})
+          this.pushService
+            .notifyDriver(
+              workerId,
+              '✅ Hoàn thành dịch vụ!',
+              'Dịch vụ theo giờ đã hoàn thành',
+              NotificationType.HOURLY_COMPLETED,
+              { type: 'HOURLY_COMPLETED', serviceId: id },
+            )
+            .catch(() => {});
         }
       } else if (updateDto.status === 'driver_arrived' && customerId) {
-        this.pushService.notifyCustomer(
-          customerId,
-          '📍 Tài xế đã đến!',
-          'Tài xế đã đến địa điểm của bạn',
-          NotificationType.HOURLY_DRIVER_ARRIVED,
-          { type: 'HOURLY_DRIVER_ARRIVED', serviceId: id },
-        ).catch(() => {})
+        this.pushService
+          .notifyCustomer(
+            customerId,
+            '📍 Tài xế đã đến!',
+            'Tài xế đã đến địa điểm của bạn',
+            NotificationType.HOURLY_DRIVER_ARRIVED,
+            { type: 'HOURLY_DRIVER_ARRIVED', serviceId: id },
+          )
+          .catch(() => {});
       }
 
       return {
         success: true,
         message: 'Service updated successfully',
         data: service,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error updating service:', error)
+      console.error('[HourlyServiceController] Error updating service:', error);
       return {
         success: false,
         message: error.message || 'Failed to update service',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -415,22 +498,25 @@ export class HourlyServiceController {
    * POST /api/hourly-services/:id/rate
    */
   @Post(':id/rate')
-  async rateService(@Param('id') id: string, @Body() rateDto: RateHourlyServiceDto) {
+  async rateService(
+    @Param('id') id: string,
+    @Body() rateDto: RateHourlyServiceDto,
+  ) {
     try {
-      const service = await this.hourlyServiceService.rate(id, rateDto)
+      const service = await this.hourlyServiceService.rate(id, rateDto);
 
       return {
         success: true,
         message: 'Service rated successfully',
         data: service,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error rating service:', error)
+      console.error('[HourlyServiceController] Error rating service:', error);
       return {
         success: false,
         message: error.message || 'Failed to rate service',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -441,20 +527,20 @@ export class HourlyServiceController {
   @Post('pricing')
   async getPricing(@Body() pricingDto: GetPricingDto) {
     try {
-      const pricing = await this.hourlyServiceService.getPricing(pricingDto)
+      const pricing = await this.hourlyServiceService.getPricing(pricingDto);
 
       return {
         success: true,
         message: 'Pricing calculated successfully',
         data: pricing,
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error getting pricing:', error)
+      console.error('[HourlyServiceController] Error getting pricing:', error);
       return {
         success: false,
         message: error.message || 'Failed to get pricing',
         error: error.message,
-      }
+      };
     }
   }
 
@@ -465,19 +551,19 @@ export class HourlyServiceController {
   @Delete(':id')
   async deleteService(@Param('id') id: string) {
     try {
-      await this.hourlyServiceService.delete(id)
+      await this.hourlyServiceService.delete(id);
 
       return {
         success: true,
         message: 'Service deleted successfully',
-      }
+      };
     } catch (error: any) {
-      console.error('[HourlyServiceController] Error deleting service:', error)
+      console.error('[HourlyServiceController] Error deleting service:', error);
       return {
         success: false,
         message: error.message || 'Failed to delete service',
         error: error.message,
-      }
+      };
     }
   }
 }

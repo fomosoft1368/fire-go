@@ -1,8 +1,8 @@
 /**
  * Google Cloud Storage Service
- * 
+ *
  * ⚠️ TEMPORARILY DISABLED - Currently storing images as base64 in MongoDB
- * 
+ *
  * To enable GCS later:
  * 1. Follow setup guide in GOOGLE_CLOUD_STORAGE_SETUP.md
  * 2. Install dependencies: npm install @google-cloud/storage uuid

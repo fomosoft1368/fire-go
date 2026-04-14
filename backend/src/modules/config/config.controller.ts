@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Patch,
-  Body,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { ConfigService } from './config.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ServiceType } from './schemas/driver-search-config.schema';
@@ -41,7 +34,8 @@ export class ConfigController {
   @UseGuards(JwtAuthGuard)
   async updateConfig(
     @Param('serviceType') serviceType: ServiceType,
-    @Body() updateData: {
+    @Body()
+    updateData: {
       searchRadiusMeters?: number;
       maxDriversToNotify?: number;
       requestTimeoutMs?: number;

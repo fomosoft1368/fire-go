@@ -127,10 +127,7 @@ export class MessagesController {
    */
   @Get('ride/:rideId/unread-count')
   @UseGuards(JwtAuthGuard)
-  async getUnreadCount(
-    @Param('rideId') rideId: string,
-    @Request() req: any,
-  ) {
+  async getUnreadCount(@Param('rideId') rideId: string, @Request() req: any) {
     if (!req.user?.id) {
       throw new BadRequestException('User ID not found');
     }
@@ -160,11 +157,12 @@ export class MessagesController {
     @Query('limit') limit: number = 50,
     @Query('skip') skip: number = 0,
   ) {
-    const { messages, total } = await this.messagesService.getMessagesByDelivery(
-      deliveryId,
-      Math.min(limit, 100),
-      skip,
-    );
+    const { messages, total } =
+      await this.messagesService.getMessagesByDelivery(
+        deliveryId,
+        Math.min(limit, 100),
+        skip,
+      );
 
     return {
       success: true,
@@ -217,7 +215,10 @@ export class MessagesController {
       throw new BadRequestException('User ID not found');
     }
 
-    await this.messagesService.markDeliveryMessagesAsRead(deliveryId, req.user.id);
+    await this.messagesService.markDeliveryMessagesAsRead(
+      deliveryId,
+      req.user.id,
+    );
 
     return {
       success: true,
@@ -231,11 +232,12 @@ export class MessagesController {
     @Query('limit') limit: number = 50,
     @Query('skip') skip: number = 0,
   ) {
-    const { messages, total } = await this.messagesService.getMessagesByCombinedTrip(
-      combinedTripId,
-      Math.min(limit, 100),
-      skip,
-    );
+    const { messages, total } =
+      await this.messagesService.getMessagesByCombinedTrip(
+        combinedTripId,
+        Math.min(limit, 100),
+        skip,
+      );
 
     return {
       success: true,
@@ -275,7 +277,10 @@ export class MessagesController {
     if (!req.user?.id) {
       throw new BadRequestException('User ID not found');
     }
-    await this.messagesService.markCombinedTripMessagesAsRead(combinedTripId, req.user.id);
+    await this.messagesService.markCombinedTripMessagesAsRead(
+      combinedTripId,
+      req.user.id,
+    );
     return {
       success: true,
       message: 'Messages marked as read',

@@ -1,4 +1,12 @@
-import { Controller, Post, Body, UseGuards, Request, Get, Patch } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Get,
+  Patch,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, AuthResponseDto } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -25,7 +33,9 @@ export class AuthController {
   }
 
   @Post('refresh')
-  async refresh(@Body('refreshToken') refreshToken: string): Promise<{ accessToken: string }> {
+  async refresh(
+    @Body('refreshToken') refreshToken: string,
+  ): Promise<{ accessToken: string }> {
     return this.authService.refreshToken(refreshToken);
   }
 
@@ -52,13 +62,22 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async changePassword(
     @Request() req: any,
-    @Body() { currentPassword, newPassword }: { currentPassword: string; newPassword: string },
+    @Body()
+    {
+      currentPassword,
+      newPassword,
+    }: { currentPassword: string; newPassword: string },
   ): Promise<{ message: string }> {
     console.log('[AuthController] changePassword called');
     console.log('[AuthController] req.user:', req.user);
     console.log('[AuthController] req.user.role:', req.user?.role);
-    
-    await this.authService.changePassword(req.user.id, currentPassword, newPassword, req.user.role);
+
+    await this.authService.changePassword(
+      req.user.id,
+      currentPassword,
+      newPassword,
+      req.user.role,
+    );
     return { message: 'Password changed successfully' };
   }
 
@@ -73,7 +92,9 @@ export class AuthController {
 
   @Post('customer/send-otp')
   @UseGuards(JwtAuthGuard)
-  async sendCustomerOtp(@Request() req: any): Promise<{ message: string; expires: number }> {
+  async sendCustomerOtp(
+    @Request() req: any,
+  ): Promise<{ message: string; expires: number }> {
     return this.authService.sendCustomerPhoneOtp(req.user.id);
   }
 
@@ -89,7 +110,8 @@ export class AuthController {
   // ==================== NEW: OTP LOGIN FLOW ====================
   @Post('customer/login-otp/send')
   async sendCustomerLoginOtp(
-    @Body() { phone, email, name }: { phone: string; email?: string; name?: string },
+    @Body()
+    { phone, email, name }: { phone: string; email?: string; name?: string },
   ): Promise<{ message: string; expires: number }> {
     return this.authService.sendCustomerLoginOtp(phone, email, name);
   }

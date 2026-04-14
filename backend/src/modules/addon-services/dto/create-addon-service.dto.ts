@@ -1,48 +1,48 @@
-import { IsString, IsNumber, IsEnum, IsOptional } from 'class-validator'
+import { IsString, IsNumber, IsEnum, IsOptional } from 'class-validator';
 
 export class CreateAddonServiceDto {
   @IsString()
-  name: string
+  name: string;
 
   @IsString()
-  icon: string
+  icon: string;
 
   @IsString()
-  description: string
+  description: string;
 
   @IsNumber()
-  price: number
+  price: number;
 
   @IsNumber()
-  duration: number
+  duration: number;
 
   @IsEnum(['active', 'inactive'])
   @IsOptional()
-  status?: string
+  status?: string;
 }
 
 export class UpdateAddonServiceDto {
   @IsString()
   @IsOptional()
-  name?: string
+  name?: string;
 
   @IsString()
   @IsOptional()
-  icon?: string
+  icon?: string;
 
   @IsString()
   @IsOptional()
-  description?: string
+  description?: string;
 
   @IsNumber()
   @IsOptional()
-  price?: number
+  price?: number;
 
   @IsNumber()
   @IsOptional()
-  duration?: number
+  duration?: number;
 
   @IsEnum(['active', 'inactive'])
   @IsOptional()
-  status?: string
+  status?: string;
 }

@@ -21,34 +21,8 @@ class RemoteConfigService {
   }
 
   private async _fetchConfig(): Promise<void> {
-    try {
-      const url = `${API_BASE_URL}/app-settings/public`
-      console.log('[RemoteConfig] 🔄 Fetching config from:', url)
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      })
-
-      if (!response.ok) {
-        console.warn('[RemoteConfig] ⚠️ Failed to fetch:', response.status, '— using fallback')
-        this.loadFallback()
-        return
-      }
-
-      const json = await response.json()
-      const settings: Array<{ key: string; value: string }> = Array.isArray(json) ? json : (json?.data || [])
-
-      settings.forEach(({ key, value }) => {
-        if (value) this.config[key] = value
-      })
-
-      this.initialized = true
-      console.log('[RemoteConfig] ✅ Loaded', Object.keys(this.config).length, 'keys from DB:', Object.keys(this.config).join(', '))
-    } catch (err) {
-      console.warn('[RemoteConfig] ❌ Network error, using .env fallback:', err)
-      this.loadFallback()
-    }
+    // Không load từ DB nữa theo yêu cầu, chỉ dùng từ env
+    this.loadFallback()
   }
 
   private loadFallback() {

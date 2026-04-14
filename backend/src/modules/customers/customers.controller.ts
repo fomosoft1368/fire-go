@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Delete, BadRequestException, UnauthorizedException, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  Delete,
+  BadRequestException,
+  UnauthorizedException,
+  Query,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CustomersService } from './customers.service';
@@ -26,7 +39,7 @@ export class CustomersController {
   async create(@Body() createCustomerDto: CreateCustomerDto) {
     try {
       const customer = await this.customersService.create(createCustomerDto);
-      
+
       return {
         success: true,
         message: 'Customer created successfully',
@@ -45,28 +58,31 @@ export class CustomersController {
   async register(@Body() createCustomerDto: CreateCustomerDto) {
     try {
       const customer = await this.customersService.create(createCustomerDto);
-      
+
       // ✅ Increment tokenVersion trước khi generate token
-      await this.customerModel.findByIdAndUpdate(customer._id, { $inc: { tokenVersion: 1 } });
-      const freshCustomer = await this.customerModel.findById(customer._id).select('tokenVersion').lean() as any;
+      await this.customerModel.findByIdAndUpdate(customer._id, {
+        $inc: { tokenVersion: 1 },
+      });
+      const freshCustomer = (await this.customerModel
+        .findById(customer._id)
+        .select('tokenVersion')
+        .lean()) as any;
       const tv = freshCustomer?.tokenVersion ?? 1;
 
       // Generate JWT tokens
-      const accessToken = this.jwtService.sign(
-        {
-          sub: customer._id,
-          email: customer.email,
-          role: 'customer',
-          tv, // single-session token version
-        }
-      );
+      const accessToken = this.jwtService.sign({
+        sub: customer._id,
+        email: customer.email,
+        role: 'customer',
+        tv, // single-session token version
+      });
 
       const refreshToken = this.jwtService.sign(
         {
           sub: customer._id,
           email: customer.email,
         },
-        { expiresIn: '7d' }
+        { expiresIn: '7d' },
       );
 
       return {
@@ -94,56 +110,72 @@ export class CustomersController {
   @Post('login')
   async login(@Body() loginDto: { identifier: string; password: string }) {
     try {
-      console.log('[Customers Login] Identifier:', loginDto.identifier)
-      
+      console.log('[Customers Login] Identifier:', loginDto.identifier);
+
       if (!loginDto.identifier || !loginDto.password) {
-        throw new UnauthorizedException('Email/Phone and password are required');
+        throw new UnauthorizedException(
+          'Email/Phone and password are required',
+        );
       }
 
-      const customer = await this.customersService.findByEmailOrPhone(loginDto.identifier);
+      const customer = await this.customersService.findByEmailOrPhone(
+        loginDto.identifier,
+      );
       console.log('[Customers Login] Customer found:', {
         id: customer._id,
         email: customer.email,
         firstName: customer.firstName,
         lastName: customer.lastName,
-      })
-      
+      });
+
       if (!customer) {
         throw new UnauthorizedException('Invalid email or password');
       }
 
       // Compare password
-      const isPasswordValid = await bcrypt.compare(loginDto.password, customer.password);
-      
+      const isPasswordValid = await bcrypt.compare(
+        loginDto.password,
+        customer.password,
+      );
+
       if (!isPasswordValid) {
         throw new UnauthorizedException('Invalid email or password');
       }
 
       const anyCustomer = customer as any;
       if (anyCustomer.deletionRequestedAt) {
-        throw new UnauthorizedException('Tài khoản này đã yêu cầu xóa, nếu muốn khôi phục thì liên hệ quản trị để được hỗ trợ.');
+        throw new UnauthorizedException(
+          'Tài khoản này đã yêu cầu xóa, nếu muốn khôi phục thì liên hệ quản trị để được hỗ trợ.',
+        );
       }
 
       // ✅ Increment tokenVersion — vô hiệu hóa mọi token cũ (thiết bị khác bị logout)
-      await this.customerModel.findByIdAndUpdate(customer._id, { $inc: { tokenVersion: 1 } });
-      const freshCustomer = await this.customerModel.findById(customer._id).select('tokenVersion').lean() as any;
+      await this.customerModel.findByIdAndUpdate(customer._id, {
+        $inc: { tokenVersion: 1 },
+      });
+      const freshCustomer = (await this.customerModel
+        .findById(customer._id)
+        .select('tokenVersion')
+        .lean()) as any;
       const tv = freshCustomer?.tokenVersion ?? 1;
 
       // Generate JWT tokens
-      const accessToken = this.jwtService.sign(
-        {
-          sub: customer._id,
-          email: customer.email,
-          role: 'customer',
-          tv, // single-session token version
-        }
-      );
+      const accessToken = this.jwtService.sign({
+        sub: customer._id,
+        email: customer.email,
+        role: 'customer',
+        tv, // single-session token version
+      });
 
-      console.log('[Customers Login] Generated access token - decoding payload:');
+      console.log(
+        '[Customers Login] Generated access token - decoding payload:',
+      );
       try {
         const parts = accessToken.split('.');
         if (parts.length === 3) {
-          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+          const payload = JSON.parse(
+            Buffer.from(parts[1], 'base64').toString(),
+          );
           console.log('[Customers Login] Token payload:', payload);
         }
       } catch (e) {
@@ -157,7 +189,7 @@ export class CustomersController {
         },
         {
           expiresIn: '7d',
-        }
+        },
       );
 
       return {
@@ -174,7 +206,9 @@ export class CustomersController {
         },
       };
     } catch (error: any) {
-      throw new UnauthorizedException(error.message || 'Invalid email or password');
+      throw new UnauthorizedException(
+        error.message || 'Invalid email or password',
+      );
     }
   }
 
@@ -220,41 +254,46 @@ export class CustomersController {
   @UseGuards(JwtAuthGuard)
   async changePassword(
     @Request() req: any,
-    @Body() body: { currentPassword: string; newPassword: string }
+    @Body() body: { currentPassword: string; newPassword: string },
   ) {
-    console.log('[ChangePassword] Endpoint called!')
+    console.log('[ChangePassword] Endpoint called!');
     console.log('[ChangePassword] Request received:', {
       method: req.method,
       path: req.path,
       headers: Object.keys(req.headers),
-    })
+    });
     console.log('[ChangePassword] Request user:', {
       sub: req.user?.sub,
       id: req.user?.id,
       email: req.user?.email,
       role: req.user?.role,
-    })
-    
+    });
+
     // Validate that this is a customer token, not a user/staff token
     if (req.user?.role !== 'customer') {
-      throw new UnauthorizedException('This endpoint is only for customers. Current role: ' + req.user?.role);
+      throw new UnauthorizedException(
+        'This endpoint is only for customers. Current role: ' + req.user?.role,
+      );
     }
-    
+
     console.log('[ChangePassword] Body:', {
       currentPassword: body.currentPassword ? '***' : 'missing',
       newPassword: body.newPassword ? '***' : 'missing',
-    })
-    
+    });
+
     return this.customersService.changePassword(
       req.user.sub,
       body.currentPassword,
-      body.newPassword
+      body.newPassword,
     );
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateCustomerDto: UpdateCustomerDto,
+  ) {
     console.log('[Patch :id] Update endpoint called with id:', id);
     return this.customersService.update(id, updateCustomerDto);
   }
@@ -266,13 +305,19 @@ export class CustomersController {
 
   @Post(':id/saved-addresses')
   @UseGuards(JwtAuthGuard)
-  async addSavedAddress(@Param('id') id: string, @Body() savedAddressDto: SavedAddressDto) {
+  async addSavedAddress(
+    @Param('id') id: string,
+    @Body() savedAddressDto: SavedAddressDto,
+  ) {
     return this.customersService.addSavedAddress(id, savedAddressDto);
   }
 
   @Delete(':id/saved-addresses/:label')
   @UseGuards(JwtAuthGuard)
-  async removeSavedAddress(@Param('id') id: string, @Param('label') label: string) {
+  async removeSavedAddress(
+    @Param('id') id: string,
+    @Param('label') label: string,
+  ) {
     return this.customersService.removeSavedAddress(id, label);
   }
 
@@ -287,7 +332,10 @@ export class CustomersController {
 
   @Delete(':id/emergency-contacts/:name')
   @UseGuards(JwtAuthGuard)
-  async removeEmergencyContact(@Param('id') id: string, @Param('name') name: string) {
+  async removeEmergencyContact(
+    @Param('id') id: string,
+    @Param('name') name: string,
+  ) {
     return this.customersService.removeEmergencyContact(id, name);
   }
 

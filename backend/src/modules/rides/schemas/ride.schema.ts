@@ -1,6 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { VehicleCondition, VehicleConditionSchema } from './vehicle-condition.schema';
+import {
+  VehicleCondition,
+  VehicleConditionSchema,
+} from './vehicle-condition.schema';
 
 export type RideDocument = Ride & Document;
 
@@ -31,7 +34,7 @@ export enum TransmissionType {
 
 export enum RideType {
   SHARE = 'share', // Ghép xe - tìm khách hàng khác cùng tuyến
-  HIRE = 'hire',   // Lái xe hộ - thuê tài xế riêng
+  HIRE = 'hire', // Lái xe hộ - thuê tài xế riêng
 }
 
 @Schema({ timestamps: true })
@@ -62,7 +65,7 @@ export class Ride {
 
   @Prop({
     type: Object,
-    default: { type: 'Point', coordinates: [] }
+    default: { type: 'Point', coordinates: [] },
   })
   pickupLocation: {
     type: string;
@@ -85,7 +88,7 @@ export class Ride {
 
   @Prop({
     type: Object,
-    default: { type: 'Point', coordinates: [] }
+    default: { type: 'Point', coordinates: [] },
   })
   dropoffLocation: {
     type: string;
@@ -220,18 +223,21 @@ export class Ride {
   cancellationBy?: 'driver' | 'customer';
 
   // Vehicle condition check (pre-trip and post-trip)
-  @Prop({ type: VehicleConditionSchema, default: () => ({
-    preTrip: { completed: false, images: {}, capturedAt: null },
-    postTrip: { completed: false, images: {}, capturedAt: null }
-  }) })
+  @Prop({
+    type: VehicleConditionSchema,
+    default: () => ({
+      preTrip: { completed: false, images: {}, capturedAt: null },
+      postTrip: { completed: false, images: {}, capturedAt: null },
+    }),
+  })
   vehicleCondition?: VehicleCondition;
 }
 
 export const RideSchema = SchemaFactory.createForClass(Ride);
 
 // Create geospatial index for pickup location
-RideSchema.index({ 'pickupLocation': '2dsphere' });
-RideSchema.index({ 'dropoffLocation': '2dsphere' });
+RideSchema.index({ pickupLocation: '2dsphere' });
+RideSchema.index({ dropoffLocation: '2dsphere' });
 RideSchema.index({ status: 1 });
 RideSchema.index({ customerId: 1 });
 RideSchema.index({ driverId: 1 });

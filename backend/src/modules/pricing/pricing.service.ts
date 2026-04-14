@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PricingConfig, PricingConfigDocument } from './pricing-config.schema';
-import { CalculatePriceDto, CalculatePriceResponse, PriceBreakdown } from './dto/calculate-price.dto';
+import {
+  CalculatePriceDto,
+  CalculatePriceResponse,
+  PriceBreakdown,
+} from './dto/calculate-price.dto';
 
 @Injectable()
 export class PricingService {
@@ -14,26 +18,30 @@ export class PricingService {
   /**
    * TÍNH GIÁ GHÉP XE - MỖI NGƯỜI TRẢ THEO QUÃNG ĐƯỜNG CỦA MÌNH
    * Theo tài liệu: Base Price & Ghép Người
-   * 
+   *
    * NGHIỆP VỤ ĐÚNG:
    * 1. Tính giá RIÊNG cho TỪNG NGƯỜI dựa trên distance của NGƯỜI ĐÓ
    * 2. Áp dụng CÙNG DISCOUNT theo tổng số ghế trong chuyến
    * 3. Người đi xa trả nhiều, người đi gần trả ít
-   * 
+   *
    * VÍ DỤ: 3 người ghép, discount 15%:
    * - Người 1 (25km cao điểm): 264,000 → giảm 15% = 198,000đ
    * - Người 2 (18km cao điểm): 197,000 → giảm 15% = 147,750đ
    * - Người 3 (12km bình thường): 116,000 → giảm 15% = 87,000đ
    * Tổng: 432,750đ (KHÔNG chia đều!)
    */
-  async calculatePrice(dto: CalculatePriceDto): Promise<CalculatePriceResponse> {
+  async calculatePrice(
+    dto: CalculatePriceDto,
+  ): Promise<CalculatePriceResponse> {
     const config = await this.getConfig();
     const totalPassengers = dto.passengers.length;
 
     // Lấy vehicle type từ passenger đầu tiên (giả sử tất cả cùng loại xe)
     const vehicleType = dto.passengers[0]?.vehicleType || 'sedan';
-    const vehicleConfig = config.vehicleTypes.find(v => v.type === vehicleType);
-    
+    const vehicleConfig = config.vehicleTypes.find(
+      (v) => v.type === vehicleType,
+    );
+
     if (!vehicleConfig) {
       throw new Error(`Vehicle type ${vehicleType} not found in config`);
     }
@@ -57,7 +65,10 @@ export class PricingService {
     dto.passengers.forEach((passenger, index) => {
       // BƯỚC 1: Tính raw_price cho NGƯỜI NÀY
       // ✨ SỬ DỤNG PROGRESSIVE PRICING (Tính cộng dồn theo từng khoảng)
-      const distancePrice = this.calculateProgressiveDistancePrice(passenger.distance, vehicleConfig);
+      const distancePrice = this.calculateProgressiveDistancePrice(
+        passenger.distance,
+        vehicleConfig,
+      );
       const rawPrice = distancePrice + vehicleConfig.baseFee;
 
       // BƯỚC 2: Tính base_price
@@ -128,25 +139,31 @@ export class PricingService {
 
   /**
    * ✨ TÍNH GIÁ CỘNG DỒN THEO KHOẢNG CÁCH (Progressive Pricing)
-   * 
+   *
    * Ví dụ: Đi 54km với config:
    * - 0-10km: 12,000đ/km
-   * - 10-50km: 6,000đ/km  
+   * - 10-50km: 6,000đ/km
    * - 50-100km: 5,000đ/km
-   * 
+   *
    * Tính toán:
    * - 10km đầu: 10 × 12,000 = 120,000đ
    * - 40km tiếp: 40 × 6,000 = 240,000đ
    * - 4km cuối: 4 × 5,000 = 20,000đ
    * → Tổng: 380,000đ
    */
-  private calculateProgressiveDistancePrice(distance: number, vehicleConfig: any): number {
+  private calculateProgressiveDistancePrice(
+    distance: number,
+    vehicleConfig: any,
+  ): number {
     console.log('\n📏 [Progressive Distance Pricing - Backend]');
     console.log('  Distance:', distance, 'km');
     console.log('  Vehicle:', vehicleConfig.type, '-', vehicleConfig.name);
-    
+
     // Kiểm tra có distanceRanges không
-    if (!vehicleConfig.distanceRanges || vehicleConfig.distanceRanges.length === 0) {
+    if (
+      !vehicleConfig.distanceRanges ||
+      vehicleConfig.distanceRanges.length === 0
+    ) {
       console.log('  ⚠️ No distance ranges configured');
       const totalPrice = distance * vehicleConfig.pricePerKm;
       console.log('  → Using default price:', vehicleConfig.pricePerKm, 'đ/km');
@@ -155,45 +172,53 @@ export class PricingService {
     }
 
     // Sắp xếp ranges theo minKm tăng dần
-    const sortedRanges = [...vehicleConfig.distanceRanges].sort((a, b) => a.minKm - b.minKm);
-    
+    const sortedRanges = [...vehicleConfig.distanceRanges].sort(
+      (a, b) => a.minKm - b.minKm,
+    );
+
     console.log('  Available ranges:');
     sortedRanges.forEach((range, idx) => {
       const maxDisplay = range.maxKm === -1 ? '∞' : range.maxKm;
-      console.log(`    ${idx + 1}. ${range.minKm}-${maxDisplay}km: ${range.pricePerKm}đ/km`);
+      console.log(
+        `    ${idx + 1}. ${range.minKm}-${maxDisplay}km: ${range.pricePerKm}đ/km`,
+      );
     });
 
     let totalPrice = 0;
     let coveredDistance = 0; // Km đã tính
-    
+
     console.log('\n  Progressive calculation:');
 
     for (const range of sortedRanges) {
       // Nếu đã đủ km rồi thì stop
       if (coveredDistance >= distance) break;
-      
+
       const rangeStart = range.minKm;
       const rangeEnd = range.maxKm === -1 ? Infinity : range.maxKm;
-      
+
       // Skip range nếu chưa đến
       if (distance <= rangeStart) continue;
-      
+
       // Tính km trong range này
       const startKmInRange = Math.max(rangeStart, coveredDistance);
       const endKmInRange = Math.min(rangeEnd, distance);
       const distanceInRange = endKmInRange - startKmInRange;
-      
+
       if (distanceInRange <= 0) continue;
-      
+
       const priceForRange = distanceInRange * range.pricePerKm;
       totalPrice += priceForRange;
       coveredDistance += distanceInRange;
-      
+
       const maxDisplay = range.maxKm === -1 ? '∞' : range.maxKm;
-      console.log(`    • ${rangeStart}-${maxDisplay}km: ${distanceInRange.toFixed(1)}km × ${range.pricePerKm}đ = ${priceForRange}đ`);
+      console.log(
+        `    • ${rangeStart}-${maxDisplay}km: ${distanceInRange.toFixed(1)}km × ${range.pricePerKm}đ = ${priceForRange}đ`,
+      );
     }
-    
-    console.log(`  ✅ Total distance price: ${totalPrice}đ (covered ${coveredDistance}km)`);
+
+    console.log(
+      `  ✅ Total distance price: ${totalPrice}đ (covered ${coveredDistance}km)`,
+    );
     return totalPrice;
   }
 
@@ -202,9 +227,15 @@ export class PricingService {
    * Nếu có distanceRanges, tìm range phù hợp
    * Nếu không có, dùng pricePerKm mặc định
    */
-  private getPricePerKmForDistance(distance: number, vehicleConfig: any): number {
+  private getPricePerKmForDistance(
+    distance: number,
+    vehicleConfig: any,
+  ): number {
     // Kiểm tra có distanceRanges không
-    if (!vehicleConfig.distanceRanges || vehicleConfig.distanceRanges.length === 0) {
+    if (
+      !vehicleConfig.distanceRanges ||
+      vehicleConfig.distanceRanges.length === 0
+    ) {
       // Không có ranges, dùng giá cố định
       return vehicleConfig.pricePerKm;
     }
@@ -217,12 +248,16 @@ export class PricingService {
     });
 
     if (matchingRange) {
-      console.log(`  [Distance Range] ${distance}km → ${matchingRange.minKm}-${matchingRange.maxKm === -1 ? '∞' : matchingRange.maxKm}km: ${matchingRange.pricePerKm}đ/km`);
+      console.log(
+        `  [Distance Range] ${distance}km → ${matchingRange.minKm}-${matchingRange.maxKm === -1 ? '∞' : matchingRange.maxKm}km: ${matchingRange.pricePerKm}đ/km`,
+      );
       return matchingRange.pricePerKm;
     }
 
     // Không tìm thấy range phù hợp, dùng giá mặc định
-    console.warn(`  [Distance Range] No matching range for ${distance}km, using default: ${vehicleConfig.pricePerKm}đ/km`);
+    console.warn(
+      `  [Distance Range] No matching range for ${distance}km, using default: ${vehicleConfig.pricePerKm}đ/km`,
+    );
     return vehicleConfig.pricePerKm;
   }
 
@@ -242,62 +277,68 @@ export class PricingService {
     try {
       console.log('🔍 [PricingService] Getting config from database...');
       const config = await this.pricingConfigModel.findOne().exec();
-      
+
       console.log('📊 [PricingService] Config from DB:', {
         found: !!config,
         _id: config?._id,
         vehicleTypesCount: config?.vehicleTypes?.length,
         carpoolDiscountsCount: config?.carpoolDiscounts?.length,
-        carpoolDiscounts: config?.carpoolDiscounts?.map(d => ({ 
-          passengers: d.passengers, 
-          discount: d.discount 
+        carpoolDiscounts: config?.carpoolDiscounts?.map((d) => ({
+          passengers: d.passengers,
+          discount: d.discount,
         })),
         peakMultiplier: config?.peakMultiplier,
         driverShare: config?.driverShare,
         topupDiscountCustomer: config?.topupDiscountCustomer,
         topupDiscountDriver: config?.topupDiscountDriver,
       });
-      
+
       if (!config) {
-        console.warn('⚠️ [PricingService] No config in DB, creating default...');
+        console.warn(
+          '⚠️ [PricingService] No config in DB, creating default...',
+        );
         // Create default config if none exists
         return await this.createDefaultConfig();
       }
-      
+
       console.log('✅ [PricingService] Using config from DATABASE');
       return config;
     } catch (error) {
       console.error('❌ [PricingService] Error in getConfig:', error);
       console.error('❌ [PricingService] Error stack:', error.stack);
       // Try to create default config as fallback
-      console.warn('⚠️ [PricingService] Attempting to create default config as fallback...');
+      console.warn(
+        '⚠️ [PricingService] Attempting to create default config as fallback...',
+      );
       return await this.createDefaultConfig();
     }
   }
 
-  async updateConfig(configData: Partial<PricingConfig>): Promise<PricingConfigDocument> {
+  async updateConfig(
+    configData: Partial<PricingConfig>,
+  ): Promise<PricingConfigDocument> {
     let config = await this.pricingConfigModel.findOne().exec();
-    
+
     if (!config) {
       // Create new config if none exists
       config = new this.pricingConfigModel(configData);
       return config.save();
     }
-    
+
     // ✅ Update only provided fields, preserve others (e.g., topupDiscount, vehicleTypes)
-    Object.keys(configData).forEach(key => {
+    Object.keys(configData).forEach((key) => {
       if (configData[key] !== undefined) {
         config[key] = configData[key];
       }
     });
-    
+
     return config.save();
   }
 
   async resetToDefaults(): Promise<PricingConfigDocument> {
     // Delete existing config
     await this.pricingConfigModel.deleteMany({}).exec();
-    
+
     // Create default config
     return this.createDefaultConfig();
   }
@@ -461,7 +502,7 @@ export class PricingService {
       topupDiscountDriver: 0,
       // ============ END TOPUP DISCOUNT ============
     });
-    
+
     return defaultConfig.save();
   }
 
@@ -472,13 +513,17 @@ export class PricingService {
     return config.save();
   }
 
-  async updateDeliveryWeightRanges(weightRanges: any[]): Promise<PricingConfig> {
+  async updateDeliveryWeightRanges(
+    weightRanges: any[],
+  ): Promise<PricingConfig> {
     const config = await this.getConfig();
     config.deliveryWeightRanges = weightRanges;
     return config.save();
   }
 
-  async updateDeliveryVehicleTypes(vehicleTypes: any[]): Promise<PricingConfig> {
+  async updateDeliveryVehicleTypes(
+    vehicleTypes: any[],
+  ): Promise<PricingConfig> {
     const config = await this.getConfig();
     config.deliveryVehicleTypes = vehicleTypes;
     return config.save();
@@ -486,7 +531,9 @@ export class PricingService {
   // ============ END GIAO HÀNG ============
 
   // ============ LÁI XE HỘ - Hire Driver Pricing Methods ============
-  async updateHireDriverPricing(hireDriverPricing: any[]): Promise<PricingConfig> {
+  async updateHireDriverPricing(
+    hireDriverPricing: any[],
+  ): Promise<PricingConfig> {
     const config = await this.getConfig();
     config.hireDriverPricing = hireDriverPricing;
     return config.save();
@@ -497,19 +544,22 @@ export class PricingService {
    * Formula: If distance <= freeKm: openingFee
    *          If distance > freeKm: openingFee + (distance - freeKm) * pricePerExtraKm
    */
-  async calculateHireDriverFare(vehicleType: string, distance: number): Promise<{ 
-    total: number; 
-    breakdown: { 
-      openingFee: number; 
-      freeKm: number; 
-      extraKm: number; 
-      extraKmFee: number; 
+  async calculateHireDriverFare(
+    vehicleType: string,
+    distance: number,
+  ): Promise<{
+    total: number;
+    breakdown: {
+      openingFee: number;
+      freeKm: number;
+      extraKm: number;
+      extraKmFee: number;
       pricePerExtraKm: number;
-    } 
+    };
   }> {
     const pricingConfig = await this.getConfig();
     const config = pricingConfig.hireDriverPricing?.find(
-      (h) => h.vehicleType === vehicleType
+      (h) => h.vehicleType === vehicleType,
     );
 
     if (!config) {
@@ -568,17 +618,17 @@ export class PricingService {
     const R = 6371; // Bán kính trái đất (km)
     const dLat = this.toRadians(lat2 - lat1);
     const dLng = this.toRadians(lng2 - lng1);
-    
+
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(this.toRadians(lat1)) *
         Math.cos(this.toRadians(lat2)) *
         Math.sin(dLng / 2) *
         Math.sin(dLng / 2);
-    
+
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
-    
+
     return distance;
   }
 
@@ -635,7 +685,9 @@ export class PricingService {
 
       // Kiểm tra vehicle type
       if (route.vehicleType !== vehicleType) {
-        console.log(`  ⏭️  Skip route ${route.name}: Wrong vehicle type (need ${vehicleType}, got ${route.vehicleType})`);
+        console.log(
+          `  ⏭️  Skip route ${route.name}: Wrong vehicle type (need ${vehicleType}, got ${route.vehicleType})`,
+        );
         return false;
       }
 
@@ -655,7 +707,9 @@ export class PricingService {
           route.origin.coordinates.lat,
           route.origin.coordinates.lng,
         );
-        console.log(`  ⏭️  Skip route ${route.name}: Pickup too far from origin (${distanceToOrigin.toFixed(1)}km > ${route.origin.radius}km)`);
+        console.log(
+          `  ⏭️  Skip route ${route.name}: Pickup too far from origin (${distanceToOrigin.toFixed(1)}km > ${route.origin.radius}km)`,
+        );
         return false;
       }
 
@@ -675,15 +729,21 @@ export class PricingService {
           route.destination.coordinates.lat,
           route.destination.coordinates.lng,
         );
-        console.log(`  ⏭️  Skip route ${route.name}: Dropoff too far from destination (${distanceToDestination.toFixed(1)}km > ${route.destination.radius}km)`);
+        console.log(
+          `  ⏭️  Skip route ${route.name}: Dropoff too far from destination (${distanceToDestination.toFixed(1)}km > ${route.destination.radius}km)`,
+        );
         return false;
       }
 
-      console.log(`  ✅ Match found: ${route.name} (${route.fixedPrice.toLocaleString()}đ)`);
+      console.log(
+        `  ✅ Match found: ${route.name} (${route.fixedPrice.toLocaleString()}đ)`,
+      );
       return true;
     });
 
-    console.log(`\n🎯 [Inter-Provincial] Found ${matchingRoutes.length} matching routes\n`);
+    console.log(
+      `\n🎯 [Inter-Provincial] Found ${matchingRoutes.length} matching routes\n`,
+    );
     return matchingRoutes;
   }
 
@@ -702,7 +762,9 @@ export class PricingService {
     pricePerPerson: number;
   }> {
     const config = await this.getConfig();
-    const route = config.interProvincialRoutes?.find((r: any) => r.id === routeId);
+    const route = config.interProvincialRoutes?.find(
+      (r: any) => r.id === routeId,
+    );
 
     if (!route) {
       throw new Error(`Inter-provincial route ${routeId} not found`);
@@ -727,7 +789,12 @@ export class PricingService {
     console.log('\n📊 [BƯỚC 2] Giảm giá ghép xe:');
     console.log('  Số người:', totalPassengers);
     console.log('  Giảm giá:', Math.round(discountRate * 100) + '%');
-    console.log('  Công thức:', route.fixedPrice.toLocaleString(), '× (1 -', discountRate + ')');
+    console.log(
+      '  Công thức:',
+      route.fixedPrice.toLocaleString(),
+      '× (1 -',
+      discountRate + ')',
+    );
 
     // Tính giá sau giảm
     const finalPrice = Math.round(route.fixedPrice * (1 - discountRate));
@@ -738,11 +805,18 @@ export class PricingService {
 
     console.log('\n🎯 ============ KẾT QUẢ CUỐI CÙNG ============');
     console.log('  💵 TỔNG GIÁ:', finalPrice.toLocaleString(), 'đ');
-    console.log('  💵 TRUNG BÌNH MỖI NGƯỜI:', pricePerPerson.toLocaleString(), 'đ');
+    console.log(
+      '  💵 TRUNG BÌNH MỖI NGƯỜI:',
+      pricePerPerson.toLocaleString(),
+      'đ',
+    );
     console.log('\n  Chi tiết:');
     console.log('    • Giá cố định:', route.fixedPrice.toLocaleString(), 'đ');
     if (discountRate > 0) {
-      console.log('    • Giảm giá ghép xe:', '-' + Math.round(discountRate * 100) + '%');
+      console.log(
+        '    • Giảm giá ghép xe:',
+        '-' + Math.round(discountRate * 100) + '%',
+      );
     }
     console.log('    • Giá cuối:', finalPrice.toLocaleString(), 'đ');
     console.log('    • ⚠️  KHÔNG áp dụng giờ cao điểm');
@@ -772,17 +846,23 @@ export class PricingService {
     topupDiscountDriver?: number,
   ): Promise<PricingConfig> {
     const config = await this.getConfig();
-    
+
     if (topupDiscountCustomer !== undefined) {
       // Validate 0-100
-      config.topupDiscountCustomer = Math.max(0, Math.min(100, topupDiscountCustomer));
+      config.topupDiscountCustomer = Math.max(
+        0,
+        Math.min(100, topupDiscountCustomer),
+      );
     }
-    
+
     if (topupDiscountDriver !== undefined) {
       // Validate 0-100
-      config.topupDiscountDriver = Math.max(0, Math.min(100, topupDiscountDriver));
+      config.topupDiscountDriver = Math.max(
+        0,
+        Math.min(100, topupDiscountDriver),
+      );
     }
-    
+
     return config.save();
   }
 
@@ -790,13 +870,13 @@ export class PricingService {
     try {
       console.log(`[PricingService] Getting topup discount for: ${userType}`);
       const config = await this.getConfig();
-      
+
       console.log('[PricingService] Config loaded:', {
         hasConfig: !!config,
         topupDiscountCustomer: config?.topupDiscountCustomer,
         topupDiscountDriver: config?.topupDiscountDriver,
       });
-      
+
       if (userType === 'customer') {
         const discount = config.topupDiscountCustomer || 0;
         console.log(`[PricingService] ✅ Customer discount: ${discount}%`);
@@ -847,7 +927,10 @@ export class PricingService {
         return config.minWithdrawAmountDriver || 50000;
       }
     } catch (error) {
-      console.error('[PricingService] Error getting min withdraw amount:', error);
+      console.error(
+        '[PricingService] Error getting min withdraw amount:',
+        error,
+      );
       return 50000; // Default fallback
     }
   }
@@ -857,7 +940,10 @@ export class PricingService {
       const config = await this.getConfig();
       return config.minWalletBalanceToGoOnline || 100000;
     } catch (error) {
-      console.error('[PricingService] Error getting min wallet balance:', error);
+      console.error(
+        '[PricingService] Error getting min wallet balance:',
+        error,
+      );
       return 100000; // Default fallback
     }
   }

@@ -6,7 +6,8 @@ import { Permission, PermissionDocument } from './schemas/permission.schema';
 @Injectable()
 export class PermissionSeeder {
   constructor(
-    @InjectModel(Permission.name) private permissionModel: Model<PermissionDocument>,
+    @InjectModel(Permission.name)
+    private permissionModel: Model<PermissionDocument>,
   ) {}
 
   async seedPermissions() {

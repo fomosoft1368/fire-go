@@ -6,8 +6,14 @@ import { DeliveryController } from './controllers/delivery.controller';
 import { Delivery, DeliverySchema } from './schemas/delivery.schema';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 import { DriversModule } from '../drivers/drivers.module';
-import { DeliveryAssignmentRequest, DeliveryAssignmentRequestSchema } from './schemas/delivery-assignment-request.schema';
-import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
+import {
+  DeliveryAssignmentRequest,
+  DeliveryAssignmentRequestSchema,
+} from './schemas/delivery-assignment-request.schema';
+import {
+  PricingConfig,
+  PricingConfigSchema,
+} from '../pricing/pricing-config.schema';
 import { DriverSearchConfigModule } from '../config/config.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -19,7 +25,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
     MongooseModule.forFeature([
       { name: Delivery.name, schema: DeliverySchema },
       { name: Driver.name, schema: DriverSchema },
-      { name: DeliveryAssignmentRequest.name, schema: DeliveryAssignmentRequestSchema },
+      {
+        name: DeliveryAssignmentRequest.name,
+        schema: DeliveryAssignmentRequestSchema,
+      },
       { name: 'PricingConfig', schema: PricingConfigSchema },
     ]),
   ],

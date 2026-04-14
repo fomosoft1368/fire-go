@@ -34,11 +34,18 @@ export const TripPhaseSchema = SchemaFactory.createForClass(TripPhase);
 
 @Schema({ _id: false })
 export class VehicleCondition {
-  @Prop({ type: TripPhaseSchema, default: () => ({ completed: false, images: {}, capturedAt: null }) })
+  @Prop({
+    type: TripPhaseSchema,
+    default: () => ({ completed: false, images: {}, capturedAt: null }),
+  })
   preTrip: TripPhase;
 
-  @Prop({ type: TripPhaseSchema, default: () => ({ completed: false, images: {}, capturedAt: null }) })
+  @Prop({
+    type: TripPhaseSchema,
+    default: () => ({ completed: false, images: {}, capturedAt: null }),
+  })
   postTrip: TripPhase;
 }
 
-export const VehicleConditionSchema = SchemaFactory.createForClass(VehicleCondition);
+export const VehicleConditionSchema =
+  SchemaFactory.createForClass(VehicleCondition);

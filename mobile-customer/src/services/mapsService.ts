@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Google Maps API Service
  * Cung cáº¥p cÃ¡c chá»©c nÄƒng:
  * - Geocoding: Chuyá»ƒn Ä‘á»‹a chá»‰ thÃ nh tá»a Ä‘á»™
@@ -9,12 +9,11 @@
 
 import Constants from 'expo-constants'
 import { API_BASE_URL } from '../constants/config'
-import { remoteConfig } from './remoteConfig'
-
+import { loggerService } from './loggerService'
 
 function getApiKey(): string {
-
-  return remoteConfig.get('GOOGLE_MAPS_API_KEY') || Constants.expoConfig?.extra?.googleMapsApiKey || ''
+  // Ưu tiên lấy từ biến môi trường (EXPO_PUBLIC_GOOGLE_MAPS_API_KEY)
+  return process.env.GOOGLE_MAPS_API_KEY || Constants.expoConfig?.extra?.googleMapsApiKey || ''
 }
 
 interface Coordinates {
@@ -65,45 +64,51 @@ const generateMockGeocode = (address: string): GeocodeResult => {
  * @returns Array cÃƒÂ¡c tÃ¡Â»Âa Ã„â€˜Ã¡Â»â„¢
  */
 const decodePolyline = (encoded: string): Array<{ latitude: number; longitude: number }> => {
-  const points: Array<{ latitude: number; longitude: number }> = []
-  let index = 0
-  const len = encoded.length
-  let lat = 0
-  let lng = 0
+  try {
+    const points: Array<{ latitude: number; longitude: number }> = []
+    let index = 0
+    const len = encoded.length
+    let lat = 0
+    let lng = 0
 
-  while (index < len) {
-    let b
-    let shift = 0
-    let result = 0
+    while (index < len) {
+      let b
+      let shift = 0
+      let result = 0
 
-    do {
-      b = encoded.charCodeAt(index++) - 63
-      result |= (b & 0x1f) << shift
-      shift += 5
-    } while (b >= 0x20)
+      // Fixed string charCode index out of bounds checking
+      do {
+        b = encoded.charCodeAt(index++) - 63
+        result |= (b & 0x1f) << shift
+        shift += 5
+      } while (index < len && b >= 0x20)
 
-    const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1
-    lat += dlat
+      const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1
+      lat += dlat
 
-    shift = 0
-    result = 0
+      shift = 0
+      result = 0
 
-    do {
-      b = encoded.charCodeAt(index++) - 63
-      result |= (b & 0x1f) << shift
-      shift += 5
-    } while (b >= 0x20)
+      do {
+        b = encoded.charCodeAt(index++) - 63
+        result |= (b & 0x1f) << shift
+        shift += 5
+      } while (index < len && b >= 0x20)
 
-    const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1
-    lng += dlng
+      const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1
+      lng += dlng
 
-    points.push({
-      latitude: lat / 1e5,
-      longitude: lng / 1e5,
-    })
+      points.push({
+        latitude: lat / 1e5,
+        longitude: lng / 1e5,
+      })
+    }
+
+    return points
+  } catch (error) {
+    loggerService.logFrontendError('mapsService.decodePolyline', error, { encoded });
+    return [];
   }
-
-  return points
 }
 
 /**

@@ -24,6 +24,23 @@ import { notificationService } from './services/notificationService'
 import { registerUnauthorizedHandler } from './services/apiClient'
 import { API_BASE_URL } from './constants'
 import RideTracking from './screens/RideTracking'
+import { loggerService } from './services/loggerService'
+
+// Global Unhandled Error Logger
+const defaultErrorHandler = ErrorUtils.getGlobalHandler();
+ErrorUtils.setGlobalHandler((error, isFatal) => {
+  try {
+    loggerService.logFrontendError('GlobalUnhandledError', error, { isFatal });
+  } catch (e) {
+    console.error('Failed to log global error', e);
+  }
+  
+  if (defaultErrorHandler) {
+    defaultErrorHandler(error, isFatal);
+  } else {
+    console.error(error, isFatal);
+  }
+});
 
 // Detect Expo Go — executionEnvironment is reliable in SDK 54+ (appOwnership is deprecated)
 const IS_EXPO_GO = Constants.executionEnvironment === 'storeClient' ||

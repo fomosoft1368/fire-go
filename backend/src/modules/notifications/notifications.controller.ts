@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Delete, Patch, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+} from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { PushNotificationService } from './push-notification.service';
 import { CreateNotificationDto, SendNotificationDto } from './dto';
@@ -24,7 +35,9 @@ export class NotificationsController {
     const { id, role, email } = req.user;
     console.log(`\n🔔 ===== PUSH TOKEN REGISTRATION =====`);
     console.log(`👤 User: ${email} (${role}) | ID: ${id}`);
-    console.log(`🔑 Token: ${token ? token.substring(0, 40) + '...' : '(empty)'}`);
+    console.log(
+      `🔑 Token: ${token ? token.substring(0, 40) + '...' : '(empty)'}`,
+    );
 
     if (!token) {
       console.log('❌ Token is empty, skipping.');
@@ -105,7 +118,10 @@ export class NotificationsController {
   @UseGuards(JwtAuthGuard)
   async getUnreadCount(@Request() req: any) {
     const role = req.user?.role as 'driver' | 'customer' | 'admin' | undefined;
-    const count = await this.notificationsService.getUnreadCount(req.user.id, role);
+    const count = await this.notificationsService.getUnreadCount(
+      req.user.id,
+      role,
+    );
     return { unreadCount: count };
   }
 
@@ -122,7 +138,11 @@ export class NotificationsController {
     @Query('limit') limit: number = 20,
     @Query('skip') skip: number = 0,
   ) {
-    const notifications = await this.notificationsService.findByUserId(req.user.id, limit, skip);
+    const notifications = await this.notificationsService.findByUserId(
+      req.user.id,
+      limit,
+      skip,
+    );
     const total = await this.notificationsService.getUnreadCount(req.user.id);
     return {
       data: notifications,

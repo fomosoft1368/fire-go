@@ -1,7 +1,22 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { WalletsService } from './wallets.service';
 import { TopUpWalletDto, PaymentDto } from './dto';
-import { DepositDto, WithdrawDto, TransactionQueryDto } from './dto/transaction.dto';
+import {
+  DepositDto,
+  WithdrawDto,
+  TransactionQueryDto,
+} from './dto/transaction.dto';
 import { GenerateQRCodeDto } from './dto/qr-code.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserType } from './schemas/transaction.schema';
@@ -25,8 +40,9 @@ export class WalletsController {
   async topUp(@Request() req: any, @Body() topUpWalletDto: TopUpWalletDto) {
     // Determine user type from request (driver or customer)
     // This depends on your auth system - you may store role/type in req.user
-    const userType = req.user.type === 'driver' ? UserType.DRIVER : UserType.CUSTOMER;
-    
+    const userType =
+      req.user.type === 'driver' ? UserType.DRIVER : UserType.CUSTOMER;
+
     return this.walletsService.topUp(req.user.id, topUpWalletDto, userType);
   }
 
@@ -34,7 +50,7 @@ export class WalletsController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   async deposit(@Request() req: any, @Body() depositDto: DepositDto) {
-    console.log(`[WalletsController] Deposit request from ${req.user.id}`)
+    console.log(`[WalletsController] Deposit request from ${req.user.id}`);
     return this.walletsService.deposit(
       req.user.id,
       depositDto.amount,
@@ -47,10 +63,16 @@ export class WalletsController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   async withdraw(@Request() req: any, @Body() withdrawDto: WithdrawDto) {
-    console.log(`[WalletsController] Withdraw request from ${req.user.id}`, withdrawDto)
-    
+    console.log(
+      `[WalletsController] Withdraw request from ${req.user.id}`,
+      withdrawDto,
+    );
+
     // Support both saved payment method and manual entry
-    if (withdrawDto.bankAccount && !withdrawDto.bankAccount.startsWith('TEMP_')) {
+    if (
+      withdrawDto.bankAccount &&
+      !withdrawDto.bankAccount.startsWith('TEMP_')
+    ) {
       // Using saved payment method
       return this.walletsService.withdraw(
         req.user.id,
@@ -95,8 +117,8 @@ export class WalletsController {
   @Get('balance')
   @UseGuards(JwtAuthGuard)
   async getBalance(@Request() req: any) {
-    const balance = await this.walletsService.getWalletBalance(req.user.id)
-    return { balance }
+    const balance = await this.walletsService.getWalletBalance(req.user.id);
+    return { balance };
   }
 
   /**
@@ -106,10 +128,7 @@ export class WalletsController {
   @Post('sepay-topup')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  async createSepayTopup(
-    @Request() req: any,
-    @Body() dto: { amount: number },
-  ) {
+  async createSepayTopup(@Request() req: any, @Body() dto: { amount: number }) {
     console.log('[WalletsController] Creating customer Sepay topup:', {
       userId: req.user?.id,
       amount: dto.amount,
@@ -134,7 +153,10 @@ export class WalletsController {
         'customer',
       );
 
-      console.log('[WalletsController] ✅ Customer topup created with QR code:', qrInfo.content);
+      console.log(
+        '[WalletsController] ✅ Customer topup created with QR code:',
+        qrInfo.content,
+      );
 
       return {
         success: true,
@@ -148,7 +170,10 @@ export class WalletsController {
         bankId: qrInfo.bankId,
       };
     } catch (error: any) {
-      console.error('[WalletsController] ❌ Error creating Sepay topup:', error);
+      console.error(
+        '[WalletsController] ❌ Error creating Sepay topup:',
+        error,
+      );
       throw error;
     }
   }
@@ -171,12 +196,18 @@ export class WalletsController {
   @UseGuards(JwtAuthGuard)
   async getTopupDiscount(@Request() req: any) {
     try {
-      console.log('[WalletsController] Getting topup discount for customer:', req.user?.id);
+      console.log(
+        '[WalletsController] Getting topup discount for customer:',
+        req.user?.id,
+      );
       const result = await this.walletsService.getTopupDiscount('customer');
       console.log('[WalletsController] Topup discount result:', result);
       return result;
     } catch (error) {
-      console.error('[WalletsController] ❌ Error getting topup discount:', error);
+      console.error(
+        '[WalletsController] ❌ Error getting topup discount:',
+        error,
+      );
       throw error;
     }
   }
@@ -193,9 +224,7 @@ export class WalletsController {
 
   @Get('admin/transactions')
   @UseGuards(JwtAuthGuard)
-  async getAllTransactions(
-    @Query('limit') limit: number = 100,
-  ) {
+  async getAllTransactions(@Query('limit') limit: number = 100) {
     return this.walletsService.getAllTransactions(limit);
   }
 
@@ -207,10 +236,7 @@ export class WalletsController {
 
   @Post('admin/deposit/:id/reject')
   @UseGuards(JwtAuthGuard)
-  async rejectDeposit(
-    @Param('id') id: string,
-    @Body('reason') reason: string,
-  ) {
+  async rejectDeposit(@Param('id') id: string, @Body('reason') reason: string) {
     return this.walletsService.rejectDeposit(id, reason);
   }
 
@@ -236,20 +262,20 @@ export class WalletsController {
     @Body('status') status: string,
   ) {
     // Check current status
-    const transaction = await this.walletsService.getTransactionById(id)
-    
+    const transaction = await this.walletsService.getTransactionById(id);
+
     // If trying to move from PENDING to PROCESSING, call approveWithdraw
     if (transaction.status === 'pending' && status === 'processing') {
-      return this.walletsService.approveWithdraw(id)
+      return this.walletsService.approveWithdraw(id);
     }
-    
+
     // Otherwise call updateWithdrawStatus for other transitions
-    return this.walletsService.updateWithdrawStatus(id, status)
+    return this.walletsService.updateWithdrawStatus(id, status);
   }
   @Post('withdraw/:id/cancel')
   @UseGuards(JwtAuthGuard)
   async cancelWithdraw(@Param('id') id: string, @Request() req: any) {
-    return this.walletsService.cancelWithdraw(id, req.user.sub)
+    return this.walletsService.cancelWithdraw(id, req.user.sub);
   }
   @Post('generate-qr-code')
   @UseGuards(JwtAuthGuard)

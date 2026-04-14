@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationsService } from './notifications.service';
-import { NotificationType, NotificationChannel } from './schemas/notification.schema';
+import {
+  NotificationType,
+  NotificationChannel,
+} from './schemas/notification.schema';
 
 @Injectable()
 export class NotificationsListener {
@@ -10,7 +13,7 @@ export class NotificationsListener {
   @OnEvent('driver.registered')
   async handleDriverRegistered(payload: any) {
     console.log('📢 Event: driver.registered', payload);
-    
+
     // Create notification for admin dashboard
     try {
       const notification = await this.notificationsService.create({
@@ -20,7 +23,12 @@ export class NotificationsListener {
         title: 'Tài xế mới đăng ký',
         message: `${payload.firstName} ${payload.lastName} (${payload.phone}) vừa đăng ký tài xế`,
       });
-      console.log('✅ Notification created:', notification._id, 'for driver:', payload.firstName);
+      console.log(
+        '✅ Notification created:',
+        notification._id,
+        'for driver:',
+        payload.firstName,
+      );
     } catch (error) {
       console.error('❌ Error creating driver notification:', error);
     }
@@ -29,7 +37,7 @@ export class NotificationsListener {
   @OnEvent('customer.registered')
   async handleCustomerRegistered(payload: any) {
     console.log('📢 Event: customer.registered', payload);
-    
+
     // Create notification for admin dashboard
     try {
       const notification = await this.notificationsService.create({
@@ -39,7 +47,12 @@ export class NotificationsListener {
         title: 'Khách hàng mới đăng ký',
         message: `${payload.firstName} ${payload.lastName} (${payload.email}) vừa đăng ký tài khoản`,
       });
-      console.log('✅ Notification created:', notification._id, 'for customer:', payload.firstName);
+      console.log(
+        '✅ Notification created:',
+        notification._id,
+        'for customer:',
+        payload.firstName,
+      );
     } catch (error) {
       console.error('❌ Error creating customer notification:', error);
     }
@@ -48,7 +61,7 @@ export class NotificationsListener {
   @OnEvent('ride.created')
   async handleRideCreated(payload: any) {
     console.log('📢 Event: ride.created', payload);
-    
+
     // Create notification for driver dashboard
     if (payload.driverId) {
       try {
@@ -69,7 +82,7 @@ export class NotificationsListener {
   @OnEvent('ride.accepted')
   async handleRideAccepted(payload: any) {
     console.log('📢 Event: ride.accepted', payload);
-    
+
     // Create notification for customer
     if (payload.customerId) {
       try {
@@ -90,7 +103,7 @@ export class NotificationsListener {
   @OnEvent('ride.completed')
   async handleRideCompleted(payload: any) {
     console.log('📢 Event: ride.completed', payload);
-    
+
     // Create notification for customer
     if (payload.customerId) {
       try {
@@ -115,23 +128,30 @@ export class NotificationsListener {
       driverId: payload.driverId,
       type: payload.type,
     });
-    
+
     // Create notification for driver about new assignment request
     if (payload.driverId) {
       try {
-        const message = payload.type === 'combined_trip' 
-          ? `Ghép chuyến mới từ ${payload.pickupAddress} đến ${payload.dropoffAddress}`
-          : `Cuốc xe mới từ ${payload.pickupAddress} đến ${payload.dropoffAddress}`;
-        
+        const message =
+          payload.type === 'combined_trip'
+            ? `Ghép chuyến mới từ ${payload.pickupAddress} đến ${payload.dropoffAddress}`
+            : `Cuốc xe mới từ ${payload.pickupAddress} đến ${payload.dropoffAddress}`;
+
         await this.notificationsService.create({
           userId: payload.driverId,
           type: NotificationType.RIDE_REQUEST,
           channels: [NotificationChannel.IN_APP],
-          title: payload.type === 'combined_trip' ? 'Ghép chuyến mới' : 'Cuốc xe mới',
+          title:
+            payload.type === 'combined_trip'
+              ? 'Ghép chuyến mới'
+              : 'Cuốc xe mới',
           message,
           rideId: payload.requestId.toString(),
         });
-        console.log('✅ Assignment request notification sent to driver:', payload.driverId);
+        console.log(
+          '✅ Assignment request notification sent to driver:',
+          payload.driverId,
+        );
       } catch (error) {
         console.error('Error creating assignment request notification:', error);
       }

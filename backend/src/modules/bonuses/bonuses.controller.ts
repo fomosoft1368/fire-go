@@ -69,9 +69,15 @@ export class BonusesController {
 
   /** POST /bonuses/driver/claims - Driver creates a claim */
   @Post('driver/claims')
-  async createClaim(@Request() req: any, @Body() body: { bonusRuleId: string }) {
+  async createClaim(
+    @Request() req: any,
+    @Body() body: { bonusRuleId: string },
+  ) {
     const driverId = req.user._id || req.user.id;
-    return this.bonusesService.createClaim(driverId.toString(), body.bonusRuleId);
+    return this.bonusesService.createClaim(
+      driverId.toString(),
+      body.bonusRuleId,
+    );
   }
 
   // ==================== Admin: Claims Management ====================

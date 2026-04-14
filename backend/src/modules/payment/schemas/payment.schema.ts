@@ -1,7 +1,7 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
-import { Document, Types } from 'mongoose'
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-export type PaymentDocument = Payment & Document
+export type PaymentDocument = Payment & Document;
 
 export enum PaymentMethod {
   VNPAY = 'vnpay',
@@ -25,49 +25,49 @@ export enum PaymentStatus {
 @Schema({ timestamps: true })
 export class Payment {
   @Prop({ type: Types.ObjectId, ref: 'Driver', required: true })
-  userId: Types.ObjectId
+  userId: Types.ObjectId;
 
   @Prop({ required: true })
-  amount: number
+  amount: number;
 
   @Prop({ type: String, enum: PaymentMethod, required: true })
-  method: PaymentMethod
+  method: PaymentMethod;
 
   @Prop({ type: String, enum: PaymentType, required: true })
-  type: PaymentType
+  type: PaymentType;
 
   @Prop({ type: String, enum: PaymentStatus, default: PaymentStatus.PENDING })
-  status: PaymentStatus
+  status: PaymentStatus;
 
   @Prop()
-  transactionRef?: string
+  transactionRef?: string;
 
   @Prop()
-  transactionNo?: string
+  transactionNo?: string;
 
   @Prop({ type: Object })
-  paymentData?: Record<string, any>
+  paymentData?: Record<string, any>;
 
   @Prop()
-  completedAt?: Date
+  completedAt?: Date;
 
   @Prop()
-  failedAt?: Date
+  failedAt?: Date;
 
   @Prop()
-  failureReason?: string
+  failureReason?: string;
 
   @Prop()
-  notes?: string
+  notes?: string;
 
   @Prop({ default: false })
-  verified: boolean
+  verified: boolean;
 }
 
-export const PaymentSchema = SchemaFactory.createForClass(Payment)
+export const PaymentSchema = SchemaFactory.createForClass(Payment);
 
 // Indexes
-PaymentSchema.index({ userId: 1, createdAt: -1 })
-PaymentSchema.index({ transactionRef: 1 }, { unique: true, sparse: true })
-PaymentSchema.index({ status: 1 })
-PaymentSchema.index({ createdAt: -1 })
+PaymentSchema.index({ userId: 1, createdAt: -1 });
+PaymentSchema.index({ transactionRef: 1 }, { unique: true, sparse: true });
+PaymentSchema.index({ status: 1 });
+PaymentSchema.index({ createdAt: -1 });

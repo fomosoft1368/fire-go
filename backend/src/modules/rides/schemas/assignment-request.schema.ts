@@ -34,7 +34,8 @@ export class AssignmentRequest {
   attemptNumber: number; // Lần thử thứ mấy (1 = driver đầu tiên, 2 = driver thứ 2,...)
 }
 
-export const AssignmentRequestSchema = SchemaFactory.createForClass(AssignmentRequest);
+export const AssignmentRequestSchema =
+  SchemaFactory.createForClass(AssignmentRequest);
 
 // Index để query nhanh
 AssignmentRequestSchema.index({ rideId: 1, status: 1 });

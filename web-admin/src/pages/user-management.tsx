@@ -12,7 +12,7 @@ interface User {
   name: string;
   email: string;
   phone: string;
-  role: 'admin' | 'staff' | 'moderator' | 'support';
+  role: 'admin' | 'staff' | 'moderator' | 'support' | 'f1_lead' | 'f2_sub_lead' | 'f3_staff_mkt';
   status: 'active' | 'blocked' | 'pending' | 'inactive';
   avatar?: string;
   initials?: string;
@@ -63,7 +63,7 @@ const PERMISSIONS: Permission[] = [
 export default function UserManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'blocked' | 'pending' | 'inactive'>('all');
-  const [filterRole, setFilterRole] = useState<'all' | 'admin' | 'staff' | 'moderator' | 'support'>('all');
+  const [filterRole, setFilterRole] = useState<'all' | 'admin' | 'staff' | 'moderator' | 'support' | 'f1_lead' | 'f2_sub_lead' | 'f3_staff_mkt'>('all');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export default function UserManagement() {
     phone: '',
     password: '',
     department: '',
-    role: 'staff' as 'admin' | 'staff' | 'moderator' | 'support',
+    role: 'staff' as 'admin' | 'staff' | 'moderator' | 'support' | 'f1_lead' | 'f2_sub_lead' | 'f3_staff_mkt',
     status: 'active' as 'active' | 'blocked' | 'pending' | 'inactive',
     permissions: [] as string[]
   });
@@ -216,7 +216,7 @@ export default function UserManagement() {
         phone: '',
         password: '',
         department: '',
-        role: 'staff' as 'admin' | 'staff' | 'moderator' | 'support',
+        role: 'staff' as 'admin' | 'staff' | 'moderator' | 'support' | 'f1_lead' | 'f2_sub_lead' | 'f3_staff_mkt',
         status: 'active' as 'active' | 'blocked' | 'pending' | 'inactive',
         permissions: []
       });
@@ -293,7 +293,7 @@ export default function UserManagement() {
         phone: '',
         password: '',
         department: '',
-        role: 'staff' as 'admin' | 'staff' | 'moderator' | 'support',
+        role: 'staff' as 'admin' | 'staff' | 'moderator' | 'support' | 'f1_lead' | 'f2_sub_lead' | 'f3_staff_mkt',
         status: 'active' as 'active' | 'blocked' | 'pending' | 'inactive',
         permissions: []
       });
@@ -425,6 +425,12 @@ export default function UserManagement() {
         return 'text-purple-600';
       case 'support':
         return 'text-green-600';
+      case 'f1_lead':
+        return 'text-amber-600 font-bold';
+      case 'f2_sub_lead':
+        return 'text-orange-600';
+      case 'f3_staff_mkt':
+        return 'text-lime-600';
       default:
         return 'text-slate-600';
     }
@@ -440,6 +446,12 @@ export default function UserManagement() {
         return 'Người kiểm duyệt';
       case 'support':
         return 'Hỗ trợ khách hàng';
+      case 'f1_lead':
+        return 'Lead Vùng (F1)';
+      case 'f2_sub_lead':
+        return 'Trưởng Nhóm (F2)';
+      case 'f3_staff_mkt':
+        return 'NV Marketing (F3)';
       default:
         return 'Không xác định';
     }
@@ -465,7 +477,7 @@ export default function UserManagement() {
                 phone: '',
                 password: '',
                 department: '',
-                role: 'staff' as 'admin' | 'staff' | 'moderator' | 'support',
+                role: 'staff' as 'admin' | 'staff' | 'moderator' | 'support' | 'f1_lead' | 'f2_sub_lead' | 'f3_staff_mkt',
                 status: 'active' as 'active' | 'blocked' | 'pending' | 'inactive',
                 permissions: []
               });
@@ -569,13 +581,43 @@ export default function UserManagement() {
               >
                 <p>Staff</p>
               </button>
+              <button 
+                className={`flex h-10 items-center justify-center gap-x-2 rounded-lg px-4 transition-all text-xs ${
+                  filterRole === 'f1_lead' 
+                    ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' 
+                    : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+                onClick={() => setFilterRole('f1_lead')}
+              >
+                <p>Lead Vùng (F1)</p>
+              </button>
+              <button 
+                className={`flex h-10 items-center justify-center gap-x-2 rounded-lg px-4 transition-all text-xs ${
+                  filterRole === 'f2_sub_lead' 
+                    ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' 
+                    : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+                onClick={() => setFilterRole('f2_sub_lead')}
+              >
+                <p>Trưởng Nhóm (F2)</p>
+              </button>
+              <button 
+                className={`flex h-10 items-center justify-center gap-x-2 rounded-lg px-4 transition-all text-xs ${
+                  filterRole === 'f3_staff_mkt' 
+                    ? 'bg-lime-100 text-lime-600 dark:bg-lime-900/30 dark:text-lime-400' 
+                    : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+                onClick={() => setFilterRole('f3_staff_mkt')}
+              >
+                <p>Marketing (F3)</p>
+              </button>
             </div>
         </div>
 
         {/* Count */}
         <div className="mb-6">
           <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-            Danh sách ({loading ? '...' : users.length} quản lý viên)
+            Danh sách nhân sự & marketing ({loading ? '...' : users.length})
           </p>
         </div>
 
@@ -780,6 +822,9 @@ export default function UserManagement() {
                     <option value="moderator">Người kiểm duyệt</option>
                     <option value="support">Hỗ trợ khách hàng</option>
                     <option value="admin">Quản lý viên</option>
+                    <option value="f1_lead">Lead Vùng (F1)</option>
+                    <option value="f2_sub_lead">Trưởng Nhóm (F2)</option>
+                    <option value="f3_staff_mkt">Nhân viên Marketing (F3)</option>
                   </select>
                 </div>
 
@@ -895,6 +940,9 @@ export default function UserManagement() {
                     <option value="moderator">Người kiểm duyệt</option>
                     <option value="support">Hỗ trợ khách hàng</option>
                     <option value="admin">Quản lý viên</option>
+                    <option value="f1_lead">Lead Vùng (F1)</option>
+                    <option value="f2_sub_lead">Trưởng Nhóm (F2)</option>
+                    <option value="f3_staff_mkt">Nhân viên Marketing (F3)</option>
                   </select>
                 </div>
 

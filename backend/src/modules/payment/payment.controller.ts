@@ -9,11 +9,11 @@ import {
   Request,
   Res,
   BadRequestException,
-} from '@nestjs/common'
-import { Response } from 'express'
-import { PaymentService } from './payment.service'
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
-import { CreatePaymentDto } from './dto/create-payment.dto'
+} from '@nestjs/common';
+import { Response } from 'express';
+import { PaymentService } from './payment.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreatePaymentDto } from './dto/create-payment.dto';
 
 @Controller('payment')
 export class PaymentController {
@@ -24,13 +24,16 @@ export class PaymentController {
    */
   @Post('vnpay/create-payment')
   @UseGuards(JwtAuthGuard)
-  createVNPayPayment(@Body() createPaymentDto: CreatePaymentDto, @Request() req: any) {
+  createVNPayPayment(
+    @Body() createPaymentDto: CreatePaymentDto,
+    @Request() req: any,
+  ) {
     try {
-      const { amount, orderInfo, language } = createPaymentDto
-      const userId = req.user.id || req.user._id
+      const { amount, orderInfo, language } = createPaymentDto;
+      const userId = req.user.id || req.user._id;
 
       // Tạo order ID
-      const orderId = `${userId}-${Date.now()}`
+      const orderId = `${userId}-${Date.now()}`;
 
       // Tạo URL thanh toán
       const paymentUrl = this.paymentService.createPaymentUrl(
@@ -38,20 +41,20 @@ export class PaymentController {
         orderId,
         orderInfo,
         userId,
-        language
-      )
+        language,
+      );
 
       return {
         success: true,
         paymentUrl,
         orderId,
-      }
+      };
     } catch (error: any) {
-      console.error('[PaymentController] Error creating payment:', error)
+      console.error('[PaymentController] Error creating payment:', error);
       return {
         success: false,
         message: error.message || 'Failed to create payment',
-      }
+      };
     }
   }
 
@@ -61,37 +64,44 @@ export class PaymentController {
   @Get('vnpay/return')
   async vnpayReturn(@Query() query: any, @Res() res: Response) {
     try {
-      console.log('[PaymentController] VNPay return callback received:', query)
+      console.log('[PaymentController] VNPay return callback received:', query);
 
-      const { vnp_SecureHash, ...vnpParams } = query
+      const { vnp_SecureHash, ...vnpParams } = query;
 
       // Xác minh chữ ký
-      const isValid = this.paymentService.verifyPaymentSignature(vnpParams, vnp_SecureHash)
+      const isValid = this.paymentService.verifyPaymentSignature(
+        vnpParams,
+        vnp_SecureHash,
+      );
 
       if (!isValid) {
-        console.warn('[PaymentController] Invalid signature')
-        return res.redirect('/payment/result?success=false&message=Invalid+signature')
+        console.warn('[PaymentController] Invalid signature');
+        return res.redirect(
+          '/payment/result?success=false&message=Invalid+signature',
+        );
       }
 
       // Xử lý kết quả thanh toán
       const result = await this.paymentService.handlePaymentCallback({
         ...vnpParams,
         userId: this.extractUserIdFromOrderId(vnpParams.vnp_TxnRef),
-      })
+      });
 
       // Redirect về app với kết quả
       const redirectUrl =
         result.success === true
           ? `exp://payment/result?success=true&transactionId=${result.transactionId}`
           : `exp://payment/result?success=false&message=${encodeURIComponent(
-              result.message || 'Payment failed'
-            )}`
+              result.message || 'Payment failed',
+            )}`;
 
-      console.log('[PaymentController] Redirecting to:', redirectUrl)
-      return res.redirect(redirectUrl)
+      console.log('[PaymentController] Redirecting to:', redirectUrl);
+      return res.redirect(redirectUrl);
     } catch (error: any) {
-      console.error('[PaymentController] Error in VNPay return:', error)
-      return res.redirect('/payment/result?success=false&message=Error+processing+payment')
+      console.error('[PaymentController] Error in VNPay return:', error);
+      return res.redirect(
+        '/payment/result?success=false&message=Error+processing+payment',
+      );
     }
   }
 
@@ -101,29 +111,32 @@ export class PaymentController {
   @Post('vnpay/notify')
   async vnpayNotify(@Query() query: any, @Res() res: Response) {
     try {
-      console.log('[PaymentController] VNPay notify webhook received')
+      console.log('[PaymentController] VNPay notify webhook received');
 
-      const { vnp_SecureHash, ...vnpParams } = query
+      const { vnp_SecureHash, ...vnpParams } = query;
 
       // Xác minh chữ ký
-      const isValid = this.paymentService.verifyPaymentSignature(vnpParams, vnp_SecureHash)
+      const isValid = this.paymentService.verifyPaymentSignature(
+        vnpParams,
+        vnp_SecureHash,
+      );
 
       if (!isValid) {
-        console.warn('[PaymentController] Invalid signature on notify')
-        return res.json({ RspCode: '97', Message: 'Invalid signature' })
+        console.warn('[PaymentController] Invalid signature on notify');
+        return res.json({ RspCode: '97', Message: 'Invalid signature' });
       }
 
       // Xử lý kết quả thanh toán
       await this.paymentService.handlePaymentCallback({
         ...vnpParams,
         userId: this.extractUserIdFromOrderId(vnpParams.vnp_TxnRef),
-      })
+      });
 
       // VNPay yêu cầu response này
-      return res.json({ RspCode: '00', Message: 'Notify received' })
+      return res.json({ RspCode: '00', Message: 'Notify received' });
     } catch (error: any) {
-      console.error('[PaymentController] Error in VNPay notify:', error)
-      return res.json({ RspCode: '99', Message: 'Error processing notify' })
+      console.error('[PaymentController] Error in VNPay notify:', error);
+      return res.json({ RspCode: '99', Message: 'Error processing notify' });
     }
   }
 
@@ -137,15 +150,15 @@ export class PaymentController {
       const result = await this.paymentService.handlePaymentCallback({
         ...data,
         userId: req.user.id || req.user._id,
-      })
+      });
 
-      return result
+      return result;
     } catch (error: any) {
-      console.error('[PaymentController] Error verifying payment:', error)
+      console.error('[PaymentController] Error verifying payment:', error);
       return {
         success: false,
         message: error.message || 'Failed to verify payment',
-      }
+      };
     }
   }
 
@@ -154,23 +167,32 @@ export class PaymentController {
    */
   @Get('history')
   @UseGuards(JwtAuthGuard)
-  async getPaymentHistory(@Request() req: any, @Query('limit') limit: string = '10') {
+  async getPaymentHistory(
+    @Request() req: any,
+    @Query('limit') limit: string = '10',
+  ) {
     try {
-      const userId = req.user.id || req.user._id
-      const parsedLimit = parseInt(limit, 10) || 10
+      const userId = req.user.id || req.user._id;
+      const parsedLimit = parseInt(limit, 10) || 10;
 
-      const history = await this.paymentService.getPaymentHistory(userId, parsedLimit)
+      const history = await this.paymentService.getPaymentHistory(
+        userId,
+        parsedLimit,
+      );
 
       return {
         success: true,
         data: history,
-      }
+      };
     } catch (error: any) {
-      console.error('[PaymentController] Error fetching payment history:', error)
+      console.error(
+        '[PaymentController] Error fetching payment history:',
+        error,
+      );
       return {
         success: false,
         message: error.message || 'Failed to fetch payment history',
-      }
+      };
     }
   }
 
@@ -181,18 +203,22 @@ export class PaymentController {
   @UseGuards(JwtAuthGuard)
   async checkPaymentStatus(@Param('transactionId') transactionId: string) {
     try {
-      const status = await this.paymentService.checkPaymentStatus(transactionId)
+      const status =
+        await this.paymentService.checkPaymentStatus(transactionId);
 
       return {
         success: true,
         data: status,
-      }
+      };
     } catch (error: any) {
-      console.error('[PaymentController] Error checking payment status:', error)
+      console.error(
+        '[PaymentController] Error checking payment status:',
+        error,
+      );
       return {
         success: false,
         message: error.message || 'Failed to check payment status',
-      }
+      };
     }
   }
 
@@ -207,13 +233,13 @@ export class PaymentController {
       return {
         success: true,
         message: 'Payment cancelled',
-      }
+      };
     } catch (error: any) {
-      console.error('[PaymentController] Error cancelling payment:', error)
+      console.error('[PaymentController] Error cancelling payment:', error);
       return {
         success: false,
         message: error.message || 'Failed to cancel payment',
-      }
+      };
     }
   }
 
@@ -221,6 +247,6 @@ export class PaymentController {
    * Helper function
    */
   private extractUserIdFromOrderId(orderId: string): string {
-    return orderId.split('-')[0]
+    return orderId.split('-')[0];
   }
 }

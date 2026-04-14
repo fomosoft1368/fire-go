@@ -1,35 +1,35 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
-import { Document } from 'mongoose'
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
 
-export type AddonServiceDocument = AddonService & Document
+export type AddonServiceDocument = AddonService & Document;
 
 @Schema({ timestamps: true })
 export class AddonService {
   @Prop({ required: true, unique: true })
-  name: string
+  name: string;
 
   @Prop({ required: true })
-  icon: string
+  icon: string;
 
   @Prop({ required: true })
-  description: string
+  description: string;
 
   @Prop({ required: true })
-  price: number
+  price: number;
 
   @Prop({ required: true })
-  duration: number
+  duration: number;
 
   @Prop({ enum: ['active', 'inactive'], default: 'active' })
-  status: string
+  status: string;
 
   @Prop({ type: Date, default: () => new Date() })
-  createdAt: Date
+  createdAt: Date;
 
   @Prop({ type: Date, default: () => new Date() })
-  updatedAt: Date
+  updatedAt: Date;
 }
 
-export const AddonServiceSchema = SchemaFactory.createForClass(AddonService)
-AddonServiceSchema.index({ status: 1 })
-AddonServiceSchema.index({ createdAt: -1 })
+export const AddonServiceSchema = SchemaFactory.createForClass(AddonService);
+AddonServiceSchema.index({ status: 1 });
+AddonServiceSchema.index({ createdAt: -1 });

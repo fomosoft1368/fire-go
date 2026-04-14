@@ -17,13 +17,28 @@ export class SepayService {
   constructor(private readonly appSettingsService: AppSettingsService) {}
 
   /** Lấy key từ DB (dynamic - phản ánh thay đổi từ web-admin) */
-  private get SEPAY_API_KEY() { return this.appSettingsService.getSync('SEPAY_API_KEY'); }
-  private get SEPAY_SECRET_KEY() { return this.appSettingsService.getSync('SEPAY_SECRET_KEY'); }
-  private get ACCOUNT_NO() { return this.appSettingsService.getSync('SEPAY_ACCOUNT_NUMBER') || 'VQRQAHGIQ8468'; }
-  private get ACCOUNT_NAME() { return this.appSettingsService.getSync('SEPAY_ACCOUNT_NAME') || 'HO VAN TRINH'; }
-  private get BANK_ID() { return this.appSettingsService.getSync('SEPAY_BANK_ID') || '970422'; }
-  private get BANK_NAME() { return this.appSettingsService.getSync('SEPAY_BANK_NAME') || 'MB'; }
-
+  private get SEPAY_API_KEY() {
+    return this.appSettingsService.getSync('SEPAY_API_KEY');
+  }
+  private get SEPAY_SECRET_KEY() {
+    return this.appSettingsService.getSync('SEPAY_SECRET_KEY');
+  }
+  private get ACCOUNT_NO() {
+    return (
+      this.appSettingsService.getSync('SEPAY_ACCOUNT_NUMBER') || 'VQRQAHGIQ8468'
+    );
+  }
+  private get ACCOUNT_NAME() {
+    return (
+      this.appSettingsService.getSync('SEPAY_ACCOUNT_NAME') || 'HO VAN TRINH'
+    );
+  }
+  private get BANK_ID() {
+    return this.appSettingsService.getSync('SEPAY_BANK_ID') || '970422';
+  }
+  private get BANK_NAME() {
+    return this.appSettingsService.getSync('SEPAY_BANK_NAME') || 'MB';
+  }
 
   /**
    * Generate Sepay QR code URL for bank transfer
@@ -45,10 +60,12 @@ export class SepayService {
   } {
     // Generate unique transaction content with user type prefix
     // Format: DRV8A9B0C1D or CUST9B0C2D2E (no underscore - banks don't allow it)
-    const last8Chars = transactionId.substring(transactionId.length - 8).toUpperCase();
+    const last8Chars = transactionId
+      .substring(transactionId.length - 8)
+      .toUpperCase();
     const prefix = userType === 'driver' ? 'DRV' : 'CUST';
     const content = `${prefix}${last8Chars}`; // No underscore!
-    
+
     console.log('[SepayService] 🔖 Generating QR code:');
     console.log('[SepayService] User Type:', userType);
     console.log('[SepayService] Full Transaction ID:', transactionId);
@@ -83,7 +100,7 @@ export class SepayService {
    */
   private buildVietQRUrl(payload: SepayQRPayload): string {
     const baseUrl = 'https://qr.sepay.vn/img';
-    
+
     // URL encode params for Sepay format
     const params = new URLSearchParams({
       acc: payload.accountNo,
@@ -102,8 +119,12 @@ export class SepayService {
   verifyWebhookSignature(payload: string, signature: string): boolean {
     // If no secret key configured, accept all (development mode)
     if (!this.SEPAY_SECRET_KEY) {
-      console.log('[SepayService] ⚠️ No SEPAY_SECRET_KEY configured - accepting all webhooks (DEV MODE)');
-      console.log('[SepayService] 💡 To enable signature verification, add SEPAY_SECRET_KEY to .env');
+      console.log(
+        '[SepayService] ⚠️ No SEPAY_SECRET_KEY configured - accepting all webhooks (DEV MODE)',
+      );
+      console.log(
+        '[SepayService] 💡 To enable signature verification, add SEPAY_SECRET_KEY to .env',
+      );
       return true;
     }
 
@@ -112,9 +133,9 @@ export class SepayService {
       const hmac = crypto.createHmac('sha256', this.SEPAY_SECRET_KEY);
       hmac.update(payload);
       const computedSignature = hmac.digest('hex');
-      
+
       const isValid = computedSignature === signature;
-      
+
       if (isValid) {
         console.log('[SepayService] ✅ Webhook signature VALID');
       } else {
@@ -122,7 +143,7 @@ export class SepayService {
         console.log('[SepayService] Expected:', computedSignature);
         console.log('[SepayService] Received:', signature);
       }
-      
+
       return isValid;
     } catch (error) {
       console.error('[SepayService] ❌ Error verifying signature:', error);
@@ -135,7 +156,9 @@ export class SepayService {
    * Format: DH + 8-24 chars transaction ID (hex)
    */
   validateTransactionContent(content: string, transactionId: string): boolean {
-    const expectedSuffix = transactionId.substring(transactionId.length - 8).toUpperCase();
+    const expectedSuffix = transactionId
+      .substring(transactionId.length - 8)
+      .toUpperCase();
     const expectedContent = `DH${expectedSuffix}`;
     return content.toUpperCase().includes(expectedSuffix);
   }

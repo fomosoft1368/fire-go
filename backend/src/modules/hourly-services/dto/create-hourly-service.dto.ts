@@ -1,95 +1,101 @@
-import { IsString, IsNumber, IsArray, IsOptional, ValidateNested } from 'class-validator'
-import { Type } from 'class-transformer'
+import {
+  IsString,
+  IsNumber,
+  IsArray,
+  IsOptional,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ServiceItemDto {
   @IsString()
-  id: string
+  id: string;
 
   @IsString()
-  name: string
+  name: string;
 
   @IsNumber()
-  price: number
+  price: number;
 
   @IsNumber()
-  duration: number
+  duration: number;
 
-  selected: boolean
+  selected: boolean;
 }
 
 export class CreateHourlyServiceDto {
   @IsString()
-  customerId: string
+  customerId: string;
 
   @IsNumber()
-  hours: number
+  hours: number;
 
   @IsNumber()
-  selectedDate: number
+  selectedDate: number;
 
   @IsString()
-  selectedTime: string
+  selectedTime: string;
 
   @IsString()
-  address: string
+  address: string;
 
   @IsOptional()
   @IsString()
-  notes?: string
+  notes?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ServiceItemDto)
-  services: ServiceItemDto[]
+  services: ServiceItemDto[];
 
   @IsNumber()
-  estimatedPrice: number
+  estimatedPrice: number;
 }
 
 export class UpdateHourlyServiceDto {
   @IsOptional()
   @IsString()
-  status?: string
+  status?: string;
 
   @IsOptional()
   @IsString()
-  workerId?: string
+  workerId?: string;
 
   @IsOptional()
   @IsNumber()
-  actualPrice?: number
+  actualPrice?: number;
 
   @IsOptional()
   @IsString()
-  cancelReason?: string
+  cancelReason?: string;
 
   @IsOptional()
   @IsString()
-  startTime?: string
+  startTime?: string;
 
   @IsOptional()
   @IsString()
-  endTime?: string
+  endTime?: string;
 }
 
 export class RateHourlyServiceDto {
   @IsNumber()
-  rating: number
+  rating: number;
 
   @IsOptional()
   @IsString()
-  comment?: string
+  comment?: string;
 
   @IsOptional()
   @IsString()
-  feedback?: string
+  feedback?: string;
 }
 
 export class GetPricingDto {
   @IsNumber()
-  hours: number
+  hours: number;
 
   @IsOptional()
   @IsArray()
-  addOns?: string[]
+  addOns?: string[];
 }

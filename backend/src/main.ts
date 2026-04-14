@@ -2,9 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import dns from 'dns'
+import dns from 'dns';
 
-dns.setServers(['8.8.8.8', '1.1.1.1'])
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -14,19 +14,27 @@ async function bootstrap() {
   // Request logging middleware
   app.use((req, res, next) => {
     // Log request
-    if (req.path.includes('/change-password') || req.path === '/api/customers/change-password') {
+    if (
+      req.path.includes('/change-password') ||
+      req.path === '/api/customers/change-password'
+    ) {
       console.log('[HTTP Middleware] Request detected:', {
         method: req.method,
         path: req.path,
         url: req.url,
-        authorization: req.headers.authorization ? `${req.headers.authorization.substring(0, 50)}...` : 'missing',
+        authorization: req.headers.authorization
+          ? `${req.headers.authorization.substring(0, 50)}...`
+          : 'missing',
       });
     }
 
     // Intercept response to log it
     const originalSend = res.send;
     res.send = function (data) {
-      if (req.path.includes('/change-password') || req.path === '/api/customers/change-password') {
+      if (
+        req.path.includes('/change-password') ||
+        req.path === '/api/customers/change-password'
+      ) {
         console.log('[HTTP Response] Response for', req.path, ':', {
           statusCode: res.statusCode,
           data: typeof data === 'string' ? data : JSON.stringify(data),
@@ -61,7 +69,10 @@ async function bootstrap() {
 
   app.enableCors({
     // Dùng callback để cho phép toàn bộ IP nội bộ (192.168.x.x, 10.x.x.x) trong dev
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       // Cho phép requests không có origin (mobile apps, Postman, curl...)
       if (!origin) return callback(null, true);
 
@@ -70,7 +81,8 @@ async function bootstrap() {
 
       // Trong môi trường dev: cho phép toàn bộ mạng nội bộ (IP thay đổi theo WiFi)
       if (isDev) {
-        const localNetworkPattern = /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|localhost)(:\d+)?$/;
+        const localNetworkPattern =
+          /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|localhost)(:\d+)?$/;
         if (localNetworkPattern.test(origin)) return callback(null, true);
 
         // Cho phép exp:// protocol của Expo Go
@@ -81,7 +93,6 @@ async function bootstrap() {
     },
     credentials: true,
   });
-
 
   // Global validation pipe
   app.useGlobalPipes(

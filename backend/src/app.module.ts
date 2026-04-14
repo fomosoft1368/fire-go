@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './modules/auth/auth.module';
 import { DriversModule } from './modules/drivers/drivers.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -23,6 +24,9 @@ import { LegalDocsModule } from './modules/config/legal-docs.module';
 import { CallModule } from './modules/call/call.module';
 import { BonusesModule } from './modules/bonuses/bonuses.module';
 import { AppSettingsModule } from './modules/app-settings/app-settings.module';
+import { LogsModule } from './modules/logs/logs.module';
+import { RegionsModule } from './modules/regions/regions.module';
+import { TeamsModule } from './modules/teams/teams.module';
 
 @Module({
   imports: [
@@ -31,9 +35,11 @@ import { AppSettingsModule } from './modules/app-settings/app-settings.module';
       envFilePath: '.env',
     }),
     MongooseModule.forRoot(
-      process.env.MONGODB_URI || 'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH',
+      process.env.MONGODB_URI ||
+        'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH',
     ),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     AppSettingsModule, // ← PHẢI đứng đầu để seed/cache trước các module khác
     AuthModule,
     DriversModule,
@@ -55,8 +61,11 @@ import { AppSettingsModule } from './modules/app-settings/app-settings.module';
     LegalDocsModule,
     BonusesModule,
     CallModule,
+    LogsModule,
+    RegionsModule,
+    TeamsModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule { }
+export class AppModule {}

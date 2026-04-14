@@ -68,4 +68,7 @@ CallSessionSchema.index({ callerId: 1 });
 CallSessionSchema.index({ receiverId: 1 });
 
 // TTL: auto-delete sessions after 7 days
-CallSessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 3600 });
+CallSessionSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 7 * 24 * 3600 },
+);

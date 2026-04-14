@@ -10,7 +10,9 @@ console.log('[CustomersModule] Loading...');
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Customer.name, schema: CustomerSchema }]),
+    MongooseModule.forFeature([
+      { name: Customer.name, schema: CustomerSchema },
+    ]),
     PassportModule,
     AuthModule,
   ],
@@ -23,4 +25,3 @@ export class CustomersModule {
     console.log('[CustomersModule] Initialized');
   }
 }
-

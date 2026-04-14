@@ -37,7 +37,9 @@ export function validateEmail(email: string): boolean {
  * Generate random string
  */
 export function generateRandomString(length: number = 10): string {
-  return Math.random().toString(36).substring(2, 2 + length);
+  return Math.random()
+    .toString(36)
+    .substring(2, 2 + length);
 }
 
 /**
@@ -79,7 +81,7 @@ export function formatPhoneNumber(phone: string): string {
  */
 export function getTimeDifference(date: Date): string {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-  
+
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -97,11 +99,7 @@ export function roundTo(value: number, decimals: number = 2): number {
  * Check if object is empty
  */
 export function isEmpty(obj: any): boolean {
-  return (
-    obj === null ||
-    obj === undefined ||
-    Object.keys(obj).length === 0
-  );
+  return obj === null || obj === undefined || Object.keys(obj).length === 0;
 }
 
 /**

@@ -1,10 +1,27 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { AdminLog, AdminLogDocument, AdminAction } from './schemas/admin-log.schema';
-import { SystemConfig, SystemConfigDocument } from './schemas/system-config.schema';
+import {
+  AdminLog,
+  AdminLogDocument,
+  AdminAction,
+} from './schemas/admin-log.schema';
+import {
+  SystemConfig,
+  SystemConfigDocument,
+} from './schemas/system-config.schema';
 import { Permission, PermissionDocument } from './schemas/permission.schema';
-import { SystemConfigDto, CreateUserDto, UpdateUserDto, UpdateUserPermissionsDto } from './dto';
+import {
+  SystemConfigDto,
+  CreateUserDto,
+  UpdateUserDto,
+  UpdateUserPermissionsDto,
+} from './dto';
 import { User, UserStatus, UserRole } from '../auth/schemas/user.schema';
 import { Customer } from '../customers/schemas/customer.schema';
 import { Driver } from '../drivers/schemas/driver.schema';
@@ -12,14 +29,17 @@ import { Ride } from '../rides/schemas/ride.schema';
 import { RideRequest } from '../combined-trips/schemas/ride-request.schema';
 import { Delivery } from '../delivery/schemas/delivery.schema';
 import { HourlyService } from '../hourly-services/schemas/hourly-service.schema';
+import { TeamsService } from '../teams/teams.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectModel(AdminLog.name) private adminLogModel: Model<AdminLogDocument>,
-    @InjectModel(SystemConfig.name) private systemConfigModel: Model<SystemConfigDocument>,
-    @InjectModel(Permission.name) private permissionModel: Model<PermissionDocument>,
+    @InjectModel(SystemConfig.name)
+    private systemConfigModel: Model<SystemConfigDocument>,
+    @InjectModel(Permission.name)
+    private permissionModel: Model<PermissionDocument>,
     @InjectModel(User.name) private userModel: Model<any>,
     @InjectModel(Customer.name) private customerModel: Model<any>,
     @InjectModel(Driver.name) private driverModel: Model<any>,
@@ -27,6 +47,7 @@ export class AdminService {
     @InjectModel(RideRequest.name) private rideRequestModel: Model<any>,
     @InjectModel(Delivery.name) private deliveryModel: Model<any>,
     @InjectModel(HourlyService.name) private hourlyServiceModel: Model<any>,
+    private teamsService: TeamsService,
   ) {}
 
   // Admin Logging
@@ -91,18 +112,18 @@ export class AdminService {
   }
 
   // Users Management
-  async getUsers(role?: string, status?: string, search?: string): Promise<any[]> {
+  async getUsers(
+    role?: string,
+    status?: string,
+    search?: string,
+  ): Promise<any[]> {
     const searchRegex = search ? new RegExp(search, 'i') : null;
-    
+
     // Fetch customers
-    const customers = await this.customerModel
-      .find()
-      .lean();
+    const customers = await this.customerModel.find().lean();
 
     // Fetch drivers
-    const drivers = await this.driverModel
-      .find()
-      .lean();
+    const drivers = await this.driverModel.find().lean();
 
     // Map to unified format
     const users: any[] = [];
@@ -111,12 +132,13 @@ export class AdminService {
     customers.forEach((customer: any) => {
       const userInfo = customer.userId || {};
       const displayName = userInfo.fullName || userInfo.name || 'Chưa có tên';
-      
+
       // Filter by search
       if (searchRegex) {
-        const matchesSearch = searchRegex.test(displayName) || 
-                            searchRegex.test(userInfo.email) || 
-                            searchRegex.test(userInfo.phone);
+        const matchesSearch =
+          searchRegex.test(displayName) ||
+          searchRegex.test(userInfo.email) ||
+          searchRegex.test(userInfo.phone);
         if (!matchesSearch) return;
       }
 
@@ -124,8 +146,11 @@ export class AdminService {
       if (role && role !== 'customer') return;
 
       // Filter by status
-      const customerStatus = customer.isBlacklisted ? 'blocked' : 
-                            customer.isAccountLocked ? 'inactive' : 'active';
+      const customerStatus = customer.isBlacklisted
+        ? 'blocked'
+        : customer.isAccountLocked
+          ? 'inactive'
+          : 'active';
       if (status && status !== customerStatus) return;
 
       users.push({
@@ -145,12 +170,13 @@ export class AdminService {
     drivers.forEach((driver: any) => {
       const userInfo = driver.userId || {};
       const displayName = userInfo.fullName || userInfo.name || 'Chưa có tên';
-      
+
       // Filter by search
       if (searchRegex) {
-        const matchesSearch = searchRegex.test(displayName) || 
-                            searchRegex.test(userInfo.email) || 
-                            searchRegex.test(userInfo.phone);
+        const matchesSearch =
+          searchRegex.test(displayName) ||
+          searchRegex.test(userInfo.email) ||
+          searchRegex.test(userInfo.phone);
         if (!matchesSearch) return;
       }
 
@@ -178,9 +204,13 @@ export class AdminService {
   }
 
   // Get Admin and Staff Users
-  async getAdminUsers(role?: string, status?: string, search?: string): Promise<any[]> {
+  async getAdminUsers(
+    role?: string,
+    status?: string,
+    search?: string,
+  ): Promise<any[]> {
     const searchRegex = search ? new RegExp(search, 'i') : null;
-    
+
     // Fetch admin/staff users
     const adminUsers = await this.userModel
       .find({
@@ -188,8 +218,8 @@ export class AdminService {
           { role: 'admin' },
           { role: 'staff' },
           { role: 'moderator' },
-          { role: 'support' }
-        ]
+          { role: 'support' },
+        ],
       })
       .lean();
 
@@ -197,13 +227,16 @@ export class AdminService {
 
     adminUsers.forEach((user: any) => {
       // Build full name from firstName and lastName
-      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Chưa có tên';
+      const fullName =
+        `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
+        'Chưa có tên';
 
       // Filter by search
       if (searchRegex) {
-        const matchesSearch = searchRegex.test(fullName) || 
-                            searchRegex.test(user.email) || 
-                            searchRegex.test(user.phone || '');
+        const matchesSearch =
+          searchRegex.test(fullName) ||
+          searchRegex.test(user.email) ||
+          searchRegex.test(user.phone || '');
         if (!matchesSearch) return;
       }
 
@@ -211,7 +244,11 @@ export class AdminService {
       if (role && role !== user.role) return;
 
       // Filter by status (based on user fields)
-      const userStatus = user.isBlocked ? 'blocked' : (user.status === 'active' ? 'active' : user.status);
+      const userStatus = user.isBlocked
+        ? 'blocked'
+        : user.status === 'active'
+          ? 'active'
+          : user.status;
       if (status && status !== userStatus) return;
 
       users.push({
@@ -235,6 +272,78 @@ export class AdminService {
     return users;
   }
 
+  // Get Marketing Staff (Hierarchical)
+  async getMarketingStaff(
+    userId: string,
+    role: string,
+    search?: string,
+  ): Promise<any[]> {
+    const searchRegex = search ? new RegExp(search, 'i') : null;
+    let usersList: any[] = [];
+
+    // If Admin, fetch all marketing users
+    if (['admin', 'staff'].includes(role) || !role) {
+      usersList = await this.userModel
+        .find({
+          role: { $in: ['f1_lead', 'f2_sub_lead', 'f3_staff_mkt'] },
+        })
+        .populate('regionId', 'name code')
+        .lean();
+    } else {
+      // If F1 or F2, fetch from team_structures
+      const myTeam = await this.teamsService.getMyTeam(userId);
+      const teamUserIds = myTeam.map((t) => t.userId);
+      usersList = await this.userModel
+        .find({
+          _id: { $in: teamUserIds },
+          role: { $in: ['f1_lead', 'f2_sub_lead', 'f3_staff_mkt'] },
+        })
+        .populate('regionId', 'name code')
+        .lean();
+    }
+
+    const formattedUsers: any[] = [];
+    for (const user of usersList) {
+      const fullName =
+        `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
+        'Chưa có tên';
+      if (searchRegex) {
+        if (
+          !searchRegex.test(fullName) &&
+          !searchRegex.test(user.email) &&
+          !searchRegex.test(user.phone || '')
+        ) {
+          continue;
+        }
+      }
+
+      formattedUsers.push({
+        _id: user._id,
+        name: fullName,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone || 'N/A',
+        role: user.role,
+        status: user.isBlocked
+          ? 'blocked'
+          : user.status === 'active'
+            ? 'active'
+            : user.status,
+        address: user.address,
+        region: user.regionId ? user.regionId : null,
+        referralCode: user.referralCode,
+        walletBalance: user.walletBalance || 0,
+        pendingBalance: user.pendingBalance || 0,
+        marketingReferrerId: user.marketingReferrerId,
+        avatar: `https://i.pravatar.cc/150?u=${user._id}`,
+        createdAt: user.createdAt,
+      });
+    }
+
+    return formattedUsers;
+  }
+
   // System Configuration
   async getConfig(key: string): Promise<SystemConfigDocument> {
     const config = await this.systemConfigModel.findOne({ key });
@@ -250,7 +359,10 @@ export class AdminService {
     return this.systemConfigModel.find({}).sort({ key: 1 });
   }
 
-  async setConfig(systemConfigDto: SystemConfigDto, adminId: string): Promise<SystemConfigDocument> {
+  async setConfig(
+    systemConfigDto: SystemConfigDto,
+    adminId: string,
+  ): Promise<SystemConfigDocument> {
     const config = await this.systemConfigModel.findOneAndUpdate(
       { key: systemConfigDto.key },
       {
@@ -301,7 +413,11 @@ export class AdminService {
   }
 
   // Search and filter
-  async searchUsers(query: string, userType?: string, limit: number = 20): Promise<any[]> {
+  async searchUsers(
+    query: string,
+    userType?: string,
+    limit: number = 20,
+  ): Promise<any[]> {
     // This would integrate with User model
     return [];
   }
@@ -350,17 +466,31 @@ export class AdminService {
   /**
    * Create a new admin/staff user
    */
-  async createUser(createUserDto: CreateUserDto): Promise<any> {
+  async createUser(
+    createUserDto: CreateUserDto,
+    creatorId?: string,
+  ): Promise<any> {
     // Check if user already exists
     const existingUser = await this.userModel.findOne({
-      $or: [
-        { email: createUserDto.email },
-        { phone: createUserDto.phone }
-      ]
+      $or: [{ email: createUserDto.email }, { phone: createUserDto.phone }],
     });
 
     if (existingUser) {
       throw new ConflictException('Email hoặc số điện thoại đã được sử dụng');
+    }
+
+    let marketingReferrerId = createUserDto.marketingReferrerId;
+    // Tự động gán người giới thiệu nếu người tạo đang đăng nhập
+    if (
+      !marketingReferrerId &&
+      creatorId &&
+      ['F1_LEAD', 'F2_SUB_LEAD', 'F3_STAFF_MKT'].includes(createUserDto.role)
+    ) {
+      const creator = await this.userModel.findById(creatorId);
+      // Admin tạo F1 thì không gán trực tiếp (Admin ko thuộc phả hệ). F1 tạo F2 thì gán.
+      if (creator && ['f1_lead', 'f2_sub_lead'].includes(creator.role)) {
+        marketingReferrerId = creator._id.toString();
+      }
     }
 
     // Create new user
@@ -374,12 +504,58 @@ export class AdminService {
       status: createUserDto.status || UserStatus.ACTIVE,
       department: createUserDto.department,
       permissions: createUserDto.permissions || [],
+      address: createUserDto.address,
+      marketingReferrerId: marketingReferrerId ? new Types.ObjectId(marketingReferrerId) : undefined,
       emailVerified: true,
       phoneVerified: true,
       lastActivityAt: new Date(),
     });
 
+    // Handle Region Name Resolution
+    if (createUserDto.regionId) {
+      newUser.regionId = new Types.ObjectId(createUserDto.regionId) as any;
+    } else if (createUserDto.regionName) {
+      const regionModel = this.userModel.db.model('Region');
+      if (regionModel) {
+         let existingRegion = await regionModel.findOne({ name: createUserDto.regionName });
+         if (!existingRegion) {
+            existingRegion = await regionModel.create({
+               name: createUserDto.regionName,
+               code: createUserDto.regionName.substring(0, 10).toUpperCase().replace(/\s+/g, ''),
+               description: `Đội ngũ sinh tự động: ${createUserDto.regionName}`
+            });
+         }
+         newUser.regionId = existingRegion._id as any;
+      }
+    }
+
     await newUser.save();
+
+    // Gán vào phả hệ Team if this is a marketing role
+    if (
+      ['f1_lead', 'f2_sub_lead', 'f3_staff_mkt'].includes(createUserDto.role)
+    ) {
+      const level =
+        createUserDto.role === 'f1_lead'
+          ? 1
+          : createUserDto.role === 'f2_sub_lead'
+            ? 2
+            : 3;
+      // F1 không có parent trong Teams structure (tối cao), F2/F3 có parent
+      const parentId = marketingReferrerId || null;
+      try {
+        await this.teamsService.assignToTeam(
+          newUser._id.toString(),
+          parentId,
+          level,
+        );
+        console.log(
+          `[AdminService] Assigned ${newUser._id} to Team level ${level} under parent ${parentId}`,
+        );
+      } catch (err) {
+        console.error(`[AdminService] Lỗi khi gán cây cấu trúc team:`, err);
+      }
+    }
 
     return this.formatUserResponse(newUser);
   }
@@ -415,14 +591,18 @@ export class AdminService {
 
     // Check if email/phone already exists (and not same user)
     if (updateUserDto.email && updateUserDto.email !== user.email) {
-      const emailExists = await this.userModel.findOne({ email: updateUserDto.email });
+      const emailExists = await this.userModel.findOne({
+        email: updateUserDto.email,
+      });
       if (emailExists) {
         throw new ConflictException('Email đã được sử dụng');
       }
     }
 
     if (updateUserDto.phone && updateUserDto.phone !== user.phone) {
-      const phoneExists = await this.userModel.findOne({ phone: updateUserDto.phone });
+      const phoneExists = await this.userModel.findOne({
+        phone: updateUserDto.phone,
+      });
       if (phoneExists) {
         throw new ConflictException('Số điện thoại đã được sử dụng');
       }
@@ -436,8 +616,10 @@ export class AdminService {
     if (updateUserDto.role) user.role = updateUserDto.role;
     if (updateUserDto.department) user.department = updateUserDto.department;
     if (updateUserDto.status) user.status = updateUserDto.status;
-    if (updateUserDto.isBlocked !== undefined) user.isBlocked = updateUserDto.isBlocked;
-    if (updateUserDto.blockedReason) user.blockedReason = updateUserDto.blockedReason;
+    if (updateUserDto.isBlocked !== undefined)
+      user.isBlocked = updateUserDto.isBlocked;
+    if (updateUserDto.blockedReason)
+      user.blockedReason = updateUserDto.blockedReason;
 
     user.lastActivityAt = new Date();
     await user.save();
@@ -448,7 +630,10 @@ export class AdminService {
   /**
    * Update user permissions
    */
-  async updateUserPermissions(userId: string, updatePermissionsDto: UpdateUserPermissionsDto): Promise<any> {
+  async updateUserPermissions(
+    userId: string,
+    updatePermissionsDto: UpdateUserPermissionsDto,
+  ): Promise<any> {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('ID không hợp lệ');
     }
@@ -507,7 +692,10 @@ export class AdminService {
     ]);
 
     // 2. Get revenue from combined trips (carpooling)
-    const combinedMatchStage: any = { status: 'completed', combinedTripId: { $exists: true } };
+    const combinedMatchStage: any = {
+      status: 'completed',
+      combinedTripId: { $exists: true },
+    };
     if (startDate || endDate) {
       const dateFilter: any = {};
       if (startDate) dateFilter.$gte = new Date(startDate);
@@ -559,7 +747,9 @@ export class AdminService {
       {
         $group: {
           _id: null,
-          totalRevenue: { $sum: { $ifNull: ['$actualPrice', '$estimatedPrice'] } },
+          totalRevenue: {
+            $sum: { $ifNull: ['$actualPrice', '$estimatedPrice'] },
+          },
           totalRides: { $sum: 1 },
         },
       },
@@ -567,18 +757,41 @@ export class AdminService {
 
     // Combine all sources
     const rides = ridesStats[0] || { totalRevenue: 0, totalRides: 0 };
-    const combinedTrips = combinedTripsStats[0] || { totalRevenue: 0, totalRides: 0 };
+    const combinedTrips = combinedTripsStats[0] || {
+      totalRevenue: 0,
+      totalRides: 0,
+    };
     const deliveries = deliveriesStats[0] || { totalRevenue: 0, totalRides: 0 };
-    const hourlyServices = hourlyServicesStats[0] || { totalRevenue: 0, totalRides: 0 };
+    const hourlyServices = hourlyServicesStats[0] || {
+      totalRevenue: 0,
+      totalRides: 0,
+    };
 
-    const totalRevenue = rides.totalRevenue + combinedTrips.totalRevenue + deliveries.totalRevenue + hourlyServices.totalRevenue;
-    const totalRides = rides.totalRides + combinedTrips.totalRides + deliveries.totalRides + hourlyServices.totalRides;
+    const totalRevenue =
+      rides.totalRevenue +
+      combinedTrips.totalRevenue +
+      deliveries.totalRevenue +
+      hourlyServices.totalRevenue;
+    const totalRides =
+      rides.totalRides +
+      combinedTrips.totalRides +
+      deliveries.totalRides +
+      hourlyServices.totalRides;
 
     console.log('[Admin Revenue Stats]', {
       rides: { revenue: rides.totalRevenue, count: rides.totalRides },
-      combinedTrips: { revenue: combinedTrips.totalRevenue, count: combinedTrips.totalRides },
-      deliveries: { revenue: deliveries.totalRevenue, count: deliveries.totalRides },
-      hourlyServices: { revenue: hourlyServices.totalRevenue, count: hourlyServices.totalRides },
+      combinedTrips: {
+        revenue: combinedTrips.totalRevenue,
+        count: combinedTrips.totalRides,
+      },
+      deliveries: {
+        revenue: deliveries.totalRevenue,
+        count: deliveries.totalRides,
+      },
+      hourlyServices: {
+        revenue: hourlyServices.totalRevenue,
+        count: hourlyServices.totalRides,
+      },
       total: { revenue: totalRevenue, count: totalRides },
     });
 
@@ -691,7 +904,12 @@ export class AdminService {
     // Merge all sources by date
     const dailyMap = new Map<string, any>();
 
-    [...ridesDaily, ...combinedTripsDaily, ...deliveriesDaily, ...hourlyServicesDaily].forEach((item) => {
+    [
+      ...ridesDaily,
+      ...combinedTripsDaily,
+      ...deliveriesDaily,
+      ...hourlyServicesDaily,
+    ].forEach((item) => {
       const key = `${item._id.year}-${item._id.month}-${item._id.day}`;
       if (!dailyMap.has(key)) {
         dailyMap.set(key, {
@@ -727,7 +945,10 @@ export class AdminService {
   /**
    * Get revenue by service type from all sources
    */
-  async getRevenueByServiceType(startDate?: Date, endDate?: Date): Promise<any[]> {
+  async getRevenueByServiceType(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<any[]> {
     // Build date filter for rides (use updatedAt since completedAt may not exist)
     const ridesMatchStage: any = { status: 'completed' };
     if (startDate || endDate) {
@@ -750,8 +971,11 @@ export class AdminService {
       },
     ]);
 
-    // 2. Share rides (Ghép xe) - ONLY from riderequests/combined_trips table  
-    const combinedMatchStage: any = { status: 'completed', combinedTripId: { $exists: true } };
+    // 2. Share rides (Ghép xe) - ONLY from riderequests/combined_trips table
+    const combinedMatchStage: any = {
+      status: 'completed',
+      combinedTripId: { $exists: true },
+    };
     if (startDate || endDate) {
       const dateFilter: any = {};
       if (startDate) dateFilter.$gte = new Date(startDate);
@@ -813,33 +1037,53 @@ export class AdminService {
     const deliveries = deliveriesStats[0] || { revenue: 0, rides: 0 };
     const hourlyServices = hourlyServicesStats[0] || { revenue: 0, rides: 0 };
 
-    const totalRides = hireRides.rides + combinedTrips.rides + deliveries.rides + hourlyServices.rides;
-    const totalRevenue = hireRides.revenue + combinedTrips.revenue + deliveries.revenue + hourlyServices.revenue;
+    const totalRides =
+      hireRides.rides +
+      combinedTrips.rides +
+      deliveries.rides +
+      hourlyServices.rides;
+    const totalRevenue =
+      hireRides.revenue +
+      combinedTrips.revenue +
+      deliveries.revenue +
+      hourlyServices.revenue;
 
     const result = [
       {
         type: 'hire',
         revenue: hireRides.revenue,
         rides: hireRides.rides,
-        percentage: totalRides > 0 ? ((hireRides.rides / totalRides) * 100).toFixed(2) : 0,
+        percentage:
+          totalRides > 0
+            ? ((hireRides.rides / totalRides) * 100).toFixed(2)
+            : 0,
       },
       {
         type: 'share',
         revenue: combinedTrips.revenue,
         rides: combinedTrips.rides,
-        percentage: totalRides > 0 ? ((combinedTrips.rides / totalRides) * 100).toFixed(2) : 0,
+        percentage:
+          totalRides > 0
+            ? ((combinedTrips.rides / totalRides) * 100).toFixed(2)
+            : 0,
       },
       {
         type: 'delivery',
         revenue: deliveries.revenue,
         rides: deliveries.rides,
-        percentage: totalRides > 0 ? ((deliveries.rides / totalRides) * 100).toFixed(2) : 0,
+        percentage:
+          totalRides > 0
+            ? ((deliveries.rides / totalRides) * 100).toFixed(2)
+            : 0,
       },
       {
         type: 'hourly',
         revenue: hourlyServices.revenue,
         rides: hourlyServices.rides,
-        percentage: totalRides > 0 ? ((hourlyServices.rides / totalRides) * 100).toFixed(2) : 0,
+        percentage:
+          totalRides > 0
+            ? ((hourlyServices.rides / totalRides) * 100).toFixed(2)
+            : 0,
       },
     ];
 
@@ -948,15 +1192,35 @@ export class AdminService {
     // Combine all data by hour (0-23)
     const result = [];
     for (let hour = 0; hour < 24; hour++) {
-      const ridesData = ridesByHour.find(r => r._id === hour) || { rides: 0, revenue: 0 };
-      const combinedData = combinedByHour.find(r => r._id === hour) || { rides: 0, revenue: 0 };
-      const deliveryData = deliveriesByHour.find(r => r._id === hour) || { rides: 0, revenue: 0 };
-      const hourlyData = hourlyByHour.find(r => r._id === hour) || { rides: 0, revenue: 0 };
+      const ridesData = ridesByHour.find((r) => r._id === hour) || {
+        rides: 0,
+        revenue: 0,
+      };
+      const combinedData = combinedByHour.find((r) => r._id === hour) || {
+        rides: 0,
+        revenue: 0,
+      };
+      const deliveryData = deliveriesByHour.find((r) => r._id === hour) || {
+        rides: 0,
+        revenue: 0,
+      };
+      const hourlyData = hourlyByHour.find((r) => r._id === hour) || {
+        rides: 0,
+        revenue: 0,
+      };
 
       result.push({
         hour,
-        rides: ridesData.rides + combinedData.rides + deliveryData.rides + hourlyData.rides,
-        revenue: ridesData.revenue + combinedData.revenue + deliveryData.revenue + hourlyData.revenue,
+        rides:
+          ridesData.rides +
+          combinedData.rides +
+          deliveryData.rides +
+          hourlyData.rides,
+        revenue:
+          ridesData.revenue +
+          combinedData.revenue +
+          deliveryData.revenue +
+          hourlyData.revenue,
       });
     }
 
@@ -1022,18 +1286,22 @@ export class AdminService {
     // Helper function to format location
     const formatLocation = (location: any): string => {
       if (!location) return 'Không rõ';
-      
+
       // If it's a GeoJSON object
-      if (typeof location === 'object' && location.type === 'Point' && location.coordinates) {
+      if (
+        typeof location === 'object' &&
+        location.type === 'Point' &&
+        location.coordinates
+      ) {
         const [lon, lat] = location.coordinates;
         return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
       }
-      
+
       // If it's already a string
       if (typeof location === 'string') {
         return location;
       }
-      
+
       return 'Không rõ';
     };
 
@@ -1041,7 +1309,7 @@ export class AdminService {
     const areaMap = new Map();
 
     // Process rides
-    ridesByArea.forEach(area => {
+    ridesByArea.forEach((area) => {
       const location = formatLocation(area._id);
       if (!areaMap.has(location)) {
         areaMap.set(location, { rides: 0, revenue: 0 });
@@ -1052,7 +1320,7 @@ export class AdminService {
     });
 
     // Process combined trips
-    combinedByArea.forEach(area => {
+    combinedByArea.forEach((area) => {
       const location = formatLocation(area._id);
       if (!areaMap.has(location)) {
         areaMap.set(location, { rides: 0, revenue: 0 });
@@ -1063,7 +1331,7 @@ export class AdminService {
     });
 
     // Process deliveries
-    deliveriesByArea.forEach(area => {
+    deliveriesByArea.forEach((area) => {
       const location = formatLocation(area._id);
       if (!areaMap.has(location)) {
         areaMap.set(location, { rides: 0, revenue: 0 });
@@ -1087,9 +1355,10 @@ export class AdminService {
     const totalRides = result.reduce((sum, area) => sum + area.rides, 0);
 
     // Add percentage
-    return result.map(area => ({
+    return result.map((area) => ({
       ...area,
-      percentage: totalRides > 0 ? Math.round((area.rides / totalRides) * 100) : 0,
+      percentage:
+        totalRides > 0 ? Math.round((area.rides / totalRides) * 100) : 0,
     }));
   }
 
@@ -1177,13 +1446,30 @@ export class AdminService {
 
     // Combine all statistics
     const rides = ridesStats[0] || { total: 0, completed: 0, cancelled: 0 };
-    const combined = combinedStats[0] || { total: 0, completed: 0, cancelled: 0 };
-    const deliveries = deliveryStats[0] || { total: 0, completed: 0, cancelled: 0 };
+    const combined = combinedStats[0] || {
+      total: 0,
+      completed: 0,
+      cancelled: 0,
+    };
+    const deliveries = deliveryStats[0] || {
+      total: 0,
+      completed: 0,
+      cancelled: 0,
+    };
     const hourly = hourlyStats[0] || { total: 0, completed: 0, cancelled: 0 };
 
-    const totalRides = rides.total + combined.total + deliveries.total + hourly.total;
-    const totalCompleted = rides.completed + combined.completed + deliveries.completed + hourly.completed;
-    const totalCancelled = rides.cancelled + combined.cancelled + deliveries.cancelled + hourly.cancelled;
+    const totalRides =
+      rides.total + combined.total + deliveries.total + hourly.total;
+    const totalCompleted =
+      rides.completed +
+      combined.completed +
+      deliveries.completed +
+      hourly.completed;
+    const totalCancelled =
+      rides.cancelled +
+      combined.cancelled +
+      deliveries.cancelled +
+      hourly.cancelled;
 
     const cancelRate = totalRides > 0 ? (totalCancelled / totalRides) * 100 : 0;
 
@@ -1198,7 +1484,11 @@ export class AdminService {
   /**
    * Get top drivers by total trips from all sources (rides, combined trips, deliveries, hourly services)
    */
-  async getTopDrivers(limit: number = 10, startDate?: Date, endDate?: Date): Promise<any[]> {
+  async getTopDrivers(
+    limit: number = 10,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<any[]> {
     const dateFilter: any = {};
     if (startDate) dateFilter.$gte = startDate;
     if (endDate) dateFilter.$lte = endDate;
@@ -1210,11 +1500,11 @@ export class AdminService {
 
     // Aggregate drivers from rides
     const ridesByDriver = await this.rideModel.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           ...matchStage,
-          driverId: { $ne: null, $exists: true }
-        } 
+          driverId: { $ne: null, $exists: true },
+        },
       },
       {
         $group: {
@@ -1227,11 +1517,11 @@ export class AdminService {
 
     // Aggregate drivers from combined trips
     const combinedByDriver = await this.rideRequestModel.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           ...matchStage,
-          driverId: { $ne: null, $exists: true }
-        } 
+          driverId: { $ne: null, $exists: true },
+        },
       },
       {
         $group: {
@@ -1244,11 +1534,11 @@ export class AdminService {
 
     // Aggregate drivers from deliveries
     const deliveriesByDriver = await this.deliveryModel.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           ...matchStage,
-          driverId: { $ne: null, $exists: true }
-        } 
+          driverId: { $ne: null, $exists: true },
+        },
       },
       {
         $group: {
@@ -1261,11 +1551,11 @@ export class AdminService {
 
     // Aggregate drivers from hourly services
     const hourlyByDriver = await this.hourlyServiceModel.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           ...matchStage,
-          driverId: { $ne: null, $exists: true }
-        } 
+          driverId: { $ne: null, $exists: true },
+        },
       },
       {
         $group: {
@@ -1286,8 +1576,13 @@ export class AdminService {
     const driverMap = new Map();
 
     // Process all sources
-    [ridesByDriver, combinedByDriver, deliveriesByDriver, hourlyByDriver].forEach(dataSet => {
-      dataSet.forEach(driver => {
+    [
+      ridesByDriver,
+      combinedByDriver,
+      deliveriesByDriver,
+      hourlyByDriver,
+    ].forEach((dataSet) => {
+      dataSet.forEach((driver) => {
         const driverId = driver._id?.toString();
         if (!driverId) return;
 
@@ -1310,9 +1605,13 @@ export class AdminService {
       .sort((a, b) => b.trips - a.trips)
       .slice(0, limit);
 
-    console.log(`[TopDrivers] Found ${driversArray.length} drivers before lookup, limit: ${limit}`);
+    console.log(
+      `[TopDrivers] Found ${driversArray.length} drivers before lookup, limit: ${limit}`,
+    );
     driversArray.forEach((d, i) => {
-      console.log(`  ${i + 1}. Driver ${d.driverId}: ${d.trips} trips, ${d.earnings} earnings`);
+      console.log(
+        `  ${i + 1}. Driver ${d.driverId}: ${d.trips} trips, ${d.earnings} earnings`,
+      );
     });
 
     // Lookup driver details from drivers collection
@@ -1322,22 +1621,36 @@ export class AdminService {
         // Convert string to ObjectId if needed
         const driverObjectId = new Types.ObjectId(driverData.driverId);
         const driver = await this.driverModel.findById(driverObjectId);
-        
+
         if (driver) {
           result.push({
             driverId: driverData.driverId,
-            name: driver.fullName || `${driver.firstName || ''} ${driver.lastName || ''}`.trim() || 'Không rõ',
-            avatar: driver.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${driverData.driverId}`,
-            rating: driver.averageRating ? Math.round(driver.averageRating * 10) / 10 : 0,
+            name:
+              driver.fullName ||
+              `${driver.firstName || ''} ${driver.lastName || ''}`.trim() ||
+              'Không rõ',
+            avatar:
+              driver.avatar ||
+              `https://api.dicebear.com/7.x/avataaars/svg?seed=${driverData.driverId}`,
+            rating: driver.averageRating
+              ? Math.round(driver.averageRating * 10) / 10
+              : 0,
             trips: driverData.trips,
             earnings: Math.round(driverData.earnings),
           });
-          console.log(`[TopDrivers] ✓ Found driver: ${driver.fullName || driver.firstName}`);
+          console.log(
+            `[TopDrivers] ✓ Found driver: ${driver.fullName || driver.firstName}`,
+          );
         } else {
-          console.log(`[TopDrivers] ✗ Driver not found in drivers collection: ${driverData.driverId}`);
+          console.log(
+            `[TopDrivers] ✗ Driver not found in drivers collection: ${driverData.driverId}`,
+          );
         }
       } catch (error) {
-        console.error(`[TopDrivers] Error fetching driver ${driverData.driverId}:`, error.message);
+        console.error(
+          `[TopDrivers] Error fetching driver ${driverData.driverId}:`,
+          error.message,
+        );
       }
     }
 

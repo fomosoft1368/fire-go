@@ -1,4 +1,10 @@
-import { IsEmail, IsString, MinLength, IsPhoneNumber, IsEnum } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  IsPhoneNumber,
+  IsEnum,
+} from 'class-validator';
 import { UserRole } from '../schemas/user.schema';
 
 export class RegisterDto {

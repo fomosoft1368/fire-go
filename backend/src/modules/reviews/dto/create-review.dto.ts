@@ -1,4 +1,12 @@
-import { IsNumber, IsString, IsOptional, Min, Max, IsArray, IsBoolean } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsOptional,
+  Min,
+  Max,
+  IsArray,
+  IsBoolean,
+} from 'class-validator';
 
 export class CreateReviewDto {
   @IsString()

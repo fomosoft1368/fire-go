@@ -42,7 +42,7 @@ export class SepayWebhookController {
    * POST /api/wallet/sepay/webhook
    * Sepay calls this endpoint when receiving bank transfer
    * Handles both driver and customer topups
-   * 
+   *
    * Example payload from Sepay:
    * {
    *   "id": "sepay_txn_123",
@@ -61,7 +61,10 @@ export class SepayWebhookController {
     @Body() payload: SepayWebhookPayload,
     @Headers('x-sepay-signature') signature: string,
   ) {
-    console.log('[SepayWebhook] 📥 Received webhook:', JSON.stringify(payload, null, 2));
+    console.log(
+      '[SepayWebhook] 📥 Received webhook:',
+      JSON.stringify(payload, null, 2),
+    );
     console.log('[SepayWebhook] Signature:', signature);
 
     try {
@@ -69,8 +72,12 @@ export class SepayWebhookController {
       // If signature missing, Sepay IPN may not have configured secret key in dashboard
       // Fall back to accepting webhook based on content validation
       if (!signature) {
-        console.warn('[SepayWebhook] ⚠️ No signature provided - falling back to content validation');
-        console.warn('[SepayWebhook] 💡 Ensure SEPAY_SECRET_KEY configured in Sepay IPN dashboard for security');
+        console.warn(
+          '[SepayWebhook] ⚠️ No signature provided - falling back to content validation',
+        );
+        console.warn(
+          '[SepayWebhook] 💡 Ensure SEPAY_SECRET_KEY configured in Sepay IPN dashboard for security',
+        );
       } else {
         const isValid = this.sepayService.verifyWebhookSignature(
           JSON.stringify(payload),
@@ -95,42 +102,53 @@ export class SepayWebhookController {
       const content = payload.content.trim().toUpperCase();
       console.log('[SepayWebhook] 📝 Raw content:', payload.content);
       console.log('[SepayWebhook] 📝 Normalized content:', content);
-      
+
       // Extract user type (DRV or CUST) and transaction ID
       let userTypePrefix = '';
       let transactionIdFromContent: string | null = null;
-      
+
       // Pattern 1: Find DRV or CUST followed by 8+ hex chars anywhere in content
       // This handles cases where bank adds extra info before/after our reference
       let match = content.match(/(DRV|CUST)([A-F0-9]{8,})/);
       if (match) {
         userTypePrefix = match[1];
         transactionIdFromContent = match[2];
-        console.log('[SepayWebhook] ✅ Pattern 1 matched (anywhere in content):', {
-          prefix: userTypePrefix,
-          id: transactionIdFromContent,
-          fullMatch: match[0],
-        });
+        console.log(
+          '[SepayWebhook] ✅ Pattern 1 matched (anywhere in content):',
+          {
+            prefix: userTypePrefix,
+            id: transactionIdFromContent,
+            fullMatch: match[0],
+          },
+        );
       }
-      
+
       // Pattern 2: DRV or CUST with underscore or space (legacy formats)
       if (!match) {
         match = content.match(/(DRV|CUST)[\s_]*([A-F0-9]{8,})/);
         if (match) {
           userTypePrefix = match[1];
           transactionIdFromContent = match[2];
-          console.log('[SepayWebhook] ⚠️ Pattern 2 matched (with underscore/space):', {
-            prefix: userTypePrefix,
-            id: transactionIdFromContent,
-            fullMatch: match[0],
-          });
+          console.log(
+            '[SepayWebhook] ⚠️ Pattern 2 matched (with underscore/space):',
+            {
+              prefix: userTypePrefix,
+              id: transactionIdFromContent,
+              fullMatch: match[0],
+            },
+          );
         }
       }
 
       if (!transactionIdFromContent || !userTypePrefix) {
-        console.error('[SepayWebhook] ❌ Could not extract transaction ID from content:', payload.content);
+        console.error(
+          '[SepayWebhook] ❌ Could not extract transaction ID from content:',
+          payload.content,
+        );
         console.error('[SepayWebhook] Content length:', payload.content.length);
-        throw new BadRequestException('Invalid transfer content format - expected DRV or CUST prefix');
+        throw new BadRequestException(
+          'Invalid transfer content format - expected DRV or CUST prefix',
+        );
       }
 
       const userType = userTypePrefix === 'DRV' ? 'driver' : 'customer';
@@ -187,13 +205,19 @@ export class SepayWebhookController {
     console.log('[SepayWebhook] 💳 Processing DRIVER topup...');
 
     // Find pending transaction
-    const transaction = await this.walletService.findPendingTransactionByContent(
-      transactionIdFromContent,
-    );
+    const transaction =
+      await this.walletService.findPendingTransactionByContent(
+        transactionIdFromContent,
+      );
 
     if (!transaction) {
-      console.error('[SepayWebhook] ❌ Driver transaction not found:', transactionIdFromContent);
-      throw new BadRequestException('Driver transaction not found or already completed');
+      console.error(
+        '[SepayWebhook] ❌ Driver transaction not found:',
+        transactionIdFromContent,
+      );
+      throw new BadRequestException(
+        'Driver transaction not found or already completed',
+      );
     }
 
     // Validate amount matches
@@ -206,7 +230,10 @@ export class SepayWebhookController {
     }
 
     // Complete the transaction
-    console.log('[SepayWebhook] ✅ Completing driver transaction:', transaction._id);
+    console.log(
+      '[SepayWebhook] ✅ Completing driver transaction:',
+      transaction._id,
+    );
     await this.walletService.completeTopupTransaction(
       transaction._id.toString(),
       sepayTransactionId,
@@ -229,8 +256,13 @@ export class SepayWebhookController {
     );
 
     if (!transaction) {
-      console.error('[SepayWebhook] ❌ Customer transaction not found:', transactionIdFromContent);
-      throw new BadRequestException('Customer transaction not found or already completed');
+      console.error(
+        '[SepayWebhook] ❌ Customer transaction not found:',
+        transactionIdFromContent,
+      );
+      throw new BadRequestException(
+        'Customer transaction not found or already completed',
+      );
     }
 
     // Validate amount matches
@@ -243,7 +275,10 @@ export class SepayWebhookController {
     }
 
     // Complete the transaction
-    console.log('[SepayWebhook] ✅ Completing customer transaction:', transaction._id);
+    console.log(
+      '[SepayWebhook] ✅ Completing customer transaction:',
+      transaction._id,
+    );
     await this.walletsService.completeTopupTransaction(
       transaction._id.toString(),
       sepayTransactionId,
@@ -256,10 +291,7 @@ export class SepayWebhookController {
    */
   @Post('create-topup')
   @HttpCode(HttpStatus.CREATED)
-  async createTopup(
-    @Request() req: any,
-    @Body() dto: { amount: number },
-  ) {
+  async createTopup(@Request() req: any, @Body() dto: { amount: number }) {
     console.log('[SepayWebhook] 🔨 Creating topup:', {
       driverId: req.user?.id,
       amount: dto.amount,
@@ -284,7 +316,10 @@ export class SepayWebhookController {
         'driver',
       );
 
-      console.log('[SepayWebhook] ✅ Topup created with QR code:', qrInfo.content);
+      console.log(
+        '[SepayWebhook] ✅ Topup created with QR code:',
+        qrInfo.content,
+      );
 
       return {
         success: true,
@@ -311,7 +346,7 @@ export class SepayWebhookController {
   @HttpCode(HttpStatus.OK)
   async testWebhook(@Body() payload: any) {
     console.log('[SepayWebhook] 🧪 Test webhook called:', payload);
-    
+
     // Simulate webhook processing without signature verification
     return await this.handleWebhook(payload, 'test-signature');
   }

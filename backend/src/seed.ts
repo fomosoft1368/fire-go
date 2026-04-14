@@ -14,14 +14,22 @@ const userSchema = new mongoose.Schema(
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     avatar: String,
-    role: { type: String, required: true, enum: ['driver', 'customer', 'admin', 'staff'] },
-    status: { type: String, default: 'active', enum: ['active', 'inactive', 'suspended', 'banned'] },
+    role: {
+      type: String,
+      required: true,
+      enum: ['driver', 'customer', 'admin', 'staff'],
+    },
+    status: {
+      type: String,
+      default: 'active',
+      enum: ['active', 'inactive', 'suspended', 'banned'],
+    },
     emailVerified: { type: Boolean, default: false },
     phoneVerified: { type: Boolean, default: false },
     lastLoginAt: Date,
     lastLogoutAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Driver Schema
@@ -35,7 +43,11 @@ const driverSchema = new mongoose.Schema(
     lastName: { type: String, required: true },
     dateOfBirth: Date,
     address: String,
-    status: { type: String, default: 'offline', enum: ['offline', 'online', 'on_trip', 'break'] },
+    status: {
+      type: String,
+      default: 'offline',
+      enum: ['offline', 'online', 'on_trip', 'break'],
+    },
     vehicleLicense: String,
     vehicleModel: String,
     vehicleColor: String,
@@ -44,16 +56,32 @@ const driverSchema = new mongoose.Schema(
     licenseNumber: String,
     licenseExpiry: Date,
     licenseImage: String,
-    licenseStatus: { type: String, default: 'approved', enum: ['pending', 'approved', 'rejected', 'expired'] },
+    licenseStatus: {
+      type: String,
+      default: 'approved',
+      enum: ['pending', 'approved', 'rejected', 'expired'],
+    },
     idNumber: String,
     idImage: String,
-    idStatus: { type: String, default: 'approved', enum: ['pending', 'approved', 'rejected', 'expired'] },
+    idStatus: {
+      type: String,
+      default: 'approved',
+      enum: ['pending', 'approved', 'rejected', 'expired'],
+    },
     profilePhoto: String,
-    profilePhotoStatus: { type: String, default: 'approved', enum: ['pending', 'approved', 'rejected', 'expired'] },
+    profilePhotoStatus: {
+      type: String,
+      default: 'approved',
+      enum: ['pending', 'approved', 'rejected', 'expired'],
+    },
     bankName: String,
     bankAccount: String,
     bankAccountHolder: String,
-    bankStatus: { type: String, default: 'verified', enum: ['pending', 'verified', 'failed'] },
+    bankStatus: {
+      type: String,
+      default: 'verified',
+      enum: ['pending', 'verified', 'failed'],
+    },
     insuranceProvider: String,
     insurancePolicyNumber: String,
     insuranceExpiryDate: Date,
@@ -72,7 +100,11 @@ const driverSchema = new mongoose.Schema(
     allowNotifications: { type: Boolean, default: true },
     allowSMS: { type: Boolean, default: true },
     allowEmail: { type: Boolean, default: true },
-    verificationStatus: { type: String, default: 'pending', enum: ['pending', 'verified', 'rejected'] },
+    verificationStatus: {
+      type: String,
+      default: 'pending',
+      enum: ['pending', 'verified', 'rejected'],
+    },
     isBlacklisted: { type: Boolean, default: false },
     blacklistReason: String,
     isAccountLocked: { type: Boolean, default: false },
@@ -89,7 +121,7 @@ const driverSchema = new mongoose.Schema(
     approvedAt: Date,
     approvedBy: String,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Customer Schema (independent, not linked to User)
@@ -141,14 +173,16 @@ const customerSchema = new mongoose.Schema(
     blacklistReason: String,
     isAccountLocked: { type: Boolean, default: false },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 async function seed() {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH';
+    const mongoUri =
+      process.env.MONGODB_URI ||
+      'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH';
     console.log(`🔗 Connecting to MongoDB...`);
-    
+
     await mongoose.connect(mongoUri);
     console.log('✅ Connected to MongoDB');
 
@@ -309,7 +343,9 @@ async function seed() {
           totalEarnings: Math.floor(Math.random() * 50000000) + 5000000,
         });
 
-        console.log(`✅ Created driver: ${driverData.email} (ID: ${driver._id})`);
+        console.log(
+          `✅ Created driver: ${driverData.email} (ID: ${driver._id})`,
+        );
       } catch (error: any) {
         console.error(`❌ Error creating ${driverData.email}:`, error.message);
         console.error('Full error:', error);
@@ -400,7 +436,7 @@ async function seed() {
     console.log('\n✨ Seed data completed!');
     console.log('\n📊 Sample Driver Login Credentials:');
     console.log('━'.repeat(60));
-    sampleDrivers.forEach(driver => {
+    sampleDrivers.forEach((driver) => {
       console.log(`Email:    ${driver.email}`);
       console.log(`Password: ${driver.password}`);
       console.log(`Phone:    ${driver.phone}`);
@@ -411,12 +447,11 @@ async function seed() {
 
     console.log('\n📊 Sample Customer Login Credentials:');
     console.log('━'.repeat(60));
-    sampleCustomers.forEach(customer => {
+    sampleCustomers.forEach((customer) => {
       console.log(`Email:    ${customer.email}`);
       console.log(`Password: ${customer.password}`);
       console.log('─'.repeat(60));
     });
-
   } catch (error) {
     console.error('❌ Seed failed:', error);
   } finally {

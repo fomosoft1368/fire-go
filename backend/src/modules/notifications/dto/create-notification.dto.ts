@@ -1,5 +1,14 @@
-import { IsString, IsEnum, IsArray, IsOptional, IsBoolean } from 'class-validator';
-import { NotificationType, NotificationChannel } from '../schemas/notification.schema';
+import {
+  IsString,
+  IsEnum,
+  IsArray,
+  IsOptional,
+  IsBoolean,
+} from 'class-validator';
+import {
+  NotificationType,
+  NotificationChannel,
+} from '../schemas/notification.schema';
 
 export class CreateNotificationDto {
   @IsString()

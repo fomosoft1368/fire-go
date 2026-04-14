@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Driver, DriverDocument } from '../schemas/driver.schema';
@@ -26,7 +30,7 @@ export class WalletService {
    */
   async getBalance(driverId: string | Types.ObjectId) {
     const driver = await this.driverModel.findById(driverId);
-    
+
     if (!driver) {
       throw new NotFoundException('Tài xế không tồn tại');
     }
@@ -54,13 +58,13 @@ export class WalletService {
 
     if (amount < minAmount) {
       throw new BadRequestException(
-        `Số tiền nạp tối thiểu là ${minAmount.toLocaleString('vi-VN')}đ`
+        `Số tiền nạp tối thiểu là ${minAmount.toLocaleString('vi-VN')}đ`,
       );
     }
 
     if (amount > maxAmount) {
       throw new BadRequestException(
-        `Số tiền nạp tối đa là ${maxAmount.toLocaleString('vi-VN')}đ`
+        `Số tiền nạp tối đa là ${maxAmount.toLocaleString('vi-VN')}đ`,
       );
     }
 
@@ -71,12 +75,13 @@ export class WalletService {
 
     // Get topup discount from pricing config
     console.log('[DriverWalletService] Getting topup discount for driver...');
-    const discountPercent = await this.pricingService.getTopupDiscount('driver');
+    const discountPercent =
+      await this.pricingService.getTopupDiscount('driver');
     console.log(`[DriverWalletService] Discount: ${discountPercent}%`);
 
     // Calculate discount amount
     const discountAmount = Math.round((amount * discountPercent) / 100);
-    
+
     // Actual amount to add to wallet (original - discount)
     const actualAmount = amount - discountAmount;
 
@@ -120,9 +125,10 @@ export class WalletService {
 
     return {
       success: true,
-      message: paymentMethod === PaymentMethod.BANK_TRANSFER 
-        ? 'Vui lòng chuyển khoản theo thông tin để hoàn tất giao dịch'
-        : 'Yêu cầu nạp tiền đã được tạo',
+      message:
+        paymentMethod === PaymentMethod.BANK_TRANSFER
+          ? 'Vui lòng chuyển khoản theo thông tin để hoàn tất giao dịch'
+          : 'Yêu cầu nạp tiền đã được tạo',
       transactionId: transaction._id,
       amount,
     };
@@ -133,7 +139,7 @@ export class WalletService {
    */
   async completeTopup(transactionId: string) {
     const transaction = await this.transactionModel.findById(transactionId);
-    
+
     if (!transaction) {
       throw new NotFoundException('Giao dịch không tồn tại');
     }
@@ -161,7 +167,7 @@ export class WalletService {
 
     // Update driver wallet balance with actual amount (after discount)
     driver.walletBalance = (driver.walletBalance || 0) + actualAmount;
-    
+
     // Unlock wallet if balance >= minimum
     if (driver.walletBalance >= driver.minimumBalance) {
       driver.isWalletLocked = false;
@@ -198,9 +204,12 @@ export class WalletService {
     accountHolderName: string,
     note?: string,
   ) {
-    const minWithdrawAmount = await this.pricingService.getMinWithdrawAmount('driver');
+    const minWithdrawAmount =
+      await this.pricingService.getMinWithdrawAmount('driver');
     if (amount < minWithdrawAmount) {
-      throw new BadRequestException(`Số tiền rút tối thiểu là ${minWithdrawAmount.toLocaleString('vi-VN')}đ`);
+      throw new BadRequestException(
+        `Số tiền rút tối thiểu là ${minWithdrawAmount.toLocaleString('vi-VN')}đ`,
+      );
     }
 
     const driver = await this.driverModel.findById(driverId);
@@ -316,11 +325,10 @@ export class WalletService {
       // Lấy referralMinTrips (mặc định 5), kiểm tra (driver.completedRides + 1) vì cuốc này vừa hoàn thành chưa được count trong DB nếu gọi trước khi lưu DB
       const minTrips = pricingConfig.referralMinTrips || 5;
       const completedTrips = driver.completedRides || 0;
-      
+
       // Nếu thỏa điều kiện cuốc tối thiểu và tài xế đã KYC (chứng minh thư hợp lệ)
       // Trong ví dụ này ta ưu tiên check completedTrips
       if (completedTrips + 1 >= minTrips) {
-        
         // F1
         if (driver.referralF1 && pricingConfig.referralF1Rate > 0) {
           await this.processReferralBonus(
@@ -329,7 +337,7 @@ export class WalletService {
             commissionAmount,
             pricingConfig.referralF1Rate,
             1, // cấp độ
-            driver._id
+            driver._id,
           );
         }
 
@@ -341,7 +349,7 @@ export class WalletService {
             commissionAmount,
             pricingConfig.referralF2Rate,
             2,
-            driver._id
+            driver._id,
           );
         }
 
@@ -353,7 +361,7 @@ export class WalletService {
             commissionAmount,
             pricingConfig.referralF3Rate,
             3,
-            driver._id
+            driver._id,
           );
         }
       }
@@ -379,7 +387,7 @@ export class WalletService {
     platformCommission: number,
     ratePercent: number,
     level: number,
-    sourceDriverId: Types.ObjectId
+    sourceDriverId: Types.ObjectId,
   ) {
     try {
       const bonusAmount = Math.round(platformCommission * (ratePercent / 100));
@@ -393,12 +401,13 @@ export class WalletService {
 
       // Cộng tiền vào ví
       beneficiary.walletBalance = balanceAfter;
-      beneficiary.totalReferralEarnings = (beneficiary.totalReferralEarnings || 0) + bonusAmount;
-      
+      beneficiary.totalReferralEarnings =
+        (beneficiary.totalReferralEarnings || 0) + bonusAmount;
+
       if (beneficiary.walletBalance >= beneficiary.minimumBalance) {
         beneficiary.isWalletLocked = false;
       }
-      
+
       await beneficiary.save();
 
       // Lưu transaction
@@ -416,13 +425,16 @@ export class WalletService {
         metadata: {
           sourceDriverId: sourceDriverId,
           level,
-          platformCommission
-        }
+          platformCommission,
+        },
       });
 
       await transaction.save();
     } catch (error) {
-      console.error(`[Referral Error] Failed to process F${level} bonus for ${beneficiaryId}:`, error.message);
+      console.error(
+        `[Referral Error] Failed to process F${level} bonus for ${beneficiaryId}:`,
+        error.message,
+      );
     }
   }
 
@@ -435,9 +447,9 @@ export class WalletService {
     skip: number = 0,
   ) {
     const transactions = await this.transactionModel
-      .find({ 
+      .find({
         userType: UserType.DRIVER,
-        driverId: new Types.ObjectId(driverId) 
+        driverId: new Types.ObjectId(driverId),
       })
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -509,7 +521,9 @@ export class WalletService {
       type: TransactionType.COMMISSION,
     });
 
-    const total = Math.abs(allCommissions.reduce((sum, t) => sum + t.amount, 0));
+    const total = Math.abs(
+      allCommissions.reduce((sum, t) => sum + t.amount, 0),
+    );
 
     // Calculate bonus
     const bonusTransactions = await this.transactionModel.find({
@@ -550,29 +564,42 @@ export class WalletService {
 
     // Auto-initialize walletBalance field if it doesn't exist
     const driverObj = driver.toObject();
-    const hasWalletBalance = driverObj.hasOwnProperty('walletBalance') && 
-                             driver.walletBalance !== undefined && 
-                             driver.walletBalance !== null;
-    
+    const hasWalletBalance =
+      driverObj.hasOwnProperty('walletBalance') &&
+      driver.walletBalance !== undefined &&
+      driver.walletBalance !== null;
+
     if (!hasWalletBalance) {
-      console.log('[WalletService] 🔧 Auto-initializing walletBalance field for driver:', driverId);
-      console.log('[WalletService] Current driver fields:', Object.keys(driverObj));
-      console.log('[WalletService] walletBalance before:', driver.walletBalance);
-      
+      console.log(
+        '[WalletService] 🔧 Auto-initializing walletBalance field for driver:',
+        driverId,
+      );
+      console.log(
+        '[WalletService] Current driver fields:',
+        Object.keys(driverObj),
+      );
+      console.log(
+        '[WalletService] walletBalance before:',
+        driver.walletBalance,
+      );
+
       driver.walletBalance = 0;
       driver.isWalletLocked = false;
       driver.minimumBalance = driver.minimumBalance || 100000;
       driver.pendingBalance = driver.pendingBalance || 0;
-      
+
       await driver.save();
       console.log('[WalletService] ✅ Wallet fields initialized:', {
         walletBalance: driver.walletBalance,
         isWalletLocked: driver.isWalletLocked,
         minimumBalance: driver.minimumBalance,
-        pendingBalance: driver.pendingBalance
+        pendingBalance: driver.pendingBalance,
       });
     } else {
-      console.log('[WalletService] ℹ️ Wallet balance already exists:', driver.walletBalance);
+      console.log(
+        '[WalletService] ℹ️ Wallet balance already exists:',
+        driver.walletBalance,
+      );
     }
 
     const balanceBefore = driver.walletBalance || 0;
@@ -607,11 +634,14 @@ export class WalletService {
    * Used by Sepay webhook to match bank transfer with transaction
    */
   async findPendingTransactionByContent(transactionId: string) {
-    console.log('[WalletService] 🔍 Searching for transaction with ID:', transactionId);
+    console.log(
+      '[WalletService] 🔍 Searching for transaction with ID:',
+      transactionId,
+    );
     console.log('[WalletService] ID length:', transactionId.length);
-    
+
     let transaction = null;
-    
+
     // Strategy 1: Try full transaction ID (if it looks like MongoDB ObjectId - 24 chars)
     if (transactionId.length === 24) {
       try {
@@ -621,34 +651,49 @@ export class WalletService {
           type: TransactionType.TOPUP,
           status: TransactionStatus.PENDING,
         });
-        
+
         if (transaction) {
-          console.log('[WalletService] ✅ Found by full ID (24 chars):', transaction._id);
+          console.log(
+            '[WalletService] ✅ Found by full ID (24 chars):',
+            transaction._id,
+          );
           return transaction;
         }
       } catch (error) {
-        console.log('[WalletService] ⚠️ Full ID search failed (invalid ObjectId format):', error.message);
+        console.log(
+          '[WalletService] ⚠️ Full ID search failed (invalid ObjectId format):',
+          error.message,
+        );
       }
     }
-    
+
     // Strategy 2: Try last 8 characters matching
-    const last8Chars = transactionId.substring(Math.max(0, transactionId.length - 8)).toUpperCase();
+    const last8Chars = transactionId
+      .substring(Math.max(0, transactionId.length - 8))
+      .toUpperCase();
     console.log('[WalletService] 🔍 Trying last 8 chars match:', last8Chars);
-    
+
     // Find all pending topup transactions
-    const allPending = await this.transactionModel.find({
-      userType: UserType.DRIVER,
-      type: TransactionType.TOPUP,
-      status: TransactionStatus.PENDING,
-    }).sort({ createdAt: -1 }).limit(50); // Check last 50 pending transactions
-    
-    console.log('[WalletService] Found', allPending.length, 'pending transactions to check');
-    
+    const allPending = await this.transactionModel
+      .find({
+        userType: UserType.DRIVER,
+        type: TransactionType.TOPUP,
+        status: TransactionStatus.PENDING,
+      })
+      .sort({ createdAt: -1 })
+      .limit(50); // Check last 50 pending transactions
+
+    console.log(
+      '[WalletService] Found',
+      allPending.length,
+      'pending transactions to check',
+    );
+
     // Find transaction where last 8 chars of ID match
     for (const tx of allPending) {
       const txIdStr = tx._id.toString();
       const txLast8 = txIdStr.substring(txIdStr.length - 8).toUpperCase();
-      
+
       if (txLast8 === last8Chars) {
         console.log('[WalletService] ✅ Found by last 8 chars:', tx._id);
         console.log('[WalletService] Full ID:', txIdStr);
@@ -669,7 +714,10 @@ export class WalletService {
    * Called by Sepay webhook
    * Applies topup discount configured in PricingConfig
    */
-  async completeTopupTransaction(transactionId: string, sepayTransactionId: string) {
+  async completeTopupTransaction(
+    transactionId: string,
+    sepayTransactionId: string,
+  ) {
     const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
@@ -677,7 +725,10 @@ export class WalletService {
     }
 
     if (transaction.status !== TransactionStatus.PENDING) {
-      console.log('[WalletService] ⚠️ Transaction already processed:', transaction.status);
+      console.log(
+        '[WalletService] ⚠️ Transaction already processed:',
+        transaction.status,
+      );
       return transaction;
     }
 
@@ -691,16 +742,22 @@ export class WalletService {
       const pricingConfig = await this.pricingService.getConfig();
       discountPercent = pricingConfig.topupDiscountDriver || 0;
       discountAmount = Math.round(transaction.amount * (discountPercent / 100));
-      
-      console.log('[WalletService] ⚠️ Old transaction - calculating discount now:', {
-        discountPercent,
-        discountAmount,
-      });
+
+      console.log(
+        '[WalletService] ⚠️ Old transaction - calculating discount now:',
+        {
+          discountPercent,
+          discountAmount,
+        },
+      );
     } else {
-      console.log('[WalletService] ✅ Using pre-calculated discount from transaction:', {
-        discountPercent,
-        discountAmount,
-      });
+      console.log(
+        '[WalletService] ✅ Using pre-calculated discount from transaction:',
+        {
+          discountPercent,
+          discountAmount,
+        },
+      );
     }
 
     console.log('[WalletService] 💳 Completing topup with discount:', {
@@ -755,11 +812,15 @@ export class WalletService {
   /**
    * Get all wallet transactions (for admin)
    */
-  async getAllTransactions(limit: number = 50, skip: number = 0, filters?: {
-    type?: TransactionType;
-    status?: TransactionStatus;
-    driverId?: string;
-  }) {
+  async getAllTransactions(
+    limit: number = 50,
+    skip: number = 0,
+    filters?: {
+      type?: TransactionType;
+      status?: TransactionStatus;
+      driverId?: string;
+    },
+  ) {
     const query: any = {
       userType: UserType.DRIVER,
     };
@@ -794,4 +855,3 @@ export class WalletService {
     };
   }
 }
-

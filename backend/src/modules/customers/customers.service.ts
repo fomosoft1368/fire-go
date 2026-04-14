@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -13,18 +17,26 @@ export class CustomersService {
     private eventEmitter: EventEmitter2,
   ) {}
 
-  async create(createCustomerDto: CreateCustomerDto): Promise<CustomerDocument> {
+  async create(
+    createCustomerDto: CreateCustomerDto,
+  ): Promise<CustomerDocument> {
     // Check if customer with this email or phone already exists
     const existing = await this.customerModel.findOne({
-      $or: [{ email: createCustomerDto.email }, { phone: createCustomerDto.phone }],
+      $or: [
+        { email: createCustomerDto.email },
+        { phone: createCustomerDto.phone },
+      ],
     });
 
     if (existing) {
-      throw new BadRequestException('Customer with this email or phone already exists');
+      throw new BadRequestException(
+        'Customer with this email or phone already exists',
+      );
     }
 
     // Generate password if not provided
-    const password = createCustomerDto.password || Math.random().toString(36).slice(-12);
+    const password =
+      createCustomerDto.password || Math.random().toString(36).slice(-12);
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -70,23 +82,20 @@ export class CustomersService {
 
   async findByEmailOrPhone(identifier: string): Promise<CustomerDocument> {
     const customer = await this.customerModel.findOne({
-      $or: [
-        { email: identifier },
-        { phone: identifier }
-      ]
+      $or: [{ email: identifier }, { phone: identifier }],
     });
 
     if (!customer) {
-      throw new NotFoundException(`Customer with email/phone ${identifier} not found`);
+      throw new NotFoundException(
+        `Customer with email/phone ${identifier} not found`,
+      );
     }
 
     return customer;
   }
 
   async findAll(filters?: any): Promise<CustomerDocument[]> {
-    return this.customerModel
-      .find(filters || {})
-      .sort({ createdAt: -1 });
+    return this.customerModel.find(filters || {}).sort({ createdAt: -1 });
   }
 
   async search(query: string): Promise<any[]> {
@@ -106,12 +115,13 @@ export class CustomersService {
       .exec();
   }
 
-  async update(customerId: string, updateCustomerDto: UpdateCustomerDto): Promise<CustomerDocument> {
-    return this.customerModel.findByIdAndUpdate(
-      customerId,
-      updateCustomerDto,
-      { new: true },
-    );
+  async update(
+    customerId: string,
+    updateCustomerDto: UpdateCustomerDto,
+  ): Promise<CustomerDocument> {
+    return this.customerModel.findByIdAndUpdate(customerId, updateCustomerDto, {
+      new: true,
+    });
   }
 
   async delete(customerId: string): Promise<any> {
@@ -119,15 +129,28 @@ export class CustomersService {
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${customerId} not found`);
     }
-    return { success: true, message: 'Customer deleted successfully', data: customer };
+    return {
+      success: true,
+      message: 'Customer deleted successfully',
+      data: customer,
+    };
   }
 
-  async addSavedAddress(customerId: string, savedAddressDto: SavedAddressDto): Promise<CustomerDocument> {
+  async addSavedAddress(
+    customerId: string,
+    savedAddressDto: SavedAddressDto,
+  ): Promise<CustomerDocument> {
     const customer = await this.findById(customerId);
 
     // Check if address label already exists
-    if (customer.savedAddresses.some((addr) => addr.label === savedAddressDto.label)) {
-      throw new BadRequestException(`Saved address with label "${savedAddressDto.label}" already exists`);
+    if (
+      customer.savedAddresses.some(
+        (addr) => addr.label === savedAddressDto.label,
+      )
+    ) {
+      throw new BadRequestException(
+        `Saved address with label "${savedAddressDto.label}" already exists`,
+      );
     }
 
     return this.customerModel.findByIdAndUpdate(
@@ -148,7 +171,10 @@ export class CustomersService {
     );
   }
 
-  async removeSavedAddress(customerId: string, addressLabel: string): Promise<CustomerDocument> {
+  async removeSavedAddress(
+    customerId: string,
+    addressLabel: string,
+  ): Promise<CustomerDocument> {
     return this.customerModel.findByIdAndUpdate(
       customerId,
       {
@@ -175,7 +201,10 @@ export class CustomersService {
     );
   }
 
-  async removeEmergencyContact(customerId: string, contactName: string): Promise<CustomerDocument> {
+  async removeEmergencyContact(
+    customerId: string,
+    contactName: string,
+  ): Promise<CustomerDocument> {
     return this.customerModel.findByIdAndUpdate(
       customerId,
       {
@@ -187,7 +216,10 @@ export class CustomersService {
     );
   }
 
-  async incrementRideStats(customerId: string, completed: boolean = true): Promise<void> {
+  async incrementRideStats(
+    customerId: string,
+    completed: boolean = true,
+  ): Promise<void> {
     const updateData: any = {
       $inc: { totalRides: 1 },
     };
@@ -201,7 +233,10 @@ export class CustomersService {
     await this.customerModel.findByIdAndUpdate(customerId, updateData);
   }
 
-  async updateRating(customerId: string, rating: number): Promise<CustomerDocument> {
+  async updateRating(
+    customerId: string,
+    rating: number,
+  ): Promise<CustomerDocument> {
     const customer = await this.findById(customerId);
 
     const newTotal = customer.totalReviews + 1;
@@ -218,7 +253,10 @@ export class CustomersService {
     );
   }
 
-  async blacklistCustomer(customerId: string, reason: string): Promise<CustomerDocument> {
+  async blacklistCustomer(
+    customerId: string,
+    reason: string,
+  ): Promise<CustomerDocument> {
     return this.customerModel.findByIdAndUpdate(
       customerId,
       {
@@ -241,9 +279,11 @@ export class CustomersService {
   }
 
   async getStats(customerId: string): Promise<any> {
-    return this.customerModel.findById(customerId).select(
-      'totalRides completedRides cancelledRides averageRating totalReviews totalSpent',
-    );
+    return this.customerModel
+      .findById(customerId)
+      .select(
+        'totalRides completedRides cancelledRides averageRating totalReviews totalSpent',
+      );
   }
 
   async changePassword(
@@ -258,7 +298,10 @@ export class CustomersService {
     }
 
     // Verify current password
-    const isPasswordValid = await bcrypt.compare(currentPassword, customer.password);
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      customer.password,
+    );
 
     if (!isPasswordValid) {
       throw new BadRequestException('Current password is incorrect');
@@ -287,6 +330,9 @@ export class CustomersService {
       deletionRequestedAt: new Date(),
     });
 
-    return { message: 'Yêu cầu xóa tài khoản đã được ghi nhận. Tài khoản sẽ bị xóa sau 30 ngày.' };
+    return {
+      message:
+        'Yêu cầu xóa tài khoản đã được ghi nhận. Tài khoản sẽ bị xóa sau 30 ngày.',
+    };
   }
 }

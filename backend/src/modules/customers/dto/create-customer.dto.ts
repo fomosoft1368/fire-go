@@ -1,4 +1,13 @@
-import { IsOptional, IsString, IsBoolean, IsDate, IsArray, IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsBoolean,
+  IsDate,
+  IsArray,
+  IsEmail,
+  IsNotEmpty,
+  MinLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCustomerDto {

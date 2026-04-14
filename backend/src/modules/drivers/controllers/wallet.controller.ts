@@ -90,8 +90,12 @@ export class WalletController {
     const driverId = req.user.driverId || req.user.id;
     const limitNum = limit ? parseInt(limit) : 20;
     const skipNum = skip ? parseInt(skip) : 0;
-    
-    return await this.walletService.getTransactions(driverId, limitNum, skipNum);
+
+    return await this.walletService.getTransactions(
+      driverId,
+      limitNum,
+      skipNum,
+    );
   }
 
   /**
@@ -118,9 +122,12 @@ export class WalletController {
    * Create Sepay QR payment for top-up
    */
   @Post('sepay/create')
-  async createSepayPayment(@Request() req: any, @Body() dto: { amount: number; note?: string }) {
+  async createSepayPayment(
+    @Request() req: any,
+    @Body() dto: { amount: number; note?: string },
+  ) {
     const driverId = req.user.driverId || req.user.id;
-    
+
     // Create pending transaction
     const transaction = await this.walletService.topup(
       driverId,

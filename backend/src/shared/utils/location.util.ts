@@ -13,19 +13,69 @@ function normalize(text: string): string {
 
 // Vietnam province/city list (with normalized alternatives)
 const PROVINCES = [
-  'Hà Nội', 'TP. Hồ Chí Minh', 'Thành phố Hồ Chí Minh', 'Đà Nẵng', 'Hải Phòng', 'Cần Thơ',
-  'An Giang', 'Bà Rịa - Vũng Tàu', 'Bắc Giang', 'Bắc Kạn', 'Bạc Liêu',
-  'Bắc Ninh', 'Bến Tre', 'Bình Dương', 'Bình Phước', 'Bình Thuận',
-  'Cà Mau', 'Cao Bằng', 'Đắk Lắk', 'Đắk Nông', 'Điện Biên',
-  'Đồng Nai', 'Đồng Tháp', 'Gia Lai', 'Hà Giang', 'Hà Nam',
-  'Hà Tĩnh', 'Hải Dương', 'Hậu Giang', 'Hòa Bình', 'Hưng Yên',
-  'Khánh Hòa', 'Kiên Giang', 'Kon Tum', 'Lai Châu', 'Lâm Đồng',
-  'Lạng Sơn', 'Lào Cai', 'Long An', 'Nam Định', 'Nghệ An',
-  'Ninh Bình', 'Ninh Thuận', 'Phú Thọ', 'Phú Yên', 'Quảng Bình',
-  'Quảng Nam', 'Quảng Ngãi', 'Quảng Ninh', 'Quảng Trị', 'Sóc Trăng',
-  'Sơn La', 'Tây Ninh', 'Thái Bình', 'Thái Nguyên', 'Thanh Hóa',
-  'Thừa Thiên - Huế', 'Tiền Giang', 'Trà Vinh', 'Tuyên Quang', 'Vĩnh Long',
-  'Vĩnh Phúc', 'Yên Bái'
+  'Hà Nội',
+  'TP. Hồ Chí Minh',
+  'Thành phố Hồ Chí Minh',
+  'Đà Nẵng',
+  'Hải Phòng',
+  'Cần Thơ',
+  'An Giang',
+  'Bà Rịa - Vũng Tàu',
+  'Bắc Giang',
+  'Bắc Kạn',
+  'Bạc Liêu',
+  'Bắc Ninh',
+  'Bến Tre',
+  'Bình Dương',
+  'Bình Phước',
+  'Bình Thuận',
+  'Cà Mau',
+  'Cao Bằng',
+  'Đắk Lắk',
+  'Đắk Nông',
+  'Điện Biên',
+  'Đồng Nai',
+  'Đồng Tháp',
+  'Gia Lai',
+  'Hà Giang',
+  'Hà Nam',
+  'Hà Tĩnh',
+  'Hải Dương',
+  'Hậu Giang',
+  'Hòa Bình',
+  'Hưng Yên',
+  'Khánh Hòa',
+  'Kiên Giang',
+  'Kon Tum',
+  'Lai Châu',
+  'Lâm Đồng',
+  'Lạng Sơn',
+  'Lào Cai',
+  'Long An',
+  'Nam Định',
+  'Nghệ An',
+  'Ninh Bình',
+  'Ninh Thuận',
+  'Phú Thọ',
+  'Phú Yên',
+  'Quảng Bình',
+  'Quảng Nam',
+  'Quảng Ngãi',
+  'Quảng Ninh',
+  'Quảng Trị',
+  'Sóc Trăng',
+  'Sơn La',
+  'Tây Ninh',
+  'Thái Bình',
+  'Thái Nguyên',
+  'Thanh Hóa',
+  'Thừa Thiên - Huế',
+  'Tiền Giang',
+  'Trà Vinh',
+  'Tuyên Quang',
+  'Vĩnh Long',
+  'Vĩnh Phúc',
+  'Yên Bái',
 ];
 
 interface LocationParts {
@@ -47,23 +97,29 @@ export function extractLocationHierarchy(address: string): LocationParts {
     return {};
   }
 
-  const parts = address.split(',').map((p) => p.trim()).filter(p => p.length > 0);
+  const parts = address
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
   const result: LocationParts = {};
 
   if (parts.length === 0) return {};
 
   const normalizedAddress = normalize(address);
-  
+
   // 1. Find province (usually the last meaningful part)
   let provinceIndex = -1;
   for (let i = parts.length - 1; i >= 0; i--) {
     const part = parts[i];
     const normalized = normalize(part);
-    
+
     // Check if this part matches a province
-    const matchedProvince = PROVINCES.find(p => {
+    const matchedProvince = PROVINCES.find((p) => {
       const normProvincePattern = normalize(p);
-      return normalized.includes(normProvincePattern) || normalized === normProvincePattern;
+      return (
+        normalized.includes(normProvincePattern) ||
+        normalized === normProvincePattern
+      );
     });
 
     if (matchedProvince) {
@@ -78,13 +134,13 @@ export function extractLocationHierarchy(address: string): LocationParts {
     for (let i = provinceIndex - 1; i >= 0; i--) {
       const part = parts[i];
       const normalized = normalize(part);
-      
+
       // Look for district/city keywords
       if (
-        normalized.includes('quan') ||     // Quận
-        normalized.includes('huyen') ||    // Huyện
-        normalized.includes('thi xa') ||   // Thị xã
-        normalized.includes('thanh pho')   // Thành phố
+        normalized.includes('quan') || // Quận
+        normalized.includes('huyen') || // Huyện
+        normalized.includes('thi xa') || // Thị xã
+        normalized.includes('thanh pho') // Thành phố
       ) {
         // Extract just the name part
         const cleanName = part
@@ -102,7 +158,11 @@ export function extractLocationHierarchy(address: string): LocationParts {
       const part = parts[provinceIndex - 1];
       const normalized = normalize(part);
       // Only use if it's not just a street address
-      if (part.length < 30 && !normalized.includes('so ') && !normalized.includes('đường')) {
+      if (
+        part.length < 30 &&
+        !normalized.includes('so ') &&
+        !normalized.includes('đường')
+      ) {
         result.district = part;
       }
     }
@@ -112,15 +172,13 @@ export function extractLocationHierarchy(address: string): LocationParts {
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     const normalized = normalize(part);
-    
+
     if (
-      normalized.includes('phuong') ||     // Phường
-      normalized.includes('xa') ||         // Xã  
-      normalized.includes('thi tran')      // Thị trấn
+      normalized.includes('phuong') || // Phường
+      normalized.includes('xa') || // Xã
+      normalized.includes('thi tran') // Thị trấn
     ) {
-      const cleanName = part
-        .replace(/^(Phường|Xã|Thị trấn)\s+/i, '')
-        .trim();
+      const cleanName = part.replace(/^(Phường|Xã|Thị trấn)\s+/i, '').trim();
       if (cleanName.length > 0) {
         result.ward = cleanName;
       }
@@ -138,16 +196,14 @@ export function extractLocationHierarchy(address: string): LocationParts {
 export function matchesAtLevel(
   address1: string,
   address2: string,
-  level: 'province' | 'district' | 'ward'
+  level: 'province' | 'district' | 'ward',
 ): boolean {
   const loc1 = extractLocationHierarchy(address1);
   const loc2 = extractLocationHierarchy(address2);
 
   if (level === 'province') {
     return (
-      loc1.province === loc2.province &&
-      !!loc1.province &&
-      !!loc2.province
+      loc1.province === loc2.province && !!loc1.province && !!loc2.province
     );
   } else if (level === 'district') {
     return (

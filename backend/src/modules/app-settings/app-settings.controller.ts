@@ -18,7 +18,7 @@ const PUBLIC_KEYS = ['OSRM_BASE_URL', 'GOOGLE_MAPS_API_KEY'];
 
 @Controller('app-settings')
 export class AppSettingsController {
-  constructor(private readonly appSettingsService: AppSettingsService) { }
+  constructor(private readonly appSettingsService: AppSettingsService) {}
 
   /**
    * GET /api/app-settings/public
@@ -52,10 +52,7 @@ export class AppSettingsController {
   @Patch(':key')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'staff')
-  async update(
-    @Param('key') key: string,
-    @Body() body: { value: string },
-  ) {
+  async update(@Param('key') key: string, @Body() body: { value: string }) {
     if (body.value === undefined || body.value === null) {
       throw new BadRequestException('value là bắt buộc');
     }

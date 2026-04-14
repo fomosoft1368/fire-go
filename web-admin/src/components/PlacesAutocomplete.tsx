@@ -64,7 +64,7 @@ const PlacesAutocomplete: React.FC<PlacesAutocompleteProps> = ({
       autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
         componentRestrictions: { country: 'vn' },
         fields: ['address_components', 'geometry', 'name', 'formatted_address'],
-        types: ['(regions)'], // Cities, provinces, neighborhoods
+        types: ['geocode'], // Allow geocoding to find specific cities/districts/wards better
       });
 
       // Listen for place selection

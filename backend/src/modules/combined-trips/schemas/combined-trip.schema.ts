@@ -31,7 +31,7 @@ export class CombinedTrip {
 
   @Prop({
     type: Object,
-    default: { type: 'Point', coordinates: [] }
+    default: { type: 'Point', coordinates: [] },
   })
   pickupLocation: {
     type: string;
@@ -54,7 +54,7 @@ export class CombinedTrip {
 
   @Prop({
     type: Object,
-    default: { type: 'Point', coordinates: [] }
+    default: { type: 'Point', coordinates: [] },
   })
   dropoffLocation: {
     type: string;
@@ -162,25 +162,25 @@ export class CombinedTrip {
   cancellationBy?: 'driver' | 'customer';
 
   // ===== NEW FIELDS FOR CUSTOMER-INITIATED TRIPS (GRAB-LIKE FLOW) =====
-  
+
   @Prop()
   createdBy?: 'driver' | 'customer'; // Who created this trip
-  
+
   @Prop({ type: [Types.ObjectId], ref: 'Driver', default: [] })
   driverQueue?: Types.ObjectId[]; // Queue of nearby drivers
-  
+
   @Prop({ default: 0 })
   currentDriverIndex?: number; // Current driver index in queue
-  
+
   @Prop({ type: Types.ObjectId, ref: 'Driver' })
   currentDriverId?: Types.ObjectId; // Current driver being notified
-  
+
   @Prop()
   notificationSentAt?: Date; // When notification was sent to current driver
-  
+
   @Prop({ default: 1 })
   availableSeats?: number; // Number of seats customer needs
-  
+
   @Prop()
   expiresAt?: Date; // When this trip expires (15 minutes for customer-created trips)
 
@@ -190,14 +190,13 @@ export class CombinedTrip {
 
   @Prop({ type: [String], default: ['sedan'] })
   driverVehicleTypes?: string[]; // Loại xe thực tế để filter tài xế: ['sedan'] | ['suv'] | ['sedan','suv']
-
 }
 
 export const CombinedTripSchema = SchemaFactory.createForClass(CombinedTrip);
 
 // Create geospatial index for pickup location
-CombinedTripSchema.index({ 'pickupLocation': '2dsphere' });
-CombinedTripSchema.index({ 'dropoffLocation': '2dsphere' });
+CombinedTripSchema.index({ pickupLocation: '2dsphere' });
+CombinedTripSchema.index({ dropoffLocation: '2dsphere' });
 CombinedTripSchema.index({ status: 1 });
 CombinedTripSchema.index({ customerId: 1 });
 CombinedTripSchema.index({ driverId: 1 });

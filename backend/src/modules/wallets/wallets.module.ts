@@ -6,7 +6,10 @@ import { Wallet, WalletSchema } from './schemas/wallet.schema';
 import { Transaction, TransactionSchema } from './schemas/transaction.schema';
 import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
 import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
-import { PaymentMethod, PaymentMethodSchema } from '../payment/schemas/payment-method.schema';
+import {
+  PaymentMethod,
+  PaymentMethodSchema,
+} from '../payment/schemas/payment-method.schema';
 import { PricingModule } from '../pricing/pricing.module';
 import { SepayService } from '../drivers/services/sepay.service';
 

@@ -2,9 +2,10 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 
-export type DriverDocument = Driver & Document & {
-  comparePassword(candidatePassword: string): Promise<boolean>;
-};
+export type DriverDocument = Driver &
+  Document & {
+    comparePassword(candidatePassword: string): Promise<boolean>;
+  };
 
 export enum DocumentStatus {
   NOT_SUBMITTED = 'not_submitted',
@@ -22,15 +23,15 @@ export enum DriverStatus {
 }
 
 export enum DriverType {
-  HIRE = 'hire',          // Lái xe hộ
+  HIRE = 'hire', // Lái xe hộ
   RIDESHARE = 'rideshare', // Ghép xe
-  DELIVERY = 'delivery',   // Vận chuyển
+  DELIVERY = 'delivery', // Vận chuyển
 }
 
 export enum VehicleType {
-  SEDAN = 'sedan',           // Xe 4 chỗ
-  SUV = 'suv',               // Xe SUV 7 chỗ
-  PICKUP = 'pickup',         // Bán tải
+  SEDAN = 'sedan', // Xe 4 chỗ
+  SUV = 'suv', // Xe SUV 7 chỗ
+  PICKUP = 'pickup', // Bán tải
   MOTORCYCLE = 'motorcycle', // Xe máy
 }
 
@@ -337,7 +338,7 @@ export class Driver {
   @Prop()
   expoPushToken?: string; // Expo Push Token for push notifications
 
-  // Notification preferences  
+  // Notification preferences
   @Prop({ default: true })
   allowNotifications: boolean;
 
@@ -372,6 +373,11 @@ export class Driver {
 
   @Prop({ default: 0 })
   totalReferralEarnings: number; // Tổng thu nhập thụ động kiếm được
+
+  // ============ MARKETING SYSTEM ============
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  marketingReferrerId?: Types.ObjectId; // ID của nhân sự Marketing (F1/F2/F3) đã giới thiệu tài xế này
+  // ============ END MARKETING SYSTEM ============
   // ============ END REFERRAL SYSTEM ============
 }
 
@@ -393,12 +399,14 @@ DriverSchema.pre<DriverDocument>('save', async function (next) {
 });
 
 // Add comparePassword method
-DriverSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+DriverSchema.methods.comparePassword = async function (
+  candidatePassword: string,
+): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
 // Sparse index for geospatial queries - only on documents with currentLocation
-DriverSchema.index({ 'currentLocation': '2dsphere' }, { sparse: true });
+DriverSchema.index({ currentLocation: '2dsphere' }, { sparse: true });
 DriverSchema.index({ email: 1 });
 DriverSchema.index({ status: 1 });
 DriverSchema.index({ licenseExpiry: 1 });

@@ -4,27 +4,27 @@ import { Document, Types } from 'mongoose';
 export type WalletTransactionDocument = WalletTransaction & Document;
 
 export enum TransactionType {
-  TOPUP = 'topup',            // Nạp tiền
-  WITHDRAWAL = 'withdrawal',  // Rút tiền
-  COMMISSION = 'commission',  // Phí chiết khấu tự động trừ
-  BONUS = 'bonus',           // Thưởng
-  REFUND = 'refund',         // Hoàn tiền
-  PENALTY = 'penalty',       // Phạt
+  TOPUP = 'topup', // Nạp tiền
+  WITHDRAWAL = 'withdrawal', // Rút tiền
+  COMMISSION = 'commission', // Phí chiết khấu tự động trừ
+  BONUS = 'bonus', // Thưởng
+  REFUND = 'refund', // Hoàn tiền
+  PENALTY = 'penalty', // Phạt
 }
 
 export enum TransactionStatus {
-  PENDING = 'pending',       // Đang chờ xử lý
-  COMPLETED = 'completed',   // Hoàn thành
-  FAILED = 'failed',        // Thất bại
-  CANCELLED = 'cancelled',  // Đã hủy
+  PENDING = 'pending', // Đang chờ xử lý
+  COMPLETED = 'completed', // Hoàn thành
+  FAILED = 'failed', // Thất bại
+  CANCELLED = 'cancelled', // Đã hủy
 }
 
 export enum PaymentMethod {
-  BANK_TRANSFER = 'bank_transfer',  // Chuyển khoản ngân hàng
-  MOMO = 'momo',                   // Ví MoMo
-  ZALOPAY = 'zalopay',             // ZaloPay
-  VNPAY = 'vnpay',                 // VNPay
-  CASH = 'cash',                   // Tiền mặt
+  BANK_TRANSFER = 'bank_transfer', // Chuyển khoản ngân hàng
+  MOMO = 'momo', // Ví MoMo
+  ZALOPAY = 'zalopay', // ZaloPay
+  VNPAY = 'vnpay', // VNPay
+  CASH = 'cash', // Tiền mặt
 }
 
 @Schema({ timestamps: true })
@@ -44,7 +44,11 @@ export class WalletTransaction {
   @Prop({ required: true })
   balanceAfter: number; // Số dư sau giao dịch
 
-  @Prop({ type: String, enum: TransactionStatus, default: TransactionStatus.PENDING })
+  @Prop({
+    type: String,
+    enum: TransactionStatus,
+    default: TransactionStatus.PENDING,
+  })
   status: TransactionStatus;
 
   @Prop({ type: String, enum: PaymentMethod })
@@ -84,7 +88,8 @@ export class WalletTransaction {
   updatedAt?: Date;
 }
 
-export const WalletTransactionSchema = SchemaFactory.createForClass(WalletTransaction);
+export const WalletTransactionSchema =
+  SchemaFactory.createForClass(WalletTransaction);
 
 // Indexes for better query performance
 WalletTransactionSchema.index({ driverId: 1, createdAt: -1 });

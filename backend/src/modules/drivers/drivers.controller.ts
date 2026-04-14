@@ -1,12 +1,33 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request, Query, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+  HttpCode,
+} from '@nestjs/common';
 import { DriversService } from './drivers.service';
-import { CreateDriverDto, UpdateDriverDto, UpdateLocationDto, ApproveDriverDto, RejectDriverDto } from './dto';
+import {
+  CreateDriverDto,
+  UpdateDriverDto,
+  UpdateLocationDto,
+  ApproveDriverDto,
+  RejectDriverDto,
+} from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DriverStatus } from './schemas/driver.schema';
+import { ReferralService } from './referral.service';
 
 @Controller('drivers')
 export class DriversController {
-  constructor(private readonly driversService: DriversService) {}
+  constructor(
+    private readonly driversService: DriversService,
+    private readonly referralService: ReferralService,
+  ) {}
 
   /**
    * GET /api/drivers
@@ -61,10 +82,10 @@ export class DriversController {
   async getMyProfile(@Request() req: any) {
     // req.user.id is the driver's _id from JWT token
     const driver = await this.driversService.findById(req.user.id);
-    
+
     // Calculate online hours from minutes
     const onlineHours = (driver.todayOnlineMinutes || 0) / 60;
-    
+
     console.log('[GET /api/drivers/me] Returning driver profile:', {
       id: driver._id,
       walletBalance: driver.walletBalance,
@@ -73,7 +94,7 @@ export class DriversController {
       onlineHours: onlineHours.toFixed(1),
       fullDriver: driver,
     });
-    
+
     return {
       ...driver.toObject(),
       onlineHours: parseFloat(onlineHours.toFixed(1)), // Add computed field
@@ -102,7 +123,7 @@ export class DriversController {
 
   /**
    * POST /api/drivers/me/request-deletion
-   * Yêu cầu xóa tài khoản 
+   * Yêu cầu xóa tài khoản
    */
   @Post('me/request-deletion')
   @UseGuards(JwtAuthGuard)
@@ -143,7 +164,8 @@ export class DriversController {
    */
   @Get('referral/:code')
   async checkReferralCode(@Param('code') code: string) {
-    if (!code || code.length < 5) return { valid: false, message: 'Mã không hợp lệ' };
+    if (!code || code.length < 5)
+      return { valid: false, message: 'Mã không hợp lệ' };
     const referrer = await this.driversService.findByReferralCode(code);
     if (!referrer) {
       return { valid: false, message: 'Không tìm thấy mã giới thiệu' };
@@ -154,7 +176,7 @@ export class DriversController {
         id: referrer._id,
         name: `${referrer.firstName} ${referrer.lastName}`.trim(),
         avatar: (referrer as any).portraitImage || referrer.vehicleImage,
-      }
+      },
     };
   }
 
@@ -166,6 +188,16 @@ export class DriversController {
   @UseGuards(JwtAuthGuard)
   async getMyReferral(@Request() req: any) {
     return this.driversService.getOrCreateReferralCode(req.user.id);
+  }
+
+  /**
+   * GET /api/drivers/me/downlines
+   * Lấy danh sách tuyến dưới (F1, F2, F3) và thông tin hoa hồng
+   */
+  @Get('me/downlines')
+  @UseGuards(JwtAuthGuard)
+  async getMyDownlines(@Request() req: any) {
+    return this.referralService.getDownlines(req.user.id);
   }
 
   /**
@@ -186,7 +218,6 @@ export class DriversController {
     return this.driversService.getStats(id);
   }
 
-
   /**
    * PATCH /api/drivers/me/accepting-rides
    * Toggle chấp nhận cuốc
@@ -203,7 +234,10 @@ export class DriversController {
       isAcceptingRides,
       user: req.user,
     });
-    return this.driversService.toggleAcceptingRides(req.user.id, isAcceptingRides);
+    return this.driversService.toggleAcceptingRides(
+      req.user.id,
+      isAcceptingRides,
+    );
   }
 
   /**
@@ -217,7 +251,12 @@ export class DriversController {
     @Request() req: any,
     @Body('status') status: DriverStatus,
   ) {
-    console.log('[DriversController] Updating driver status:', req.user.id, 'to:', status);
+    console.log(
+      '[DriversController] Updating driver status:',
+      req.user.id,
+      'to:',
+      status,
+    );
     return this.driversService.updateStatus(req.user.id, status);
   }
 
@@ -232,8 +271,14 @@ export class DriversController {
     @Request() req: any,
     @Body() updateDriverDto: UpdateDriverDto,
   ) {
-    console.log('[DriversController] Updating profile for driver:', req.user.id);
-    console.log('[DriversController] Update data:', JSON.stringify(updateDriverDto));
+    console.log(
+      '[DriversController] Updating profile for driver:',
+      req.user.id,
+    );
+    console.log(
+      '[DriversController] Update data:',
+      JSON.stringify(updateDriverDto),
+    );
     return this.driversService.update(req.user.id, updateDriverDto);
   }
 
@@ -248,7 +293,12 @@ export class DriversController {
     @Request() req: any,
     @Body('isOnline') isOnline: boolean,
   ) {
-    console.log('[DriversController] Setting online status for driver:', req.user.id, 'to:', isOnline);
+    console.log(
+      '[DriversController] Setting online status for driver:',
+      req.user.id,
+      'to:',
+      isOnline,
+    );
     return this.driversService.updateOnlineStatus(req.user.id, isOnline);
   }
 
@@ -263,7 +313,12 @@ export class DriversController {
     @Request() req: any,
     @Body('isAvailable') isAvailable: boolean,
   ) {
-    console.log('[DriversController] Setting available status for driver:', req.user.id, 'to:', isAvailable);
+    console.log(
+      '[DriversController] Setting available status for driver:',
+      req.user.id,
+      'to:',
+      isAvailable,
+    );
     return this.driversService.updateAvailableStatus(req.user.id, isAvailable);
   }
 
@@ -277,7 +332,7 @@ export class DriversController {
   async heartbeat(@Request() req: any) {
     // req.user.id is the driver's _id from JWT token
     await this.driversService.updateHeartbeat(req.user.id);
-    
+
     return { success: true, message: 'Heartbeat received' };
   }
 
@@ -344,7 +399,8 @@ export class DriversController {
   @HttpCode(200)
   async uploadDocuments(
     @Param('id') id: string,
-    @Body() documents: {
+    @Body()
+    documents: {
       idCardFront?: string;
       idCardBack?: string;
       driverLicense?: string;
@@ -382,7 +438,11 @@ export class DriversController {
     @Param('id') id: string,
     @Body() data: { reason: string; rejectedDocuments?: string[] },
   ) {
-    return this.driversService.rejectDocuments(id, data.reason, data.rejectedDocuments);
+    return this.driversService.rejectDocuments(
+      id,
+      data.reason,
+      data.rejectedDocuments,
+    );
   }
 
   /**

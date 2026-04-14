@@ -1,6 +1,22 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards, Request, Query, Patch } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+  Patch,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { SystemConfigDto, CreateUserDto, UpdateUserDto, UpdateUserPermissionsDto } from './dto';
+import {
+  SystemConfigDto,
+  CreateUserDto,
+  UpdateUserDto,
+  UpdateUserPermissionsDto,
+} from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('admin')
@@ -109,6 +125,18 @@ export class AdminController {
     return this.adminService.getAdminUsers(role, status, search);
   }
 
+  // Get marketing staff
+  @Get('marketing-staff')
+  @UseGuards(JwtAuthGuard)
+  async getMarketingStaff(
+    @Request() req: any,
+    @Query('search') search?: string,
+  ) {
+    const userId = req.user?.sub || req.user?._id || req.user?.id;
+    const role = req.user?.role;
+    return this.adminService.getMarketingStaff(userId, role, search);
+  }
+
   // Get single user by ID
   @Get('users/:id')
   async getUserById(@Param('id') userId: string) {
@@ -117,8 +145,10 @@ export class AdminController {
 
   // Create new user
   @Post('users')
-  async createUser(@Body() createUserDto: CreateUserDto) {
-    return this.adminService.createUser(createUserDto);
+  @UseGuards(JwtAuthGuard)
+  async createUser(@Request() req: any, @Body() createUserDto: CreateUserDto) {
+    const creatorId = req.user?.sub || req.user?._id || req.user?.id;
+    return this.adminService.createUser(createUserDto, creatorId);
   }
 
   // Update user
@@ -136,7 +166,10 @@ export class AdminController {
     @Param('id') userId: string,
     @Body() updatePermissionsDto: UpdateUserPermissionsDto,
   ) {
-    return this.adminService.updateUserPermissions(userId, updatePermissionsDto);
+    return this.adminService.updateUserPermissions(
+      userId,
+      updatePermissionsDto,
+    );
   }
 
   // Delete user
@@ -170,7 +203,10 @@ export class AdminController {
 
   @Post('config')
   @UseGuards(JwtAuthGuard)
-  async setConfig(@Request() req: any, @Body() systemConfigDto: SystemConfigDto) {
+  async setConfig(
+    @Request() req: any,
+    @Body() systemConfigDto: SystemConfigDto,
+  ) {
     return this.adminService.setConfig(systemConfigDto, req.user.id);
   }
 

@@ -4,11 +4,17 @@ import { MulterModule } from '@nestjs/platform-express';
 import { DriversService } from './drivers.service';
 import { DriversController } from './drivers.controller';
 import { Driver, DriverSchema } from './schemas/driver.schema';
+import {
+  ReferralTransaction,
+  ReferralTransactionSchema,
+} from './schemas/referral-transaction.schema';
 import { WalletService } from './services/wallet.service';
+import { ReferralService } from './referral.service';
 import { SepayService } from './services/sepay.service';
 import { WalletController } from './controllers/wallet.controller';
 import { WalletAdminController } from './controllers/wallet-admin.controller';
 import { SepayWebhookController } from './controllers/sepay-webhook.controller';
+import { User, UserSchema } from '../auth/schemas/user.schema';
 import {
   Transaction,
   TransactionSchema,
@@ -16,11 +22,23 @@ import {
 import { PricingModule } from '../pricing/pricing.module';
 import { WalletsModule } from '../wallets/wallets.module';
 import { Ride, RideSchema } from '../rides/schemas/ride.schema';
-import { CombinedTrip, CombinedTripSchema } from '../combined-trips/schemas/combined-trip.schema';
-import { RideRequest, RideRequestSchema } from '../combined-trips/schemas/ride-request.schema';
+import {
+  CombinedTrip,
+  CombinedTripSchema,
+} from '../combined-trips/schemas/combined-trip.schema';
+import {
+  RideRequest,
+  RideRequestSchema,
+} from '../combined-trips/schemas/ride-request.schema';
 import { Delivery, DeliverySchema } from '../delivery/schemas/delivery.schema';
-import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
-import { HourlyService, HourlyServiceSchema } from '../hourly-services/schemas/hourly-service.schema';
+import {
+  PricingConfig,
+  PricingConfigSchema,
+} from '../pricing/pricing-config.schema';
+import {
+  HourlyService,
+  HourlyServiceSchema,
+} from '../hourly-services/schemas/hourly-service.schema';
 import { AppSettingsModule } from '../app-settings/app-settings.module';
 
 @Module({
@@ -34,6 +52,8 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
       { name: Delivery.name, schema: DeliverySchema },
       { name: PricingConfig.name, schema: PricingConfigSchema },
       { name: HourlyService.name, schema: HourlyServiceSchema },
+      { name: ReferralTransaction.name, schema: ReferralTransactionSchema },
+      { name: User.name, schema: UserSchema },
     ]),
     MulterModule.register({
       dest: './uploads/driver-documents',
@@ -41,18 +61,18 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
         fileSize: 5 * 1024 * 1024, // 5MB per file
       },
     }),
-    PricingModule,       // Import PricingModule để WalletService có thể dùng PricingService
-    WalletsModule,       // Import WalletsModule for customer wallet handling
-    AppSettingsModule,   // Import để SepayService đọc keys từ DB
+    PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
+    WalletsModule, // Import WalletsModule for customer wallet handling
+    AppSettingsModule, // Import để SepayService đọc keys từ DB
   ],
   controllers: [
     SepayWebhookController, // Webhook must be first (specific path)
-    WalletAdminController,  // Admin routes
-    WalletController,       // Driver wallet routes
-    DriversController,      // Driver routes (must be last, has :id wildcard)
+    WalletAdminController, // Admin routes
+    WalletController, // Driver wallet routes
+    DriversController, // Driver routes (must be last, has :id wildcard)
   ],
-  providers: [DriversService, WalletService, SepayService],
-  exports: [DriversService, WalletService, SepayService],
+  providers: [DriversService, WalletService, SepayService, ReferralService],
+  exports: [DriversService, WalletService, SepayService, ReferralService],
 })
 export class DriversModule implements OnModuleInit {
   constructor(private readonly driversService: DriversService) {}
@@ -66,7 +86,7 @@ export class DriversModule implements OnModuleInit {
         console.error('[DriversModule] Error in auto-offline job:', error);
       }
     }, 60 * 1000); // Every 60 seconds
-    
+
     console.log('[DriversModule] Auto-offline job started (runs every 60s)');
   }
 }

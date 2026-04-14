@@ -1,11 +1,16 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 
-export type DeliveryAssignmentRequestDocument = DeliveryAssignmentRequest & Document;
+export type DeliveryAssignmentRequestDocument = DeliveryAssignmentRequest &
+  Document;
 
 @Schema({ timestamps: true })
 export class DeliveryAssignmentRequest {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Delivery', required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Delivery',
+    required: true,
+  })
   deliveryId: MongooseSchema.Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
@@ -34,7 +39,9 @@ export class DeliveryAssignmentRequest {
   attemptNumber: number; // Lần thử thứ mấy (1 = driver đầu tiên, 2 = driver thứ 2,...)
 }
 
-export const DeliveryAssignmentRequestSchema = SchemaFactory.createForClass(DeliveryAssignmentRequest);
+export const DeliveryAssignmentRequestSchema = SchemaFactory.createForClass(
+  DeliveryAssignmentRequest,
+);
 
 // Index để query nhanh
 DeliveryAssignmentRequestSchema.index({ deliveryId: 1, status: 1 });

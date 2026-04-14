@@ -1,19 +1,33 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Wallet, WalletDocument } from './schemas/wallet.schema';
-import { Transaction, TransactionDocument, TransactionType, TransactionStatus, UserType } from './schemas/transaction.schema';
+import {
+  Transaction,
+  TransactionDocument,
+  TransactionType,
+  TransactionStatus,
+  UserType,
+} from './schemas/transaction.schema';
 import { TopUpWalletDto, PaymentDto } from './dto';
 import { PricingService } from '../pricing/pricing.service';
 import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
 
-import { Customer, CustomerDocument } from '../customers/schemas/customer.schema';
+import {
+  Customer,
+  CustomerDocument,
+} from '../customers/schemas/customer.schema';
 
 @Injectable()
 export class WalletsService {
   constructor(
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
-    @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
+    @InjectModel(Transaction.name)
+    private transactionModel: Model<TransactionDocument>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
     private readonly pricingService: PricingService,
@@ -29,10 +43,12 @@ export class WalletsService {
   }
 
   async getWallet(userId: string): Promise<WalletDocument> {
-    let wallet = await this.walletModel.findOne({ userId: new Types.ObjectId(userId) });
+    let wallet = await this.walletModel.findOne({
+      userId: new Types.ObjectId(userId),
+    });
 
     if (!wallet) {
-      wallet = await this.createWallet(userId) as any;
+      wallet = (await this.createWallet(userId)) as any;
     }
 
     return wallet;
@@ -59,19 +75,19 @@ export class WalletsService {
 
     // Get dynamic limits from pricing config
     const minAmount = await this.pricingService.getMinTopupAmount(
-      userType === UserType.CUSTOMER ? 'customer' : 'driver'
+      userType === UserType.CUSTOMER ? 'customer' : 'driver',
     );
     const maxAmount = await this.pricingService.getMaxTopupAmount();
 
     if (topUpWalletDto.amount < minAmount) {
       throw new BadRequestException(
-        `Top-up amount must be at least ${minAmount.toLocaleString('vi-VN')} VND`
+        `Top-up amount must be at least ${minAmount.toLocaleString('vi-VN')} VND`,
       );
     }
 
     if (topUpWalletDto.amount > maxAmount) {
       throw new BadRequestException(
-        `Top-up amount must not exceed ${maxAmount.toLocaleString('vi-VN')} VND`
+        `Top-up amount must not exceed ${maxAmount.toLocaleString('vi-VN')} VND`,
       );
     }
 
@@ -144,7 +160,9 @@ export class WalletsService {
   ): Promise<TransactionDocument> {
     const customer = await this.customerModel.findById(userId);
     if (customer && !customer.isPhoneVerified) {
-      throw new BadRequestException('Vui lòng xác thực số điện thoại trước khi nạp tiền');
+      throw new BadRequestException(
+        'Vui lòng xác thực số điện thoại trước khi nạp tiền',
+      );
     }
 
     // Get dynamic limits from pricing config
@@ -152,11 +170,15 @@ export class WalletsService {
     const maxAmount = await this.pricingService.getMaxTopupAmount();
 
     if (amount < minAmount) {
-      throw new BadRequestException(`Top-up amount must be at least ${minAmount.toLocaleString('vi-VN')} VND`);
+      throw new BadRequestException(
+        `Top-up amount must be at least ${minAmount.toLocaleString('vi-VN')} VND`,
+      );
     }
 
     if (amount > maxAmount) {
-      throw new BadRequestException(`Top-up amount must not exceed ${maxAmount.toLocaleString('vi-VN')} VND`);
+      throw new BadRequestException(
+        `Top-up amount must not exceed ${maxAmount.toLocaleString('vi-VN')} VND`,
+      );
     }
 
     const wallet = await this.getWallet(userId);
@@ -167,12 +189,13 @@ export class WalletsService {
 
     // Get topup discount from pricing config
     console.log('[WalletsService] Getting topup discount for customer...');
-    const discountPercent = await this.pricingService.getTopupDiscount('customer');
+    const discountPercent =
+      await this.pricingService.getTopupDiscount('customer');
     console.log(`[WalletsService] Discount: ${discountPercent}%`);
 
     // Calculate discount amount
     const discountAmount = Math.round((amount * discountPercent) / 100);
-    
+
     // Actual amount to add to wallet (original - discount)
     const actualAmount = amount - discountAmount;
 
@@ -194,16 +217,19 @@ export class WalletsService {
       discountAmount,
     });
 
-    console.log('[WalletsService] ✅ Customer topup transaction created with discount:', {
-      transactionId: transaction._id,
-      userId,
-      originalAmount: amount,
-      discountPercent: `${discountPercent}%`,
-      discountAmount,
-      actualAmount,
-      balanceBefore,
-      balanceAfter,
-    });
+    console.log(
+      '[WalletsService] ✅ Customer topup transaction created with discount:',
+      {
+        transactionId: transaction._id,
+        userId,
+        originalAmount: amount,
+        discountPercent: `${discountPercent}%`,
+        discountAmount,
+        actualAmount,
+        balanceBefore,
+        balanceAfter,
+      },
+    );
 
     return transaction;
   }
@@ -214,7 +240,10 @@ export class WalletsService {
   async findPendingTopupByContent(
     transactionId: string,
   ): Promise<TransactionDocument | null> {
-    console.log('[WalletsService] 🔍 Searching for customer transaction with ID:', transactionId);
+    console.log(
+      '[WalletsService] 🔍 Searching for customer transaction with ID:',
+      transactionId,
+    );
 
     let transaction = null;
 
@@ -233,12 +262,17 @@ export class WalletsService {
           return transaction;
         }
       } catch (error: any) {
-        console.log('[WalletsService] ⚠️ Full ID search failed:', error.message);
+        console.log(
+          '[WalletsService] ⚠️ Full ID search failed:',
+          error.message,
+        );
       }
     }
 
     // Strategy 2: Try last 8 characters matching
-    const last8Chars = transactionId.substring(Math.max(0, transactionId.length - 8)).toUpperCase();
+    const last8Chars = transactionId
+      .substring(Math.max(0, transactionId.length - 8))
+      .toUpperCase();
     console.log('[WalletsService] 🔍 Trying last 8 chars match:', last8Chars);
 
     const allPending = await this.transactionModel
@@ -279,14 +313,19 @@ export class WalletsService {
     }
 
     if (transaction.status !== TransactionStatus.PENDING) {
-      console.log('[WalletsService] ⚠️ Transaction already processed:', transaction.status);
+      console.log(
+        '[WalletsService] ⚠️ Transaction already processed:',
+        transaction.status,
+      );
       return transaction;
     }
 
     // Get topup discount from Pricing Config
     const pricingConfig = await this.pricingService.getConfig();
     const discountPercent = pricingConfig.topupDiscountCustomer || 0; // Default 0% if not set
-    const discountAmount = Math.round(transaction.amount * (discountPercent / 100));
+    const discountAmount = Math.round(
+      transaction.amount * (discountPercent / 100),
+    );
 
     console.log('[WalletsService] 💳 Applying topup discount:', {
       amount: transaction.amount,
@@ -417,15 +456,22 @@ export class WalletsService {
     return transaction;
   }
 
-  async refundTransaction(transactionId: string, reason?: string): Promise<TransactionDocument> {
+  async refundTransaction(
+    transactionId: string,
+    reason?: string,
+  ): Promise<TransactionDocument> {
     const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
-      throw new NotFoundException(`Transaction with ID ${transactionId} not found`);
+      throw new NotFoundException(
+        `Transaction with ID ${transactionId} not found`,
+      );
     }
 
     if (transaction.status !== TransactionStatus.SUCCESS) {
-      throw new BadRequestException('Only successful transactions can be refunded');
+      throw new BadRequestException(
+        'Only successful transactions can be refunded',
+      );
     }
 
     const wallet = await this.getWallet(transaction.userId.toString());
@@ -463,7 +509,9 @@ export class WalletsService {
           _id: null,
           totalTransactions: { $sum: 1 },
           successfulTransactions: {
-            $sum: { $cond: [{ $eq: ['$status', TransactionStatus.SUCCESS] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ['$status', TransactionStatus.SUCCESS] }, 1, 0],
+            },
           },
           totalTopUps: {
             $sum: {
@@ -472,7 +520,11 @@ export class WalletsService {
           },
           totalSpent: {
             $sum: {
-              $cond: [{ $eq: ['$type', TransactionType.PAYMENT] }, '$amount', 0],
+              $cond: [
+                { $eq: ['$type', TransactionType.PAYMENT] },
+                '$amount',
+                0,
+              ],
             },
           },
         },
@@ -485,7 +537,11 @@ export class WalletsService {
     };
   }
 
-  async lockWallet(userId: string, reason: string, until?: Date): Promise<WalletDocument> {
+  async lockWallet(
+    userId: string,
+    reason: string,
+    until?: Date,
+  ): Promise<WalletDocument> {
     return this.walletModel.findOneAndUpdate(
       { userId: new Types.ObjectId(userId) },
       {
@@ -509,24 +565,31 @@ export class WalletsService {
     );
   }
 
-  async getTransactionById(transactionId: string): Promise<TransactionDocument> {
+  async getTransactionById(
+    transactionId: string,
+  ): Promise<TransactionDocument> {
     const transaction = await this.transactionModel
       .findById(transactionId)
       .populate('customerId', 'firstName lastName email phone')
       .populate('driverId', 'firstName lastName email phone')
       .populate('bankAccount', 'accountNumber accountHolder bankName name')
-      .lean()
+      .lean();
     if (!transaction) {
-      throw new NotFoundException('Không tìm thấy giao dịch')
+      throw new NotFoundException('Không tìm thấy giao dịch');
     }
-    return transaction
+    return transaction;
   }
 
   // ==================== Deposit/Withdraw Methods ====================
 
-  async deposit(customerId: string, amount: number, paymentMethodId: string, description: string): Promise<TransactionDocument> {
+  async deposit(
+    customerId: string,
+    amount: number,
+    paymentMethodId: string,
+    description: string,
+  ): Promise<TransactionDocument> {
     if (amount <= 0) {
-      throw new BadRequestException('Số tiền nạp phải lớn hơn 0')
+      throw new BadRequestException('Số tiền nạp phải lớn hơn 0');
     }
 
     // Get dynamic limits from pricing config
@@ -534,29 +597,35 @@ export class WalletsService {
     const maxAmount = await this.pricingService.getMaxTopupAmount();
 
     if (amount < minAmount) {
-      throw new BadRequestException(`Số tiền tối thiểu ${minAmount.toLocaleString('vi-VN')} VND`);
+      throw new BadRequestException(
+        `Số tiền tối thiểu ${minAmount.toLocaleString('vi-VN')} VND`,
+      );
     }
 
     if (amount > maxAmount) {
-      throw new BadRequestException(`Số tiền tối đa ${maxAmount.toLocaleString('vi-VN')} VND`);
+      throw new BadRequestException(
+        `Số tiền tối đa ${maxAmount.toLocaleString('vi-VN')} VND`,
+      );
     }
 
     // Get or create wallet for customer (using customerId as identifier)
-    let wallet = await this.walletModel.findOne({ userId: new Types.ObjectId(customerId) })
-    
+    let wallet = await this.walletModel.findOne({
+      userId: new Types.ObjectId(customerId),
+    });
+
     if (!wallet) {
       wallet = await this.walletModel.create({
         userId: new Types.ObjectId(customerId),
         balance: 0,
-      })
+      });
     }
 
     if (wallet.isLocked) {
-      throw new BadRequestException('Ví của bạn đã bị khóa')
+      throw new BadRequestException('Ví của bạn đã bị khóa');
     }
 
-    const balanceBefore = wallet.balance
-    const transactionCode = `DEP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+    const balanceBefore = wallet.balance;
+    const transactionCode = `DEP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
     // Create transaction record with PENDING status (admin needs to approve)
     const transaction = await this.transactionModel.create({
@@ -575,44 +644,60 @@ export class WalletsService {
         source: 'customer_deposit',
         requestedAt: new Date(),
       },
-    })
+    });
 
-    console.log(`[Wallet] Deposit request created: ${customerId} - ${amount}VND - Code: ${transactionCode}`)
-    return transaction
+    console.log(
+      `[Wallet] Deposit request created: ${customerId} - ${amount}VND - Code: ${transactionCode}`,
+    );
+    return transaction;
   }
 
-  async withdraw(customerId: string, amount: number, bankAccountId: string, description: string): Promise<TransactionDocument> {
+  async withdraw(
+    customerId: string,
+    amount: number,
+    bankAccountId: string,
+    description: string,
+  ): Promise<TransactionDocument> {
     const customer = await this.customerModel.findById(customerId);
     if (customer && !customer.isPhoneVerified) {
-      throw new BadRequestException('Vui lòng xác thực số điện thoại trước khi rút tiền');
+      throw new BadRequestException(
+        'Vui lòng xác thực số điện thoại trước khi rút tiền',
+      );
     }
 
     if (amount <= 0) {
-      throw new BadRequestException('Số tiền rút phải lớn hơn 0')
+      throw new BadRequestException('Số tiền rút phải lớn hơn 0');
     }
 
-    const minWithdrawAmount = await this.pricingService.getMinWithdrawAmount('customer');
+    const minWithdrawAmount =
+      await this.pricingService.getMinWithdrawAmount('customer');
     if (amount < minWithdrawAmount) {
-      throw new BadRequestException(`Số tiền tối thiểu ${minWithdrawAmount.toLocaleString('vi-VN')} VND`)
+      throw new BadRequestException(
+        `Số tiền tối thiểu ${minWithdrawAmount.toLocaleString('vi-VN')} VND`,
+      );
     }
 
-    const wallet = await this.walletModel.findOne({ userId: new Types.ObjectId(customerId) })
-    
+    const wallet = await this.walletModel.findOne({
+      userId: new Types.ObjectId(customerId),
+    });
+
     if (!wallet) {
-      throw new NotFoundException('Không tìm thấy ví')
+      throw new NotFoundException('Không tìm thấy ví');
     }
 
     if (wallet.isLocked) {
-      throw new BadRequestException('Ví của bạn đã bị khóa')
+      throw new BadRequestException('Ví của bạn đã bị khóa');
     }
 
     if (wallet.balance < amount) {
-      throw new BadRequestException(`Số dư không đủ. Hiện có: ${wallet.balance}VND`)
+      throw new BadRequestException(
+        `Số dư không đủ. Hiện có: ${wallet.balance}VND`,
+      );
     }
 
-    const balanceBefore = wallet.balance
-    const balanceAfter = balanceBefore - amount
-    const transactionCode = `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+    const balanceBefore = wallet.balance;
+    const balanceAfter = balanceBefore - amount;
+    const transactionCode = `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
     // Create transaction record FIRST (don't deduct balance yet)
     const transaction = await this.transactionModel.create({
@@ -630,17 +715,19 @@ export class WalletsService {
       metadata: {
         requestedAt: new Date(),
       },
-    })
+    });
 
     // Deduct balance ONLY after transaction created successfully
     await this.walletModel.findByIdAndUpdate(wallet._id, {
       $inc: {
         balance: -amount,
       },
-    })
+    });
 
-    console.log(`[Wallet] Withdraw request created: ${customerId} - ${amount}VND - Code: ${transactionCode} - Balance deducted immediately`)
-    return transaction
+    console.log(
+      `[Wallet] Withdraw request created: ${customerId} - ${amount}VND - Code: ${transactionCode} - Balance deducted immediately`,
+    );
+    return transaction;
   }
 
   async withdrawManual(
@@ -653,38 +740,44 @@ export class WalletsService {
   ): Promise<TransactionDocument> {
     const customer = await this.customerModel.findById(customerId);
     if (customer && !customer.isPhoneVerified) {
-      throw new BadRequestException('Vui lòng xác thực số điện thoại trước khi rút tiền');
+      throw new BadRequestException(
+        'Vui lòng xác thực số điện thoại trước khi rút tiền',
+      );
     }
 
     if (amount <= 0) {
-      throw new BadRequestException('Số tiền rút phải lớn hơn 0')
+      throw new BadRequestException('Số tiền rút phải lớn hơn 0');
     }
 
     if (amount < 50000) {
-      throw new BadRequestException('Số tiền tối thiểu 50,000 VND')
+      throw new BadRequestException('Số tiền tối thiểu 50,000 VND');
     }
 
     if (!bankAccountNumber || !bankName || !accountHolderName) {
-      throw new BadRequestException('Vui lòng nhập đầy đủ thông tin ngân hàng')
+      throw new BadRequestException('Vui lòng nhập đầy đủ thông tin ngân hàng');
     }
 
-    const wallet = await this.walletModel.findOne({ userId: new Types.ObjectId(customerId) })
-    
+    const wallet = await this.walletModel.findOne({
+      userId: new Types.ObjectId(customerId),
+    });
+
     if (!wallet) {
-      throw new NotFoundException('Không tìm thấy ví')
+      throw new NotFoundException('Không tìm thấy ví');
     }
 
     if (wallet.isLocked) {
-      throw new BadRequestException('Ví của bạn đã bị khóa')
+      throw new BadRequestException('Ví của bạn đã bị khóa');
     }
 
     if (wallet.balance < amount) {
-      throw new BadRequestException(`Số dư không đủ. Hiện có: ${wallet.balance}VND`)
+      throw new BadRequestException(
+        `Số dư không đủ. Hiện có: ${wallet.balance}VND`,
+      );
     }
 
-    const balanceBefore = wallet.balance
-    const balanceAfter = balanceBefore - amount
-    const transactionCode = `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+    const balanceBefore = wallet.balance;
+    const balanceAfter = balanceBefore - amount;
+    const transactionCode = `WTH-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
     // Create transaction record FIRST (don't deduct balance yet)
     const transaction = await this.transactionModel.create({
@@ -704,85 +797,112 @@ export class WalletsService {
         bankName,
         accountHolderName,
       },
-    })
+    });
 
     // Deduct balance ONLY after transaction created successfully
     await this.walletModel.findByIdAndUpdate(wallet._id, {
       $inc: {
         balance: -amount,
       },
-    })
+    });
 
-    console.log(`[Wallet] Manual withdraw request created: ${customerId} - ${amount}VND - Bank: ${bankName} ${bankAccountNumber}`)
-    return transaction
+    console.log(
+      `[Wallet] Manual withdraw request created: ${customerId} - ${amount}VND - Bank: ${bankName} ${bankAccountNumber}`,
+    );
+    return transaction;
   }
 
-  async getTransactionHistory(customerId: string, page: number = 1, limit: number = 20): Promise<{ data: TransactionDocument[], total: number, page: number, pages: number }> {
-    const skip = (page - 1) * limit
-    
+  async getTransactionHistory(
+    customerId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<{
+    data: TransactionDocument[];
+    total: number;
+    page: number;
+    pages: number;
+  }> {
+    const skip = (page - 1) * limit;
+
     const [transactions, total] = await Promise.all([
       this.transactionModel
-        .find({ customerId: new Types.ObjectId(customerId), deletedAt: { $exists: false } })
-        .populate('bankAccount', 'accountNumber accountHolder bankName name type')
+        .find({
+          customerId: new Types.ObjectId(customerId),
+          deletedAt: { $exists: false },
+        })
+        .populate(
+          'bankAccount',
+          'accountNumber accountHolder bankName name type',
+        )
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      this.transactionModel.countDocuments({ customerId: new Types.ObjectId(customerId), deletedAt: { $exists: false } }),
-    ])
+      this.transactionModel.countDocuments({
+        customerId: new Types.ObjectId(customerId),
+        deletedAt: { $exists: false },
+      }),
+    ]);
 
-    const pages = Math.ceil(total / limit)
+    const pages = Math.ceil(total / limit);
 
     return {
       data: transactions,
       total,
       page,
       pages,
-    }
+    };
   }
 
-  async getTransaction(transactionId: string, customerId: string): Promise<TransactionDocument> {
+  async getTransaction(
+    transactionId: string,
+    customerId: string,
+  ): Promise<TransactionDocument> {
     const transaction = await this.transactionModel.findOne({
       _id: new Types.ObjectId(transactionId),
       customerId: new Types.ObjectId(customerId),
-    })
+    });
 
     if (!transaction) {
-      throw new NotFoundException('Không tìm thấy giao dịch')
+      throw new NotFoundException('Không tìm thấy giao dịch');
     }
 
-    return transaction
+    return transaction;
   }
 
   async getWalletBalance(customerId: string): Promise<number> {
-    const wallet = await this.walletModel.findOne({ userId: new Types.ObjectId(customerId) })
-    return wallet?.balance || 0
+    const wallet = await this.walletModel.findOne({
+      userId: new Types.ObjectId(customerId),
+    });
+    return wallet?.balance || 0;
   }
 
   // Admin methods for approving/rejecting deposits and withdrawals
   async approveDeposit(transactionId: string): Promise<TransactionDocument> {
-    const transaction = await this.transactionModel.findById(transactionId)
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
-      throw new NotFoundException('Không tìm thấy giao dịch')
+      throw new NotFoundException('Không tìm thấy giao dịch');
     }
 
     if (transaction.type !== TransactionType.DEPOSIT) {
-      throw new BadRequestException('Giao dịch này không phải là nạp tiền')
+      throw new BadRequestException('Giao dịch này không phải là nạp tiền');
     }
 
     if (transaction.status !== TransactionStatus.PENDING) {
-      throw new BadRequestException(`Giao dịch này đã được xử lý (${transaction.status})`)
+      throw new BadRequestException(
+        `Giao dịch này đã được xử lý (${transaction.status})`,
+      );
     }
 
-    const customerId = transaction.customerId
-    const wallet = await this.walletModel.findOne({ userId: customerId })
+    const customerId = transaction.customerId;
+    const wallet = await this.walletModel.findOne({ userId: customerId });
 
     if (!wallet) {
-      throw new NotFoundException('Không tìm thấy ví')
+      throw new NotFoundException('Không tìm thấy ví');
     }
 
-    const balanceAfter = wallet.balance + transaction.amount
+    const balanceAfter = wallet.balance + transaction.amount;
 
     // Update wallet balance
     await this.walletModel.findByIdAndUpdate(wallet._id, {
@@ -790,7 +910,7 @@ export class WalletsService {
         balance: transaction.amount,
         totalTopUps: transaction.amount,
       },
-    })
+    });
 
     // Update transaction
     const updated = await this.transactionModel.findByIdAndUpdate(
@@ -804,25 +924,32 @@ export class WalletsService {
         },
       },
       { new: true },
-    )
+    );
 
-    console.log(`[Wallet] Deposit approved: ${customerId} - ${transaction.amount}VND`)
-    return updated
+    console.log(
+      `[Wallet] Deposit approved: ${customerId} - ${transaction.amount}VND`,
+    );
+    return updated;
   }
 
-  async rejectDeposit(transactionId: string, reason: string): Promise<TransactionDocument> {
-    const transaction = await this.transactionModel.findById(transactionId)
+  async rejectDeposit(
+    transactionId: string,
+    reason: string,
+  ): Promise<TransactionDocument> {
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
-      throw new NotFoundException('Không tìm thấy giao dịch')
+      throw new NotFoundException('Không tìm thấy giao dịch');
     }
 
     if (transaction.type !== TransactionType.DEPOSIT) {
-      throw new BadRequestException('Giao dịch này không phải là nạp tiền')
+      throw new BadRequestException('Giao dịch này không phải là nạp tiền');
     }
 
     if (transaction.status !== TransactionStatus.PENDING) {
-      throw new BadRequestException(`Giao dịch này đã được xử lý (${transaction.status})`)
+      throw new BadRequestException(
+        `Giao dịch này đã được xử lý (${transaction.status})`,
+      );
     }
 
     const updated = await this.transactionModel.findByIdAndUpdate(
@@ -836,25 +963,32 @@ export class WalletsService {
         },
       },
       { new: true },
-    )
+    );
 
-    console.log(`[Wallet] Deposit rejected: ${transaction.customerId} - Reason: ${reason}`)
-    return updated
+    console.log(
+      `[Wallet] Deposit rejected: ${transaction.customerId} - Reason: ${reason}`,
+    );
+    return updated;
   }
 
   async approveWithdraw(transactionId: string): Promise<TransactionDocument> {
-    const transaction = await this.transactionModel.findById(transactionId)
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
-      throw new NotFoundException('Không tìm thấy giao dịch')
+      throw new NotFoundException('Không tìm thấy giao dịch');
     }
 
-    if (transaction.type !== TransactionType.WITHDRAW && transaction.type !== TransactionType.WITHDRAWAL) {
-      throw new BadRequestException('Giao dịch này không phải là rút tiền')
+    if (
+      transaction.type !== TransactionType.WITHDRAW &&
+      transaction.type !== TransactionType.WITHDRAWAL
+    ) {
+      throw new BadRequestException('Giao dịch này không phải là rút tiền');
     }
 
     if (transaction.status !== TransactionStatus.PENDING) {
-      throw new BadRequestException(`Giao dịch này đã được xử lý (${transaction.status})`)
+      throw new BadRequestException(
+        `Giao dịch này đã được xử lý (${transaction.status})`,
+      );
     }
 
     // Change status from PENDING to PROCESSING
@@ -868,34 +1002,47 @@ export class WalletsService {
         },
       },
       { new: true },
-    )
+    );
 
-    console.log(`[Wallet] Withdraw approved (processing): ${transaction.customerId} - ${transaction.amount}VND`)
-    return updated
+    console.log(
+      `[Wallet] Withdraw approved (processing): ${transaction.customerId} - ${transaction.amount}VND`,
+    );
+    return updated;
   }
 
-  async updateWithdrawStatus(transactionId: string, newStatus: string): Promise<TransactionDocument> {
-    const transaction = await this.transactionModel.findById(transactionId)
+  async updateWithdrawStatus(
+    transactionId: string,
+    newStatus: string,
+  ): Promise<TransactionDocument> {
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
-      throw new NotFoundException('Không tìm thấy giao dịch')
+      throw new NotFoundException('Không tìm thấy giao dịch');
     }
 
-    if (transaction.type !== TransactionType.WITHDRAW && transaction.type !== TransactionType.WITHDRAWAL) {
-      throw new BadRequestException('Giao dịch này không phải là rút tiền')
+    if (
+      transaction.type !== TransactionType.WITHDRAW &&
+      transaction.type !== TransactionType.WITHDRAWAL
+    ) {
+      throw new BadRequestException('Giao dịch này không phải là rút tiền');
     }
 
     // Only allow transitions: PROCESSING → TRANSFERRING → SUCCESS
     const allowedTransitions: { [key: string]: string[] } = {
       [TransactionStatus.PROCESSING]: [TransactionStatus.TRANSFERRING],
       [TransactionStatus.TRANSFERRING]: [TransactionStatus.SUCCESS],
-    }
+    };
 
-    const currentStatus = transaction.status
-    if (!allowedTransitions[currentStatus] || !allowedTransitions[currentStatus].includes(newStatus as TransactionStatus)) {
-      throw new BadRequestException(
-        `Không thể chuyển từ trạng thái ${currentStatus} sang ${newStatus}`
+    const currentStatus = transaction.status;
+    if (
+      !allowedTransitions[currentStatus] ||
+      !allowedTransitions[currentStatus].includes(
+        newStatus as TransactionStatus,
       )
+    ) {
+      throw new BadRequestException(
+        `Không thể chuyển từ trạng thái ${currentStatus} sang ${newStatus}`,
+      );
     }
 
     const updated = await this.transactionModel.findByIdAndUpdate(
@@ -908,48 +1055,63 @@ export class WalletsService {
         },
       },
       { new: true },
-    )
+    );
 
-    console.log(`[Wallet] Withdraw status updated: ${transaction.customerId} - ${currentStatus} → ${newStatus}`)
-    return updated
+    console.log(
+      `[Wallet] Withdraw status updated: ${transaction.customerId} - ${currentStatus} → ${newStatus}`,
+    );
+    return updated;
   }
 
-  async rejectWithdraw(transactionId: string, reason: string): Promise<TransactionDocument> {
-    const transaction = await this.transactionModel.findById(transactionId)
+  async rejectWithdraw(
+    transactionId: string,
+    reason: string,
+  ): Promise<TransactionDocument> {
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
-      throw new NotFoundException('Không tìm thấy giao dịch')
+      throw new NotFoundException('Không tìm thấy giao dịch');
     }
 
-    if (transaction.type !== TransactionType.WITHDRAW && transaction.type !== TransactionType.WITHDRAWAL) {
-      throw new BadRequestException('Giao dịch này không phải là rút tiền')
+    if (
+      transaction.type !== TransactionType.WITHDRAW &&
+      transaction.type !== TransactionType.WITHDRAWAL
+    ) {
+      throw new BadRequestException('Giao dịch này không phải là rút tiền');
     }
 
-    if (transaction.status === TransactionStatus.SUCCESS || transaction.status === TransactionStatus.FAILED) {
-      throw new BadRequestException(`Giao dịch này đã được xử lý (${transaction.status})`)
+    if (
+      transaction.status === TransactionStatus.SUCCESS ||
+      transaction.status === TransactionStatus.FAILED
+    ) {
+      throw new BadRequestException(
+        `Giao dịch này đã được xử lý (${transaction.status})`,
+      );
     }
 
     // Refund the amount back to wallet/driver
     if (transaction.userType === UserType.CUSTOMER) {
       // Customer: refund to Wallet
-      const wallet = await this.walletModel.findOne({ userId: transaction.customerId })
+      const wallet = await this.walletModel.findOne({
+        userId: transaction.customerId,
+      });
       if (wallet) {
         await this.walletModel.findByIdAndUpdate(wallet._id, {
           $inc: {
             balance: Math.abs(transaction.amount),
           },
-        })
+        });
       }
     } else if (transaction.userType === UserType.DRIVER) {
       // Driver: refund to Driver.walletBalance
-      const driver = await this.driverModel.findById(transaction.driverId)
+      const driver = await this.driverModel.findById(transaction.driverId);
       if (driver) {
         await this.driverModel.findByIdAndUpdate(driver._id, {
           $inc: {
             walletBalance: Math.abs(transaction.amount),
             pendingBalance: -Math.abs(transaction.amount),
           },
-        })
+        });
       }
     }
 
@@ -964,16 +1126,21 @@ export class WalletsService {
         },
       },
       { new: true },
-    )
+    );
 
-    console.log(`[Wallet] Withdraw rejected: ${transaction.customerId} - Reason: ${reason} - Amount refunded`)
-    return updated
+    console.log(
+      `[Wallet] Withdraw rejected: ${transaction.customerId} - Reason: ${reason} - Amount refunded`,
+    );
+    return updated;
   }
 
-  async getPendingTransactions(type?: string, limit: number = 50): Promise<TransactionDocument[]> {
-    const filter: any = { status: TransactionStatus.PENDING }
+  async getPendingTransactions(
+    type?: string,
+    limit: number = 50,
+  ): Promise<TransactionDocument[]> {
+    const filter: any = { status: TransactionStatus.PENDING };
     if (type) {
-      filter.type = type.toUpperCase()
+      filter.type = type.toUpperCase();
     }
 
     const transactions = await this.transactionModel
@@ -983,30 +1150,33 @@ export class WalletsService {
       .populate('bankAccount', 'accountNumber accountHolder bankName name')
       .sort({ createdAt: -1 })
       .limit(limit)
-      .lean()
+      .lean();
 
     // Dynamically populate userId based on userType
     for (const transaction of transactions) {
       if (transaction.userId && transaction.userType) {
-        const modelName = transaction.userType === 'customer' ? 'Customer' : 'Driver'
+        const modelName =
+          transaction.userType === 'customer' ? 'Customer' : 'Driver';
         const populated = await this.transactionModel
           .findById(transaction._id)
           .populate({
             path: 'userId',
             model: modelName,
-            select: 'firstName lastName email phone'
+            select: 'firstName lastName email phone',
           })
-          .lean()
+          .lean();
         if (populated?.userId) {
-          transaction.userId = populated.userId
+          transaction.userId = populated.userId;
         }
       }
     }
 
-    return transactions
+    return transactions;
   }
 
-  async getAllTransactions(limit: number = 100): Promise<TransactionDocument[]> {
+  async getAllTransactions(
+    limit: number = 100,
+  ): Promise<TransactionDocument[]> {
     // Get all transactions in processing states (pending, processing, transferring, success, failed)
     const transactions = await this.transactionModel
       .find({
@@ -1025,108 +1195,128 @@ export class WalletsService {
       .populate('bankAccount', 'accountNumber accountHolder bankName name')
       .sort({ createdAt: -1 })
       .limit(limit)
-      .lean()
+      .lean();
 
     // Dynamically populate userId based on userType
     for (const transaction of transactions) {
       if (transaction.userId && transaction.userType) {
-        const modelName = transaction.userType === 'customer' ? 'Customer' : 'Driver'
+        const modelName =
+          transaction.userType === 'customer' ? 'Customer' : 'Driver';
         const populated = await this.transactionModel
           .findById(transaction._id)
           .populate({
             path: 'userId',
             model: modelName,
-            select: 'firstName lastName email phone'
+            select: 'firstName lastName email phone',
           })
-          .lean()
+          .lean();
         if (populated?.userId) {
-          transaction.userId = populated.userId
+          transaction.userId = populated.userId;
         }
       }
     }
 
-    return transactions
+    return transactions;
   }
 
-  generateEMVQRCode(accountNo: string, amount: number, description: string): { qrData: string } {
+  generateEMVQRCode(
+    accountNo: string,
+    amount: number,
+    description: string,
+  ): { qrData: string } {
     try {
       // Tạo EMV QR data string chứa đầy đủ thông tin: tài khoản, số tiền, nội dung
       // Định dạng: amount|accountNo|description
       // Banks sẽ parse và auto-fill vào app
-      const qrData = `00020101051100068306041000070704128A0F9C240001${this.padZero(accountNo, 2, 'len')}${this.padZero(amount.toString(), 2, 'len')}${this.padZero(description, 2, 'len')}`
+      const qrData = `00020101051100068306041000070704128A0F9C240001${this.padZero(accountNo, 2, 'len')}${this.padZero(amount.toString(), 2, 'len')}${this.padZero(description, 2, 'len')}`;
 
-      console.log(`[Wallet] Generated QR data for ${accountNo} - ${amount}VND - "${description}"`)
-      return { qrData }
+      console.log(
+        `[Wallet] Generated QR data for ${accountNo} - ${amount}VND - "${description}"`,
+      );
+      return { qrData };
     } catch (error) {
-      console.error('[Wallet] Error generating QR data:', error)
-      throw new BadRequestException('Không thể tạo mã QR')
+      console.error('[Wallet] Error generating QR data:', error);
+      throw new BadRequestException('Không thể tạo mã QR');
     }
   }
 
   private padZero(value: string, length: number, mode = 'val'): string {
     if (mode === 'len') {
-      return String(value.length).padStart(length, '0') + value
+      return String(value.length).padStart(length, '0') + value;
     }
-    return value.padStart(length, '0')
+    return value.padStart(length, '0');
   }
 
   private calculateCRC16(data: string): number {
-    let crc = 0xffff
+    let crc = 0xffff;
     for (let i = 0; i < data.length; i += 2) {
-      const byte = parseInt(data.substr(i, 2), 16)
-      crc ^= byte << 8
+      const byte = parseInt(data.substr(i, 2), 16);
+      crc ^= byte << 8;
       for (let j = 0; j < 8; j++) {
-        crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1
-        crc = crc & 0xffff
+        crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1;
+        crc = crc & 0xffff;
       }
     }
-    return crc
+    return crc;
   }
 
-  async cancelWithdraw(transactionId: string, customerId: string): Promise<TransactionDocument> {
-    const transaction = await this.transactionModel.findById(transactionId)
+  async cancelWithdraw(
+    transactionId: string,
+    customerId: string,
+  ): Promise<TransactionDocument> {
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!transaction) {
-      throw new NotFoundException('Không tìm thấy giao dịch')
+      throw new NotFoundException('Không tìm thấy giao dịch');
     }
 
     // Verify ownership (check both customer and driver)
-    const isCustomer = transaction.customerId && transaction.customerId.toString() === customerId
-    const isDriver = transaction.driverId && transaction.driverId.toString() === customerId
-    
+    const isCustomer =
+      transaction.customerId &&
+      transaction.customerId.toString() === customerId;
+    const isDriver =
+      transaction.driverId && transaction.driverId.toString() === customerId;
+
     if (!isCustomer && !isDriver) {
-      throw new BadRequestException('Bạn không có quyền hủy giao dịch này')
+      throw new BadRequestException('Bạn không có quyền hủy giao dịch này');
     }
 
-    if (transaction.type !== TransactionType.WITHDRAW && transaction.type !== TransactionType.WITHDRAWAL) {
-      throw new BadRequestException('Giao dịch này không phải là rút tiền')
+    if (
+      transaction.type !== TransactionType.WITHDRAW &&
+      transaction.type !== TransactionType.WITHDRAWAL
+    ) {
+      throw new BadRequestException('Giao dịch này không phải là rút tiền');
     }
 
     if (transaction.status !== TransactionStatus.PENDING) {
-      throw new BadRequestException(`Chỉ có thể hủy những giao dịch đang chờ duyệt`)
+      throw new BadRequestException(
+        `Chỉ có thể hủy những giao dịch đang chờ duyệt`,
+      );
     }
 
     // Refund the amount back to wallet/driver
     if (transaction.userType === UserType.CUSTOMER) {
       // Customer: refund to Wallet
-      const wallet = await this.walletModel.findOne({ userId: transaction.customerId })
+      const wallet = await this.walletModel.findOne({
+        userId: transaction.customerId,
+      });
       if (wallet) {
         await this.walletModel.findByIdAndUpdate(wallet._id, {
           $inc: {
             balance: Math.abs(transaction.amount),
           },
-        })
+        });
       }
     } else if (transaction.userType === UserType.DRIVER) {
       // Driver: refund to Driver.walletBalance (but this is customer-only endpoint, shouldn't reach here)
-      const driver = await this.driverModel.findById(transaction.driverId)
+      const driver = await this.driverModel.findById(transaction.driverId);
       if (driver) {
         await this.driverModel.findByIdAndUpdate(driver._id, {
           $inc: {
             walletBalance: Math.abs(transaction.amount),
             pendingBalance: -Math.abs(transaction.amount),
           },
-        })
+        });
       }
     }
 
@@ -1141,10 +1331,12 @@ export class WalletsService {
         },
       },
       { new: true },
-    )
+    );
 
-    console.log(`[Wallet] Withdraw cancelled: ${customerId} - ${transaction.amount}VND - Code: ${transaction.transactionCode}`)
-    return updated
+    console.log(
+      `[Wallet] Withdraw cancelled: ${customerId} - ${transaction.amount}VND - Code: ${transaction.transactionCode}`,
+    );
+    return updated;
   }
 
   /**

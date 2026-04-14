@@ -1,6 +1,6 @@
-export { CreatePaymentDto, VNPayCallbackDto } from './create-payment.dto'
+export { CreatePaymentDto, VNPayCallbackDto } from './create-payment.dto';
 export {
   CreatePaymentMethodDto,
   UpdatePaymentMethodDto,
   PaymentMethodResponseDto,
-} from './payment-method.dto'
+} from './payment-method.dto';

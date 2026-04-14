@@ -1,4 +1,14 @@
-﻿import { IsString, IsNumber, IsArray, IsOptional, Min, Max, IsEnum, IsBoolean, IsDateString } from 'class-validator';
+﻿import {
+  IsString,
+  IsNumber,
+  IsArray,
+  IsOptional,
+  Min,
+  Max,
+  IsEnum,
+  IsBoolean,
+  IsDateString,
+} from 'class-validator';
 
 export enum CarType {
   SEDAN = 'sedan',
@@ -14,7 +24,7 @@ export enum TransmissionType {
 
 export enum RideType {
   SHARE = 'share', // GhÃ©p xe
-  HIRE = 'hire',   // LÃ¡i xe há»™
+  HIRE = 'hire', // LÃ¡i xe há»™
 }
 
 export class CreateRideDto {
@@ -130,7 +140,6 @@ export class CreateRideDto {
   @IsBoolean()
   autoAssign?: boolean; // Tá»± Ä‘á»™ng chá»‰ Ä‘á»‹nh tÃ i xáº¿
 
-
   @IsOptional()
   @IsNumber()
   @Min(0)
@@ -144,4 +153,3 @@ export class CreateRideDto {
   @IsDateString()
   scheduledTime?: string; // Th\u1eddi gian \u0111\u1eb7t l\u1ecbch tr\u01b0\u1edbc
 }
-

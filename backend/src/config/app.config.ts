@@ -6,7 +6,9 @@ import { MongooseModuleOptions } from '@nestjs/mongoose';
  * MongoDB Configuration
  */
 export const mongooseConfig = (): MongooseModuleOptions => ({
-  uri: process.env.MONGODB_URI || 'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH',
+  uri:
+    process.env.MONGODB_URI ||
+    'mongodb+srv://dungjpitfpt:PpNcu63IBcVu9Nfi@natech.yzz43.mongodb.net/fire_go?retryWrites=true&w=majority&appName=NATECH',
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
 });
@@ -53,12 +55,7 @@ export const serverConfig = {
 export const fileConfig = {
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
   maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '5242880'), // 5MB
-  allowedMimeTypes: [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'application/pdf',
-  ],
+  allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'],
 };
 
 /**

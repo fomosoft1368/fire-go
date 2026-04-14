@@ -69,6 +69,6 @@ export const DISTANCE = {
 // Timeout (milliseconds)
 export const TIMEOUT = {
   RIDE_ACCEPTANCE: 30000, // 30s
-  DRIVER_PICKUP: 300000,  // 5m
+  DRIVER_PICKUP: 300000, // 5m
   REQUEST_TIMEOUT: 60000, // 1m
 } as const;

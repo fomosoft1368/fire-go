@@ -1,8 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { TermsOfService, TermsOfServiceDocument } from './schemas/terms-of-service.schema';
-import { PrivacyPolicy, PrivacyPolicyDocument } from './schemas/privacy-policy.schema';
+import {
+  TermsOfService,
+  TermsOfServiceDocument,
+} from './schemas/terms-of-service.schema';
+import {
+  PrivacyPolicy,
+  PrivacyPolicyDocument,
+} from './schemas/privacy-policy.schema';
 
 @Injectable()
 export class LegalDocsService {
@@ -18,14 +24,19 @@ export class LegalDocsService {
   /**
    * Get active Terms of Service
    */
-  async getActiveTerms(userType: string, language: string = 'vi'): Promise<TermsOfService> {
+  async getActiveTerms(
+    userType: string,
+    language: string = 'vi',
+  ): Promise<TermsOfService> {
     const terms = await this.termsModel
       .findOne({ userType, language, isActive: true })
       .sort({ createdAt: -1 })
       .exec();
 
     if (!terms) {
-      throw new NotFoundException(`Terms of Service not found for ${userType} (${language})`);
+      throw new NotFoundException(
+        `Terms of Service not found for ${userType} (${language})`,
+      );
     }
 
     return terms;
@@ -52,7 +63,10 @@ export class LegalDocsService {
   /**
    * Create new Terms of Service (admin only)
    */
-  async createTerms(data: Partial<TermsOfService>, adminId?: string): Promise<TermsOfService> {
+  async createTerms(
+    data: Partial<TermsOfService>,
+    adminId?: string,
+  ): Promise<TermsOfService> {
     // Deactivate previous version
     await this.termsModel.updateMany(
       { userType: data.userType, language: data.language },
@@ -67,7 +81,9 @@ export class LegalDocsService {
       lastModifiedAt: new Date(),
     });
 
-    console.log(`✅ Created Terms of Service: ${data.userType} (${data.language}) v${data.version}`);
+    console.log(
+      `✅ Created Terms of Service: ${data.userType} (${data.language}) v${data.version}`,
+    );
     return terms;
   }
 
@@ -79,17 +95,19 @@ export class LegalDocsService {
     data: Partial<TermsOfService>,
     adminId?: string,
   ): Promise<TermsOfService> {
-    const terms = await this.termsModel.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          ...data,
-          lastModifiedBy: adminId,
-          lastModifiedAt: new Date(),
+    const terms = await this.termsModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            ...data,
+            lastModifiedBy: adminId,
+            lastModifiedAt: new Date(),
+          },
         },
-      },
-      { new: true },
-    ).exec();
+        { new: true },
+      )
+      .exec();
 
     if (!terms) {
       throw new NotFoundException(`Terms not found with ID: ${id}`);
@@ -115,14 +133,19 @@ export class LegalDocsService {
   /**
    * Get active Privacy Policy
    */
-  async getActivePrivacy(userType: string, language: string = 'vi'): Promise<PrivacyPolicy> {
+  async getActivePrivacy(
+    userType: string,
+    language: string = 'vi',
+  ): Promise<PrivacyPolicy> {
     const privacy = await this.privacyModel
       .findOne({ userType, language, isActive: true })
       .sort({ createdAt: -1 })
       .exec();
 
     if (!privacy) {
-      throw new NotFoundException(`Privacy Policy not found for ${userType} (${language})`);
+      throw new NotFoundException(
+        `Privacy Policy not found for ${userType} (${language})`,
+      );
     }
 
     return privacy;
@@ -149,7 +172,10 @@ export class LegalDocsService {
   /**
    * Create new Privacy Policy (admin only)
    */
-  async createPrivacy(data: Partial<PrivacyPolicy>, adminId?: string): Promise<PrivacyPolicy> {
+  async createPrivacy(
+    data: Partial<PrivacyPolicy>,
+    adminId?: string,
+  ): Promise<PrivacyPolicy> {
     // Deactivate previous version
     await this.privacyModel.updateMany(
       { userType: data.userType, language: data.language },
@@ -164,7 +190,9 @@ export class LegalDocsService {
       lastModifiedAt: new Date(),
     });
 
-    console.log(`✅ Created Privacy Policy: ${data.userType} (${data.language}) v${data.version}`);
+    console.log(
+      `✅ Created Privacy Policy: ${data.userType} (${data.language}) v${data.version}`,
+    );
     return privacy;
   }
 
@@ -176,17 +204,19 @@ export class LegalDocsService {
     data: Partial<PrivacyPolicy>,
     adminId?: string,
   ): Promise<PrivacyPolicy> {
-    const privacy = await this.privacyModel.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          ...data,
-          lastModifiedBy: adminId,
-          lastModifiedAt: new Date(),
+    const privacy = await this.privacyModel
+      .findByIdAndUpdate(
+        id,
+        {
+          $set: {
+            ...data,
+            lastModifiedBy: adminId,
+            lastModifiedAt: new Date(),
+          },
         },
-      },
-      { new: true },
-    ).exec();
+        { new: true },
+      )
+      .exec();
 
     if (!privacy) {
       throw new NotFoundException(`Privacy Policy not found with ID: ${id}`);

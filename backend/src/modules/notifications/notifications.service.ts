@@ -1,18 +1,30 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Notification, NotificationDocument, NotificationType, NotificationChannel } from './schemas/notification.schema';
+import {
+  Notification,
+  NotificationDocument,
+  NotificationType,
+  NotificationChannel,
+} from './schemas/notification.schema';
 import { CreateNotificationDto } from './dto';
 
 @Injectable()
 export class NotificationsService {
-  constructor(@InjectModel(Notification.name) private notificationModel: Model<NotificationDocument>) {}
+  constructor(
+    @InjectModel(Notification.name)
+    private notificationModel: Model<NotificationDocument>,
+  ) {}
 
-  async create(createNotificationDto: CreateNotificationDto): Promise<NotificationDocument> {
+  async create(
+    createNotificationDto: CreateNotificationDto,
+  ): Promise<NotificationDocument> {
     const notification = await this.notificationModel.create({
       ...createNotificationDto,
       userId: new Types.ObjectId(createNotificationDto.userId),
-      rideId: createNotificationDto.rideId ? new Types.ObjectId(createNotificationDto.rideId) : null,
+      rideId: createNotificationDto.rideId
+        ? new Types.ObjectId(createNotificationDto.rideId)
+        : null,
     });
 
     return notification;
@@ -59,10 +71,14 @@ export class NotificationsService {
     return notification;
   }
 
-  async findByUserId(userId: string, limit: number = 20, skip: number = 0): Promise<NotificationDocument[]> {
+  async findByUserId(
+    userId: string,
+    limit: number = 20,
+    skip: number = 0,
+  ): Promise<NotificationDocument[]> {
     const userObjectId = new Types.ObjectId(userId);
     const broadcastId = new Types.ObjectId('000000000000000000000000');
-    
+
     return this.notificationModel
       .find({
         $or: [
@@ -82,20 +98,25 @@ export class NotificationsService {
     // Support admins, drivers, and customers
     const userObjectId = new Types.ObjectId(userId);
     const broadcastId = new Types.ObjectId('000000000000000000000000');
-    
-    return this.notificationModel.find({
-      $or: [
-        { userId: userObjectId },
-        { driverId: userObjectId }, // Support driver notifications
-        { customerId: userObjectId }, // Support customer notifications
-        { userId: broadcastId }, // Broadcast to all admins
-      ],
-      isRead: false,
-      isActive: true,
-    }).sort({ createdAt: -1 });
+
+    return this.notificationModel
+      .find({
+        $or: [
+          { userId: userObjectId },
+          { driverId: userObjectId }, // Support driver notifications
+          { customerId: userObjectId }, // Support customer notifications
+          { userId: broadcastId }, // Broadcast to all admins
+        ],
+        isRead: false,
+        isActive: true,
+      })
+      .sort({ createdAt: -1 });
   }
 
-  async getUnreadCount(userId: string, role?: 'driver' | 'customer' | 'admin'): Promise<number> {
+  async getUnreadCount(
+    userId: string,
+    role?: 'driver' | 'customer' | 'admin',
+  ): Promise<number> {
     const userObjectId = new Types.ObjectId(userId);
 
     let query: any;
@@ -103,10 +124,7 @@ export class NotificationsService {
     if (role === 'driver') {
       // Driver notifications are stored in driverId OR userId field
       query = {
-        $or: [
-          { driverId: userObjectId },
-          { userId: userObjectId },
-        ],
+        $or: [{ driverId: userObjectId }, { userId: userObjectId }],
         isRead: false,
         isActive: true,
       };
@@ -158,15 +176,15 @@ export class NotificationsService {
 
   async markAllAsRead(userId: string): Promise<any> {
     const userObjectId = new Types.ObjectId(userId);
-    
+
     return this.notificationModel.updateMany(
-      { 
+      {
         $or: [
           { userId: userObjectId },
           { driverId: userObjectId }, // Support driver notifications
           { customerId: userObjectId }, // Support customer notifications
         ],
-        isRead: false 
+        isRead: false,
       },
       {
         isRead: true,
@@ -176,10 +194,13 @@ export class NotificationsService {
   }
 
   async deleteNotification(notificationId: string): Promise<void> {
-    const result = await this.notificationModel.findByIdAndDelete(notificationId);
+    const result =
+      await this.notificationModel.findByIdAndDelete(notificationId);
 
     if (!result) {
-      throw new NotFoundException(`Notification with ID ${notificationId} not found`);
+      throw new NotFoundException(
+        `Notification with ID ${notificationId} not found`,
+      );
     }
   }
 
@@ -189,7 +210,9 @@ export class NotificationsService {
     });
   }
 
-  async disableNotification(notificationId: string): Promise<NotificationDocument> {
+  async disableNotification(
+    notificationId: string,
+  ): Promise<NotificationDocument> {
     return this.notificationModel.findByIdAndUpdate(
       notificationId,
       {
@@ -245,11 +268,16 @@ export class NotificationsService {
     );
   }
 
-  async sendBulkNotifications(userIds: string[], createNotificationDto: Omit<CreateNotificationDto, 'userId'>): Promise<NotificationDocument[]> {
+  async sendBulkNotifications(
+    userIds: string[],
+    createNotificationDto: Omit<CreateNotificationDto, 'userId'>,
+  ): Promise<NotificationDocument[]> {
     const notifications = userIds.map((userId) => ({
       ...createNotificationDto,
       userId: new Types.ObjectId(userId),
-      rideId: createNotificationDto.rideId ? new Types.ObjectId(createNotificationDto.rideId) : undefined,
+      rideId: createNotificationDto.rideId
+        ? new Types.ObjectId(createNotificationDto.rideId)
+        : undefined,
     }));
 
     return this.notificationModel.insertMany(notifications) as any;
@@ -270,11 +298,19 @@ export class NotificationsService {
     actionUrl?: string;
     imageUrl?: string;
   }): Promise<any> {
-    const { driverId, customerId, broadcastTo, channels = ['in_app'], ...notificationData } = data;
+    const {
+      driverId,
+      customerId,
+      broadcastTo,
+      channels = ['in_app'],
+      ...notificationData
+    } = data;
 
     // Validate: either specific recipient OR broadcast
     if (!broadcastTo && !driverId && !customerId) {
-      throw new Error('Either broadcastTo, driverId or customerId must be provided');
+      throw new Error(
+        'Either broadcastTo, driverId or customerId must be provided',
+      );
     }
 
     // For broadcast notifications, create multiple notifications
@@ -293,8 +329,8 @@ export class NotificationsService {
             customerId: broadcastTo === 'customers' ? recipient._id : undefined,
             channels,
             sentAt: new Date(),
-          })
-        )
+          }),
+        ),
       );
 
       return {
@@ -329,8 +365,10 @@ export class NotificationsService {
     const query: any = {};
 
     if (filters?.type) query.type = filters.type;
-    if (filters?.driverId) query.driverId = new Types.ObjectId(filters.driverId);
-    if (filters?.customerId) query.customerId = new Types.ObjectId(filters.customerId);
+    if (filters?.driverId)
+      query.driverId = new Types.ObjectId(filters.driverId);
+    if (filters?.customerId)
+      query.customerId = new Types.ObjectId(filters.customerId);
 
     const limit = filters?.limit || 50;
     const skip = filters?.skip || 0;
@@ -357,7 +395,7 @@ export class NotificationsService {
       type?: string;
       limit?: number;
       skip?: number;
-    }
+    },
   ): Promise<{ data: NotificationDocument[]; total: number }> {
     const query: any = {
       customerId: new Types.ObjectId(customerId),
@@ -390,25 +428,19 @@ export class NotificationsService {
       type?: string;
       limit?: number;
       skip?: number;
-    }
+    },
   ): Promise<{ data: NotificationDocument[]; total: number }> {
     const driverObjectId = new Types.ObjectId(driverId);
 
     // ✅ Match both driverId AND userId to catch notifications created by
     // CallListener (which uses userId field) as well as those using driverId.
     const query: any = {
-      $or: [
-        { driverId: driverObjectId },
-        { userId: driverObjectId },
-      ],
+      $or: [{ driverId: driverObjectId }, { userId: driverObjectId }],
       isActive: true,
     };
 
     if (filters?.type) {
-      query.$and = [
-        { $or: query.$or },
-        { type: filters.type },
-      ];
+      query.$and = [{ $or: query.$or }, { type: filters.type }];
       delete query.$or;
     }
 

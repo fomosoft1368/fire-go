@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotificationType, NotificationChannel } from '../notifications/schemas/notification.schema';
+import {
+  NotificationType,
+  NotificationChannel,
+} from '../notifications/schemas/notification.schema';
 
 /**
  * CallListener – lắng nghe các event từ CallService và tạo in-app notification
@@ -46,7 +49,9 @@ export class CallListener {
         ...recipientFields,
         type: NotificationType.CALL_INCOMING,
         channels: [NotificationChannel.IN_APP],
-        title: isCallerDriver ? 'Tài xế đang gọi cho bạn' : 'Khách hàng đang gọi cho bạn',
+        title: isCallerDriver
+          ? 'Tài xế đang gọi cho bạn'
+          : 'Khách hàng đang gọi cho bạn',
         message: 'Nhấn để nghe máy',
         data: {
           type: 'CALL_INCOMING',
@@ -60,10 +65,12 @@ export class CallListener {
         },
       });
     } catch (err) {
-      console.error('[CallListener] ❌ Error creating CALL_INCOMING notification:', err);
+      console.error(
+        '[CallListener] ❌ Error creating CALL_INCOMING notification:',
+        err,
+      );
     }
   }
-
 
   @OnEvent('call.accepted')
   async handleCallAccepted(payload: {
@@ -95,7 +102,10 @@ export class CallListener {
         },
       });
     } catch (err) {
-      console.error('[CallListener] ❌ Error creating CALL_ACCEPTED notification:', err);
+      console.error(
+        '[CallListener] ❌ Error creating CALL_ACCEPTED notification:',
+        err,
+      );
     }
   }
 
@@ -122,7 +132,10 @@ export class CallListener {
         },
       });
     } catch (err) {
-      console.error('[CallListener] ❌ Error creating CALL_REJECTED notification:', err);
+      console.error(
+        '[CallListener] ❌ Error creating CALL_REJECTED notification:',
+        err,
+      );
     }
   }
 
@@ -134,7 +147,11 @@ export class CallListener {
     receiverId: string;
     durationSeconds: number;
   }) {
-    console.log('🔚 [CallListener] call.ended:', payload.callId, `(${payload.durationSeconds}s)`);
+    console.log(
+      '🔚 [CallListener] call.ended:',
+      payload.callId,
+      `(${payload.durationSeconds}s)`,
+    );
 
     // Notify both parties
     const notifyUsers = [payload.callerId, payload.receiverId];
@@ -155,7 +172,10 @@ export class CallListener {
           },
         });
       } catch (err) {
-        console.error('[CallListener] ❌ Error creating CALL_ENDED notification:', err);
+        console.error(
+          '[CallListener] ❌ Error creating CALL_ENDED notification:',
+          err,
+        );
       }
     }
   }
@@ -198,7 +218,10 @@ export class CallListener {
         },
       });
     } catch (err) {
-      console.error('[CallListener] ❌ Error creating CALL_MISSED notification:', err);
+      console.error(
+        '[CallListener] ❌ Error creating CALL_MISSED notification:',
+        err,
+      );
     }
   }
 }

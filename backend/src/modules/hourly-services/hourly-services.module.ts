@@ -1,11 +1,14 @@
-import { Module } from '@nestjs/common'
-import { MongooseModule } from '@nestjs/mongoose'
-import { HourlyService, HourlyServiceSchema } from './schemas/hourly-service.schema'
-import { HourlyServiceService } from './services/hourly-service.service'
-import { HourlyServiceController } from './controllers/hourly-service.controller'
-import { Customer, CustomerSchema } from '../customers/schemas/customer.schema'
-import { DriversModule } from '../drivers/drivers.module'
-import { NotificationsModule } from '../notifications/notifications.module'
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import {
+  HourlyService,
+  HourlyServiceSchema,
+} from './schemas/hourly-service.schema';
+import { HourlyServiceService } from './services/hourly-service.service';
+import { HourlyServiceController } from './controllers/hourly-service.controller';
+import { Customer, CustomerSchema } from '../customers/schemas/customer.schema';
+import { DriversModule } from '../drivers/drivers.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [

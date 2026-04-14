@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 
 export interface IUserDocument extends User, Document {
@@ -13,6 +13,9 @@ export enum UserRole {
   CUSTOMER = 'customer',
   ADMIN = 'admin',
   STAFF = 'staff',
+  F1_LEAD = 'f1_lead',
+  F2_SUB_LEAD = 'f2_sub_lead',
+  F3_STAFF_MKT = 'f3_staff_mkt',
 }
 
 export enum UserStatus {
@@ -124,6 +127,26 @@ export class User {
   @Prop()
   lastActivityAt?: Date;
 
+  // Marketing & Referral System
+  @Prop({ type: Types.ObjectId, ref: 'Region' })
+  regionId?: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  marketingReferrerId?: Types.ObjectId;
+
+  @Prop({ sparse: true, unique: true })
+  referralCode?: string;
+
+  @Prop()
+  address?: string;
+
+  // Wallet fields for Marketing
+  @Prop({ default: 0 })
+  walletBalance?: number;
+
+  @Prop({ default: 0 })
+  pendingBalance?: number;
+
   // Push notification
   @Prop()
   expoPushToken?: string;
@@ -137,6 +160,15 @@ export const UserSchema = SchemaFactory.createForClass(User);
 
 // Hash password before saving
 UserSchema.pre('save', async function (next) {
+  // Sinh mã giới thiệu cho Marketing staff nếu chưa có
+  if (
+    !this.referralCode &&
+    ['F1_LEAD', 'F2_SUB_LEAD', 'F3_STAFF_MKT'].includes(this.role)
+  ) {
+    this.referralCode =
+      'MKT' + Math.random().toString(36).substring(2, 6).toUpperCase();
+  }
+
   if (!this.isModified('password')) {
     return next();
   }
@@ -151,7 +183,9 @@ UserSchema.pre('save', async function (next) {
 });
 
 // Add method to compare passwords
-UserSchema.methods.comparePassword = async function (candidatePassword: string) {
+UserSchema.methods.comparePassword = async function (
+  candidatePassword: string,
+) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 

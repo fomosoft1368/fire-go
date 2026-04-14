@@ -1,17 +1,34 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Ride, RideDocument, RideStatus, RideType } from '../schemas/ride.schema';
+import {
+  Ride,
+  RideDocument,
+  RideStatus,
+  RideType,
+} from '../schemas/ride.schema';
 import { Pricing } from '../schemas/pricing.schema';
 import { CreateRideDto } from '../dto';
 import { TripPhaseEnum } from '../dto/upload-vehicle-condition.dto';
 import { extractLocationHierarchy } from '../../../shared/utils/location.util';
 import { AutoAssignService } from './auto-assign.service';
-import { Driver, DriverDocument, DriverStatus } from '../../drivers/schemas/driver.schema';
+import {
+  Driver,
+  DriverDocument,
+  DriverStatus,
+} from '../../drivers/schemas/driver.schema';
 import { Wallet, WalletDocument } from '../../wallets/schemas/wallet.schema';
 import { ConfigService } from '../../config/config.service';
 import { ServiceType } from '../../config/schemas/driver-search-config.schema';
+import { ReferralService } from '../../drivers/referral.service';
+import { TeamsService } from '../../teams/teams.service';
 
 @Injectable()
 export class RidesService {
@@ -25,6 +42,8 @@ export class RidesService {
     @Inject(forwardRef(() => AutoAssignService))
     private autoAssignService: AutoAssignService,
     private configService: ConfigService,
+    private referralService: ReferralService,
+    private teamsService: TeamsService,
   ) {}
 
   /**
@@ -39,32 +58,37 @@ export class RidesService {
   ): Promise<any> {
     try {
       // Validate numbers
-      if (isNaN(startLng) || isNaN(startLat) || isNaN(endLng) || isNaN(endLat)) {
+      if (
+        isNaN(startLng) ||
+        isNaN(startLat) ||
+        isNaN(endLng) ||
+        isNaN(endLat)
+      ) {
         throw new BadRequestException('Invalid coordinates - must be numbers');
       }
 
       // OSRM format: lng,lat;lng,lat
       const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?geometries=geojson&overview=full`;
-      
+
       console.log('📍 Calling OSRM with coordinates:');
       console.log('   Start:', startLng, startLat);
       console.log('   End:', endLng, endLat);
       console.log('   URL:', url);
-      
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         const errorBody = await response.text();
         console.error('OSRM API error:', response.status, errorBody);
         throw new BadRequestException(`OSRM API error: ${response.status}`);
       }
-      
+
       const data: any = await response.json();
       console.log('✅ OSRM Response received:', {
         code: data.code,
         routes: data.routes?.length,
       });
-      
+
       // Convert OSRM format to response for frontend
       if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
         const route = data.routes[0];
@@ -88,37 +112,42 @@ export class RidesService {
                 summary: {
                   distance: route.distance,
                   duration: route.duration,
-                }
-              }
-            }
-          ]
+                },
+              },
+            },
+          ],
         };
       } else {
         throw new BadRequestException('No route found');
       }
     } catch (err: any) {
       console.error('❌ Error fetching directions:', err.message);
-      throw new BadRequestException(err.message || 'Failed to fetch directions');
+      throw new BadRequestException(
+        err.message || 'Failed to fetch directions',
+      );
     }
   }
 
-  async create(createRideDto: CreateRideDto, customerId?: string): Promise<RideDocument> {
+  async create(
+    createRideDto: CreateRideDto,
+    customerId?: string,
+  ): Promise<RideDocument> {
     const rideType = createRideDto.rideType || RideType.SHARE;
 
     // Với lái xe hộ (hire): baseFare đã = tổng tiền trọn gói, không cộng thêm distanceFare (tránh double-count)
-    const totalFare = rideType === RideType.HIRE
-      ? (createRideDto.baseFare + (createRideDto.surgePricing || 0))
-      : (createRideDto.baseFare +
-         createRideDto.distanceFare +
-         createRideDto.timeFare +
-         (createRideDto.surgePricing || 0));
-
+    const totalFare =
+      rideType === RideType.HIRE
+        ? createRideDto.baseFare + (createRideDto.surgePricing || 0)
+        : createRideDto.baseFare +
+          createRideDto.distanceFare +
+          createRideDto.timeFare +
+          (createRideDto.surgePricing || 0);
 
     // Validation cho ride type HIRE
     if (rideType === RideType.HIRE) {
       if (!createRideDto.carType || !createRideDto.licensePlate) {
         throw new BadRequestException(
-          'carType và licensePlate là bắt buộc cho cuốc xe lái xe hộ'
+          'carType và licensePlate là bắt buộc cho cuốc xe lái xe hộ',
         );
       }
     }
@@ -127,10 +156,11 @@ export class RidesService {
     if (rideType === RideType.SHARE && !createRideDto.driverId && !customerId) {
       throw new BadRequestException('Chỉ tài xế mới có thể tạo chuyến ghép');
     }
-    
+
     // For HIRE: driverId should be null (customer creates, driver assigned later)
     // For SHARE: driverId is the person creating (driver)
-    const driverId = rideType === RideType.HIRE ? null : (createRideDto.driverId || customerId);
+    const driverId =
+      rideType === RideType.HIRE ? null : createRideDto.driverId || customerId;
 
     // Extract location hierarchy for filtering
     const pickupLoc = extractLocationHierarchy(createRideDto.pickupAddress);
@@ -150,16 +180,24 @@ export class RidesService {
     // ✅ DEPOSIT LOGIC: Kiểm tra ví và trừ tiền cọ từ Wallet collection
     const depositAmount = createRideDto.depositAmount || 0;
     if (depositAmount > 0 && customerId) {
-      const wallet = await this.walletModel.findOne({ userId: new Types.ObjectId(customerId) });
-      if (!wallet) throw new BadRequestException('Không tìm thấy ví khách hàng');
-      if (wallet.isLocked) throw new BadRequestException('Ví khách hàng đang bị khóa');
+      const wallet = await this.walletModel.findOne({
+        userId: new Types.ObjectId(customerId),
+      });
+      if (!wallet)
+        throw new BadRequestException('Không tìm thấy ví khách hàng');
+      if (wallet.isLocked)
+        throw new BadRequestException('Ví khách hàng đang bị khóa');
       if (wallet.balance < depositAmount) {
         throw new BadRequestException(
-          `Số dư ví không đủ. Cần ${depositAmount.toLocaleString('vi-VN')}đ, hiện có ${wallet.balance.toLocaleString('vi-VN')}đ.`
+          `Số dư ví không đủ. Cần ${depositAmount.toLocaleString('vi-VN')}đ, hiện có ${wallet.balance.toLocaleString('vi-VN')}đ.`,
         );
       }
-      await this.walletModel.findByIdAndUpdate(wallet._id, { $inc: { balance: -depositAmount } });
-      console.log(`[RidesService] 💸 Đã trừ tiền cọ ${depositAmount}đ từ ví khách ${customerId}`);
+      await this.walletModel.findByIdAndUpdate(wallet._id, {
+        $inc: { balance: -depositAmount },
+      });
+      console.log(
+        `[RidesService] 💸 Đã trừ tiền cọ ${depositAmount}đ từ ví khách ${customerId}`,
+      );
     }
 
     const ride = await this.rideModel.create({
@@ -230,12 +268,12 @@ export class RidesService {
         throw new NotFoundException(`Ride with ID ${id} not found`);
       }
 
-      console.log('[RidesService] Ride found:', { 
-        id: ride._id, 
+      console.log('[RidesService] Ride found:', {
+        id: ride._id,
         status: ride.status,
         hasDriver: !!ride.driverId,
         hasCustomer: !!ride.customerId,
-        driverLocation: ride.driverId?.['currentLocation']
+        driverLocation: ride.driverId?.['currentLocation'],
       });
 
       return ride;
@@ -247,22 +285,22 @@ export class RidesService {
 
   async findByIdForDriver(id: string): Promise<RideDocument> {
     console.log('🚗 findByIdForDriver called with id:', id);
-    
+
     const ride = await this.rideModel
       .findById(id)
       .populate('driverId')
       .populate({
         path: 'customerId',
         model: 'Customer',
-        select: 'name phone rating firstName lastName avatar'
+        select: 'name phone rating firstName lastName avatar',
       })
       .exec();
 
-  //   console.log('📦 Ride found:', !!ride);
+    //   console.log('📦 Ride found:', !!ride);
 
-  //   if (!ride) {
-  //     throw new NotFoundException(`Ride with ID ${id} not found`);
-  //   }
+    //   if (!ride) {
+    //     throw new NotFoundException(`Ride with ID ${id} not found`);
+    //   }
 
     return ride;
   }
@@ -303,7 +341,10 @@ export class RidesService {
       },
     };
 
-    console.log('[RidesService] Finding nearby rides query:', JSON.stringify(query, null, 2));
+    console.log(
+      '[RidesService] Finding nearby rides query:',
+      JSON.stringify(query, null, 2),
+    );
 
     const result = await this.rideModel
       .find(query)
@@ -363,15 +404,24 @@ export class RidesService {
       query.pickupProvince = customerLoc.province;
     } else if (customerLoc.district) {
       // Khách hàng ở cùng huyện/quận với điểm bắt đầu của tài xế
-      console.log('🔍 [findShareRides] Filtering by District:', customerLoc.district);
+      console.log(
+        '🔍 [findShareRides] Filtering by District:',
+        customerLoc.district,
+      );
       query.pickupDistrict = customerLoc.district;
       query.pickupProvince = customerLoc.province;
     } else if (customerLoc.province) {
       // Khách hàng ở cùng tỉnh/thành phố với điểm bắt đầu của tài xế
-      console.log('🔍 [findShareRides] Filtering by Province:', customerLoc.province);
+      console.log(
+        '🔍 [findShareRides] Filtering by Province:',
+        customerLoc.province,
+      );
       query.pickupProvince = customerLoc.province;
     } else {
-      console.warn('⚠️ [findShareRides] Could not extract any location hierarchy from:', customerPickupAddress);
+      console.warn(
+        '⚠️ [findShareRides] Could not extract any location hierarchy from:',
+        customerPickupAddress,
+      );
     }
 
     console.log('🔍 [findShareRides] MongoDB query:', {
@@ -390,8 +440,12 @@ export class RidesService {
       .limit(20)
       .sort({ createdAt: -1 }); // Newest rides first
 
-    console.log('✅ [findShareRides] Found', rides.length, 'share rides matching location');
-    
+    console.log(
+      '✅ [findShareRides] Found',
+      rides.length,
+      'share rides matching location',
+    );
+
     if (rides.length > 0) {
       console.log('📍 [findShareRides] First ride sample:', {
         _id: rides[0]._id,
@@ -407,7 +461,7 @@ export class RidesService {
     }
 
     // Transform rides to include coordinates in array format for mobile app
-    return rides.map(ride => ({
+    return rides.map((ride) => ({
       ...ride.toObject(),
       pickupCoordinates: ride.pickupLocation?.coordinates || [0, 0],
       dropoffCoordinates: ride.dropoffLocation?.coordinates || [0, 0],
@@ -417,38 +471,46 @@ export class RidesService {
   async acceptRide(rideId: string, driverId: string): Promise<RideDocument> {
     try {
       console.log('[RidesService] acceptRide called:', { rideId, driverId });
-      
+
       const ride = await this.findById(rideId);
-      console.log('[RidesService] Ride found:', { 
-        id: ride._id, 
+      console.log('[RidesService] Ride found:', {
+        id: ride._id,
         status: ride.status,
-        currentDriverId: ride.driverId 
+        currentDriverId: ride.driverId,
       });
 
       if (ride.status !== RideStatus.PENDING) {
-        throw new BadRequestException(`Ride is not available for acceptance. Current status: ${ride.status}`);
+        throw new BadRequestException(
+          `Ride is not available for acceptance. Current status: ${ride.status}`,
+        );
       }
 
       if (ride.driverId) {
-        throw new BadRequestException('Ride has already been accepted by another driver');
+        throw new BadRequestException(
+          'Ride has already been accepted by another driver',
+        );
       }
 
       console.log('[RidesService] Updating ride with driverId:', driverId);
-      const updatedRide = await this.rideModel.findByIdAndUpdate(
-        rideId,
-        {
-          driverId: new Types.ObjectId(driverId),
-          status: RideStatus.ACCEPTED,
-          acceptedAt: new Date(),
-        },
-        { new: true },
-      ).exec();
+      const updatedRide = await this.rideModel
+        .findByIdAndUpdate(
+          rideId,
+          {
+            driverId: new Types.ObjectId(driverId),
+            status: RideStatus.ACCEPTED,
+            acceptedAt: new Date(),
+          },
+          { new: true },
+        )
+        .exec();
 
       if (!updatedRide) {
         throw new NotFoundException('Failed to update ride');
       }
 
-      console.log('[RidesService] Ride updated successfully, now updating driver status...');
+      console.log(
+        '[RidesService] Ride updated successfully, now updating driver status...',
+      );
 
       // IMPORTANT: Update driver status to ON_TRIP when accepting ride
       try {
@@ -456,9 +518,14 @@ export class RidesService {
           status: DriverStatus.ON_TRIP,
           isAvailable: false,
         });
-        console.log(`[RidesService] ✅ Set driver ${driverId} to ON_TRIP status with isAvailable=false`);
+        console.log(
+          `[RidesService] ✅ Set driver ${driverId} to ON_TRIP status with isAvailable=false`,
+        );
       } catch (driverUpdateError) {
-        console.warn('[RidesService] Warning: Could not update driver status:', driverUpdateError.message);
+        console.warn(
+          '[RidesService] Warning: Could not update driver status:',
+          driverUpdateError.message,
+        );
         // Continue anyway - status update shouldn't fail the whole operation
       }
 
@@ -466,11 +533,14 @@ export class RidesService {
       try {
         await updatedRide.populate([
           { path: 'driverId', select: '-password -__v' },
-          { path: 'customerId', select: '-password -__v' }
+          { path: 'customerId', select: '-password -__v' },
         ]);
         console.log('[RidesService] Population successful');
       } catch (populateError) {
-        console.warn('[RidesService] Warning: Could not populate driver/customer:', populateError.message);
+        console.warn(
+          '[RidesService] Warning: Could not populate driver/customer:',
+          populateError.message,
+        );
         // Continue anyway - populate failure shouldn't fail the whole operation
       }
 
@@ -479,18 +549,25 @@ export class RidesService {
         // Extract customer ID safely
         let extractedCustomerId: string;
         if (ride.customerId) {
-          extractedCustomerId = typeof ride.customerId === 'object' 
-            ? (ride.customerId as any)._id?.toString() || (ride.customerId as any).toString()
-            : (ride.customerId as any).toString();
+          extractedCustomerId =
+            typeof ride.customerId === 'object'
+              ? (ride.customerId as any)._id?.toString() ||
+                (ride.customerId as any).toString()
+              : (ride.customerId as any).toString();
         } else {
-          console.warn('[RidesService] Warning: ride.customerId is null, using updatedRide data');
+          console.warn(
+            '[RidesService] Warning: ride.customerId is null, using updatedRide data',
+          );
           const rawRideData = await this.rideModel.findById(rideId).lean();
-          extractedCustomerId = rawRideData?.customerId?.toString() || 'unknown';
+          extractedCustomerId =
+            rawRideData?.customerId?.toString() || 'unknown';
         }
-        
-        const driverName = updatedRide.driverId && typeof updatedRide.driverId === 'object'
-          ? `${(updatedRide.driverId as any).firstName || ''} ${(updatedRide.driverId as any).lastName || ''}`.trim() || 'Driver'
-          : 'Driver';
+
+        const driverName =
+          updatedRide.driverId && typeof updatedRide.driverId === 'object'
+            ? `${(updatedRide.driverId as any).firstName || ''} ${(updatedRide.driverId as any).lastName || ''}`.trim() ||
+              'Driver'
+            : 'Driver';
 
         this.eventEmitter.emit('ride.accepted', {
           rideId: rideId,
@@ -500,7 +577,10 @@ export class RidesService {
         });
         console.log('[RidesService] Event emitted: ride.accepted');
       } catch (eventError) {
-        console.warn('[RidesService] Warning: Could not emit event:', eventError.message);
+        console.warn(
+          '[RidesService] Warning: Could not emit event:',
+          eventError.message,
+        );
         // Event failure shouldn't fail the whole operation
       }
 
@@ -518,15 +598,18 @@ export class RidesService {
       throw new BadRequestException('Ride is not available for assignment');
     }
 
-    return this.rideModel.findByIdAndUpdate(
-      rideId,
-      {
-        driverId: new Types.ObjectId(driverId),
-        status: RideStatus.ACCEPTED,
-        acceptedAt: new Date(),
-      },
-      { new: true },
-    ).populate('driverId').populate('customerId');
+    return this.rideModel
+      .findByIdAndUpdate(
+        rideId,
+        {
+          driverId: new Types.ObjectId(driverId),
+          status: RideStatus.ACCEPTED,
+          acceptedAt: new Date(),
+        },
+        { new: true },
+      )
+      .populate('driverId')
+      .populate('customerId');
   }
 
   async startRide(rideId: string): Promise<RideDocument> {
@@ -566,7 +649,8 @@ export class RidesService {
 
     // IMPORTANT: Set driver back to ONLINE and available after completing ride
     if (ride.driverId) {
-      const driverId = typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
+      const driverId =
+        typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
       await this.driverModel.findByIdAndUpdate(driverId, {
         status: DriverStatus.ONLINE,
         isAvailable: true,
@@ -575,7 +659,9 @@ export class RidesService {
           completedRides: 1,
         },
       });
-      console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE status after ride completion`);
+      console.log(
+        `[RidesService] ✅ Set driver ${driverId} back to ONLINE status after ride completion`,
+      );
 
       // ⭐ PAYMENT LOGIC - Có hỗ trợ tiền cọ
       // Logic:
@@ -595,10 +681,14 @@ export class RidesService {
         const remainingPayment = totalFare - depositAmount; // Phần khách trả tiền mặt cho tài xế
 
         // Hoa hồng từ phần tiền mặt: tài xế đang giữ → phải trả lại cho platform
-        const commissionOnCash = Math.round((remainingPayment * platformRate) / 100);
+        const commissionOnCash = Math.round(
+          (remainingPayment * platformRate) / 100,
+        );
 
         // Phần tiền cọ thuộc về tài xế: platform giải ngân vào ví tài xế
-        const driverDepositShare = Math.round((depositAmount * driverShare) / 100);
+        const driverDepositShare = Math.round(
+          (depositAmount * driverShare) / 100,
+        );
 
         // Net thay đổi ví tài xế = driverDepositShare - commissionOnCash
         const netWalletChange = driverDepositShare - commissionOnCash;
@@ -610,7 +700,10 @@ export class RidesService {
           driverShare: `${driverShare}%`,
           hoa_hồng_tiềnMặt: `-${commissionOnCash}đ (${platformRate}% × ${remainingPayment})`,
           driverDepositShare: `+${driverDepositShare}đ (${driverShare}% × ${depositAmount})`,
-          netVíTàiXế: netWalletChange >= 0 ? `+${netWalletChange}đ` : `${netWalletChange}đ`,
+          netVíTàiXế:
+            netWalletChange >= 0
+              ? `+${netWalletChange}đ`
+              : `${netWalletChange}đ`,
         });
 
         // Cập nhật ví tài xế một lần (net = deposit_share - cash_commission)
@@ -619,20 +712,60 @@ export class RidesService {
         });
 
         if (netWalletChange >= 0) {
-          console.log(`[RidesService] ✅ Đã cộng ${netWalletChange}đ vào ví tài xế (cọc ${driverDepositShare}đ - hoa hồng ${commissionOnCash}đ)`);
+          console.log(
+            `[RidesService] ✅ Đã cộng ${netWalletChange}đ vào ví tài xế (cọc ${driverDepositShare}đ - hoa hồng ${commissionOnCash}đ)`,
+          );
         } else {
-          console.log(`[RidesService] ✅ Đã trừ ${Math.abs(netWalletChange)}đ khỏi ví tài xế (hoa hồng ${commissionOnCash}đ - cọc ${driverDepositShare}đ)`);
+          console.log(
+            `[RidesService] ✅ Đã trừ ${Math.abs(netWalletChange)}đ khỏi ví tài xế (hoa hồng ${commissionOnCash}đ - cọc ${driverDepositShare}đ)`,
+          );
+        }
+
+        // Tính Referral Commission (trích xuất từ platform fee base, tức là dựa vào tổng platform fee)
+        const totalPlatformFee = Math.round((totalFare * platformRate) / 100);
+        if (totalPlatformFee > 0) {
+          try {
+            await this.referralService.processRideCommission(
+              driverId.toString(),
+              rideId,
+              totalPlatformFee,
+            );
+            console.log(
+              `[RidesService] ✅ Đã tính toán và lưu giao dịch Referral Peer-to-Peer (Nguồn phí nền tảng: ${totalPlatformFee}đ)`,
+            );
+          } catch (e) {
+            console.warn(`[RidesService] ⚠️ Lỗi tính Referral P2P:`, e.message);
+          }
+          try {
+            await this.teamsService.processMarketingCommission(
+              driverId.toString(),
+              rideId,
+              totalPlatformFee,
+            );
+            console.log(
+              `[RidesService] ✅ Đã tính toán Marketing Team Commission (Nguồn phí nền tảng: ${totalPlatformFee}đ)`,
+            );
+          } catch (e) {
+            console.warn(
+              `[RidesService] ⚠️ Lỗi tính Marketing Commission:`,
+              e.message,
+            );
+          }
         }
       } catch (walletError) {
-        console.warn(`[RidesService] ⚠️ Không thể xử lý thanh toán:`, walletError.message);
+        console.warn(
+          `[RidesService] ⚠️ Không thể xử lý thanh toán:`,
+          walletError.message,
+        );
       }
     }
 
     // Emit ride.completed event
-    const extractedCustomerId = ride.customerId && typeof ride.customerId === 'object' 
-      ? (ride.customerId as any)._id.toString() 
-      : ride.customerId.toString();
-    
+    const extractedCustomerId =
+      ride.customerId && typeof ride.customerId === 'object'
+        ? (ride.customerId as any)._id.toString()
+        : ride.customerId.toString();
+
     this.eventEmitter.emit('ride.completed', {
       rideId: rideId,
       customerId: extractedCustomerId,
@@ -650,8 +783,6 @@ export class RidesService {
     return this.rideModel.findByIdAndUpdate(rideId, updateData, { new: true });
   }
 
-    
-
   async cancelRide(
     rideId: string,
     cancellationBy: 'driver' | 'customer',
@@ -665,12 +796,15 @@ export class RidesService {
 
     // IMPORTANT: Set driver back to ONLINE and available after cancelling ride
     if (ride.driverId) {
-      const driverId = typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
+      const driverId =
+        typeof ride.driverId === 'object' ? ride.driverId._id : ride.driverId;
       await this.driverModel.findByIdAndUpdate(driverId, {
         status: DriverStatus.ONLINE,
         isAvailable: true,
       });
-      console.log(`[RidesService] ✅ Set driver ${driverId} back to ONLINE after cancellation`);
+      console.log(
+        `[RidesService] ✅ Set driver ${driverId} back to ONLINE after cancellation`,
+      );
     }
 
     // ✅ DEPOSIT REFUND: Hoàn cọ nếu chưa có tài xế nhận và đã trừ cọ
@@ -681,15 +815,18 @@ export class RidesService {
 
     if (rideDeposit > 0 && depositPaid && !depositRefunded && !hasDriver) {
       // Chưa có tài xế nhận → hoàn cọ 100%
-      const customerId = typeof ride.customerId === 'object' 
-        ? (ride.customerId as any)?._id?.toString() 
-        : (ride.customerId as any)?.toString();
+      const customerId =
+        typeof ride.customerId === 'object'
+          ? (ride.customerId as any)?._id?.toString()
+          : (ride.customerId as any)?.toString();
       if (customerId) {
         await this.walletModel.findOneAndUpdate(
           { userId: new Types.ObjectId(customerId) },
-          { $inc: { balance: rideDeposit } }
+          { $inc: { balance: rideDeposit } },
         );
-        console.log(`[RidesService] 💰 Đã hoàn cọc ${rideDeposit}đ về ví khách ${customerId} (chưa có tài xế nhận)`);
+        console.log(
+          `[RidesService] 💰 Đã hoàn cọc ${rideDeposit}đ về ví khách ${customerId} (chưa có tài xế nhận)`,
+        );
       }
       return this.rideModel.findByIdAndUpdate(
         rideId,
@@ -772,7 +909,10 @@ export class RidesService {
                   $sum: {
                     $cond: [
                       {
-                        $in: ['$status', [RideStatus.ACCEPTED, RideStatus.IN_PROGRESS]],
+                        $in: [
+                          '$status',
+                          [RideStatus.ACCEPTED, RideStatus.IN_PROGRESS],
+                        ],
                       },
                       1,
                       0,
@@ -786,7 +926,11 @@ export class RidesService {
                 },
                 totalRevenue: {
                   $sum: {
-                    $cond: [{ $eq: ['$status', RideStatus.COMPLETED] }, '$totalFare', 0],
+                    $cond: [
+                      { $eq: ['$status', RideStatus.COMPLETED] },
+                      '$totalFare',
+                      0,
+                    ],
                   },
                 },
               },
@@ -922,7 +1066,8 @@ export class RidesService {
       type: item._id || 'unknown',
       revenue: item.revenue,
       rides: item.rides,
-      percentage: totalRides > 0 ? ((item.rides / totalRides) * 100).toFixed(2) : 0,
+      percentage:
+        totalRides > 0 ? ((item.rides / totalRides) * 100).toFixed(2) : 0,
     }));
   }
 
@@ -978,12 +1123,12 @@ export class RidesService {
           revenue: { $sum: '$totalFare' },
         },
       },
-      { $sort: { '_id': 1 } },
+      { $sort: { _id: 1 } },
     ]);
 
     // Fill missing hours with 0
     const result = Array.from({ length: 24 }, (_, hour) => {
-      const found = peakHours.find(p => p._id === hour);
+      const found = peakHours.find((p) => p._id === hour);
       return {
         hour,
         rides: found?.rides || 0,
@@ -1039,9 +1184,14 @@ export class RidesService {
     return topDrivers.map((item, idx) => ({
       id: item._id?.toString() || '',
       rank: idx + 1,
-      name: item.driver?.fullName || `${item.driver?.firstName || ''} ${item.driver?.lastName || ''}`.trim() || 'Unknown',
+      name:
+        item.driver?.fullName ||
+        `${item.driver?.firstName || ''} ${item.driver?.lastName || ''}`.trim() ||
+        'Unknown',
       trips: item.totalRides || 0,
-      avatar: item.driver?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item._id?.toString() || 'default'}`,
+      avatar:
+        item.driver?.avatar ||
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=${item._id?.toString() || 'default'}`,
       rating: Math.round((item.averageRating || 0) * 10) / 10,
       earnings: Math.round(item.totalEarnings) || 0,
     }));
@@ -1051,20 +1201,33 @@ export class RidesService {
    * Get pricing for vehicle type
    */
   async getPricing(vehicleType: string) {
-    const pricing = await this.pricingModel.findOne({ vehicleType, isActive: true })
+    const pricing = await this.pricingModel.findOne({
+      vehicleType,
+      isActive: true,
+    });
     if (!pricing) {
-      throw new BadRequestException(`Pricing not found for vehicle type: ${vehicleType}`)
+      throw new BadRequestException(
+        `Pricing not found for vehicle type: ${vehicleType}`,
+      );
     }
-    return pricing
+    return pricing;
   }
 
   /**
    * Calculate fare based on distance, duration and surge pricing
    * Formula: baseFare + (distance * pricePerKm) + (duration * pricePerMinute) + surgeFare
    */
-  async calculateFare(distance: number, duration: number, vehicleType: string, isPeakHour?: boolean, isRainy?: boolean) {
+  async calculateFare(
+    distance: number,
+    duration: number,
+    vehicleType: string,
+    isPeakHour?: boolean,
+    isRainy?: boolean,
+  ) {
     if (distance <= 0 || duration <= 0) {
-      throw new BadRequestException('Distance and duration must be greater than 0');
+      throw new BadRequestException(
+        'Distance and duration must be greater than 0',
+      );
     }
 
     // Get pricing config
@@ -1112,17 +1275,26 @@ export class RidesService {
   /**
    * Find nearby online drivers
    */
-  async findNearbyDrivers(latitude: number, longitude: number, radius?: number, vehicleType?: string, limit: number = 10) {
+  async findNearbyDrivers(
+    latitude: number,
+    longitude: number,
+    radius?: number,
+    vehicleType?: string,
+    limit: number = 10,
+  ) {
     if (isNaN(latitude) || isNaN(longitude)) {
-      throw new BadRequestException('Invalid coordinates')
+      throw new BadRequestException('Invalid coordinates');
     }
 
     // Get search radius from config if not provided (default to config's HIRE radius)
-    const searchRadiusKm = radius ?? (await this.configService.getSearchRadius(ServiceType.HIRE)) / 1000;
+    const searchRadiusKm =
+      radius ??
+      (await this.configService.getSearchRadius(ServiceType.HIRE)) / 1000;
     // Convert radius to meters for geospatial query
-    const radiusInMeters = searchRadiusKm * 1000
+    const radiusInMeters = searchRadiusKm * 1000;
 
-    const drivers = await this.rideModel.db.collection('drivers')
+    const drivers = await this.rideModel.db
+      .collection('drivers')
       .aggregate([
         {
           $geoNear: {
@@ -1137,10 +1309,7 @@ export class RidesService {
         },
         {
           $match: {
-            $or: [
-              { status: 'online' },
-              { isOnline: true }
-            ],
+            $or: [{ status: 'online' }, { isOnline: true }],
             ...(vehicleType && { 'car.carType': vehicleType }),
           },
         },
@@ -1159,9 +1328,9 @@ export class RidesService {
           },
         },
       ])
-      .toArray()
+      .toArray();
 
-    return drivers.map(driver => ({
+    return drivers.map((driver) => ({
       _id: driver._id,
       name: driver.name,
       phone: driver.phone,
@@ -1169,14 +1338,16 @@ export class RidesService {
       carType: driver.car?.carType,
       licensePlate: driver.car?.licensePlate,
       location: driver.location,
-      distance: Math.round(driver.distance / 1000 * 10) / 10, // Convert to km, round to 1 decimal
-    }))
+      distance: Math.round((driver.distance / 1000) * 10) / 10, // Convert to km, round to 1 decimal
+    }));
   }
 
   /**
    * Auto-assign driver to a ride using scoring algorithm
    */
-  async autoAssignDriver(rideId: string): Promise<{ success: boolean; message: string; requestId?: string }> {
+  async autoAssignDriver(
+    rideId: string,
+  ): Promise<{ success: boolean; message: string; requestId?: string }> {
     console.log('[RidesService] 🤖 Auto-assigning driver for ride:', rideId);
     return this.autoAssignService.autoAssignDriver(rideId);
   }
@@ -1204,20 +1375,28 @@ export class RidesService {
     console.log(`✅ [Service] Ride found`);
 
     // Map images to positions (in order: front, back, left, right, interior)
-    const availablePositions: Array<'front' | 'back' | 'left' | 'right' | 'interior'> = 
-      ['front', 'back', 'left', 'right', 'interior'];
+    const availablePositions: Array<
+      'front' | 'back' | 'left' | 'right' | 'interior'
+    > = ['front', 'back', 'left', 'right', 'interior'];
 
     const imageMap: Record<string, string> = {};
-    for (let i = 0; i < base64Images.length && i < availablePositions.length; i++) {
+    for (
+      let i = 0;
+      i < base64Images.length && i < availablePositions.length;
+      i++
+    ) {
       const imageSize = base64Images[i].length;
-      console.log(`   Mapping image ${i + 1} to position '${availablePositions[i]}' (size: ${imageSize} chars)`);
+      console.log(
+        `   Mapping image ${i + 1} to position '${availablePositions[i]}' (size: ${imageSize} chars)`,
+      );
       imageMap[availablePositions[i]] = base64Images[i];
     }
 
     // Update ride document
-    const phaseField = phase === TripPhaseEnum.PRE_TRIP ? 'preTrip' : 'postTrip';
+    const phaseField =
+      phase === TripPhaseEnum.PRE_TRIP ? 'preTrip' : 'postTrip';
     console.log(`📝 [Service] Updating field: vehicleCondition.${phaseField}`);
-    
+
     if (!ride.vehicleCondition) {
       console.log(`   Creating new vehicleCondition object`);
       ride.vehicleCondition = {
@@ -1256,7 +1435,9 @@ export class RidesService {
    * Get vehicle condition info for a ride
    */
   async getVehicleCondition(rideId: string): Promise<any> {
-    const ride = await this.rideModel.findById(rideId).select('vehicleCondition');
+    const ride = await this.rideModel
+      .findById(rideId)
+      .select('vehicleCondition');
     if (!ride) {
       throw new NotFoundException('Ride not found');
     }

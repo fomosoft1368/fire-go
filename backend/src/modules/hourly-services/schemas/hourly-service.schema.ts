@@ -1,36 +1,36 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
-import { Document, Types } from 'mongoose'
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
 
-export type HourlyServiceDocument = HourlyService & Document
+export type HourlyServiceDocument = HourlyService & Document;
 
 @Schema({ timestamps: true })
 export class HourlyService {
   @Prop({ type: Types.ObjectId, ref: 'Customer', required: true })
-  customerId: Types.ObjectId
+  customerId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Driver', required: false })
-  workerId?: Types.ObjectId
+  workerId?: Types.ObjectId;
 
   @Prop({ required: true })
-  hours: number
+  hours: number;
 
   @Prop({ required: true })
-  selectedDate: number
+  selectedDate: number;
 
   @Prop({ required: true })
-  selectedTime: string
+  selectedTime: string;
 
   @Prop({ required: false })
-  month?: number
+  month?: number;
 
   @Prop({ required: false })
-  year?: number
+  year?: number;
 
   @Prop({ required: true })
-  address: string
+  address: string;
 
   @Prop({ required: false })
-  notes?: string
+  notes?: string;
 
   @Prop({
     type: [
@@ -45,52 +45,55 @@ export class HourlyService {
     default: [],
   })
   services: Array<{
-    id: string
-    name: string
-    price: number
-    duration: number
-    selected: boolean
-  }>
+    id: string;
+    name: string;
+    price: number;
+    duration: number;
+    selected: boolean;
+  }>;
 
   @Prop({ required: true, default: 0 })
-  estimatedPrice: number
+  estimatedPrice: number;
 
   @Prop({ required: false })
-  actualPrice?: number
+  actualPrice?: number;
 
-  @Prop({ enum: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'], default: 'pending' })
-  status: string
-
-  @Prop({ required: false })
-  rating?: number
-
-  @Prop({ required: false })
-  comment?: string
+  @Prop({
+    enum: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'],
+    default: 'pending',
+  })
+  status: string;
 
   @Prop({ required: false })
-  feedback?: string
+  rating?: number;
 
   @Prop({ required: false })
-  cancelReason?: string
+  comment?: string;
 
   @Prop({ required: false })
-  startTime?: Date
+  feedback?: string;
 
   @Prop({ required: false })
-  endTime?: Date
+  cancelReason?: string;
 
   @Prop({ required: false })
-  cancelledTime?: Date
+  startTime?: Date;
+
+  @Prop({ required: false })
+  endTime?: Date;
+
+  @Prop({ required: false })
+  cancelledTime?: Date;
 
   @Prop({ type: Date, default: () => new Date() })
-  createdAt: Date
+  createdAt: Date;
 
   @Prop({ type: Date, default: () => new Date() })
-  updatedAt: Date
+  updatedAt: Date;
 }
 
-export const HourlyServiceSchema = SchemaFactory.createForClass(HourlyService)
-HourlyServiceSchema.index({ customerId: 1 })
-HourlyServiceSchema.index({ workerId: 1 })
-HourlyServiceSchema.index({ status: 1 })
-HourlyServiceSchema.index({ createdAt: -1 })
+export const HourlyServiceSchema = SchemaFactory.createForClass(HourlyService);
+HourlyServiceSchema.index({ customerId: 1 });
+HourlyServiceSchema.index({ workerId: 1 });
+HourlyServiceSchema.index({ status: 1 });
+HourlyServiceSchema.index({ createdAt: -1 });

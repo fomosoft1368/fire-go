@@ -2,13 +2,14 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 export interface TransactionDocument extends Transaction, Document {
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export enum UserType {
   CUSTOMER = 'customer',
   DRIVER = 'driver',
+  USER = 'user', // Marketing staff / Admins
 }
 
 export enum TransactionType {
@@ -27,6 +28,8 @@ export enum TransactionType {
   BONUS = 'bonus',
   PENALTY = 'penalty',
   REFERRAL_BONUS = 'referral_bonus',
+  // Marketing types
+  MARKETING_COMMISSION = 'marketing_commission',
 }
 
 export enum TransactionStatus {
@@ -60,10 +63,10 @@ export class Transaction {
 
   // User references
   @Prop({ type: Types.ObjectId })
-  userId?: Types.ObjectId
+  userId?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Customer' })
-  customerId?: Types.ObjectId
+  customerId?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Driver', index: true })
   driverId?: Types.ObjectId;
@@ -154,10 +157,10 @@ export class Transaction {
 
   // Metadata
   @Prop({ type: Object })
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>;
 
   @Prop()
-  deletedAt?: Date
+  deletedAt?: Date;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);

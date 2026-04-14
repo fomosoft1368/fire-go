@@ -1,24 +1,43 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { BonusRule, BonusRuleDocument, BonusPeriod } from './schemas/bonus-rule.schema';
+import {
+  BonusRule,
+  BonusRuleDocument,
+  BonusPeriod,
+} from './schemas/bonus-rule.schema';
 import { BonusClaim, BonusClaimDocument } from './schemas/bonus-claim.schema';
 import { Ride, RideDocument } from '../rides/schemas/ride.schema';
-import { CombinedTrip, CombinedTripDocument } from '../combined-trips/schemas/combined-trip.schema';
+import {
+  CombinedTrip,
+  CombinedTripDocument,
+} from '../combined-trips/schemas/combined-trip.schema';
 import { Delivery } from '../delivery/schemas/delivery.schema';
 import { Document } from 'mongoose';
 import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
 import { WalletsService } from '../wallets/wallets.service';
-import { TransactionType, UserType } from '../wallets/schemas/transaction.schema';
+import {
+  TransactionType,
+  UserType,
+} from '../wallets/schemas/transaction.schema';
 
 @Injectable()
 export class BonusesService {
   constructor(
-    @InjectModel(BonusRule.name) private bonusRuleModel: Model<BonusRuleDocument>,
-    @InjectModel(BonusClaim.name) private bonusClaimModel: Model<BonusClaimDocument>,
+    @InjectModel(BonusRule.name)
+    private bonusRuleModel: Model<BonusRuleDocument>,
+    @InjectModel(BonusClaim.name)
+    private bonusClaimModel: Model<BonusClaimDocument>,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
-    @InjectModel(CombinedTrip.name) private combinedTripModel: Model<CombinedTripDocument>,
-    @InjectModel(Delivery.name) private deliveryModel: Model<Delivery & Document>,
+    @InjectModel(CombinedTrip.name)
+    private combinedTripModel: Model<CombinedTripDocument>,
+    @InjectModel(Delivery.name)
+    private deliveryModel: Model<Delivery & Document>,
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     private readonly walletsService: WalletsService,
   ) {}
@@ -36,15 +55,20 @@ export class BonusesService {
     return this.bonusRuleModel.create(data);
   }
 
-  async updateRule(id: string, data: Partial<{
-    name: string;
-    description: string;
-    period: BonusPeriod;
-    requiredTrips: number;
-    bonusAmount: number;
-    isActive: boolean;
-  }>): Promise<BonusRuleDocument> {
-    const rule = await this.bonusRuleModel.findByIdAndUpdate(id, data, { new: true });
+  async updateRule(
+    id: string,
+    data: Partial<{
+      name: string;
+      description: string;
+      period: BonusPeriod;
+      requiredTrips: number;
+      bonusAmount: number;
+      isActive: boolean;
+    }>,
+  ): Promise<BonusRuleDocument> {
+    const rule = await this.bonusRuleModel.findByIdAndUpdate(id, data, {
+      new: true,
+    });
     if (!rule) throw new NotFoundException('Không tìm thấy quy tắc thưởng');
     return rule;
   }
@@ -55,16 +79,25 @@ export class BonusesService {
   }
 
   async getAllRules(): Promise<BonusRuleDocument[]> {
-    return this.bonusRuleModel.find().sort({ period: 1, requiredTrips: 1 }).lean() as any;
+    return this.bonusRuleModel
+      .find()
+      .sort({ period: 1, requiredTrips: 1 })
+      .lean() as any;
   }
 
   async getActiveRules(): Promise<BonusRuleDocument[]> {
-    return this.bonusRuleModel.find({ isActive: true }).sort({ period: 1, requiredTrips: 1 }).lean() as any;
+    return this.bonusRuleModel
+      .find({ isActive: true })
+      .sort({ period: 1, requiredTrips: 1 })
+      .lean() as any;
   }
 
   // ==================== Period Helpers ====================
 
-  private getPeriodRange(period: BonusPeriod, now = new Date()): { start: Date; end: Date } {
+  private getPeriodRange(
+    period: BonusPeriod,
+    now = new Date(),
+  ): { start: Date; end: Date } {
     const start = new Date(now);
     const end = new Date(now);
 
@@ -73,7 +106,7 @@ export class BonusesService {
       end.setHours(23, 59, 59, 999);
     } else if (period === 'weekly') {
       const day = start.getDay(); // 0=Sun
-      const diffToMon = (day === 0 ? -6 : 1 - day);
+      const diffToMon = day === 0 ? -6 : 1 - day;
       start.setDate(start.getDate() + diffToMon);
       start.setHours(0, 0, 0, 0);
       end.setDate(start.getDate() + 6);
@@ -95,7 +128,11 @@ export class BonusesService {
     return { start, end };
   }
 
-  private async getCompletedTripsCount(driverId: string, start: Date, end: Date): Promise<number> {
+  private async getCompletedTripsCount(
+    driverId: string,
+    start: Date,
+    end: Date,
+  ): Promise<number> {
     const driverObjId = new Types.ObjectId(driverId);
 
     // Count from all 3 trip types in parallel
@@ -121,32 +158,37 @@ export class BonusesService {
     ]);
 
     const total = rideCount + combinedTripCount + deliveryCount;
-    console.log(`[BonusesService] Trip count for driver ${driverId} [${start.toLocaleDateString()} - ${end.toLocaleDateString()}]:`, {
-      rides: rideCount,
-      combinedTrips: combinedTripCount,
-      deliveries: deliveryCount,
-      total,
-    });
+    console.log(
+      `[BonusesService] Trip count for driver ${driverId} [${start.toLocaleDateString()} - ${end.toLocaleDateString()}]:`,
+      {
+        rides: rideCount,
+        combinedTrips: combinedTripCount,
+        deliveries: deliveryCount,
+        total,
+      },
+    );
 
     return total;
   }
 
   // ==================== DRIVER: Progress ====================
 
-  async getDriverProgress(driverId: string): Promise<{
-    rule: BonusRuleDocument;
-    period: BonusPeriod;
-    periodStart: Date;
-    periodEnd: Date;
-    tripCount: number;
-    requiredTrips: number;
-    bonusAmount: number;
-    progress: number; // 0-100 percent
-    isEligible: boolean;
-    claimStatus: string | null; // null | 'pending' | 'approved' | 'rejected'
-    rejectionReason: string | null;
-    claimId: string | null;
-  }[]> {
+  async getDriverProgress(driverId: string): Promise<
+    {
+      rule: BonusRuleDocument;
+      period: BonusPeriod;
+      periodStart: Date;
+      periodEnd: Date;
+      tripCount: number;
+      requiredTrips: number;
+      bonusAmount: number;
+      progress: number; // 0-100 percent
+      isEligible: boolean;
+      claimStatus: string | null; // null | 'pending' | 'approved' | 'rejected'
+      rejectionReason: string | null;
+      claimId: string | null;
+    }[]
+  > {
     const rules = await this.getActiveRules();
     const results = [];
 
@@ -155,14 +197,19 @@ export class BonusesService {
       const tripCount = await this.getCompletedTripsCount(driverId, start, end);
 
       // Check existing claim for this period
-      const existingClaim = await this.bonusClaimModel.findOne({
-        driverId: new Types.ObjectId(driverId),
-        bonusRuleId: rule._id,
-        periodStart: start,
-        periodEnd: end,
-      }).lean();
+      const existingClaim = await this.bonusClaimModel
+        .findOne({
+          driverId: new Types.ObjectId(driverId),
+          bonusRuleId: rule._id,
+          periodStart: start,
+          periodEnd: end,
+        })
+        .lean();
 
-      const progress = Math.min(100, Math.round((tripCount / rule.requiredTrips) * 100));
+      const progress = Math.min(
+        100,
+        Math.round((tripCount / rule.requiredTrips) * 100),
+      );
       const isEligible = tripCount >= rule.requiredTrips;
 
       results.push({
@@ -186,17 +233,21 @@ export class BonusesService {
 
   // ==================== DRIVER: Create Claim ====================
 
-  async createClaim(driverId: string, bonusRuleId: string): Promise<BonusClaimDocument> {
+  async createClaim(
+    driverId: string,
+    bonusRuleId: string,
+  ): Promise<BonusClaimDocument> {
     const rule = await this.bonusRuleModel.findById(bonusRuleId);
     if (!rule) throw new NotFoundException('Không tìm thấy quy tắc thưởng');
-    if (!rule.isActive) throw new BadRequestException('Quy tắc thưởng này không còn hiệu lực');
+    if (!rule.isActive)
+      throw new BadRequestException('Quy tắc thưởng này không còn hiệu lực');
 
     const { start, end } = this.getPeriodRange(rule.period as BonusPeriod);
     const tripCount = await this.getCompletedTripsCount(driverId, start, end);
 
     if (tripCount < rule.requiredTrips) {
       throw new BadRequestException(
-        `Bạn cần hoàn thành ${rule.requiredTrips} chuyến. Hiện tại: ${tripCount} chuyến.`
+        `Bạn cần hoàn thành ${rule.requiredTrips} chuyến. Hiện tại: ${tripCount} chuyến.`,
       );
     }
 
@@ -210,7 +261,9 @@ export class BonusesService {
     });
 
     if (existing) {
-      throw new ConflictException('Bạn đã gửi yêu cầu nhận thưởng cho kỳ này rồi');
+      throw new ConflictException(
+        'Bạn đã gửi yêu cầu nhận thưởng cho kỳ này rồi',
+      );
     }
 
     return this.bonusClaimModel.create({
@@ -252,11 +305,18 @@ export class BonusesService {
 
   // ==================== ADMIN: Approve Claim ====================
 
-  async approveClaim(claimId: string, adminId?: string): Promise<BonusClaimDocument> {
-    const claim = await this.bonusClaimModel.findById(claimId).populate('bonusRuleId');
+  async approveClaim(
+    claimId: string,
+    adminId?: string,
+  ): Promise<BonusClaimDocument> {
+    const claim = await this.bonusClaimModel
+      .findById(claimId)
+      .populate('bonusRuleId');
     if (!claim) throw new NotFoundException('Không tìm thấy yêu cầu thưởng');
     if (claim.status !== 'pending') {
-      throw new BadRequestException(`Yêu cầu này đã được xử lý (${claim.status})`);
+      throw new BadRequestException(
+        `Yêu cầu này đã được xử lý (${claim.status})`,
+      );
     }
 
     const rule = claim.bonusRuleId as any;
@@ -273,12 +333,13 @@ export class BonusesService {
     );
 
     // 2. ✅ Also update Driver.walletBalance directly (this is what the app displays)
-    await this.driverModel.findByIdAndUpdate(
-      driverIdStr,
-      { $inc: { walletBalance: bonusAmount } },
-    );
+    await this.driverModel.findByIdAndUpdate(driverIdStr, {
+      $inc: { walletBalance: bonusAmount },
+    });
 
-    console.log(`[BonusesService] ✅ Claim approved: driver=${driverIdStr}, amount=${bonusAmount}đ — wallet + driver.walletBalance updated`);
+    console.log(
+      `[BonusesService] ✅ Claim approved: driver=${driverIdStr}, amount=${bonusAmount}đ — wallet + driver.walletBalance updated`,
+    );
 
     // Update claim status
     claim.status = 'approved';
@@ -291,7 +352,10 @@ export class BonusesService {
 
   // ==================== ADMIN: Reject Claim ====================
 
-  async rejectClaim(claimId: string, rejectionReason: string): Promise<BonusClaimDocument> {
+  async rejectClaim(
+    claimId: string,
+    rejectionReason: string,
+  ): Promise<BonusClaimDocument> {
     if (!rejectionReason?.trim()) {
       throw new BadRequestException('Vui lòng nhập lý do từ chối');
     }
@@ -299,14 +363,18 @@ export class BonusesService {
     const claim = await this.bonusClaimModel.findById(claimId);
     if (!claim) throw new NotFoundException('Không tìm thấy yêu cầu thưởng');
     if (claim.status !== 'pending') {
-      throw new BadRequestException(`Yêu cầu này đã được xử lý (${claim.status})`);
+      throw new BadRequestException(
+        `Yêu cầu này đã được xử lý (${claim.status})`,
+      );
     }
 
     claim.status = 'rejected';
     claim.rejectionReason = rejectionReason.trim();
     await claim.save();
 
-    console.log(`[BonusesService] ❌ Claim rejected: driver=${claim.driverId}, reason=${rejectionReason}`);
+    console.log(
+      `[BonusesService] ❌ Claim rejected: driver=${claim.driverId}, reason=${rejectionReason}`,
+    );
     return claim;
   }
 

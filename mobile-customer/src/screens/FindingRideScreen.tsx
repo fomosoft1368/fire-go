@@ -146,7 +146,7 @@ export default function FindingRideScreen({ navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       console.log('[FindingRideScreen] 🔍 Screen refocused - checking if modal needs reset')
-      
+
       // If modal is open (creating new trip), verify it's still valid
       if (creatingNewTrip && newTripId) {
         console.log('[FindingRideScreen] Modal currently open with trip:', newTripId)
@@ -309,25 +309,25 @@ export default function FindingRideScreen({ navigation }: any) {
   const checkPendingTrip = async () => {
     try {
       console.log('[FindingRideScreen] 🔍 Checking for pending trip...')
-      
+
       const pendingTripId = await AsyncStorage.getItem('pendingTripId')
       const pendingTripExpiry = await AsyncStorage.getItem('pendingTripExpiry')
-      
+
       if (pendingTripId && pendingTripExpiry) {
         const expiryDate = new Date(pendingTripExpiry)
         const now = new Date()
-        
+
         console.log('[FindingRideScreen] 📦 Found pending trip:', {
           tripId: pendingTripId,
           expiresAt: expiryDate.toISOString(),
           now: now.toISOString(),
           isExpired: now > expiryDate,
         })
-        
+
         // Check if trip expired
         if (now > expiryDate) {
           console.log('[FindingRideScreen] ⏰ Pending trip expired - syncing with backend...')
-          
+
           // 🔄 Try to cancel on backend to sync state
           try {
             const token = await AsyncStorage.getItem('authToken')
@@ -351,24 +351,24 @@ export default function FindingRideScreen({ navigation }: any) {
             console.warn('[FindingRideScreen] ⚠️ Error calling backend cancel:', apiError.message)
             // Continue cleanup anyway - trip expired locally
           }
-          
+
           // 1️⃣ Clear AsyncStorage
           await AsyncStorage.removeItem('pendingTripId')
           await AsyncStorage.removeItem('pendingTripExpiry')
-          
+
           // 2️⃣ Reset all state variables
           setNewTripId(null)
           setTripExpiredAt(null)
           setCreatingNewTrip(false)
           setForceUpdateCounter(0)
           closeVehicleModal()
-          
+
           // 3️⃣ Stop any polling if running
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current)
             pollIntervalRef.current = null
           }
-          
+
           // 4️⃣ Show alert to user (delay slightly to ensure state is settled)
           setTimeout(() => {
             Alert.alert(
@@ -379,14 +379,14 @@ export default function FindingRideScreen({ navigation }: any) {
           }, 100)
           return
         }
-        
+
         // Trip still valid - restore state
         console.log('[FindingRideScreen] ✅ Restoring pending trip state')
         setNewTripId(pendingTripId)
         setTripExpiredAt(expiryDate)
         setCreatingNewTrip(true)
         openVehicleModal()
-        
+
         // Start polling immediately
         startPollingTripStatus(pendingTripId)
       } else {
@@ -400,7 +400,7 @@ export default function FindingRideScreen({ navigation }: any) {
   // ✅ Start polling trip status (extracted from handleCreateNewTrip)
   const startPollingTripStatus = (tripId: string) => {
     console.log('[FindingRideScreen] 🔄 Starting polling for trip:', tripId)
-    
+
     pollIntervalRef.current = setInterval(async () => {
       try {
         const pollTimestamp = new Date().toISOString()
@@ -416,11 +416,11 @@ export default function FindingRideScreen({ navigation }: any) {
 
         if (tripData.status === 'accepted') {
           console.log('[FindingRideScreen] ⚠️⚠️⚠️ TRIP ACCEPTED - clearing storage')
-          
+
           // Clear AsyncStorage
           await AsyncStorage.removeItem('pendingTripId')
           await AsyncStorage.removeItem('pendingTripExpiry')
-          
+
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current)
             pollIntervalRef.current = null
@@ -435,11 +435,11 @@ export default function FindingRideScreen({ navigation }: any) {
           })
         } else if (tripData.status === 'cancelled') {
           console.log('[FindingRideScreen] ❌ TRIP CANCELLED - clearing storage')
-          
+
           // Clear AsyncStorage
           await AsyncStorage.removeItem('pendingTripId')
           await AsyncStorage.removeItem('pendingTripExpiry')
-          
+
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current)
             pollIntervalRef.current = null
@@ -448,7 +448,7 @@ export default function FindingRideScreen({ navigation }: any) {
           setNewTripId(null)
           setTripExpiredAt(null)
           closeVehicleModal()
-          
+
           // Trip timed out by system (auto-cancel) — no manual confirm required
           if ((tripData as any).cancellationBy === 'system') {
             console.log('[FindingRideScreen] ⏰ Trip timed out by system, auto-cancel completed')
@@ -456,16 +456,16 @@ export default function FindingRideScreen({ navigation }: any) {
         } else if (tripData.status !== 'pending') {
           // 🔍 Trip status is something unexpected (not pending/accepted/cancelled)
           console.log('[FindingRideScreen] ⚠️ Unexpected trip status:', tripData.status, '- stopping scan')
-          
+
           // Clear AsyncStorage
           await AsyncStorage.removeItem('pendingTripId')
           await AsyncStorage.removeItem('pendingTripExpiry')
-          
+
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current)
             pollIntervalRef.current = null
           }
-          
+
           setCreatingNewTrip(false)
           setNewTripId(null)
           setTripExpiredAt(null)
@@ -473,37 +473,37 @@ export default function FindingRideScreen({ navigation }: any) {
         }
       } catch (error: any) {
         console.error('[FindingRideScreen] ❌ Error polling trip status:', error)
-        
+
         // 🔍 Check if trip no longer exists (404, deleted, etc.)
         const errorMessage = (error?.message || error?.response?.data?.message || '').toLowerCase()
         const errorStatus = error?.response?.status
-        
-        const isNotFound = 
-          errorStatus === 404 || 
-          errorMessage.includes('not found') || 
+
+        const isNotFound =
+          errorStatus === 404 ||
+          errorMessage.includes('not found') ||
           errorMessage.includes('combined trip not found') ||
           errorMessage.includes('trip not found')
-        
-        const isExpired = 
-          errorMessage.includes('expired') || 
+
+        const isExpired =
+          errorMessage.includes('expired') ||
           errorMessage.includes('timeout')
-        
+
         console.log('[FindingRideScreen] 🔍 Error detection:', { errorStatus, errorMessage, isNotFound, isExpired })
-        
+
         if (isNotFound || isExpired) {
           console.log('[FindingRideScreen] 🚫 Trip no longer exists or expired - stopping scan')
-          
+
           // Clear AsyncStorage
           await AsyncStorage.removeItem('pendingTripId')
           await AsyncStorage.removeItem('pendingTripExpiry')
-          
+
           // Stop polling
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current)
             pollIntervalRef.current = null
             console.log('[FindingRideScreen] ✅ Polling stopped')
           }
-          
+
           // Reset modal state
           if (isMountedRef.current) {
             console.log('[FindingRideScreen] 🔄 Resetting modal state...')
@@ -511,15 +511,15 @@ export default function FindingRideScreen({ navigation }: any) {
             setNewTripId(null)
             setTripExpiredAt(null)
             closeVehicleModal()
-            
+
             // Alert user (with small delay to ensure state is settled)
             setTimeout(() => {
               if (isMountedRef.current) {
                 console.log('[FindingRideScreen] 📢 Showing alert to user')
                 Alert.alert(
                   'Chuyến đi không tồn tại',
-                  isExpired 
-                    ? 'Chuyến đi của bạn đã hết hạn.' 
+                  isExpired
+                    ? 'Chuyến đi của bạn đã hết hạn.'
                     : 'Chuyến đi đã bị xóa hoặc không còn khả dụng.',
                   [{ text: 'OK' }]
                 )
@@ -771,7 +771,7 @@ export default function FindingRideScreen({ navigation }: any) {
       await AsyncStorage.setItem('pendingTripId', tripId)
       await AsyncStorage.setItem('pendingTripExpiry', expiryDate.toISOString())
       setTripExpiredAt(expiryDate)
-      
+
       console.log('[FindingRideScreen] 💾 Saved pending trip to AsyncStorage:', {
         tripId,
         expiresAt: expiryDate.toISOString(),
@@ -885,7 +885,7 @@ export default function FindingRideScreen({ navigation }: any) {
       dropoffCoordinates: [endLng, endLat],  // ✅ Use CUSTOMER's dropoff, not trip's
       hasInterProvincialRoute: !!interProvincialRoute,
     })
-    
+
     // 🔄 Reset modal state when user selects a different ride
     if (creatingNewTrip) {
       console.log('[FindingRideScreen] Closing modal and resetting state before navigating to new ride')
@@ -894,7 +894,7 @@ export default function FindingRideScreen({ navigation }: any) {
       setTripExpiredAt(null)
       closeVehicleModal()
     }
-    
+
     navigation.navigate('RideDetailRequest', {
       combinedTripId: trip._id,
       ride: trip,
@@ -1402,80 +1402,90 @@ export default function FindingRideScreen({ navigation }: any) {
                 <View style={styles.scanningAnimation}>
                   <Animated.View
                     style={[
-                      styles.scanRing,
+                      styles.scanRingOutermost,
                       {
                         opacity: scanAnim.interpolate({
                           inputRange: [0, 0.5, 1],
-                          outputRange: [0.3, 0.8, 0.3],
+                          outputRange: [0.1, 0.4, 0.1],
                         }),
-                        transform: [
-                          {
-                            scale: scanAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.8, 1.4],
-                            }),
-                          },
-                        ],
+                        transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.8] }) }],
                       },
                     ]}
-                  >
-                    <View style={[styles.scanRingInner, { borderColor: '#f79503' }]} />
-                  </Animated.View>
-                  <MaterialIcons name="search" size={48} color="#f79503" />
+                  />
+                  <Animated.View
+                    style={[
+                      styles.scanRingOuter,
+                      {
+                        opacity: scanAnim.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [0.3, 0.7, 0.3],
+                        }),
+                        transform: [{ scale: scanAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.4] }) }],
+                      },
+                    ]}
+                  />
+                  <View style={styles.scanRingCenter}>
+                    <LinearGradient colors={['#FF6B00', '#FF8534']} style={styles.scanRingGradient}>
+                      <MaterialIcons name="local-taxi" size={36} color="#FFFFFF" />
+                    </LinearGradient>
+                  </View>
                 </View>
 
                 <Text style={[styles.scanningTitle, { color: colors.text }]}>
-                  Đang quét tài xế gần bạn
+                  Đang tìm tài xế...
                 </Text>
-                <Text style={[styles.scanningSubtitle, { color: colors.textSecondary }]}>
-                  {tripExpiredAt ? `Tự động hủy sau ${Math.max(0, Math.ceil((tripExpiredAt.getTime() - Date.now()) / 60000))} phút` : 'Quét mỗi giây cho đến khi tìm thấy tài xế'}
-                </Text>
+                <View style={styles.timerBadge}>
+                  <MaterialIcons name="timer" size={14} color="#FF6B00" />
+                  <Text style={styles.timerBadgeText}>
+                    {tripExpiredAt ? `Hủy sau ${Math.max(0, Math.ceil((tripExpiredAt.getTime() - Date.now()) / 60000))} phút` : 'Quét liên tục'}
+                  </Text>
+                </View>
 
-                <View style={styles.tripInfoBox}>
-                  <View style={styles.tripInfoRow}>
-                    <MaterialIcons name="directions-car" size={20} color={colors.textSecondary} />
-                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
-                      Loại xe:
-                    </Text>
-                    <Text style={[styles.tripInfoValue, { color: colors.text }]}>
-                      {selectedVehicleType === 'basic' ? 'Sedan' : selectedVehicleType === 'comfort' ? 'SUV' : 'Truck'}
-                    </Text>
-                  </View>
-                  <View style={styles.tripInfoRow}>
-                    <MaterialIcons name="people" size={20} color={colors.textSecondary} />
-                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
-                      Số ghế đặt:
-                    </Text>
-                    <Text style={[styles.tripInfoValue, { color: colors.text }]}>
-                      {seats} người
-                    </Text>
-                  </View>
-                  <View style={styles.tripInfoRow}>
-                    <MaterialIcons name="attach-money" size={20} color={colors.textSecondary} />
-                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
-                      Giá gốc (1 người):
-                    </Text>
-                    <Text style={[styles.tripInfoValue, { color: colors.textSecondary }]}>
-                      ₫{vehiclePrices[selectedVehicleType].toLocaleString('vi-VN')}
-                    </Text>
-                  </View>
-                  {seats > 1 && (
-                    <View style={styles.tripInfoRow}>
-                      <MaterialIcons name="local-offer" size={20} color="#ff9800" />
-                      <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>
-                        Giảm ghép xe:
+                <View style={[styles.premiumTripInfoBox, { backgroundColor: colors.card }]}>
+                  <View style={styles.tripInfoGrid}>
+                    <View style={styles.tripInfoCell}>
+                      <View style={styles.tripInfoIconWrapper}>
+                        <MaterialIcons name="directions-car" size={18} color="#FF6B00" />
+                      </View>
+                      <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>Loại xe</Text>
+                      <Text style={[styles.tripInfoValue, { color: colors.text }]}>
+                        {selectedVehicleType === 'basic' ? 'Sedan' : selectedVehicleType === 'comfort' ? 'SUV' : 'Truck'}
                       </Text>
-                      <Text style={[styles.tripInfoValue, { color: '#ff9800' }]}>
+                    </View>
+
+                    <View style={styles.tripInfoDivider} />
+
+                    <View style={styles.tripInfoCell}>
+                      <View style={styles.tripInfoIconWrapper}>
+                        <MaterialIcons name="people" size={18} color="#FF6B00" />
+                      </View>
+                      <Text style={[styles.tripInfoLabel, { color: colors.textSecondary }]}>Số ghế</Text>
+                      <Text style={[styles.tripInfoValue, { color: colors.text }]}>{seats} chỗ</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.tripInfoDashes} />
+
+                  <View style={styles.priceRowDetail}>
+                    <Text style={[styles.priceLabelSmall, { color: colors.textSecondary }]}>Giá gốc (1 người)</Text>
+                    <Text style={[styles.priceValueSmall, { color: colors.textSecondary }]}>₫{vehiclePrices[selectedVehicleType].toLocaleString('vi-VN')}</Text>
+                  </View>
+
+                  {seats > 1 && (
+                    <View style={styles.priceRowDetail}>
+                      <View style={styles.discountBadge}>
+                        <MaterialIcons name="local-offer" size={12} color="#FFFFFF" />
+                        <Text style={styles.discountBadgeText}>Giảm ghép</Text>
+                      </View>
+                      <Text style={styles.discountValueText}>
                         {seats === 2 ? '-15%' : seats === 3 ? '-25%' : '-30%'}
                       </Text>
                     </View>
                   )}
-                  <View style={[styles.tripInfoRow, { paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border + '30' }]}>
-                    <MaterialIcons name="payments" size={20} color="#0c0c0c" />
-                    <Text style={[styles.tripInfoLabel, { color: colors.textSecondary, fontWeight: '700' }]}>
-                      Tổng thanh toán:
-                    </Text>
-                    <Text style={[styles.tripInfoValue, { color: '#38e07b', fontSize: 16 }]}>
+
+                  <View style={styles.totalPriceWrapper}>
+                    <Text style={[styles.totalPriceLabel, { color: colors.text }]}>Tổng thanh toán</Text>
+                    <Text style={styles.totalPriceValue}>
                       ₫{(() => {
                         const basePrice = vehiclePrices[selectedVehicleType]
                         const discount = seats === 1 ? 0 : seats === 2 ? 0.15 : seats === 3 ? 0.25 : 0.30
@@ -1486,12 +1496,17 @@ export default function FindingRideScreen({ navigation }: any) {
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.cancelModalButton, { backgroundColor: colors.card, borderColor: '#ff4444' }]}
+                  style={styles.premiumCancelBtn}
                   onPress={handleCancelTrip}
                   activeOpacity={0.8}
                 >
-                  <MaterialIcons name="close" size={20} color="#ff4444" />
-                  <Text style={[styles.cancelModalButtonText, { color: '#ff4444' }]}>Hủy chuyến</Text>
+                  <LinearGradient
+                    colors={['rgba(255, 68, 68, 0.1)', 'rgba(255, 68, 68, 0.05)']}
+                    style={styles.premiumCancelGradient}
+                  >
+                    <MaterialIcons name="close" size={20} color="#ff4444" />
+                    <Text style={styles.premiumCancelBtnText}>Hủy tìm kiếm</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -2513,74 +2528,204 @@ const styles = StyleSheet.create({
 
   /* Creating Trip State */
   creatingTripContainer: {
-    padding: SPACING.xxl,
+    padding: SPACING.xl,
+    paddingTop: SPACING.xxl,
     alignItems: 'center',
   },
   scanningAnimation: {
-    width: 120,
-    height: 120,
+    width: 140,
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.xl,
   },
-  scanRing: {
+  scanRingOutermost: {
     position: 'absolute',
-    width: 120,
-    height: 120,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+  },
+  scanRingOuter: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 107, 0, 0.4)',
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+  },
+  scanRingCenter: {
+    position: 'absolute',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    padding: 6,
+    backgroundColor: 'rgba(255, 107, 0, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scanRingInner: {
+  scanRingGradient: {
     width: '100%',
     height: '100%',
-    borderRadius: 60,
-    borderWidth: 3,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 8,
   },
   scanningTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: SPACING.xs,
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: SPACING.sm,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
-  scanningSubtitle: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: SPACING.xl,
-  },
-  tripInfoBox: {
-    width: '100%',
-    backgroundColor: '#f8f9fa', // Light gray
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg,
-    gap: SPACING.md,
-    marginBottom: SPACING.xl,
-  },
-  tripInfoRow: {
+  timerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+    marginBottom: SPACING.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.2)',
+  },
+  timerBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FF6B00',
+  },
+  premiumTripInfoBox: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    marginBottom: SPACING.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.15)',
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  tripInfoGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  tripInfoCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  tripInfoDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255, 107, 0, 0.15)',
+  },
+  tripInfoIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   tripInfoLabel: {
-    fontSize: 14,
-    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
   },
   tripInfoValue: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  tripInfoDashes: {
+    height: 1,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 0, 0.15)',
+    borderStyle: 'dashed',
+    marginVertical: SPACING.md,
+  },
+  priceRowDetail: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  priceLabelSmall: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  priceValueSmall: {
     fontSize: 14,
     fontWeight: '700',
+    textDecorationLine: 'line-through',
   },
-  cancelModalButton: {
+  discountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF6B00',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  discountBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  discountValueText: {
+    color: '#FF6B00',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  totalPriceWrapper: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 107, 0, 0.1)',
+  },
+  totalPriceLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  totalPriceValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FF6B00',
+    letterSpacing: -0.5,
+  },
+  premiumCancelBtn: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.xl,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 68, 68, 0.3)',
+  },
+  premiumCancelGradient: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: SPACING.sm,
     paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    width: '100%',
+    gap: SPACING.sm,
   },
-  cancelModalButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  premiumCancelBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#ff4444',
   },
 })
 

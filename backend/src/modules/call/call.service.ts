@@ -44,7 +44,9 @@ export class CallService {
 
   private generateAgoraToken(channelName: string, uid: number): string {
     const appId = this.configService.get<string>('AGORA_APP_ID');
-    const appCertificate = this.configService.get<string>('AGORA_APP_CERTIFICATE');
+    const appCertificate = this.configService.get<string>(
+      'AGORA_APP_CERTIFICATE',
+    );
 
     if (!appId) {
       console.warn('[CallService] AGORA_APP_ID missing – set it in .env');
@@ -55,7 +57,9 @@ export class CallService {
     // ✅ APP ID only mode (no certificate): return empty token string
     // Mobile calls joinChannel(token='', channelName, uid, {})
     if (!appCertificate) {
-      console.log('[CallService] No AGORA_APP_CERTIFICATE – using APP ID only mode (token="")');
+      console.log(
+        '[CallService] No AGORA_APP_CERTIFICATE – using APP ID only mode (token="")',
+      );
       return '';
     }
 
@@ -125,15 +129,19 @@ export class CallService {
 
       // For CombinedTrip: customerId is an array
       if (isCombinedTrip) {
-        const customerIds: string[] = (ride.customerId as any[]).map((id: any) =>
-          id.toString(),
+        const customerIds: string[] = (ride.customerId as any[]).map(
+          (id: any) => id.toString(),
         );
         if (!customerIds.includes(userId)) {
-          throw new ForbiddenException('Bạn không phải là khách hàng của chuyến đi này');
+          throw new ForbiddenException(
+            'Bạn không phải là khách hàng của chuyến đi này',
+          );
         }
       } else {
         if (String(ride.customerId) !== userId) {
-          throw new ForbiddenException('Bạn không phải là khách hàng của chuyến đi này');
+          throw new ForbiddenException(
+            'Bạn không phải là khách hàng của chuyến đi này',
+          );
         }
       }
 
@@ -141,7 +149,9 @@ export class CallService {
     } else {
       // Driver calling customer
       if (String(ride.driverId) !== userId) {
-        throw new ForbiddenException('Bạn không phải là tài xế của chuyến đi này');
+        throw new ForbiddenException(
+          'Bạn không phải là tài xế của chuyến đi này',
+        );
       }
 
       // For CombinedTrip: pick first customer in the array
@@ -162,7 +172,9 @@ export class CallService {
     });
 
     if (existingCall) {
-      throw new BadRequestException('Chuyến đi này đang có cuộc gọi khác đang diễn ra');
+      throw new BadRequestException(
+        'Chuyến đi này đang có cuộc gọi khác đang diễn ra',
+      );
     }
 
     // 4. Generate channel name & Agora UIDs
@@ -214,11 +226,15 @@ export class CallService {
     const call = await this.findActiveOrThrow(dto.callId);
 
     if (String(call.receiverId) !== userId) {
-      throw new ForbiddenException('Chỉ người nhận mới có thể chấp nhận cuộc gọi');
+      throw new ForbiddenException(
+        'Chỉ người nhận mới có thể chấp nhận cuộc gọi',
+      );
     }
 
     if (call.status !== CallStatus.CALLING) {
-      throw new BadRequestException(`Cuộc gọi có trạng thái ${call.status}, không thể chấp nhận`);
+      throw new BadRequestException(
+        `Cuộc gọi có trạng thái ${call.status}, không thể chấp nhận`,
+      );
     }
 
     // Cancel timeout
@@ -229,8 +245,14 @@ export class CallService {
     await call.save();
 
     // Generate tokens for both parties
-    const receiverToken = this.generateAgoraToken(call.channelName, call.receiverUid);
-    const callerToken = this.generateAgoraToken(call.channelName, call.callerUid);
+    const receiverToken = this.generateAgoraToken(
+      call.channelName,
+      call.receiverUid,
+    );
+    const callerToken = this.generateAgoraToken(
+      call.channelName,
+      call.callerUid,
+    );
 
     this.eventEmitter.emit('call.accepted', {
       callId: dto.callId,
@@ -256,11 +278,15 @@ export class CallService {
     const call = await this.findActiveOrThrow(dto.callId);
 
     if (String(call.receiverId) !== userId) {
-      throw new ForbiddenException('Chỉ người nhận mới có thể từ chối cuộc gọi');
+      throw new ForbiddenException(
+        'Chỉ người nhận mới có thể từ chối cuộc gọi',
+      );
     }
 
     if (call.status !== CallStatus.CALLING) {
-      throw new BadRequestException(`Cuộc gọi có trạng thái ${call.status}, không thể từ chối`);
+      throw new BadRequestException(
+        `Cuộc gọi có trạng thái ${call.status}, không thể từ chối`,
+      );
     }
 
     this.clearTimeout(dto.callId);
@@ -288,7 +314,9 @@ export class CallService {
     const isReceiver = String(call.receiverId) === userId;
 
     if (!isCaller && !isReceiver) {
-      throw new ForbiddenException('Bạn không phải là người tham gia cuộc gọi này');
+      throw new ForbiddenException(
+        'Bạn không phải là người tham gia cuộc gọi này',
+      );
     }
 
     if (![CallStatus.CALLING, CallStatus.ACCEPTED].includes(call.status)) {
@@ -337,7 +365,9 @@ export class CallService {
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  private async findActiveOrThrow(callId: string): Promise<CallSessionDocument> {
+  private async findActiveOrThrow(
+    callId: string,
+  ): Promise<CallSessionDocument> {
     if (!Types.ObjectId.isValid(callId)) {
       throw new BadRequestException('callId không hợp lệ');
     }
@@ -366,10 +396,15 @@ export class CallService {
             receiverId: call.receiverId.toString(),
           });
 
-          console.log(`[CallService] ⏱ Call ${callId} auto-missed after 30s timeout`);
+          console.log(
+            `[CallService] ⏱ Call ${callId} auto-missed after 30s timeout`,
+          );
         }
       } catch (err) {
-        console.error(`[CallService] ❌ Timeout handler error for call ${callId}:`, err);
+        console.error(
+          `[CallService] ❌ Timeout handler error for call ${callId}:`,
+          err,
+        );
       } finally {
         this.timeouts.delete(callId);
       }

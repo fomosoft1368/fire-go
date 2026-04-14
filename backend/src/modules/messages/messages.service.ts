@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Message, MessageDocument } from './schemas/message.schema';
@@ -21,11 +25,13 @@ export class MessagesService {
   ): Promise<MessageDocument> {
     const hasRide = !!createMessageDto.rideId;
     const hasDelivery = !!createMessageDto.deliveryId;
-    
+
     if ((!hasRide && !hasDelivery) || (hasRide && hasDelivery)) {
-      throw new BadRequestException('Either rideId or deliveryId is required (but not both)');
+      throw new BadRequestException(
+        'Either rideId or deliveryId is required (but not both)',
+      );
     }
-    
+
     if (!senderId || !createMessageDto.text) {
       throw new BadRequestException('senderId and text are required');
     }
@@ -43,9 +49,13 @@ export class MessagesService {
       if (hasRide) {
         messageData.rideId = new Types.ObjectId(createMessageDto.rideId);
       } else if (hasDelivery) {
-        messageData.deliveryId = new Types.ObjectId(createMessageDto.deliveryId);
-      } else  {
-        messageData.combinedTripId = new Types.ObjectId(createMessageDto.combinedTripId);
+        messageData.deliveryId = new Types.ObjectId(
+          createMessageDto.deliveryId,
+        );
+      } else {
+        messageData.combinedTripId = new Types.ObjectId(
+          createMessageDto.combinedTripId,
+        );
       }
 
       const message = await this.messageModel.create(messageData);
@@ -282,7 +292,7 @@ export class MessagesService {
     messages: MessageDocument[];
     total: number;
   }> {
-    const objectId = new Types.ObjectId(combinedTripId);  
+    const objectId = new Types.ObjectId(combinedTripId);
     const [messages, total] = await Promise.all([
       this.messageModel
         .find({ combinedTripId: objectId })
@@ -294,9 +304,9 @@ export class MessagesService {
     ]);
     console.log(`[MessagesService] Retrieved messages for combined trip:`, {
       combinedTripId,
-      count: messages.length, 
+      count: messages.length,
       total,
-    });  
+    });
     return {
       messages: messages.reverse(), // Đảo lại để có thứ tự tăng dần (cũ -> mới)
       total,
@@ -336,5 +346,4 @@ export class MessagesService {
       recipientId,
     });
   }
-  
 }

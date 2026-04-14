@@ -11,7 +11,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: process.env.NODE_ENV !== 'production',
       secretOrKey: jwtConfig.secret,
     });
-    console.log('[CustomersJwtStrategy] Initialized with secret:', jwtConfig.secret.substring(0, 20) + '...');
+    console.log(
+      '[CustomersJwtStrategy] Initialized with secret:',
+      jwtConfig.secret.substring(0, 20) + '...',
+    );
   }
 
   async validate(payload: any) {

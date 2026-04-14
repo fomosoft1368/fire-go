@@ -126,4 +126,3 @@ export class CreateDriverDto {
   @IsString({ message: 'Mã giới thiệu phải là chuỗi ký tự' })
   referralCode?: string; // Mã người giới thiệu
 }
-

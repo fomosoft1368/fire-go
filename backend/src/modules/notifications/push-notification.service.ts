@@ -2,8 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Driver, DriverDocument } from '../drivers/schemas/driver.schema';
-import { Customer, CustomerDocument } from '../customers/schemas/customer.schema';
-import { Notification, NotificationDocument, NotificationType, NotificationChannel } from './schemas/notification.schema';
+import {
+  Customer,
+  CustomerDocument,
+} from '../customers/schemas/customer.schema';
+import {
+  Notification,
+  NotificationDocument,
+  NotificationType,
+  NotificationChannel,
+} from './schemas/notification.schema';
 
 export interface PushMessage {
   to: string;
@@ -23,23 +31,35 @@ export class PushNotificationService {
   constructor(
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     @InjectModel(Customer.name) private customerModel: Model<CustomerDocument>,
-    @InjectModel(Notification.name) private notificationModel: Model<NotificationDocument>,
+    @InjectModel(Notification.name)
+    private notificationModel: Model<NotificationDocument>,
   ) {}
 
   /**
    * Save Expo push token for a driver
    */
   async saveDriverPushToken(driverId: string, token: string): Promise<void> {
-    await this.driverModel.findByIdAndUpdate(driverId, { expoPushToken: token });
-    this.logger.log(`🔔 [Driver] Push token saved: ${driverId} -> ${token.substring(0, 30)}...`);
+    await this.driverModel.findByIdAndUpdate(driverId, {
+      expoPushToken: token,
+    });
+    this.logger.log(
+      `🔔 [Driver] Push token saved: ${driverId} -> ${token.substring(0, 30)}...`,
+    );
   }
 
   /**
    * Save Expo push token for a customer (Customer collection)
    */
-  async saveCustomerPushToken(customerId: string, token: string): Promise<void> {
-    await this.customerModel.findByIdAndUpdate(customerId, { expoPushToken: token });
-    this.logger.log(`🔔 [Customer] Push token saved: ${customerId} -> ${token.substring(0, 30)}...`);
+  async saveCustomerPushToken(
+    customerId: string,
+    token: string,
+  ): Promise<void> {
+    await this.customerModel.findByIdAndUpdate(customerId, {
+      expoPushToken: token,
+    });
+    this.logger.log(
+      `🔔 [Customer] Push token saved: ${customerId} -> ${token.substring(0, 30)}...`,
+    );
   }
 
   /**
@@ -68,9 +88,13 @@ export class PushNotificationService {
         isActive: true,
         isRead: false,
       });
-      this.logger.log(`💾 [Customer] Notification saved to DB: ${customerId} — "${title}"`);
+      this.logger.log(
+        `💾 [Customer] Notification saved to DB: ${customerId} — "${title}"`,
+      );
     } catch (err) {
-      this.logger.warn(`⚠️ [Customer] Failed to save notification to DB: ${err.message}`);
+      this.logger.warn(
+        `⚠️ [Customer] Failed to save notification to DB: ${err.message}`,
+      );
     }
 
     // ② Also attempt remote push (Expo Go will silently skip — no token registered)
@@ -103,9 +127,13 @@ export class PushNotificationService {
         isActive: true,
         isRead: false,
       });
-      this.logger.log(`💾 [Driver] Notification saved to DB: ${driverId} — "${title}"`);
+      this.logger.log(
+        `💾 [Driver] Notification saved to DB: ${driverId} — "${title}"`,
+      );
     } catch (err) {
-      this.logger.warn(`⚠️ [Driver] Failed to save notification to DB: ${err.message}`);
+      this.logger.warn(
+        `⚠️ [Driver] Failed to save notification to DB: ${err.message}`,
+      );
     }
 
     // ② Also attempt remote push
@@ -122,19 +150,27 @@ export class PushNotificationService {
     data?: Record<string, any>,
   ): Promise<void> {
     try {
-      const driver = await this.driverModel.findById(driverId).select('expoPushToken firstName').lean() as any;
+      const driver = (await this.driverModel
+        .findById(driverId)
+        .select('expoPushToken firstName')
+        .lean()) as any;
       if (!driver) {
         this.logger.warn(`⚠️ [Driver] Not found in DB: ${driverId}`);
         return;
       }
       if (!driver.expoPushToken) {
-        this.logger.warn(`⚠️ [Driver] No push token registered: ${driverId} (${driver.firstName || ''})`);
+        this.logger.warn(
+          `⚠️ [Driver] No push token registered: ${driverId} (${driver.firstName || ''})`,
+        );
         return;
       }
       this.logger.log(`📤 [Driver] Sending push to ${driverId}: "${title}"`);
       await this.sendPush([driver.expoPushToken], title, body, data);
     } catch (error) {
-      this.logger.error(`Failed to send push to driver ${driverId}:`, error.message);
+      this.logger.error(
+        `Failed to send push to driver ${driverId}:`,
+        error.message,
+      );
     }
   }
 
@@ -148,34 +184,55 @@ export class PushNotificationService {
     data?: Record<string, any>,
   ): Promise<void> {
     try {
-      const customer = await this.customerModel.findById(customerId).select('expoPushToken firstName').lean() as any;
+      const customer = (await this.customerModel
+        .findById(customerId)
+        .select('expoPushToken firstName')
+        .lean()) as any;
       if (!customer) {
         this.logger.warn(`⚠️ [Customer] Not found in DB: ${customerId}`);
         return;
       }
       if (!customer.expoPushToken) {
-        this.logger.warn(`⚠️ [Customer] No push token registered: ${customerId} (${customer.firstName || ''})`);
+        this.logger.warn(
+          `⚠️ [Customer] No push token registered: ${customerId} (${customer.firstName || ''})`,
+        );
         return;
       }
-      this.logger.log(`📤 [Customer] Sending push to ${customerId}: "${title}"`);
+      this.logger.log(
+        `📤 [Customer] Sending push to ${customerId}: "${title}"`,
+      );
       await this.sendPush([customer.expoPushToken], title, body, data);
     } catch (error) {
-      this.logger.error(`Failed to send push to customer ${customerId}:`, error.message);
+      this.logger.error(
+        `Failed to send push to customer ${customerId}:`,
+        error.message,
+      );
     }
   }
 
   /**
    * Send push to multiple tokens (Expo batch API)
    */
-  async sendPush(tokens: string[], title: string, body: string, data?: Record<string, any>): Promise<void> {
+  async sendPush(
+    tokens: string[],
+    title: string,
+    body: string,
+    data?: Record<string, any>,
+  ): Promise<void> {
     // Filter valid Expo push tokens
-    const validTokens = tokens.filter(t => t && t.startsWith('ExponentPushToken['));
+    const validTokens = tokens.filter(
+      (t) => t && t.startsWith('ExponentPushToken['),
+    );
 
     console.log(`\n📡 ===== EXPO PUSH DISPATCH =====`);
-    console.log(`📱 Tokens total: ${tokens.length} | Valid: ${validTokens.length}`);
+    console.log(
+      `📱 Tokens total: ${tokens.length} | Valid: ${validTokens.length}`,
+    );
     console.log(`📬 Title: "${title}"`);
     console.log(`📝 Body: "${body}"`);
-    validTokens.forEach((t, i) => console.log(`   Token[${i}]: ${t.substring(0, 45)}...`));
+    validTokens.forEach((t, i) =>
+      console.log(`   Token[${i}]: ${t.substring(0, 45)}...`),
+    );
 
     if (validTokens.length === 0) {
       console.log('⚠️ No valid ExponentPushToken[] found — push skipped.');
@@ -183,7 +240,7 @@ export class PushNotificationService {
       return;
     }
 
-    const messages: PushMessage[] = validTokens.map(token => ({
+    const messages: PushMessage[] = validTokens.map((token) => ({
       to: token,
       title,
       body,
@@ -197,20 +254,22 @@ export class PushNotificationService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
           'Accept-Encoding': 'gzip, deflate',
         },
         body: JSON.stringify(messages),
       });
 
-      const result = await response.json() as any;
+      const result = (await response.json()) as any;
       console.log(`🌐 Expo API response status: ${response.status}`);
       console.log(`📦 Expo API result:`, JSON.stringify(result, null, 2));
 
       if (result.data) {
         result.data.forEach((r: any, i: number) => {
           if (r.status === 'error') {
-            console.log(`❌ [${i}] Push ERROR: ${r.message} (${r.details?.error})`);
+            console.log(
+              `❌ [${i}] Push ERROR: ${r.message} (${r.details?.error})`,
+            );
           } else {
             console.log(`✅ [${i}] Push OK — receipt ID: ${r.id}`);
           }

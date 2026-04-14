@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  Query,
+} from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto, UpdateReviewDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -33,13 +44,19 @@ export class ReviewsController {
   }
 
   @Get('user/:userId/given')
-  async findByReviewer(@Param('userId') userId: string, @Query('limit') limit: number = 20) {
+  async findByReviewer(
+    @Param('userId') userId: string,
+    @Query('limit') limit: number = 20,
+  ) {
     return this.reviewsService.findByReviewer(userId, limit);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  async update(@Param('id') id: string, @Body() updateReviewDto: UpdateReviewDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateReviewDto: UpdateReviewDto,
+  ) {
     return this.reviewsService.update(id, updateReviewDto);
   }
 

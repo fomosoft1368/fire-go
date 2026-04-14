@@ -1,7 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { AppSetting, AppSettingDocument, SettingGroup } from './schemas/app-setting.schema';
+import {
+  AppSetting,
+  AppSettingDocument,
+  SettingGroup,
+} from './schemas/app-setting.schema';
 
 /** Định nghĩa tất cả settings và giá trị mặc định lấy từ .env */
 const DEFAULT_SETTINGS = [
@@ -93,7 +97,8 @@ const DEFAULT_SETTINGS = [
     label: 'Google Maps API Key',
     group: SettingGroup.MAPS,
     isSecret: true,
-    description: 'API Key lấy từ Google Cloud Console (cần bật Maps SDK, Places, Directions, Distance Matrix)',
+    description:
+      'API Key lấy từ Google Cloud Console (cần bật Maps SDK, Places, Directions, Distance Matrix)',
     envFallback: 'GOOGLE_MAPS_API_KEY',
   },
   {
@@ -176,7 +181,8 @@ export class AppSettingsService implements OnModuleInit {
     const docs = await this.settingModel.find().lean();
     return docs.map((doc) => ({
       ...doc,
-      value: doc.isSecret && !showSecrets ? this.maskValue(doc.value) : doc.value,
+      value:
+        doc.isSecret && !showSecrets ? this.maskValue(doc.value) : doc.value,
     }));
   }
 
@@ -210,7 +216,9 @@ export class AppSettingsService implements OnModuleInit {
           isSecret: def.isSecret,
           description: def.description,
         });
-        this.logger.log(`📦 Seeded setting: ${def.key} = ${def.isSecret ? '***' : envValue}`);
+        this.logger.log(
+          `📦 Seeded setting: ${def.key} = ${def.isSecret ? '***' : envValue}`,
+        );
       }
     }
   }
@@ -234,6 +242,8 @@ export class AppSettingsService implements OnModuleInit {
 
   private maskValue(value: string): string {
     if (!value || value.length <= 8) return '••••••••';
-    return value.substring(0, 4) + '••••••••' + value.substring(value.length - 4);
+    return (
+      value.substring(0, 4) + '••••••••' + value.substring(value.length - 4)
+    );
   }
 }

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Review, ReviewDocument, ReviewType } from './schemas/review.schema';
@@ -6,9 +10,14 @@ import { CreateReviewDto, UpdateReviewDto } from './dto';
 
 @Injectable()
 export class ReviewsService {
-  constructor(@InjectModel(Review.name) private reviewModel: Model<ReviewDocument>) {}
+  constructor(
+    @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>,
+  ) {}
 
-  async create(reviewerId: string, createReviewDto: CreateReviewDto): Promise<ReviewDocument> {
+  async create(
+    reviewerId: string,
+    createReviewDto: CreateReviewDto,
+  ): Promise<ReviewDocument> {
     const reviewType: ReviewType = ReviewType.DRIVER; // Default to driver review
 
     const review = await this.reviewModel.create({
@@ -40,7 +49,11 @@ export class ReviewsService {
       .populate(['rideId', 'reviewerId', 'revieweeId']);
   }
 
-  async findByReviewee(userId: string, limit: number = 20, skip: number = 0): Promise<ReviewDocument[]> {
+  async findByReviewee(
+    userId: string,
+    limit: number = 20,
+    skip: number = 0,
+  ): Promise<ReviewDocument[]> {
     return this.reviewModel
       .find({ revieweeId: new Types.ObjectId(userId), isFlagged: false })
       .populate(['rideId', 'reviewerId'])
@@ -49,7 +62,10 @@ export class ReviewsService {
       .skip(skip);
   }
 
-  async findByReviewer(userId: string, limit: number = 20): Promise<ReviewDocument[]> {
+  async findByReviewer(
+    userId: string,
+    limit: number = 20,
+  ): Promise<ReviewDocument[]> {
     return this.reviewModel
       .find({ reviewerId: new Types.ObjectId(userId) })
       .populate(['rideId', 'revieweeId'])
@@ -57,8 +73,13 @@ export class ReviewsService {
       .limit(limit);
   }
 
-  async update(reviewId: string, updateReviewDto: UpdateReviewDto): Promise<ReviewDocument> {
-    return this.reviewModel.findByIdAndUpdate(reviewId, updateReviewDto, { new: true });
+  async update(
+    reviewId: string,
+    updateReviewDto: UpdateReviewDto,
+  ): Promise<ReviewDocument> {
+    return this.reviewModel.findByIdAndUpdate(reviewId, updateReviewDto, {
+      new: true,
+    });
   }
 
   async flagReview(reviewId: string, reason: string): Promise<ReviewDocument> {

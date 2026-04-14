@@ -32,7 +32,8 @@ export class DriverSearchConfig extends Document {
 }
 
 export type DriverSearchConfigDocument = DriverSearchConfig & Document;
-export const DriverSearchConfigSchema = SchemaFactory.createForClass(DriverSearchConfig);
+export const DriverSearchConfigSchema =
+  SchemaFactory.createForClass(DriverSearchConfig);
 
 // Create index for fast lookup
 DriverSearchConfigSchema.index({ serviceType: 1 });

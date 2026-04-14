@@ -43,11 +43,15 @@ export class PlacesService {
   constructor(
     @InjectModel(Place.name) private placeModel: Model<PlaceDocument>,
     private readonly appSettings: AppSettingsService,
-  ) { }
+  ) {}
 
   /** Lấy key từ AppSettingsService (DB) — fallback về .env nếu chưa seed */
   private get googleMapsApiKey() {
-    return this.appSettings.getSync('GOOGLE_MAPS_API_KEY') || process.env.GOOGLE_MAPS_API_KEY || '';
+    return (
+      this.appSettings.getSync('GOOGLE_MAPS_API_KEY') ||
+      process.env.GOOGLE_MAPS_API_KEY ||
+      ''
+    );
   }
 
   /**
@@ -60,16 +64,26 @@ export class PlacesService {
    * @param userLng - User longitude (optional)
    * @param userId - Customer ID or Driver ID for personalized search history
    */
-  async searchPlaces(keyword: string, userLat: number, userLng: number, userId?: string): Promise<{
+  async searchPlaces(
+    keyword: string,
+    userLat: number,
+    userLng: number,
+    userId?: string,
+  ): Promise<{
     results: PlaceResult[];
     source: 'cache' | 'database' | 'google';
   }> {
     const normalizedKeyword = keyword.trim().toLowerCase();
 
-    console.log('🔍 [PlacesService] Searching:', { keyword: normalizedKeyword, userId });
+    console.log('🔍 [PlacesService] Searching:', {
+      keyword: normalizedKeyword,
+      userId,
+    });
 
     // 1️⃣ Check memory cache (include userId in cache key)
-    const cacheKey = userId ? `${userId}:${normalizedKeyword}` : normalizedKeyword;
+    const cacheKey = userId
+      ? `${userId}:${normalizedKeyword}`
+      : normalizedKeyword;
     const cached = placeCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
       console.log('✅ Memory cache hit:', cacheKey);
@@ -84,7 +98,7 @@ export class PlacesService {
     const dbResults = await this.placeModel.find(
       dbQuery,
       { _id: 0, placeId: 1, name: 1, address: 1, lat: 1, lng: 1 },
-      { limit: 10, sort: { searchCount: -1, lastSearchedAt: -1 } }
+      { limit: 10, sort: { searchCount: -1, lastSearchedAt: -1 } },
     );
 
     if (dbResults.length > 0) {
@@ -105,20 +119,29 @@ export class PlacesService {
       console.log('✅ Database hit:', cacheKey, `(${results.length} results)`);
 
       // Update lastSearchedAt and searchCount
-      this.placeModel.updateMany(
-        dbQuery,
-        {
+      this.placeModel
+        .updateMany(dbQuery, {
           $set: { lastSearchedAt: new Date() },
           $inc: { searchCount: 1 },
-        }
-      ).exec().catch(err => console.error('Update error:', err));
+        })
+        .exec()
+        .catch((err) => console.error('Update error:', err));
 
       return { results, source: 'database' };
     }
 
     // 3️⃣ Call Google Places Autocomplete API
-    console.log('🔍 Calling Google Places API for:', normalizedKeyword, 'userId:', userId);
-    const googleResults = await this.callGooglePlacesAPI(normalizedKeyword, userLat, userLng);
+    console.log(
+      '🔍 Calling Google Places API for:',
+      normalizedKeyword,
+      'userId:',
+      userId,
+    );
+    const googleResults = await this.callGooglePlacesAPI(
+      normalizedKeyword,
+      userLat,
+      userLng,
+    );
 
     if (googleResults.length > 0) {
       // Save to database for future use (with userId)
@@ -130,7 +153,9 @@ export class PlacesService {
         timestamp: Date.now(),
       });
 
-      console.log(`✅ GOOGLE hit: ${cacheKey} (${googleResults.length} results)`);
+      console.log(
+        `✅ GOOGLE hit: ${cacheKey} (${googleResults.length} results)`,
+      );
       return { results: googleResults, source: 'google' };
     }
     console.log('data google : ', googleResults);
@@ -143,7 +168,11 @@ export class PlacesService {
    * ⚡ Optimization: Skip Place Details here, get coordinates only when user selects
    * This reduces API calls from 11 to 1 per search
    */
-  private async callGooglePlacesAPI(keyword: string, lat?: number, lng?: number): Promise<PlaceResult[]> {
+  private async callGooglePlacesAPI(
+    keyword: string,
+    lat?: number,
+    lng?: number,
+  ): Promise<PlaceResult[]> {
     // Check if API key is configured
     if (!this.googleMapsApiKey) {
       console.error('❌ GOOGLE_MAPS_API_KEY is not configured in .env!');
@@ -153,7 +182,10 @@ export class PlacesService {
     try {
       // Clean keyword: remove commas and extra spaces for better search
       // "Tan Giang, Quynh Bang" -> "Tan Giang Quynh Bang"
-      const cleanKeyword = keyword.replace(/[,。，]/g, ' ').replace(/\s+/g, ' ').trim();
+      const cleanKeyword = keyword
+        .replace(/[,。，]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
       console.log('🧹 [PlacesService] Cleaned keyword:', {
         original: keyword,
@@ -171,9 +203,13 @@ export class PlacesService {
         locationParams = `&components=country:vn`;
       }
 
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-        cleanKeyword
-      )}${locationParams}&key=${this.googleMapsApiKey}&language=vi`.replace(/\s+/g, '');
+      const url =
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+          cleanKeyword,
+        )}${locationParams}&key=${this.googleMapsApiKey}&language=vi`.replace(
+          /\s+/g,
+          '',
+        );
 
       console.log('📡 Calling Places Autocomplete API:', {
         keyword: cleanKeyword,
@@ -184,7 +220,10 @@ export class PlacesService {
       const response = await fetch(url);
       const data = (await response.json()) as GoogleAutocompleteResponse;
 
-      console.log('📥 [PlacesService] Google API response status:', data.status);
+      console.log(
+        '📥 [PlacesService] Google API response status:',
+        data.status,
+      );
       if (data.predictions) {
         console.log('   Predictions count:', data.predictions.length);
       }
@@ -227,14 +266,12 @@ export class PlacesService {
    * Get place details (coordinates) - PUBLIC for controller endpoint
    * Called only when user selects a place (lazy loading)
    */
-  async getPlaceDetails(
-    placeId: string
-  ): Promise<PlaceResult> {
+  async getPlaceDetails(placeId: string): Promise<PlaceResult> {
     try {
       // Check database first
       const dbPlace = await this.placeModel.findOne(
         { placeId },
-        { _id: 0, placeId: 1, name: 1, address: 1, lat: 1, lng: 1 }
+        { _id: 0, placeId: 1, name: 1, address: 1, lat: 1, lng: 1 },
       );
 
       if (dbPlace && dbPlace.lat && dbPlace.lng) {
@@ -283,7 +320,7 @@ export class PlacesService {
             lng: result.lng,
             lastSearchedAt: new Date(),
           },
-          { upsert: true }
+          { upsert: true },
         );
 
         return {
@@ -322,7 +359,7 @@ export class PlacesService {
   private async savePlacesToDatabase(
     keyword: string,
     results: PlaceResult[],
-    userId?: string
+    userId?: string,
   ): Promise<void> {
     try {
       const documents = results.map((result) => ({
@@ -353,11 +390,13 @@ export class PlacesService {
             $set: docWithoutCount,
             $inc: { searchCount: 1 },
           },
-          { upsert: true }
+          { upsert: true },
         );
       }
 
-      console.log(`💾 Saved ${documents.length} places to database${userId ? ` for user ${userId}` : ''}`);
+      console.log(
+        `💾 Saved ${documents.length} places to database${userId ? ` for user ${userId}` : ''}`,
+      );
     } catch (error) {
       console.error('Error saving places:', error);
     }
@@ -374,7 +413,7 @@ export class PlacesService {
     try {
       const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${this.googleMapsApiKey}`;
       const response = await fetch(url);
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
       if (data.status === 'OK' && data.results?.length > 0) {
         return { address: data.results[0].formatted_address };
       }
@@ -388,15 +427,21 @@ export class PlacesService {
    * Geocoding: địa chỉ → toạ độ
    * Proxy qua backend để mobile app không cần giữ API key
    */
-  async geocodeAddress(address: string): Promise<{ lat: number; lng: number; formattedAddress: string } | null> {
+  async geocodeAddress(
+    address: string,
+  ): Promise<{ lat: number; lng: number; formattedAddress: string } | null> {
     if (!this.googleMapsApiKey) return null;
     try {
       const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${this.googleMapsApiKey}`;
       const response = await fetch(url);
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
       if (data.status === 'OK' && data.results?.length > 0) {
         const loc = data.results[0].geometry.location;
-        return { lat: loc.lat, lng: loc.lng, formattedAddress: data.results[0].formatted_address };
+        return {
+          lat: loc.lat,
+          lng: loc.lng,
+          formattedAddress: data.results[0].formatted_address,
+        };
       }
       return null;
     } catch {
@@ -422,4 +467,3 @@ export class PlacesService {
     };
   }
 }
-

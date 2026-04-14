@@ -27,7 +27,7 @@ export class ZaloRsaHelper {
     if (!publicKeyPem || publicKeyPem.trim() === '') {
       throw new Error(
         '[ZaloRSA] ZALO_RSA_PUBLIC_KEY chưa được cấu hình. ' +
-        'Vào Zalo Developers > App > Cài đặt kỹ thuật > RSA Public Key để lấy key.',
+          'Vào Zalo Developers > App > Cài đặt kỹ thuật > RSA Public Key để lấy key.',
       );
     }
 
@@ -36,7 +36,7 @@ export class ZaloRsaHelper {
         {
           key: publicKeyPem,
           padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
-          oaepHash: 'sha256',   // SHA-256 với MGF1
+          oaepHash: 'sha256', // SHA-256 với MGF1
         },
         Buffer.from(data, 'utf8'),
       );
@@ -44,7 +44,7 @@ export class ZaloRsaHelper {
     } catch (err: any) {
       throw new Error(
         `[ZaloRSA] Lỗi mã hóa RSA: ${err.message}. ` +
-        'Kiểm tra lại định dạng Public Key (phải là PEM, PKCS#8).',
+          'Kiểm tra lại định dạng Public Key (phải là PEM, PKCS#8).',
       );
     }
   }
