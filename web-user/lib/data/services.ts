@@ -21,10 +21,10 @@ export const SERVICES = [
     bgColor: 'bg-orange-50',
     textColor: 'text-orange-600',
     pricing: {
-      base: 15000,
-      perKm: 3500,
+      base: 1500,       // backend default: bike.pricePerKm = 1.500đ/km
+      perKm: 1500,
       unit: 'km',
-      note: 'Giá đã bao gồm phí dịch vụ',
+      note: 'Giá chưa bao gồm phí mở cửa, tính theo khoảng cách thực tế',
     },
     seo: {
       title: 'Ghép Xe Giá Rẻ – Đi Chung Tiết Kiệm | FireGo',
@@ -54,10 +54,10 @@ export const SERVICES = [
     bgColor: 'bg-blue-50',
     textColor: 'text-blue-600',
     pricing: {
-      base: 50000,
-      perKm: 8000,
-      unit: 'km',
-      note: 'Tối thiểu 5km, giá trọn gói theo giờ từ 150.000đ/giờ',
+      base: 100000,     // backend default: sedan.openingFee = 100.000đ (bao gồm 10km đầu)
+      perKm: 10000,
+      unit: 'chuyến',
+      note: 'Phí mở cửa bao gồm 10km đầu, vượt thêm 10.000đ/km',
     },
     seo: {
       title: 'Thuê Tài Xế Lái Hộ Xe – Chuyên Nghiệp & An Toàn | FireGo',
@@ -87,10 +87,10 @@ export const SERVICES = [
     bgColor: 'bg-green-50',
     textColor: 'text-green-600',
     pricing: {
-      base: 20000,
-      perKm: 5000,
+      base: 1500,       // backend default: bike.pricePerKm = 1.500đ/km
+      perKm: 1500,
       unit: 'km',
-      note: 'Phí theo trọng lượng hàng hóa',
+      note: 'Giá xe máy, tính theo khoảng cách + phụ phí hàng hóa',
     },
     seo: {
       title: 'Vận Chuyển Hàng Hóa Nội Thành Nhanh Chóng | FireGo',

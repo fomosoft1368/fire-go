@@ -3,7 +3,7 @@ import { ArrowRight, CheckCircle } from 'lucide-react'
 import { SERVICES } from '@/lib/data/services'
 import {
   getPricingConfig,
-  getShareRidePricePerKm,
+  getShareRideStartingPrice,
   getHireDriverBaseFee,
   getDeliveryPricePerKm,
 } from '@/lib/api/pricing'
@@ -14,7 +14,7 @@ export default async function ServicesOverview() {
   // Tính giá động từ API, fallback về giá mặc định trong SERVICES
   const dynamicPricing: Record<string, { base: number; unit: string }> = pricingConfig
     ? {
-        'ghep-xe': { base: getShareRidePricePerKm(pricingConfig), unit: 'km' },
+        'ghep-xe': { base: getShareRideStartingPrice(pricingConfig), unit: 'km' },
         'lai-ho': { base: getHireDriverBaseFee(pricingConfig), unit: 'chuyến' },
         'van-chuyen': { base: getDeliveryPricePerKm(pricingConfig), unit: 'km' },
         've-sinh': { base: 120000, unit: 'giờ' }, // Vệ sinh theo giờ, giữ nguyên
