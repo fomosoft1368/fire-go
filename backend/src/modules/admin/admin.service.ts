@@ -484,7 +484,7 @@ export class AdminService {
     if (
       !marketingReferrerId &&
       creatorId &&
-      ['F1_LEAD', 'F2_SUB_LEAD', 'F3_STAFF_MKT'].includes(createUserDto.role)
+      ['f1_lead', 'f2_sub_lead', 'f3_staff_mkt'].includes(createUserDto.role?.toLowerCase())
     ) {
       const creator = await this.userModel.findById(creatorId);
       // Admin tạo F1 thì không gán trực tiếp (Admin ko thuộc phả hệ). F1 tạo F2 thì gán.

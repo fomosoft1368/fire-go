@@ -15,6 +15,7 @@ import {
   PaymentMethod,
 } from '../../wallets/schemas/transaction.schema';
 import { PricingService } from '../../pricing/pricing.service';
+import { TeamsService } from '../../teams/teams.service';
 
 @Injectable()
 export class WalletService {
@@ -23,6 +24,7 @@ export class WalletService {
     @InjectModel(Transaction.name)
     private transactionModel: Model<TransactionDocument>,
     private readonly pricingService: PricingService,
+    private readonly teamsService: TeamsService,
   ) {}
 
   /**
@@ -319,7 +321,21 @@ export class WalletService {
 
     await driver.save();
 
-    // ============ XỬ LÝ HOA HỒNG GIỚI THIỆU (REFERRAL) ============
+    // ============ XỬ LÝ HOA HỒNG MARKETING TEAM (F1-F2-F3) ============
+    if (driver.marketingReferrerId && commissionAmount > 0) {
+      try {
+        await this.teamsService.processMarketingCommission(
+          driver._id.toString(),
+          tripId.toString(),
+          commissionAmount, // basePlatformFee
+        );
+      } catch (err) {
+        console.error('[WalletService] Error processing marketing commission:', err);
+      }
+    }
+    // ============ END MARKETING ============
+
+    // ============ XỬ LÝ HOA HỒNG GIỚI THIỆU (REFERRAL CŨ) ============
     if (pricingConfig.referralEnabled && commissionAmount > 0) {
       // Check điều kiện: số cuốc hợp lệ để bắt đầu trả thưởng
       // Lấy referralMinTrips (mặc định 5), kiểm tra (driver.completedRides + 1) vì cuốc này vừa hoàn thành chưa được count trong DB nếu gọi trước khi lưu DB

@@ -3,6 +3,7 @@ import { Table, Typography, Card, Modal, Tag, Space, Button } from 'antd';
 import { BugOutlined, EyeOutlined } from '@ant-design/icons';
 import Layout from '../components/Layout';
 import { notification } from 'antd';
+import { apiService } from '../services/api';
 
 const { Title, Text } = Typography;
 
@@ -17,8 +18,7 @@ const SystemLogs: React.FC = () => {
   const fetchLogs = async (page = 1, pageSize = 50) => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:3000/api/logs?page=${page}&limit=${pageSize}`);
-      const data = await res.json();
+      const data = await apiService.get(`/logs?page=${page}&limit=${pageSize}`);
       
       setLogs(data.data || []);
       setPagination({
@@ -27,6 +27,7 @@ const SystemLogs: React.FC = () => {
         total: data.total
       });
     } catch (error) {
+      console.error("fetchLogs err:", error);
       notification.error({ message: 'Lỗi tải log', description: 'Không thể kết nối đến server' });
     } finally {
       setLoading(false);

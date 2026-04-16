@@ -67,8 +67,23 @@ export default function Login() {
           console.log('Could not fetch full profile (this is ok if API is not ready)');
         }
         
-        // Redirect to dashboard
-        navigate('/');
+        // Detect role and redirect accordingly
+        let userRole = response.user?.role || response.data?.user?.role || 'admin';
+        // Also try decoding from token directly
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const decoded = JSON.parse(atob(parts[1]));
+            userRole = decoded.role || userRole;
+          }
+        } catch {}
+
+        const marketingRoles = ['f1_lead', 'f2_sub_lead', 'f3_staff_mkt'];
+        if (marketingRoles.includes(userRole)) {
+          navigate('/marketing-dashboard');
+        } else {
+          navigate('/');
+        }
       } else {
         setError('Lỗi: Không nhận được token từ server');
       }

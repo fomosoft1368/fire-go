@@ -26,6 +26,7 @@ import { Types } from 'mongoose';
 import { PricingConfig } from '../../pricing/pricing-config.schema';
 import { PushNotificationService } from '../../notifications/push-notification.service';
 import { NotificationType } from '../../notifications/schemas/notification.schema';
+import { TeamsService } from '../../teams/teams.service';
 
 @Controller('combined-trips')
 export class CombinedTripsController {
@@ -39,6 +40,7 @@ export class CombinedTripsController {
     @InjectModel('PricingConfig') private pricingConfigModel: Model<any>,
     private readonly driversService: DriversService,
     private readonly pushService: PushNotificationService,
+    private readonly teamsService: TeamsService,
   ) {}
 
   /**
@@ -1893,6 +1895,23 @@ export class CombinedTripsController {
             console.log(
               `[CombinedTripsController] ✅ Deducted ${platformCommission}đ commission (${100 - driverShare}%) for passenger ${request.customerId}`,
             );
+
+            // Process marketing commission (Teams) using the 50/50 rule
+            try {
+              await this.teamsService.processMarketingCommission(
+                driverId.toString(),
+                combinedTripId,
+                platformCommission,
+              );
+              console.log(
+                `[CombinedTripsController] ✅ Calculated Marketing Team Commission for shared ride request (Nguồn phí nền tảng: ${platformCommission}đ)`,
+              );
+            } catch (e) {
+              console.warn(
+                `[CombinedTripsController] ⚠️ Lỗi tính Marketing Commission:`,
+                e.message,
+              );
+            }
           }
         } catch (commissionError) {
           console.warn(

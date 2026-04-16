@@ -15,12 +15,19 @@ import {
   RateHourlyServiceDto,
   GetPricingDto,
 } from '../dto/create-hourly-service.dto';
+import { Driver } from '../../drivers/schemas/driver.schema';
+import { PricingConfig } from '../../pricing/pricing-config.schema';
+import { TeamsService } from '../../teams/teams.service';
 
 @Injectable()
 export class HourlyServiceService {
   constructor(
     @InjectModel(HourlyService.name)
     private hourlyServiceModel: Model<HourlyServiceDocument>,
+    @InjectModel(Driver.name) private driverModel: Model<Driver>,
+    @InjectModel('PricingConfig')
+    private pricingConfigModel: Model<PricingConfig>,
+    private teamsService: TeamsService,
   ) {}
 
   /**
@@ -215,6 +222,46 @@ export class HourlyServiceService {
 
       if (!service) {
         throw new NotFoundException('Service not found');
+      }
+
+      // Handle commission and wallet deduction when service completes
+      if (updateDto.status === 'completed' && service.workerId) {
+        const driverId = typeof service.workerId === 'object' ? (service.workerId as any)._id : service.workerId;
+        
+        try {
+          const pricingConfigs = await this.pricingConfigModel.find({}).limit(1);
+          const driverShare = pricingConfigs?.[0]?.driverShare || 80;
+          const estimatedPrice = service.actualPrice || service.estimatedPrice || 0;
+          const platformCommission = Math.round((estimatedPrice * (100 - driverShare)) / 100);
+
+          if (platformCommission > 0) {
+             // Deduct waller balance
+             await this.driverModel.findByIdAndUpdate(driverId, {
+               $inc: { walletBalance: -platformCommission },
+               isAvailable: true, // Make driver available again
+             });
+             console.log(`[HourlyService] ✅ Deducted ${platformCommission}đ from driver ${driverId} (${100 - driverShare}% commission)`);
+
+             // Process marketing commission (Teams) using the 50/50 rule
+             try {
+                await this.teamsService.processMarketingCommission(
+                  driverId.toString(),
+                  id,
+                  platformCommission
+                );
+                console.log(`[HourlyService] ✅ Calculated Marketing Team Commission (Platform Fee: ${platformCommission}đ)`);
+             } catch (marketingErr) {
+                console.warn(`[HourlyService] ⚠️ Marketing Commission Error: ${marketingErr.message}`);
+             }
+          } else {
+             // Just make driver available again if no commission
+             await this.driverModel.findByIdAndUpdate(driverId, {
+               isAvailable: true,
+             });
+          }
+        } catch (walletErr) {
+          console.warn(`[HourlyService] ⚠️ Wallet processing error: ${walletErr.message}`);
+        }
       }
 
       return service;

@@ -14,7 +14,7 @@ export const loggerService = {
   async logFrontendError(functionName: string, error: any, extraData?: any) {
     try {
       const url = `${getApiUrl()}/logs/frontend-error`;
-      
+
       const payload = {
         appName: 'mobile-driver',
         functionName,
@@ -31,7 +31,7 @@ export const loggerService = {
         },
         body: JSON.stringify(payload)
       });
-      
+
       console.log(`[Logger] Lỗi từ ${functionName} đã được đẩy về Server.`);
     } catch (e) {
       console.error('[Logger] Gửi Log thất bại:', e);

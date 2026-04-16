@@ -28,15 +28,24 @@ export default function Layout({ children }: LayoutProps) {
     }
 
     // Parse user info from token or set default
+    const MARKETING_ROLES = ['f1_lead', 'f2_sub_lead', 'f3_staff_mkt'];
     try {
       const parts = token.split('.');
       if (parts.length === 3) {
         const decoded = JSON.parse(atob(parts[1]));
+        const role = decoded.role || 'admin';
+
+        // Guard: marketing roles should never see admin Layout — redirect them
+        if (MARKETING_ROLES.includes(role)) {
+          navigate('/marketing-dashboard');
+          return;
+        }
+
         setUserInfo({
           email: decoded.email || 'admin@firego.com',
           firstName: decoded.firstName || 'Admin',
           lastName: decoded.lastName || 'User',
-          role: decoded.role || 'admin',
+          role,
         });
       }
     } catch (err) {

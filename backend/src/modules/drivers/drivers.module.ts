@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { TeamsModule } from '../teams/teams.module';
 import { MulterModule } from '@nestjs/platform-express';
 import { DriversService } from './drivers.service';
 import { DriversController } from './drivers.controller';
@@ -64,6 +65,7 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
     PricingModule, // Import PricingModule để WalletService có thể dùng PricingService
     WalletsModule, // Import WalletsModule for customer wallet handling
     AppSettingsModule, // Import để SepayService đọc keys từ DB
+    TeamsModule, // Import TeamsModule for Marketing Commission calculation
   ],
   controllers: [
     SepayWebhookController, // Webhook must be first (specific path)

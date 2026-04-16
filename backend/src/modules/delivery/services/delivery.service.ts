@@ -12,6 +12,7 @@ import { CreateDeliveryDto } from '../dto/create-delivery.dto';
 import { UpdateDeliveryDto } from '../dto/update-delivery.dto';
 import { RateDeliveryDto } from '../dto/rate-delivery.dto';
 import { PricingConfig } from '../../pricing/pricing-config.schema';
+import { TeamsService } from '../../teams/teams.service';
 
 @Injectable()
 export class DeliveryService {
@@ -22,6 +23,7 @@ export class DeliveryService {
     @InjectModel(Driver.name) private driverModel: Model<Driver>,
     @InjectModel('PricingConfig')
     private pricingConfigModel: Model<PricingConfig>,
+    private teamsService: TeamsService,
   ) {}
 
   async create(createDeliveryDto: CreateDeliveryDto): Promise<Delivery> {
@@ -189,6 +191,20 @@ export class DeliveryService {
           this.logger.log(
             `[DeliveryService] ✅ Deducted ${platformCommission}đ from driver wallet (${100 - driverShare}% commission)`,
           );
+
+          // Process marketing commission (Teams) using the 50/50 rule
+          try {
+            await this.teamsService.processMarketingCommission(
+              driverId.toString(),
+              id,
+              platformCommission,
+            );
+            this.logger.log(
+              `[DeliveryService] ✅ Calculated Marketing Team Commission for delivery (Platform Fee: ${platformCommission}đ)`,
+            );
+          } catch (e) {
+            this.logger.warn(`[DeliveryService] ⚠️ Marketing Commission Error: ${e.message}`);
+          }
         } catch (walletError) {
           this.logger.warn(
             `[DeliveryService] ⚠️ Warning: Failed to deduct wallet commission: ${walletError.message}`,

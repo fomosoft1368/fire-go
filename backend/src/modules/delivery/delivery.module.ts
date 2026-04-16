@@ -16,6 +16,7 @@ import {
 } from '../pricing/pricing-config.schema';
 import { DriverSearchConfigModule } from '../config/config.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { TeamsModule } from '../teams/teams.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       },
       { name: 'PricingConfig', schema: PricingConfigSchema },
     ]),
+    TeamsModule,
   ],
   controllers: [DeliveryController],
   providers: [DeliveryService, DeliveryAutoAssignService],

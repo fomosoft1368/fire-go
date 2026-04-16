@@ -606,13 +606,13 @@ export default function FindingRideScreen({ navigation }: any) {
         totalFare: trip.totalFare || trip.baseFare || 50000,
         distance: trip.distance || 5,
         totalSeats: trip.totalSeats || 4,
-        // ✅ Use availableSeats from backend (already calculated correctly)
         availableSeats: trip.availableSeats ?? ((trip.totalSeats || 4) - (trip.customerId?.length || 0)),
         pickupCoordinates: trip.pickupCoordinates || [startLng, startLat],
         dropoffCoordinates: trip.dropoffCoordinates || [startLng + 0.05, startLat + 0.05],
         estimatedDuration: trip.duration || 600,
         baseFare: trip.baseFare || 50000,
         customerId: trip.customerId || [],
+        vehicleType: trip.vehicleType || trip.driverId?.vehicleInfo?.type || 'sedan',
       }))
 
       if (isMountedRef.current) {
@@ -715,6 +715,10 @@ export default function FindingRideScreen({ navigation }: any) {
       console.log('[FindingRideScreen] 🆔', requestId, 'API URL:', `${API_BASE_URL}/combined-trips/customer-request`)
       console.log('[FindingRideScreen] 🆔', requestId, 'Token:', token ? 'EXISTS' : 'MISSING')
 
+      const driverVehicleTypesArray = selectedVehicleType === 'comfort' ? ['suv']
+        : selectedVehicleType === 'premium' ? ['truck', 'suv']
+          : ['sedan'];
+
       const requestPayload = {
         pickupAddress,
         dropoffAddress,
@@ -725,6 +729,7 @@ export default function FindingRideScreen({ navigation }: any) {
         totalFare: fareToSend,
         seats,
         vehicleType: selectedVehicleType,
+        driverVehicleTypes: driverVehicleTypesArray,
         interProvincialRoute: interProvincialRoute ? {
           routeId: interProvincialRoute.id,
           routeName: interProvincialRoute.name,
@@ -1224,7 +1229,12 @@ export default function FindingRideScreen({ navigation }: any) {
         </View>
       ) : (
         <FlatList
-          data={rides}
+          data={rides.filter(r => {
+            let typeStr = 'basic';
+            if (r.vehicleType === 'suv') typeStr = 'comfort';
+            else if (r.vehicleType === 'truck') typeStr = 'premium';
+            return typeStr === selectedVehicleType;
+          })}
           renderItem={rideItem}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContent}

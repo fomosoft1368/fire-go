@@ -14,12 +14,10 @@ import { Driver, DriverSchema } from '../drivers/schemas/driver.schema';
 import { DriversModule } from '../drivers/drivers.module';
 import { CombinedTripsService } from './services/combined-trips.service';
 import { CombinedTripsController } from './controllers/combined-trips.controller';
-import {
-  PricingConfig,
-  PricingConfigSchema,
-} from '../pricing/pricing-config.schema';
+import { PricingConfig, PricingConfigSchema } from '../pricing/pricing-config.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AppSettingsModule } from '../app-settings/app-settings.module';
+import { TeamsModule } from '../teams/teams.module';
 
 @Module({
   imports: [
@@ -34,9 +32,10 @@ import { AppSettingsModule } from '../app-settings/app-settings.module';
       { name: 'PricingConfig', schema: PricingConfigSchema },
     ]),
     AppSettingsModule,
+    TeamsModule,
   ],
   controllers: [CombinedTripsController],
   providers: [CombinedTripsService],
   exports: [CombinedTripsService],
 })
-export class CombinedTripsModule {}
+export class CombinedTripsModule { }

@@ -163,7 +163,7 @@ UserSchema.pre('save', async function (next) {
   // Sinh mã giới thiệu cho Marketing staff nếu chưa có
   if (
     !this.referralCode &&
-    ['F1_LEAD', 'F2_SUB_LEAD', 'F3_STAFF_MKT'].includes(this.role)
+    ['f1_lead', 'f2_sub_lead', 'f3_staff_mkt'].includes(this.role)
   ) {
     this.referralCode =
       'MKT' + Math.random().toString(36).substring(2, 6).toUpperCase();

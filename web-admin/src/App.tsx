@@ -29,6 +29,7 @@ import LegalDocumentsManagement from './pages/legal-documents'
 import BonusManagement from './pages/bonus-management'
 import SystemLogs from './pages/SystemLogs'
 import MarketingManagement from './pages/MarketingManagement'
+import MarketingDashboard from './pages/MarketingDashboard'
 import './App.css'
 
 function App() {
@@ -104,6 +105,7 @@ function App() {
               <Route path="/legal-documents" element={<LegalDocumentsManagement />} />
               <Route path="/bonus-management" element={<BonusManagement />} />
               <Route path="/marketing" element={<MarketingManagement />} />
+              <Route path="/marketing-dashboard" element={<MarketingDashboard />} />
               <Route path="/system-logs" element={<SystemLogs />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
