@@ -1292,6 +1292,11 @@ export class CombinedTripsController {
           '[acceptRequest] ✅ Wallet balance sufficient (Case 1), proceeding...',
         );
 
+        // ✅ CASE 1: Driver accepting the ORIGINAL customer trip
+        // IMPORTANT: availableSeats was already decremented at trip creation time
+        // (totalSeats - requestedSeats). Do NOT deduct seats again here.
+        // Only set status=accepted and assign driverId.
+
         // Update request status
         await this.rideRequestModel.findByIdAndUpdate(
           requestId,
@@ -1299,30 +1304,20 @@ export class CombinedTripsController {
           { new: true },
         );
 
-        // ✅ CRITICAL: Trừ số ghế ngay cả khi driver accept trip đầu tiên
-        const seatsToDeduct = request.seats || 1;
-
-        // ✅ VALIDATION: Don't allow if not enough seats
-        if (trip.availableSeats < seatsToDeduct) {
-          throw new BadRequestException(
-            `Không đủ ghế trống. Còn ${trip.availableSeats} ghế, yêu cầu ${seatsToDeduct} ghế`,
-          );
-        }
-
-        // ✅ CRITICAL: Add driver to trip AND deduct seats - ONLY if not cancelled
+        // ✅ CRITICAL: Add driver to trip - ONLY if not cancelled (NO seat deduction)
         const updatedTrip = await this.combinedTripsService
           .getCombinedTripsModel()
           .findOneAndUpdate(
             {
               _id: new Types.ObjectId(combinedTripId),
-              status: { $ne: CombinedTripStatus.CANCELLED }, // ✅ Only update if not cancelled
+              status: { $ne: CombinedTripStatus.CANCELLED },
             },
             {
               $set: {
                 status: CombinedTripStatus.ACCEPTED,
                 driverId: request.driverId,
               },
-              $inc: { availableSeats: -seatsToDeduct }, // ✅ Trừ seats
+              // ❌ NO $inc availableSeats — already handled at trip creation
             },
             { new: true },
           );
@@ -1377,13 +1372,6 @@ export class CombinedTripsController {
           '[acceptRequest] ✅ Wallet balance sufficient, proceeding with accept...',
         );
 
-        // Update request status
-        await this.rideRequestModel.findByIdAndUpdate(
-          requestId,
-          { status: 'accepted' },
-          { new: true },
-        );
-
         // Add customer to trip (use service method)
         await this.combinedTripsService.addCustomerToCombinedTrip(
           combinedTripId,
@@ -1393,12 +1381,19 @@ export class CombinedTripsController {
         // ✅ CRITICAL: Trừ số ghế khi accept request
         const seatsToDeduct = request.seats || 1;
 
-        // ✅ VALIDATION: Don't allow if not enough seats
+        // ✅ VALIDATION: Don't allow if not enough seats - CHECK BEFORE updating request
         if (trip.availableSeats < seatsToDeduct) {
           throw new BadRequestException(
             `Không đủ ghế trống. Còn ${trip.availableSeats} ghế, yêu cầu ${seatsToDeduct} ghế`,
           );
         }
+
+        // Update request status
+        await this.rideRequestModel.findByIdAndUpdate(
+          requestId,
+          { status: 'accepted' },
+          { new: true },
+        );
 
         // ✅ CRITICAL: Only update if not cancelled
         const updatedTrip = await this.combinedTripsService
@@ -1941,9 +1936,13 @@ export class CombinedTripsController {
           await this.driverModel.findByIdAndUpdate(driverId, {
             isAvailable: true,
             status: 'available',
+            $inc: {
+              totalRides: 1,
+              completedRides: 1,
+            },
           });
           console.log(
-            `[CombinedTripsController] ✅ All passengers completed, set driver ${driverId} back to available`,
+            `[CombinedTripsController] ✅ All passengers completed, set driver ${driverId} back to available (incremented completedRides)`,
           );
 
           // ✅ CRITICAL: Only update to COMPLETED if trip is not already CANCELLED
@@ -2152,6 +2151,33 @@ export class CombinedTripsController {
       return trip;
     } catch (error: any) {
       console.error('[CombinedTripsController] Error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * PATCH /combined-trips/:id/convert-to-driver
+   * Chuyển đổi chuyến đi được tạo bởi customer thành chuyến đi do driver quản lý (xe ghép)
+   */
+  @Patch(':id/convert-to-driver')
+  @UseGuards(JwtAuthGuard)
+  async convertToDriverTrip(@Param('id') id: string) {
+    try {
+      const trip = await this.combinedTripModel.findById(id);
+      if (!trip) {
+        throw new BadRequestException('Không tìm thấy chuyến đi');
+      }
+      
+      if (trip.createdBy === 'driver') {
+        return { success: true, message: 'Chuyến đi đã được chuyển thành chờ ghép từ trước', trip };
+      }
+      
+      trip.createdBy = 'driver';
+      await trip.save();
+      
+      return { success: true, message: 'Đã chuyển thành chuyến xe chờ ghép', trip };
+    } catch (error: any) {
+      console.error('[CombinedTripsController] Error converting trip:', error);
       throw error;
     }
   }

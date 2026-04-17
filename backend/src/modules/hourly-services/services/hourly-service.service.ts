@@ -237,7 +237,7 @@ export class HourlyServiceService {
           if (platformCommission > 0) {
              // Deduct waller balance
              await this.driverModel.findByIdAndUpdate(driverId, {
-               $inc: { walletBalance: -platformCommission },
+               $inc: { walletBalance: -platformCommission, totalRides: 1, completedRides: 1 },
                isAvailable: true, // Make driver available again
              });
              console.log(`[HourlyService] ✅ Deducted ${platformCommission}đ from driver ${driverId} (${100 - driverShare}% commission)`);
@@ -257,6 +257,7 @@ export class HourlyServiceService {
              // Just make driver available again if no commission
              await this.driverModel.findByIdAndUpdate(driverId, {
                isAvailable: true,
+               $inc: { totalRides: 1, completedRides: 1 },
              });
           }
         } catch (walletErr) {

@@ -26,13 +26,13 @@ export class RegionsController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.F1_LEAD)
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.F1_LEAD, UserRole.F2_SUB_LEAD, UserRole.F3_STAFF_MKT)
   findAll() {
     return this.regionsService.findAll();
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.F1_LEAD)
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.F1_LEAD, UserRole.F2_SUB_LEAD, UserRole.F3_STAFF_MKT)
   findOne(@Param('id') id: string) {
     return this.regionsService.findOne(id);
   }

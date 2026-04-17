@@ -19,6 +19,7 @@ import {
   TransactionStatus,
   UserType,
 } from '../wallets/schemas/transaction.schema';
+import { MarketingConfig, MarketingConfigDocument } from './schemas/marketing-config.schema';
 
 @Injectable()
 export class TeamsService {
@@ -29,6 +30,8 @@ export class TeamsService {
     @InjectModel(Driver.name) private driverModel: Model<DriverDocument>,
     @InjectModel(Transaction.name)
     private transactionModel: Model<TransactionDocument>,
+    @InjectModel(MarketingConfig.name)
+    private marketingConfigModel: Model<MarketingConfigDocument>,
   ) {}
 
   // ─── Onboarding: Gán thành viên mới vào cây team ──────────────────────────
@@ -386,6 +389,32 @@ export class TeamsService {
   }
 
   /**
+   * Lấy Marketing Config
+   */
+  async getMarketingConfig(): Promise<MarketingConfigDocument> {
+    let config = await this.marketingConfigModel.findOne({ configId: 'default_config' });
+    if (!config) {
+      config = await this.marketingConfigModel.create({ configId: 'default_config' });
+    }
+    return config;
+  }
+
+  /**
+   * Cập nhật Marketing Config
+   */
+  async updateMarketingConfig(data: any): Promise<MarketingConfigDocument> {
+    let config = await this.marketingConfigModel.findOne({ configId: 'default_config' });
+    if (!config) {
+      config = new this.marketingConfigModel({ configId: 'default_config' });
+    }
+    
+    if (data.rates) config.rates = data.rates;
+    if (data.kpis) config.kpis = data.kpis;
+    
+    return config.save();
+  }
+
+  /**
    * Tính toán và phân bổ hoa hồng Marketing (team-isolated)
    * CHỈ pays cho F3→F2→F1 trong CÙNG chuỗi referrer của driver
    * Tài xế do F3 team A tuyển → chỉ F3 team A, F2 trên F3 đó, F1 trên F2 đó được hưởng
@@ -419,10 +448,11 @@ export class TeamsService {
     // Tỷ lệ hoa hồng theo cấp (từ phí nền tảng - tuân thủ nguyên tắc 50/50)
     // Công ty thu 20% phí nền tảng → trích 50% = 10% GMV để trả Sale
     // F1: 10% phí nền tảng (= 2% GMV), F2: 15% (= 3% GMV), F3: 25% (= 5% GMV)
+    const configPath = await this.getMarketingConfig();
     const rates: Record<number, number> = {
-      1: 0.10, // F1 nhận 10% của platform fee
-      2: 0.15, // F2 nhận 15% của platform fee
-      3: 0.25, // F3 nhận 25% của platform fee
+      1: configPath.rates.f1Rate / 100, // F1
+      2: configPath.rates.f2Rate / 100, // F2
+      3: configPath.rates.f3Rate / 100, // F3
     };
 
     // Phân tích chuỗi path để lấy F1→F2→F3 trong cùng chain

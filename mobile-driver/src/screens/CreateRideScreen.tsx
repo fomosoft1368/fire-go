@@ -15,6 +15,7 @@ import {
   Animated,
   PanResponder,
   Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
@@ -62,6 +63,21 @@ export default function CreateRideScreen() {
   const sheetPosition = useRef(new Animated.Value(SNAP_POINTS.MID)).current
   const [currentSnapPoint, setCurrentSnapPoint] = useState(SNAP_POINTS.MID)
   const scrollViewRef = useRef<ScrollView>(null)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+
+  // Track keyboard height so the bottom sheet floats above the keyboard
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height)
+    })
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0)
+    })
+    return () => {
+      showSub.remove()
+      hideSub.remove()
+    }
+  }, [])
 
   // PanResponder for bottom sheet drag
   const panResponder = useRef(
@@ -539,12 +555,36 @@ export default function CreateRideScreen() {
           styles.bottomSheet,
           {
             height: sheetPosition,
+            // Float above keyboard without changing height
+            bottom: keyboardHeight,
           },
         ]}
       >
         {/* Drag Handle */}
         <View {...panResponder.panHandlers} style={styles.dragHandleContainer}>
-          <View style={styles.dragHandle} />
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              const isAtMax = currentSnapPoint >= SNAP_POINTS.MAX - 10
+              const targetSnap = isAtMax ? SNAP_POINTS.MID : SNAP_POINTS.MAX
+              Animated.spring(sheetPosition, {
+                toValue: targetSnap,
+                useNativeDriver: false,
+                bounciness: 4,
+              }).start()
+              setCurrentSnapPoint(targetSnap)
+            }}
+            style={styles.dragHandleArrowBtn}
+          >
+            <Text style={styles.dragHandleArrowText}>
+              {currentSnapPoint >= SNAP_POINTS.MAX - 10 ? 'Thu gọn' : 'Mở rộng'}
+            </Text>
+            <MaterialIcons
+              name={currentSnapPoint >= SNAP_POINTS.MAX - 10 ? 'expand-more' : 'expand-less'}
+              size={20}
+              color="#52525B"
+            />
+          </TouchableOpacity>
           <Text style={styles.sheetTitle}>Tạo chuyến xe ghép</Text>
         </View>
 
@@ -555,6 +595,8 @@ export default function CreateRideScreen() {
           showsVerticalScrollIndicator={false}
           bounces={false}
           scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           {/* Pickup Location */}
           <View style={styles.section}>
@@ -571,12 +613,14 @@ export default function CreateRideScreen() {
                 onChangeText={handlePickupLocationChange}
                 onFocus={() => {
                   setShowPickupSuggestions(true)
-                  // Expand sheet when focusing input
-                  Animated.spring(sheetPosition, {
-                    toValue: SNAP_POINTS.MAX,
-                    useNativeDriver: false,
-                  }).start()
-                  setCurrentSnapPoint(SNAP_POINTS.MAX)
+                  // Only expand UP if sheet is at MIN, don't collapse if already at MID or MAX
+                  if (currentSnapPoint <= SNAP_POINTS.MIN) {
+                    Animated.spring(sheetPosition, {
+                      toValue: SNAP_POINTS.MID,
+                      useNativeDriver: false,
+                    }).start()
+                    setCurrentSnapPoint(SNAP_POINTS.MID)
+                  }
                 }}
               />
               {isSearchingPickup && (
@@ -640,11 +684,14 @@ export default function CreateRideScreen() {
                 onChangeText={handleDropoffLocationChange}
                 onFocus={() => {
                   setShowDropoffSuggestions(true)
-                  Animated.spring(sheetPosition, {
-                    toValue: SNAP_POINTS.MAX,
-                    useNativeDriver: false,
-                  }).start()
-                  setCurrentSnapPoint(SNAP_POINTS.MAX)
+                  // Only expand UP if sheet is at MIN, don't collapse if already at MID or MAX
+                  if (currentSnapPoint <= SNAP_POINTS.MIN) {
+                    Animated.spring(sheetPosition, {
+                      toValue: SNAP_POINTS.MID,
+                      useNativeDriver: false,
+                    }).start()
+                    setCurrentSnapPoint(SNAP_POINTS.MID)
+                  }
                 }}
               />
               {isSearchingDropoff && (
@@ -909,11 +956,29 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
   },
   dragHandle: {
-    width: 48, // Bigger drag handle
+    width: 48,
     height: 5,
     backgroundColor: '#ddd',
     borderRadius: 3,
     marginBottom: 12,
+  },
+  dragHandleArrowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F4F4F5',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
+    alignSelf: 'center',
+    marginBottom: 8,
+  },
+  dragHandleArrowText: {
+    color: '#52525B',
+    fontSize: 13,
+    fontWeight: '600',
+    marginRight: 4,
   },
   sheetTitle: {
     fontSize: 18, // Bigger title

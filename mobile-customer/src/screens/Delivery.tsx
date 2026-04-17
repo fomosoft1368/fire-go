@@ -103,6 +103,7 @@ export default function Delivery(props?: DeliveryProps) {
     const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
     const [isLoadingCurrentLocation, setIsLoadingCurrentLocation] = useState(true)
     const [drivers, setDrivers] = useState<any[]>([])
+    const [isExpanded, setIsExpanded] = useState(false)
 
     // Draggable Bottom Sheet
     const screenHeight = Dimensions.get('window').height
@@ -284,6 +285,7 @@ export default function Delivery(props?: DeliveryProps) {
 
     // Helper refs: snap bottom sheet to max/min height
     const snapToMaxRef = useRef(() => {
+        setIsExpanded(true)
         const snapTo = screenHeight - maxHeight
         lastGestureDy.current = snapTo
         Animated.spring(translateY, {
@@ -295,6 +297,7 @@ export default function Delivery(props?: DeliveryProps) {
     })
 
     const snapToMinRef = useRef(() => {
+        setIsExpanded(false)
         const snapTo = screenHeight - minHeight
         lastGestureDy.current = snapTo
         Animated.spring(translateY, {
@@ -772,8 +775,30 @@ export default function Delivery(props?: DeliveryProps) {
                 pointerEvents="box-none"
             >
                 <View style={styles.card} pointerEvents="auto">
-                    <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-                        <View style={styles.handleBar} />
+                    <View style={{ alignItems: 'center', width: '100%', paddingVertical: 12 }}>
+                        <TouchableOpacity 
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: '#F4F4F5',
+                                paddingVertical: 6,
+                                paddingHorizontal: 16,
+                                borderRadius: 20,
+                                borderWidth: 1,
+                                borderColor: '#E4E4E7',
+                            }} 
+                            onPress={() => isExpanded ? snapToMinRef.current() : snapToMaxRef.current()}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={{ color: '#52525B', fontSize: 13, fontWeight: '600', marginRight: 4 }}>
+                                {isExpanded ? "Thu gọn" : "Mở rộng"}
+                            </Text>
+                            <MaterialIcons 
+                                name={isExpanded ? "expand-more" : "expand-less"} 
+                                size={20} 
+                                color="#52525B" 
+                            />
+                        </TouchableOpacity>
                     </View>
 
                     {/* Title Section */}
@@ -791,13 +816,14 @@ export default function Delivery(props?: DeliveryProps) {
                     </View>
 
                     <KeyboardAvoidingView
+                        style={{ flex: 1 }}
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
                     >
                         <ScrollView
                             showsVerticalScrollIndicator={false}
                             style={styles.scrollContent}
-                            contentContainerStyle={{ paddingBottom: 20 }}
+                            contentContainerStyle={{ paddingBottom: 250 }}
                             keyboardShouldPersistTaps="handled"
                         >
                             {/* Location Inputs */}
@@ -987,31 +1013,32 @@ export default function Delivery(props?: DeliveryProps) {
                                     {/* ============ END GIAO HÀNG ============ */}
                                 </View>
                             </View>
-                            <View style={styles.bottomAction}>
-                                {estimatedPrice > 0 && (
-                                    <View style={styles.priceContainer}>
-                                        <Text style={styles.priceLabel}>Tổng cộng</Text>
-                                        <Text style={styles.totalPrice}>
-                                            {estimatedPrice.toLocaleString('vi-VN')}đ
-                                        </Text>
-                                    </View>
-                                )}
-                                <TouchableOpacity
-                                    style={styles.confirmButton}
-                                    onPress={handleConfirm}
-                                    activeOpacity={0.8}
-                                >
-                                    <Text style={styles.confirmButtonText}>Xác nhận đặt hàng</Text>
-                                    <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-                                </TouchableOpacity>
-                            </View>
                         </ScrollView>
                     </KeyboardAvoidingView>
 
                     {/* Sticky Bottom Action */}
-
                 </View>
             </Animated.View>
+
+            {/* Sticky Bottom Action permanently anchored to the screen bottom */}
+            <View style={[styles.bottomAction, { position: 'absolute', bottom: 0, left: 0, right: 0 }]}>
+                {estimatedPrice > 0 && (
+                    <View style={styles.priceContainer}>
+                        <Text style={styles.priceLabel}>Tổng cộng</Text>
+                        <Text style={styles.totalPrice}>
+                            {estimatedPrice.toLocaleString('vi-VN')}đ
+                        </Text>
+                    </View>
+                )}
+                <TouchableOpacity
+                    style={styles.confirmButton}
+                    onPress={handleConfirm}
+                    activeOpacity={0.8}
+                >
+                    <Text style={styles.confirmButtonText}>Xác nhận đặt hàng</Text>
+                    <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+                </TouchableOpacity>
+            </View>
         </View>
     )
 }

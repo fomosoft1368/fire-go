@@ -68,6 +68,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [fetchAttempts, setFetchAttempts] = useState(0)
   const [routeCoordinates, setRouteCoordinates] = useState<Array<{ latitude: number, longitude: number }>>([])
+  const [isExpanded, setIsExpanded] = useState(false)
 
   // Get driver from Redux
   const driver = useSelector((state: RootState) => state.auth.user)
@@ -133,6 +134,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
         const targetY = currentY < threshold ? expandedY : collapsedY
 
         lastGestureY.current = targetY
+        setIsExpanded(targetY === expandedY)
 
         Animated.spring(translateY, {
           toValue: targetY,
@@ -149,6 +151,7 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
     const targetY = state === 'expanded' ? 0 : EXPANDED_HEIGHT - COLLAPSED_HEIGHT
 
     lastGestureY.current = targetY
+    setIsExpanded(state === 'expanded')
 
     Animated.spring(translateY, {
       toValue: targetY,
@@ -676,6 +679,34 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
 
     return () => clearTimeout(timer)
   }, [ride?.status, showCustomerModal])
+
+  const handleConvertToDriver = async () => {
+    try {
+      setUpdating(true)
+      const token = await AsyncStorage.getItem('token')
+      const targetId = combinedTripId || rideId || tripId
+
+      const response = await fetch(`${API_BASE_URL}/combined-trips/${targetId}/convert-to-driver`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể chuyển đổi chuyến đi')
+      }
+      
+      Alert.alert('Thành công', 'Chuyến đi đã được chuyển thành xe ghép. Các khách hàng khác có thể tìm thấy bạn!')
+      fetchRideDetail(true)
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi chuyển đổi chuyến đi')
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   const fetchRideDetail = async (showLoading: boolean = true) => {
     if (showLoading) {
@@ -1549,23 +1580,42 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
           >
             <View style={styles.bottomSheet}>
               {/* Drag Handle */}
-              <View style={styles.dragHandleWrapper} {...panResponder.panHandlers}>
+              <View style={[styles.dragHandleWrapper, { alignItems: 'center', width: '100%', paddingTop: 8, paddingBottom: 4 }]} {...panResponder.panHandlers}>
+                <View style={{
+                  width: 40,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: '#D1D5DB',
+                  marginBottom: 8,
+                }} />
                 <TouchableOpacity
-                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: '#F4F4F5',
+                    paddingVertical: 6,
+                    paddingHorizontal: 16,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    borderColor: '#E4E4E7',
+                  }}
                   onPress={() => {
-                    // Toggle between collapsed and expanded on tap
-                    const currentY = lastGestureY.current
-                    const expandedY = 0
-                    const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
-
-                    if (Math.abs(currentY - collapsedY) < Math.abs(currentY - expandedY)) {
-                      snapToState('expanded')
-                    } else {
+                    if (isExpanded) {
                       snapToState('collapsed')
+                    } else {
+                      snapToState('expanded')
                     }
                   }}
+                  activeOpacity={0.7}
                 >
-                  <View style={styles.dragHandleBar} />
+                  <Text style={{ color: '#52525B', fontSize: 13, fontWeight: '600', marginRight: 4 }}>
+                    {isExpanded ? 'Thu gọn' : 'Mở rộng'}
+                  </Text>
+                  <MaterialIcons
+                    name={isExpanded ? 'expand-more' : 'expand-less'}
+                    size={20}
+                    color="#52525B"
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -1647,6 +1697,31 @@ export default function ActiveRideScreen({ navigation, route }: RideDetailScreen
                           </View>
                         )}
                       </View>
+                    )}
+
+                    {/* Convert to Driver Trip Button */}
+                    {ride?.createdBy === 'customer' && (
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: '#FEF3C7',
+                          paddingVertical: 12,
+                          borderRadius: 12,
+                          marginBottom: 16,
+                          borderWidth: 1,
+                          borderColor: '#F59E0B',
+                        }}
+                        onPress={handleConvertToDriver}
+                        activeOpacity={0.8}
+                        disabled={updating}
+                      >
+                        <MaterialIcons name="local-taxi" size={20} color="#D97706" style={{ marginRight: 8 }} />
+                        <Text style={{ color: '#D97706', fontWeight: '700', fontSize: 14 }}>
+                          Chuyển thành chuyến xe ghép
+                        </Text>
+                      </TouchableOpacity>
                     )}
 
                     {/* Passenger Card – Multi passengers carousel */}

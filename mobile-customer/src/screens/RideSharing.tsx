@@ -16,7 +16,6 @@ import {
   Modal,
   Animated,
   PanResponder,
-  KeyboardAvoidingView,
   Keyboard,
   Platform,
 } from 'react-native'
@@ -66,6 +65,7 @@ export default function RideSharing(props?: RideSharingProps) {
   const [dropoffCoordinates, setDropoffCoordinates] = useState<[number, number]>([105.6909, 18.6867])
   const [isImmediately, setIsImmediately] = useState(true)
   const [passengerCount, setPassengerCount] = useState(1)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [routeInfo, setRouteInfo] = useState<any>(null)
   const [isPickupSelected, setIsPickupSelected] = useState(false)
@@ -87,12 +87,19 @@ export default function RideSharing(props?: RideSharingProps) {
   const initialHeight = screenHeight * 0.42 // 42% - Start collapsed
   const translateY = useRef(new Animated.Value(screenHeight - initialHeight)).current
   const lastGestureDy = useRef(0)
+  // Track whether any TextInput is currently focused
+  const isInputFocused = useRef(false)
+  const blurDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  // Refs for explicit focus control
+  const pickupInputRef = useRef<TextInput>(null)
+  const dropoffInputRef = useRef<TextInput>(null)
 
   // Places autocomplete states
   const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([])
   const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([])
-  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false)
-  const [showDropoffSuggestions, setShowDropoffSuggestions] = useState(false)
+  // Dùng activeInput thay cho showPickupSuggestions + showDropoffSuggestions
+  // Điều này giảm số lượng setState trong onFocus xuống chỉ còn 1 — tránh re-render gây mất focus
+  const [activeInput, setActiveInput] = useState<'pickup' | 'dropoff' | null>(null)
   const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [pickupLoadingSuggestions, setPickupLoadingSuggestions] = useState(false)
@@ -116,33 +123,24 @@ export default function RideSharing(props?: RideSharingProps) {
   const isMountedRef = useRef(true)
   const setRideMode = props?.setRideMode
 
-  // PanResponder for draggable bottom sheet
-  const panResponder = useRef(
+  // PanResponder chỉ dùng cho handle bar — KHÔNG đặt trên toàn bộ card
+  // Tránh PanResponder chặn touch event của TextInput bên trong
+  const handlePanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to vertical drags > 5px
-        return Math.abs(gestureState.dy) > 5
+        return Math.abs(gestureState.dy) > 3
       },
       onPanResponderGrant: () => {
         translateY.setOffset(lastGestureDy.current)
         translateY.setValue(0)
       },
-      // onPanResponderMove: (_, gestureState) => {
-      //   // Limit dragging within bounds
-      //   const newValue = gestureState.dy
-      //   if (newValue >= 0 && lastGestureDy.current + newValue <= screenHeight - minHeight) {
-      //     translateY.setValue(newValue)
-      //   }
-      // },
       onPanResponderMove: (_, gestureState) => {
         const newY = lastGestureDy.current + gestureState.dy
-
         const clamped = Math.max(
           screenHeight - maxHeight,
           Math.min(newY, screenHeight - minHeight)
         )
-
         translateY.setValue(clamped - lastGestureDy.current)
       },
       onPanResponderRelease: (_, gestureState) => {
@@ -150,22 +148,19 @@ export default function RideSharing(props?: RideSharingProps) {
         const currentY = lastGestureDy.current + gestureState.dy
         const velocity = gestureState.vy
 
-        // Snap to either min (42%) or max (85%) only
         let snapTo: number
         const midPoint = screenHeight - (maxHeight + minHeight) / 2
 
-        // Strong velocity influence
         if (Math.abs(velocity) > 0.8) {
           snapTo = velocity > 0 ? screenHeight - minHeight : screenHeight - maxHeight
-        }
-        // Position-based snapping
-        else if (currentY > midPoint) {
-          snapTo = screenHeight - minHeight // Snap to collapsed (42%)
+        } else if (currentY > midPoint) {
+          snapTo = screenHeight - minHeight
         } else {
-          snapTo = screenHeight - maxHeight // Snap to expanded (85%)
+          snapTo = screenHeight - maxHeight
         }
 
         lastGestureDy.current = snapTo
+        setIsExpanded(snapTo === screenHeight - maxHeight)
 
         Animated.spring(translateY, {
           toValue: snapTo,
@@ -197,8 +192,8 @@ export default function RideSharing(props?: RideSharingProps) {
     lastGestureDy.current = screenHeight - initialHeight
   }, [])
 
-  // Helper refs: snap bottom sheet to max/min height (useRef to avoid stale closure)
   const snapToMaxRef = useRef(() => {
+    setIsExpanded(true)
     const snapTo = screenHeight - maxHeight
     lastGestureDy.current = snapTo
     Animated.spring(translateY, {
@@ -210,6 +205,7 @@ export default function RideSharing(props?: RideSharingProps) {
   })
 
   const snapToMinRef = useRef(() => {
+    setIsExpanded(false)
     const snapTo = screenHeight - minHeight
     lastGestureDy.current = snapTo
     Animated.spring(translateY, {
@@ -223,19 +219,19 @@ export default function RideSharing(props?: RideSharingProps) {
   const snapToMax = () => snapToMaxRef.current()
   const snapToMin = () => snapToMinRef.current()
 
-  // Auto-snap bottom sheet when keyboard appears/disappears
+  // Chỉ expand sheet khi keyboard hiện (user đang gõ vào input)
+  // KHÔNG tự động collapse khi keyboard ẩn — chỉ collapse khi user nhấn nút thủ công
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => snapToMaxRef.current()
-    )
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => snapToMinRef.current()
+      () => {
+        if (isInputFocused.current) {
+          snapToMaxRef.current()
+        }
+      }
     )
     return () => {
       showSub.remove()
-      hideSub.remove()
     }
   }, [])
 
@@ -751,19 +747,13 @@ export default function RideSharing(props?: RideSharingProps) {
 
   const handlePickupLocationChange = (text: string) => {
     setPickupLocation(text)
-
-    if (pickupSearchTimeout) {
-      clearTimeout(pickupSearchTimeout)
-    }
+    if (pickupSearchTimeout) clearTimeout(pickupSearchTimeout)
 
     if (text.trim().length >= 3) {
-      setShowPickupSuggestions(true)
       setPickupLoadingSuggestions(true)
       const timeout = setTimeout(async () => {
         try {
-          console.log('[Delivery] Pickup search for:', text)
           const suggestions = await mapsService.searchPlacesViaBackend(text, user?.id, API_BASE_URL)
-          console.log('[Delivery] Pickup suggestions received:', suggestions.length)
           setPickupSuggestions(suggestions)
         } catch (error) {
           console.error('Error searching pickup locations:', error)
@@ -776,33 +766,22 @@ export default function RideSharing(props?: RideSharingProps) {
     } else {
       setPickupSuggestions([])
       setPickupLoadingSuggestions(false)
-      if (text.trim().length === 0) {
-        setShowPickupSuggestions(false)
-      }
     }
   }
   const handlePickupSuggestionSelect = async (suggestion: any) => {
     setPickupLocation(suggestion.fullText)
-    setShowPickupSuggestions(false)
+    setActiveInput(null)        // Đóng dropdown
     setPickupSuggestions([])
-
-    // Gọi geocode API để lấy tọa độ thực tế
     try {
-      console.log('[RideSharing] Geocoding pickup location:', suggestion.fullText)
       const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
-
-      if (geocodeResult && geocodeResult.coordinates) {
+      if (geocodeResult?.coordinates) {
         const coords: [number, number] = [
           geocodeResult.coordinates.longitude,
           geocodeResult.coordinates.latitude
         ]
         setPickupCoordinates(coords)
         setIsPickupSelected(true)
-        console.log('[RideSharing] Pickup coordinates set:', coords)
-
-        // Tự động tính tuyến đường nếu đã có điểm đến
         if (dropoffLocation.trim() && isDropoffSelected) {
-          console.log('[RideSharing] Auto-calculating route...')
           await calculateRoute(coords, dropoffCoordinates)
         }
       }
@@ -814,19 +793,13 @@ export default function RideSharing(props?: RideSharingProps) {
 
   const handleDropoffLocationChange = (text: string) => {
     setDropoffLocation(text)
-
-    if (dropoffSearchTimeout) {
-      clearTimeout(dropoffSearchTimeout)
-    }
+    if (dropoffSearchTimeout) clearTimeout(dropoffSearchTimeout)
 
     if (text.trim().length >= 3) {
-      setShowDropoffSuggestions(true)
       setDropoffLoadingSuggestions(true)
       const timeout = setTimeout(async () => {
         try {
-          console.log('[Delivery] Dropoff search for:', text)
           const suggestions = await mapsService.searchPlacesViaBackend(text, user?.id, API_BASE_URL)
-          console.log('[Delivery] Dropoff suggestions received:', suggestions.length)
           setDropoffSuggestions(suggestions)
         } catch (error) {
           console.error('Error searching dropoff locations:', error)
@@ -839,33 +812,22 @@ export default function RideSharing(props?: RideSharingProps) {
     } else {
       setDropoffSuggestions([])
       setDropoffLoadingSuggestions(false)
-      if (text.trim().length === 0) {
-        setShowDropoffSuggestions(false)
-      }
     }
   }
   const handleDropoffSuggestionSelect = async (suggestion: any) => {
     setDropoffLocation(suggestion.fullText)
-    setShowDropoffSuggestions(false)
+    setActiveInput(null)        // Đóng dropdown
     setDropoffSuggestions([])
-
-    // Gọi geocode API để lấy tọa độ thực tế
     try {
-      console.log('[RideSharing] Geocoding dropoff location:', suggestion.fullText)
       const geocodeResult = await mapsService.geocodeAddress(suggestion.fullText)
-
-      if (geocodeResult && geocodeResult.coordinates) {
+      if (geocodeResult?.coordinates) {
         const coords: [number, number] = [
           geocodeResult.coordinates.longitude,
           geocodeResult.coordinates.latitude
         ]
         setDropoffCoordinates(coords)
         setIsDropoffSelected(true)
-        console.log('[RideSharing] Dropoff coordinates set:', coords)
-
-        // Tự động tính tuyến đường nếu đã có điểm đón
         if (pickupLocation.trim() && isPickupSelected) {
-          console.log('[RideSharing] Auto-calculating route...')
           await calculateRoute(pickupCoordinates, coords)
         }
       }
@@ -1032,8 +994,49 @@ export default function RideSharing(props?: RideSharingProps) {
           }
         ]}
       >
-        <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-          <View style={styles.handleBar} />
+        {/* Vùng drag handle — chỉ vùng này mới có PanResponder, tránh chặn touch của TextInput */}
+        <View
+          {...handlePanResponder.panHandlers}
+          style={{ alignItems: 'center', width: '100%', paddingTop: 8, paddingBottom: 4 }}
+        >
+          {/* Visual drag handle indicator */}
+          <View style={{
+            width: 40,
+            height: 4,
+            borderRadius: 2,
+            backgroundColor: '#D1D5DB',
+            marginBottom: 8,
+          }} />
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#F4F4F5',
+              paddingVertical: 6,
+              paddingHorizontal: 16,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: '#E4E4E7',
+            }}
+            onPress={() => {
+              if (isExpanded) {
+                Keyboard.dismiss()
+                snapToMinRef.current()
+              } else {
+                snapToMaxRef.current()
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: '#52525B', fontSize: 13, fontWeight: '600', marginRight: 4 }}>
+              {isExpanded ? 'Thu gọn' : 'Mở rộng'}
+            </Text>
+            <MaterialIcons
+              name={isExpanded ? 'expand-more' : 'expand-less'}
+              size={20}
+              color="#52525B"
+            />
+          </TouchableOpacity>
         </View>
         {/* Title Section */}
         <View style={styles.cardHeader}>
@@ -1057,21 +1060,16 @@ export default function RideSharing(props?: RideSharingProps) {
             </View>
           ) : null} */}
         </View>
-
-        <KeyboardAvoidingView
-          behavior="padding"
-          keyboardVerticalOffset={0}
-          style={{ flex: 1 }}
-        >
-          <ScrollView
+        <ScrollView
             showsVerticalScrollIndicator={false}
             style={styles.scrollContent}
-            contentContainerStyle={{ paddingBottom: 20 }}
-            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 250 }}
+            keyboardShouldPersistTaps="always"
           >
             {/* Locations Section */}
             <View style={styles.locationsContainer}>
-              <View style={[styles.inputGroup, showPickupSuggestions && { zIndex: 100 }]}>
+              {/* Pickup input */}
+              <View style={[styles.inputGroup, activeInput === 'pickup' && { zIndex: 100 }]}>
                 <View style={styles.inputRow}>
                   <View style={styles.iconWrapper}>
                     {isLoadingCurrentLocation ? (
@@ -1081,25 +1079,32 @@ export default function RideSharing(props?: RideSharingProps) {
                     )}
                   </View>
                   <TextInput
+                    ref={pickupInputRef}
                     style={styles.input}
                     placeholder={isLoadingCurrentLocation ? "Đang lấy vị trí..." : "Nhập điểm đón..."}
                     placeholderTextColor="#9CA3AF"
                     value={pickupLocation}
                     onChangeText={handlePickupLocationChange}
                     onFocus={() => {
-                      setShowPickupSuggestions(true)
-                      snapToMax()
+                      if (blurDebounceRef.current) clearTimeout(blurDebounceRef.current)
+                      isInputFocused.current = true
+                      setActiveInput('pickup')  // 1 setState duy nhất — không gây nhiều re-render
+                    }}
+                    onBlur={() => {
+                      blurDebounceRef.current = setTimeout(() => {
+                        isInputFocused.current = false
+                      }, 200)
                     }}
                     editable={!isLoadingCurrentLocation}
                   />
                 </View>
-                {showPickupSuggestions && pickupLoadingSuggestions && (
+                {activeInput === 'pickup' && pickupLoadingSuggestions && (
                   <View style={[styles.suggestionsDropdown, { justifyContent: 'center', alignItems: 'center', paddingVertical: 20 }]}>
                     <ActivityIndicator size="small" color="#FF6B00" />
                     <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>Đang tìm kiếm...</Text>
                   </View>
                 )}
-                {showPickupSuggestions && !pickupLoadingSuggestions && pickupSuggestions.length > 0 && (
+                {activeInput === 'pickup' && !pickupLoadingSuggestions && pickupSuggestions.length > 0 && (
                   <ScrollView
                     style={styles.suggestionsDropdown}
                     keyboardShouldPersistTaps="handled"
@@ -1126,30 +1131,38 @@ export default function RideSharing(props?: RideSharingProps) {
                 <View style={styles.dashedLine} />
               </View>
 
-              <View style={[styles.inputGroup, showDropoffSuggestions && { zIndex: 100 }]}>
+              {/* Dropoff input */}
+              <View style={[styles.inputGroup, activeInput === 'dropoff' && { zIndex: 100 }]}>
                 <View style={styles.inputRow}>
                   <View style={styles.iconWrapper}>
                     <MaterialIcons name="flag" size={20} color="#ef4444" />
                   </View>
                   <TextInput
+                    ref={dropoffInputRef}
                     style={styles.input}
                     placeholder="Nhập điểm đến..."
                     placeholderTextColor="#9CA3AF"
                     value={dropoffLocation}
                     onChangeText={handleDropoffLocationChange}
                     onFocus={() => {
-                      setShowDropoffSuggestions(true)
-                      snapToMax()
+                      if (blurDebounceRef.current) clearTimeout(blurDebounceRef.current)
+                      isInputFocused.current = true
+                      setActiveInput('dropoff')  // 1 setState duy nhất — không gây nhiều re-render
+                    }}
+                    onBlur={() => {
+                      blurDebounceRef.current = setTimeout(() => {
+                        isInputFocused.current = false
+                      }, 200)
                     }}
                   />
                 </View>
-                {showDropoffSuggestions && dropoffLoadingSuggestions && (
+                {activeInput === 'dropoff' && dropoffLoadingSuggestions && (
                   <View style={[styles.suggestionsDropdown, { justifyContent: 'center', alignItems: 'center', paddingVertical: 20 }]}>
                     <ActivityIndicator size="small" color="#FF6B00" />
                     <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 8 }}>Đang tìm kiếm...</Text>
                   </View>
                 )}
-                {showDropoffSuggestions && !dropoffLoadingSuggestions && dropoffSuggestions.length > 0 && (
+                {activeInput === 'dropoff' && !dropoffLoadingSuggestions && dropoffSuggestions.length > 0 && (
                   <ScrollView
                     style={styles.suggestionsDropdown}
                     keyboardShouldPersistTaps="handled"
@@ -1412,32 +1425,31 @@ export default function RideSharing(props?: RideSharingProps) {
               </View>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
-
-        {/* Sticky Bottom Action */}
-        <View style={styles.bottomAction}>
-          <TouchableOpacity
-            style={[styles.confirmButton, (loading || isRecalculatingRoute) && styles.confirmButtonDisabled]}
-            onPress={handleFindRide}
-            activeOpacity={0.8}
-            disabled={loading || isRecalculatingRoute}
-          >
-            {loading || isRecalculatingRoute ? (
-              <>
-                <ActivityIndicator color="#fff" size="small" />
-                <Text style={styles.confirmButtonText}>
-                  {isRecalculatingRoute ? 'Cập nhật tuyến đường...' : 'Tìm chuyến xe...'}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.confirmButtonText}>Tìm chuyến xe</Text>
-                <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
       </Animated.View>
+
+      {/* Sticky Bottom Action permanently anchored to the screen bottom */}
+      <View style={[styles.bottomAction, { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 9999 }]}>
+        <TouchableOpacity
+          style={[styles.confirmButton, (loading || isRecalculatingRoute) && styles.confirmButtonDisabled]}
+          onPress={handleFindRide}
+          activeOpacity={0.8}
+          disabled={loading || isRecalculatingRoute}
+        >
+          {loading || isRecalculatingRoute ? (
+            <>
+              <ActivityIndicator color="#fff" size="small" />
+              <Text style={styles.confirmButtonText}>
+                {isRecalculatingRoute ? 'Cập nhật tuyến đường...' : 'Tìm chuyến xe...'}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.confirmButtonText}>Tìm chuyến xe</Text>
+              <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   )
 }
@@ -1561,7 +1573,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 14,
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
   },
@@ -1573,7 +1584,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#111827',
     backgroundColor: 'transparent',
-    paddingVertical: 0,
+    paddingVertical: 14,
   },
   locationDivider: {
     paddingVertical: 8,

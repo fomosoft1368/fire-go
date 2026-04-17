@@ -70,16 +70,17 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      <KeyboardAwareScrollView
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 250 }}
+        enableOnAndroid={true}
+        extraScrollHeight={200}
+        extraHeight={150}
+        enableAutomaticScroll={true}
       >
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          // contentContainerStyle={{ flexGrow: 1 }}
-          keyboardDismissMode="interactive"
-          contentContainerStyle={{ paddingBottom: 150 }}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
@@ -223,8 +224,7 @@ export default function LoginScreen({ navigation }: any) {
               <Text style={styles.signupLink}>Đăng ký tài xế</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   )
 }

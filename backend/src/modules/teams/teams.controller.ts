@@ -8,6 +8,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Put,
 } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -26,6 +27,7 @@ export class TeamsController {
   @Get('dashboard')
   @Roles(
     UserRole.ADMIN,
+    UserRole.STAFF,
     UserRole.F1_LEAD,
     UserRole.F2_SUB_LEAD,
     UserRole.F3_STAFF_MKT,
@@ -40,7 +42,7 @@ export class TeamsController {
 
   // ─── GET /teams/my-team (legacy, giữ nguyên) ─────────────────────────────
   @Get('my-team')
-  @Roles(UserRole.ADMIN, UserRole.F1_LEAD, UserRole.F2_SUB_LEAD)
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.F1_LEAD, UserRole.F2_SUB_LEAD)
   getMyTeam(@Request() req: any) {
     const userId = req.user.sub || req.user._id;
     return this.teamsService.getMyTeam(userId);
@@ -51,6 +53,7 @@ export class TeamsController {
   @Get('members')
   @Roles(
     UserRole.ADMIN,
+    UserRole.STAFF,
     UserRole.F1_LEAD,
     UserRole.F2_SUB_LEAD,
     UserRole.F3_STAFF_MKT,
@@ -74,6 +77,7 @@ export class TeamsController {
   @Get('drivers')
   @Roles(
     UserRole.ADMIN,
+    UserRole.STAFF,
     UserRole.F1_LEAD,
     UserRole.F2_SUB_LEAD,
     UserRole.F3_STAFF_MKT,
@@ -98,7 +102,7 @@ export class TeamsController {
   // newMemberId phải là User đã tồn tại trong DB (đã được tạo tài khoản)
   @Post('add-member')
   @HttpCode(HttpStatus.CREATED)
-  @Roles(UserRole.ADMIN, UserRole.F1_LEAD, UserRole.F2_SUB_LEAD)
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.F1_LEAD, UserRole.F2_SUB_LEAD)
   addMember(
     @Request() req: any,
     @Body() body: { newMemberId: string; newMemberRole: string },
@@ -111,5 +115,19 @@ export class TeamsController {
       body.newMemberId,
       body.newMemberRole,
     );
+  }
+
+  // ─── GET /teams/config/marketing ──────────────────────────────────────────
+  @Get('config/marketing')
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.F1_LEAD, UserRole.F2_SUB_LEAD, UserRole.F3_STAFF_MKT)
+  getMarketingConfig() {
+    return this.teamsService.getMarketingConfig();
+  }
+
+  // ─── PUT /teams/config/marketing ──────────────────────────────────────────
+  @Put('config/marketing')
+  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  updateMarketingConfig(@Body() body: any) {
+    return this.teamsService.updateMarketingConfig(body);
   }
 }

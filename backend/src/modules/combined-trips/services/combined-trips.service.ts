@@ -1540,8 +1540,10 @@ export class CombinedTripsService implements OnModuleInit {
         ...((): { totalSeats: number; availableSeats: number } => {
           const types: string[] = data.driverVehicleTypes || ['sedan'];
           const hasSuv = types.includes('suv');
-          const seats = hasSuv ? 6 : 4;
-          return { totalSeats: seats, availableSeats: seats };
+          const maxSeats = hasSuv ? 6 : 4;
+          const requestedSeats = Number(data.seats) || 1;
+          const availableSeats = Math.max(0, maxSeats - requestedSeats);
+          return { totalSeats: maxSeats, availableSeats };
         })(),
 
         customerId: data.customerId ? [data.customerId] : [],
@@ -1835,7 +1837,9 @@ export class CombinedTripsService implements OnModuleInit {
         dropoffAddress: combinedTrip.dropoffAddress,
         dropoffCoordinates: combinedTrip.dropoffLocation?.coordinates,
         fare: combinedTrip.totalFare || combinedTrip.baseFare || 0, // ✅ FIX: use totalFare (baseFare doesn't exist)
-        seats: combinedTrip.availableSeats,
+        // ✅ FIX: seats = number of seats the customer BOOKED = totalSeats - availableSeats
+        // NOT availableSeats (which is the remaining free seats)
+        seats: (combinedTrip.totalSeats || 4) - (combinedTrip.availableSeats ?? (combinedTrip.totalSeats || 4)),
         distance: combinedTrip.distance,
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + timeoutMs), // Dynamic timeout from config
@@ -2029,7 +2033,8 @@ export class CombinedTripsService implements OnModuleInit {
         dropoffAddress: trip.dropoffAddress,
         dropoffCoordinates: trip.dropoffLocation?.coordinates,
         fare: trip.totalFare || trip.baseFare || 0, // ✅ FIX: use totalFare
-        seats: trip.availableSeats,
+        // ✅ FIX: seats = number of seats the customer BOOKED = totalSeats - availableSeats
+        seats: (trip.totalSeats || 4) - (trip.availableSeats ?? (trip.totalSeats || 4)),
         distance: trip.distance,
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + timeoutMs), // Dynamic timeout from config

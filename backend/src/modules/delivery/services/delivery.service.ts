@@ -157,8 +157,11 @@ export class DeliveryService {
           ? updatedDelivery.driverId._id
           : updatedDelivery.driverId;
 
+      const isDelivered = updateDeliveryDto.status === DeliveryStatus.DELIVERED;
+      
       await this.driverModel.findByIdAndUpdate(driverId, {
         isAvailable: true,
+        ...(isDelivered ? { $inc: { totalRides: 1, completedRides: 1 } } : {})
       });
 
       this.logger.log(

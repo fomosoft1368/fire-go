@@ -1545,17 +1545,12 @@ export default function App() {
       currentRequestIdRef.current = null
       markRequestClosed(closedId) // 🛡️ Debounce RideRequest ID for 90s
 
-      // ✅ FIX: Also debounce the combinedTripId for rideshare
-      // Without this, polling may re-deliver the same trip via the pending-requests endpoint
-      // even though the RideRequest ID was already debounced
+      // ✅ NOTE: Do NOT debounce combinedTripId for rideshare trips.
+      // Unlike regular rides, a driver can accept multiple customers joining the same shared trip.
+      // Debouncing the tripId would block new passenger join requests from showing up.
+      // The RideRequest ID debounce (above) is sufficient to prevent duplicate modals for the same request.
       if (requestType === 'rideshare' && tripId) {
-        const tripIdStr = typeof tripId === 'object' ? (tripId._id?.toString() || String(tripId)) : String(tripId)
-        console.log('[App] 🛡️ Also debouncing combinedTripId to prevent duplicate modal:', tripIdStr)
-        recentlyClosedIds.current.add(tripIdStr)
-        setTimeout(() => {
-          recentlyClosedIds.current.delete(tripIdStr)
-          console.log('[App] ✅ Debounce expired for combinedTripId:', tripIdStr)
-        }, 90_000)
+        console.log('[App] ℹ️ Rideshare: NOT debouncing combinedTripId (allows more passengers to join):', tripId)
       }
 
       setShowAssignmentModal(false)

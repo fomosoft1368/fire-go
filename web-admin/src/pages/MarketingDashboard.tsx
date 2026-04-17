@@ -113,6 +113,7 @@ export default function MarketingDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [teamMembers, setTeamMembers] = useState<MarketingUser[]>([]);
   const [f3Drivers, setF3Drivers] = useState<any[]>([]);
+  const [configData, setConfigData] = useState<any>(null);
   const [stats, setStats] = useState<KpiStats>({
     totalNetwork: 0, activeF1: 0, activeF2: 0, activeF3: 0,
     monthlyDrivers: 0, totalDriversByTeam: 0,
@@ -156,12 +157,16 @@ export default function MarketingDashboard() {
       const dashboardUrl = targetId ? `/teams/dashboard?targetUserId=${targetId}` : '/teams/dashboard';
       const membersUrl = targetId ? `/teams/members?page=1&limit=100&targetUserId=${targetId}` : '/teams/members?page=1&limit=100';
       const driversUrl = targetId ? `/teams/drivers?page=1&limit=100&targetUserId=${targetId}` : '/teams/drivers?page=1&limit=100';
+      const configUrl = '/teams/config/marketing';
 
-      const [dashRes, membersRes, driversRes] = await Promise.all([
+      const [dashRes, membersRes, driversRes, configRes] = await Promise.all([
         apiService.get(dashboardUrl).catch(() => null),
         apiService.get(membersUrl).catch(() => ({ members: [], total: 0 })),
         apiService.get(driversUrl).catch(() => ({ drivers: [], total: 0 })),
+        apiService.get(configUrl).catch(() => null),
       ]);
+
+      setConfigData(configRes?.data || configRes);
 
       if (dashRes?.me) {
         if (!targetId) {
@@ -246,7 +251,28 @@ export default function MarketingDashboard() {
   };
 
   const roleConfig = currentUser?.role ? ROLE_CONFIG[currentUser.role as keyof typeof ROLE_CONFIG] : ROLE_CONFIG.f3_staff_mkt;
-  const kpiTarget = getKpiTarget(currentUser?.role || 'f3_staff_mkt');
+  
+  const defaultKpi = getKpiTarget(currentUser?.role || 'f3_staff_mkt');
+  const roleKey = currentUser?.role || 'f3_staff_mkt';
+  const dbKpi = configData?.kpis?.[roleKey];
+
+  const kpiTarget = dbKpi ? {
+    label: dbKpi.label || defaultKpi.label,
+    metric1Name: dbKpi.metric1?.name || defaultKpi.metric1Name,
+    metric1Target: dbKpi.metric1?.target || defaultKpi.metric1Target,
+    metric1Icon: dbKpi.metric1?.icon || defaultKpi.metric1Icon,
+    metric1Color: dbKpi.metric1?.color || defaultKpi.metric1Color,
+    
+    metric2Name: dbKpi.metric2?.name || defaultKpi.metric2Name,
+    metric2Target: dbKpi.metric2?.target || defaultKpi.metric2Target,
+    metric2Icon: dbKpi.metric2?.icon || defaultKpi.metric2Icon,
+    metric2Color: dbKpi.metric2?.color || defaultKpi.metric2Color,
+    
+    metric3Name: dbKpi.metric3?.name || defaultKpi.metric3Name,
+    metric3Target: dbKpi.metric3?.target || defaultKpi.metric3Target,
+    metric3Icon: dbKpi.metric3?.icon || defaultKpi.metric3Icon,
+    metric3Color: dbKpi.metric3?.color || defaultKpi.metric3Color,
+  } : defaultKpi;
   const canAddMember = currentUser?.role === 'f1_lead' || currentUser?.role === 'f2_sub_lead';
 
   const allowedNewRoles = () => {
@@ -264,8 +290,8 @@ export default function MarketingDashboard() {
   const filteredMembers = teamMembers;
 
   // ─── KPI Progress ──────────────────────────────────────────────────────────
-  const driverProgress = Math.min(100, Math.round((stats.monthlyDrivers / kpiTarget.drivers) * 100));
-  const customerProgress = Math.min(100, Math.round(((stats.totalDriversByTeam || 0) / kpiTarget.customers) * 100));
+  const driverProgress = Math.min(100, Math.round((stats.monthlyDrivers / (kpiTarget.metric3Target || 1)) * 100));
+  const customerProgress = Math.min(100, Math.round(((stats.totalDriversByTeam || 0) / (kpiTarget.metric1Target || 1)) * 100));
 
   if (loading) {
     return (

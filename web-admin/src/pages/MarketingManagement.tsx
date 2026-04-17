@@ -38,6 +38,9 @@ export default function MarketingManagement() {
   const { addNotification } = useNotification();
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [configData, setConfigData] = useState<any>(null);
+  const [configLoading, setConfigLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -147,6 +150,33 @@ export default function MarketingManagement() {
     }
   };
 
+  const handleOpenConfig = async () => {
+    setShowConfigModal(true);
+    setConfigLoading(true);
+    try {
+      const res = await apiService.get('/teams/config/marketing');
+      setConfigData(res.data || res);
+    } catch (err) {
+      addNotification('error', 'Lỗi khi tải cấu hình');
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setConfigLoading(true);
+    try {
+      await apiService.put('/teams/config/marketing', configData);
+      addNotification('success', 'Đã lưu cấu hình Marketing');
+      setShowConfigModal(false);
+    } catch (err) {
+      addNotification('error', 'Lỗi khi lưu cấu hình');
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'f1_lead': return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">F1 Lead</span>;
@@ -164,13 +194,21 @@ export default function MarketingManagement() {
             <h1 className="text-2xl font-bold text-gray-900">Đội ngũ Marketing</h1>
             <p className="text-sm text-gray-500 mt-1">Quản lý mạng lưới Referral (F1, F2, F3)</p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            disabled={allowedRoles.length === 0}
-            className="px-4 py-2 bg-black text-white hover:bg-gray-800 rounded-xl font-medium transition-colors disabled:opacity-50"
-          >
-            + Thêm mới
-          </button>
+          <div className="flex gap-3">
+             <button
+               onClick={handleOpenConfig}
+               className="px-4 py-2 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-xl font-medium transition-colors border border-purple-200"
+             >
+                <span className="flex items-center gap-2"><span className="material-symbols-outlined text-sm">settings</span> Cấu hình chung</span>
+             </button>
+             <button
+               onClick={() => setShowAddModal(true)}
+               disabled={allowedRoles.length === 0}
+               className="px-4 py-2 bg-black text-white hover:bg-gray-800 rounded-xl font-medium transition-colors disabled:opacity-50"
+             >
+               + Thêm mới
+             </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -294,6 +332,110 @@ export default function MarketingManagement() {
               <div className="mt-6 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl">Hủy</button>
                 <button type="submit" className="px-4 py-2 text-white bg-black hover:bg-gray-800 rounded-xl">Lưu lại</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {showConfigModal && configData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <span className="material-symbols-outlined text-purple-600">settings</span> 
+                Cấu hình Hoa hồng & KPI Marketing
+              </h2>
+              <button onClick={() => setShowConfigModal(false)} className="text-gray-400 hover:text-gray-600">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveConfig} className="flex-1 overflow-y-auto p-6">
+              {configLoading ? (
+                <div className="text-center text-gray-500 py-10">Đang tải...</div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Tỷ lệ hoa hồng */}
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-4 border-b pb-2 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-green-600 text-lg">payments</span>
+                      Cấu hình Tỷ lệ Hoa hồng
+                    </h3>
+                    <div className="grid grid-cols-3 gap-6">
+                      <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+                        <label className="block text-sm font-bold text-purple-900 mb-1">F1 Lead (%)</label>
+                        <input type="number" step="0.1" className="w-full px-3 py-2 border rounded-lg focus:ring-purple-500" value={configData.rates?.f1Rate || 0} onChange={e => setConfigData({...configData, rates: {...configData.rates, f1Rate: Number(e.target.value)}})} />
+                        <p className="text-xs text-purple-600 mt-2">Phần trăm trích từ Phí nền tảng.</p>
+                      </div>
+                      <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <label className="block text-sm font-bold text-blue-900 mb-1">F2 Sub Lead (%)</label>
+                        <input type="number" step="0.1" className="w-full px-3 py-2 border rounded-lg focus:ring-blue-500" value={configData.rates?.f2Rate || 0} onChange={e => setConfigData({...configData, rates: {...configData.rates, f2Rate: Number(e.target.value)}})} />
+                      </div>
+                      <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                        <label className="block text-sm font-bold text-green-900 mb-1">F3 Sale (%)</label>
+                        <input type="number" step="0.1" className="w-full px-3 py-2 border rounded-lg focus:ring-green-500" value={configData.rates?.f3Rate || 0} onChange={e => setConfigData({...configData, rates: {...configData.rates, f3Rate: Number(e.target.value)}})} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mục tiêu KPIs */}
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-4 border-b pb-2 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-orange-600 text-lg">trending_up</span>
+                      Mục tiêu KPIs (Giao diện)
+                    </h3>
+                    <div className="space-y-6">
+                      {['f1_lead', 'f2_sub_lead', 'f3_staff_mkt'].map(role => {
+                         const roleLabel = role === 'f1_lead' ? 'F1 Lead' : role === 'f2_sub_lead' ? 'F2 Sub Lead' : 'F3 Sale';
+                         const bg = role === 'f1_lead' ? 'bg-purple-50/50' : role === 'f2_sub_lead' ? 'bg-blue-50/50' : 'bg-emerald-50/50';
+                         if (!configData.kpis || !configData.kpis[role]) return null;
+                         
+                         return (
+                           <div key={role} className={`p-4 rounded-xl border ${bg}`}>
+                             <div className="mb-3">
+                               <label className="font-bold text-gray-800 flex items-center gap-2 mb-1">{roleLabel} - Mô tả chung</label>
+                               <input type="text" className="w-full px-3 py-2 border border-white rounded-lg text-sm" value={configData.kpis[role].label || ''} onChange={e => {
+                                  const newKpi = {...configData.kpis};
+                                  newKpi[role].label = e.target.value;
+                                  setConfigData({...configData, kpis: newKpi});
+                               }}/>
+                             </div>
+                             
+                             <div className="grid grid-cols-3 gap-4">
+                               {[1, 2, 3].map(m => {
+                                  const metric = configData.kpis[role][`metric${m}`];
+                                  return (
+                                     <div key={m} className="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                                       <label className="block text-xs font-bold text-gray-700 mb-1">Mục tiêu {m}</label>
+                                       <div className="space-y-2">
+                                          <input type="text" placeholder="Tên" className="w-full px-2 py-1 border rounded text-sm" value={metric.name} onChange={e => {
+                                             const newKpi = {...configData.kpis};
+                                             newKpi[role][`metric${m}`].name = e.target.value;
+                                             setConfigData({...configData, kpis: newKpi});
+                                          }}/>
+                                          <input type="number" placeholder="Chỉ tiêu" className="w-full px-2 py-1 border rounded text-sm font-bold text-primary-600" value={metric.target} onChange={e => {
+                                             const newKpi = {...configData.kpis};
+                                             newKpi[role][`metric${m}`].target = Number(e.target.value);
+                                             setConfigData({...configData, kpis: newKpi});
+                                          }}/>
+                                       </div>
+                                     </div>
+                                  )
+                               })}
+                             </div>
+                           </div>
+                         )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100 sticky bottom-0 bg-white p-4 -m-6 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+                <button type="button" onClick={() => setShowConfigModal(false)} className="px-6 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium">Hủy bỏ</button>
+                <button type="submit" disabled={configLoading} className="px-6 py-2.5 text-white bg-black hover:bg-gray-800 rounded-xl font-medium flex items-center gap-2">
+                  {configLoading ? 'Đang lưu...' : 'Lưu Cấu Hình'}
+                </button>
               </div>
             </form>
           </div>

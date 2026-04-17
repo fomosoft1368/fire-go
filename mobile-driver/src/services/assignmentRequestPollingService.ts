@@ -257,15 +257,20 @@ class AssignmentRequestPollingService {
 
       console.log(`[AssignmentPolling] ✅ ${type} status:`, status)
 
-      // 🔥 Validate status - only 'pending' or 'searching' are acceptable
+      // 🔥 Validate status - accept 'pending' or 'searching' for regular trips
+      // For rideshare (combined trips), 'accepted' and 'in_progress' are also valid
+      // because the driver is collecting multiple passengers
       const validStatuses = ['pending', 'searching', 'finding_driver']
-      const isValid = validStatuses.includes(status)
+      const validRideshareStatuses = ['pending', 'searching', 'finding_driver', 'accepted', 'in_progress']
+      const isValid = type === 'rideshare'
+        ? validRideshareStatuses.includes(status)
+        : validStatuses.includes(status)
 
       if (!isValid) {
         let message = 'Chuyến đi không khả dụng'
         if (status === 'cancelled' || status === 'canceled') {
           message = 'Chuyến đã bị hủy bởi khách hàng'
-        } else if (status === 'assigned' || status === 'in_progress' || status === 'accepted') {
+        } else if (status === 'assigned') {
           message = 'Chuyến đã được tài xế khác nhận'
         } else if (status === 'completed') {
           message = 'Chuyến đã hoàn thành'

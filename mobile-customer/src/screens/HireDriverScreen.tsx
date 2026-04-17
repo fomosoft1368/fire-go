@@ -113,6 +113,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   const [needsDeposit, setNeedsDeposit] = useState(false)      // Có cần đặt cọc không
   const [depositAgreed, setDepositAgreed] = useState(false)    // Khách đã tick đồng ý
   const [walletBalance, setWalletBalance] = useState<number | null>(null) // Số dư ví
+  const [isExpanded, setIsExpanded] = useState(false)
 
   // ====================================
 
@@ -177,6 +178,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
   // Helper refs: snap bottom sheet to max/min height
   const snapToMaxRef = useRef(() => {
+    setIsExpanded(true)
     const snapTo = screenHeight - maxHeight
     lastGestureDy.current = snapTo
     Animated.spring(translateY, {
@@ -188,6 +190,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   })
 
   const snapToMinRef = useRef(() => {
+    setIsExpanded(false)
     const snapTo = screenHeight - minHeight
     lastGestureDy.current = snapTo
     Animated.spring(translateY, {
@@ -802,8 +805,30 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
         pointerEvents="box-none"
       >
         <View style={styles.card} pointerEvents="auto">
-          <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-            <View style={styles.handleBar} />
+          <View style={{ alignItems: 'center', width: '100%', paddingVertical: 12 }}>
+            <TouchableOpacity 
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#F4F4F5',
+                paddingVertical: 6,
+                paddingHorizontal: 16,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: '#E4E4E7',
+              }} 
+              onPress={() => isExpanded ? snapToMinRef.current() : snapToMaxRef.current()}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: '#52525B', fontSize: 13, fontWeight: '600', marginRight: 4 }}>
+                {isExpanded ? "Thu gọn" : "Mở rộng"}
+              </Text>
+              <MaterialIcons 
+                name={isExpanded ? "expand-more" : "expand-less"} 
+                size={20} 
+                color="#52525B" 
+              />
+            </TouchableOpacity>
           </View>
           {/* Title Section */}
           <View style={styles.cardHeader}>
@@ -834,6 +859,7 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 250 }}
               >
                 <View style={styles.locationsContainer}>
                   {/* Pickup Location */}
@@ -1200,45 +1226,41 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                 )}
                 {/* ====================================== */}
 
-                <View style={styles.bottomAction} pointerEvents="auto">
-                  <TouchableOpacity
-                    style={[
-                      styles.confirmButton,
-                      (loading || (needsDeposit && !depositAgreed) || (needsDeposit && walletBalance !== null && walletBalance < depositAmount)) && styles.confirmButtonDisabled
-                    ]}
-                    onPress={handleCreateRide}
-                    activeOpacity={0.8}
-                    disabled={loading || (needsDeposit && !depositAgreed) || (needsDeposit && walletBalance !== null && walletBalance < depositAmount)}
-                  >
-                    {loading ? (
-                      <>
-                        <ActivityIndicator color="#fff" size="small" />
-                        <Text style={styles.confirmButtonText}>Đang xử lý...</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={styles.confirmButtonText}>
-                          {needsDeposit && !depositAgreed
-                            ? `Cần xác nhận đặt cọc ${depositPercent}% trước`
-                            : 'Tìm tài xế ngay'
-                          }
-                        </Text>
-                        <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                {/* Bottom spacing for fixed button */}
-                <View style={{ height: 100 }} />
               </ScrollView>
             </KeyboardAvoidingView>
           </View>
         </View>
-
-        {/* Sticky Bottom Action - Must be inside Animated.View */}
-
       </Animated.View>
+
+      {/* Sticky Bottom Action permanently anchored to the screen bottom */}
+      <View style={[styles.bottomAction, { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 9999 }]} pointerEvents="auto">
+        <TouchableOpacity
+          style={[
+            styles.confirmButton,
+            (loading || (needsDeposit && !depositAgreed) || (needsDeposit && walletBalance !== null && walletBalance < depositAmount)) && styles.confirmButtonDisabled
+          ]}
+          onPress={handleCreateRide}
+          activeOpacity={0.8}
+          disabled={loading || (needsDeposit && !depositAgreed) || (needsDeposit && walletBalance !== null && walletBalance < depositAmount)}
+        >
+          {loading ? (
+            <>
+              <ActivityIndicator color="#fff" size="small" />
+              <Text style={styles.confirmButtonText}>Đang xử lý...</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.confirmButtonText}>
+                {needsDeposit && !depositAgreed
+                  ? `Cần xác nhận đặt cọc ${depositPercent}% trước`
+                  : 'Tìm tài xế ngay'
+                }
+              </Text>
+              <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   )
 }

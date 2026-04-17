@@ -12,6 +12,7 @@ import {
   Animated,
   ScrollView,
   Image,
+  Platform,
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -1112,17 +1113,25 @@ export default function FindingRideScreen({ navigation }: any) {
       />
 
       {/* Header with Route Info */}
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <View style={styles.header}>
         {/* Back Button */}
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={[styles.headerMeta, { color: colors.textSecondary }]}>
-            Hôm nay, 1 Người
-          </Text>
-          <TouchableOpacity>
-            <MaterialIcons name="tune" size={24} color={colors.text} />
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Tìm chuyến xe</Text>
+            <Text style={styles.headerMeta}>Hôm nay, {seats} Người</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.tuneBtn}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="tune" size={24} color="#FF6B00" />
           </TouchableOpacity>
         </View>
 
@@ -1686,19 +1695,54 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 15 : 45,
     paddingBottom: SPACING.lg,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 10,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.xl,
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.3,
   },
   headerMeta: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tuneBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF5F0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   routeVisualization: {
     flexDirection: 'row',

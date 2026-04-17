@@ -16,6 +16,9 @@ import type { RootStackParamList } from '../types';
 import type { RootState } from '../redux/store';
 import PromoBanner from '../components/PromoBanner';
 import { API_BASE_URL } from '../constants';
+import { rideService } from '../services/rideService';
+import { deliveryService } from '../services/deliveryService';
+import { combinedTripsService } from '../services/combinedTripsService';
 
 const Home = () => {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -52,22 +55,99 @@ const Home = () => {
         setUnreadCount(0) // Reset badge khi mở thông báo
         navigation.navigate('Notification')
     }
-    // Load recent locations from AsyncStorage
+    // Load recent locations from trip history
     useEffect(() => {
         const loadRecentLocations = async () => {
+            const userId = user?._id || user?.id;
+            console.log('[Home] User data:', { hasUser: !!user, hasId: !!userId, id: userId });
+            
+            if (!userId) {
+                console.log('[Home] Cannot fetch recent locations: missing user ID');
+                return;
+            }
             try {
-                const stored = await AsyncStorage.getItem('recentLocations')
-                if (stored) {
-                    const locations = JSON.parse(stored)
-                    // Get last 5 locations
-                    setRecentLocations(locations.slice(0, 5))
+                // Fetch from all services concurrently
+                const [rideRes, deliveryRes, combinedRes] = await Promise.allSettled([
+                    rideService.getRideHistory(userId),
+                    deliveryService.getMyDeliveries(),
+                    combinedTripsService.getCustomerTrips(userId)
+                ])
+
+                console.log('[Home] History fetch results:', {
+                    rideState: rideRes.status,
+                    rideCount: rideRes.status === 'fulfilled' ? rideRes.value?.length : 'error',
+                    deliveryState: deliveryRes.status,
+                    deliveryCount: deliveryRes.status === 'fulfilled' ? deliveryRes.value?.length : 'error',
+                    combinedState: combinedRes.status,
+                    combinedCount: combinedRes.status === 'fulfilled' ? combinedRes.value?.length : 'error',
+                });
+
+                const uniqueDropoffs = new Map()
+
+                const addLocation = (addr: string | undefined, type: string, specificName?: string) => {
+                    if (addr && addr.trim() !== '' && !uniqueDropoffs.has(addr)) {
+                        const addressParts = addr.split(',')
+                        const name = specificName || (addressParts.length > 0 ? addressParts[0].trim() : 'Địa điểm')
+                        
+                        let iconBg = '#FFEDD5'
+                        let iconColor = '#EA580C'
+                        let icon = 'car-outline'
+
+                        if (type === 'delivery') {
+                            iconBg = '#E0F2FE'
+                            iconColor = '#0284C7'
+                            icon = 'cube-outline'
+                        } else if (type === 'combined') {
+                            iconBg = '#DCFCE7'
+                            iconColor = '#16A34A'
+                            icon = 'people-outline'
+                        }
+
+                        uniqueDropoffs.set(addr, {
+                            name,
+                            address: addr,
+                            iconBg,
+                            iconColor,
+                            icon,
+                            type
+                        })
+                    }
                 }
+
+                // Add standard rides
+                if (rideRes.status === 'fulfilled' && rideRes.value) {
+                    const rides = Array.isArray(rideRes.value) ? rideRes.value : (rideRes.value.data || []);
+                    if (Array.isArray(rides)) {
+                        rides.forEach((r: any) => addLocation(r.dropoffLocation || r.dropoffAddress, 'ride', r.dropoffDistrict));
+                    }
+                }
+                
+                // Add deliveries
+                if (deliveryRes.status === 'fulfilled' && deliveryRes.value) {
+                    const deliveries = Array.isArray(deliveryRes.value) ? deliveryRes.value : (deliveryRes.value.data || []);
+                    if (Array.isArray(deliveries)) {
+                        deliveries.forEach((d: any) => addLocation(d.dropoffAddress, 'delivery'));
+                    }
+                }
+
+                // Add combined trips
+                if (combinedRes.status === 'fulfilled' && combinedRes.value) {
+                    const combined = Array.isArray(combinedRes.value) ? combinedRes.value : (combinedRes.value.data || []);
+                    if (Array.isArray(combined)) {
+                        combined.forEach((c: any) => addLocation(c.dropoffAddress, 'combined'));
+                    }
+                }
+
+                // Convert to array and take top 5
+                const locationsArray = Array.from(uniqueDropoffs.values()).slice(0, 5)
+                // Always update state even if empty, to clear out the default 
+                setRecentLocations(locationsArray)
             } catch (error) {
                 console.error('[Home] Error loading recent locations:', error)
             }
         }
         loadRecentLocations()
-    }, [])
+    }, [user])
 
     // Get user's display name
     const getDisplayName = () => {
@@ -248,8 +328,13 @@ const Home = () => {
                                 style={styles.locationCard}
                                 activeOpacity={0.7}
                                 onPress={() => {
-                                    // Navigate to Delivery with this location
-                                    navigation.navigate('Delivery')
+                                    if (location.type === 'combined') {
+                                        navigation.navigate('BookRide');
+                                    } else if (location.type === 'delivery') {
+                                        navigation.navigate('Delivery');
+                                    } else {
+                                        navigation.navigate('HireDriver');
+                                    }
                                 }}
                             >
                                 <View style={[

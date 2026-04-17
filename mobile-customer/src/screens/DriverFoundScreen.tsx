@@ -82,6 +82,7 @@ export default function DriverFoundScreen() {
   const pollingInterval = useRef<NodeJS.Timeout | null>(null)
   const locationInterval = useRef<NodeJS.Timeout | null>(null)
   const alertedStatuses = useRef<Set<string>>(new Set()) // Track alerted status changes
+  const [isExpanded, setIsExpanded] = useState(false)
 
   // Container will be EXPANDED_HEIGHT tall, positioned at bottom
   // translateY will push it up or down to show different amounts
@@ -132,6 +133,7 @@ export default function DriverFoundScreen() {
         const targetY = currentY < threshold ? expandedY : collapsedY
 
         lastGestureY.current = targetY
+        setIsExpanded(targetY === expandedY)
 
         Animated.spring(translateY, {
           toValue: targetY,
@@ -148,6 +150,7 @@ export default function DriverFoundScreen() {
     const targetY = state === 'expanded' ? 0 : EXPANDED_HEIGHT - COLLAPSED_HEIGHT
 
     lastGestureY.current = targetY
+    setIsExpanded(state === 'expanded')
 
     Animated.spring(translateY, {
       toValue: targetY,
@@ -1376,28 +1379,43 @@ export default function DriverFoundScreen() {
           style={[styles.bottomSheet, { backgroundColor: colors.card }]}
         >
           {/* Drag Handle - Touchable area for gestures */}
-          <View style={styles.dragHandleWrapper} {...panResponder.panHandlers}>
+          <View style={[styles.dragHandleWrapper, { alignItems: 'center', width: '100%', paddingTop: 8, paddingBottom: 4 }]} {...panResponder.panHandlers}>
+            <View style={{
+              width: 40,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: '#D1D5DB',
+              marginBottom: 8,
+            }} />
             <TouchableOpacity
-              style={styles.dragHandle}
-              activeOpacity={0.8}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#F4F4F5',
+                paddingVertical: 6,
+                paddingHorizontal: 16,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: '#E4E4E7',
+              }}
               onPress={() => {
-                // Toggle between collapsed and expanded on tap
-                const currentY = lastGestureY.current
-                const expandedY = 0
-                const collapsedY = EXPANDED_HEIGHT - COLLAPSED_HEIGHT
-
-                if (Math.abs(currentY - collapsedY) < Math.abs(currentY - expandedY)) {
-                  snapToState('expanded')
-                } else {
+                if (isExpanded) {
                   snapToState('collapsed')
+                } else {
+                  snapToState('expanded')
                 }
               }}
+              activeOpacity={0.7}
             >
-              <View style={[styles.dragHandleBar, { backgroundColor: colors.border }]} />
+              <Text style={{ color: '#52525B', fontSize: 13, fontWeight: '600', marginRight: 4 }}>
+                {isExpanded ? 'Thu gọn' : 'Mở rộng'}
+              </Text>
+              <MaterialIcons
+                name={isExpanded ? 'expand-more' : 'expand-less'}
+                size={20}
+                color="#52525B"
+              />
             </TouchableOpacity>
-          </View>
-          <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-            <View style={styles.handleBar} />
           </View>
           <ScrollView
             ref={scrollViewRef}

@@ -12,6 +12,10 @@ import {
   Transaction,
   TransactionSchema,
 } from '../wallets/schemas/transaction.schema';
+import {
+  MarketingConfig,
+  MarketingConfigSchema,
+} from './schemas/marketing-config.schema';
 
 @Module({
   imports: [
@@ -20,6 +24,7 @@ import {
       { name: User.name, schema: UserSchema },
       { name: Driver.name, schema: DriverSchema },
       { name: Transaction.name, schema: TransactionSchema },
+      { name: MarketingConfig.name, schema: MarketingConfigSchema },
     ]),
   ],
   controllers: [TeamsController],
