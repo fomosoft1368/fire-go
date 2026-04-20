@@ -5,27 +5,30 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
 const nextConfig: NextConfig = {
   output: 'standalone',   // ← tạo .next/standalone gọn nhẹ để deploy
 
-  // ── CORS headers cho API routes ──────────────────────────────────
+  // ── CORS headers ─────────────────────────────────────────────────
+  // Browsers yêu cầu 1 origin cụ thể (không phải comma-separated list)
   async headers() {
-    const ALLOWED_ORIGINS = 'https://firego.vn, https://www.firego.vn'
     return [
       {
         source: '/api/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: ALLOWED_ORIGINS },
+          { key: 'Access-Control-Allow-Origin', value: 'https://firego.vn' },
           { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE,OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
           { key: 'Access-Control-Max-Age', value: '86400' },
+          { key: 'Vary', value: 'Origin' },
         ],
       },
       {
         source: '/img/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: ALLOWED_ORIGINS },
+          { key: 'Access-Control-Allow-Origin', value: 'https://firego.vn' },
+          { key: 'Vary', value: 'Origin' },
         ],
       },
     ]
   },
+
 
   async rewrites() {
     return [
