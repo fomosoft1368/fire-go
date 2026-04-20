@@ -106,11 +106,11 @@ export default function DoiTacPage() {
             </motion.p>
             </div>{/* /Left hero text */}
 
-            {/* Right — partner photo */}
+            {/* Right — partner photo (visible all screens) */}
             <motion.div
-              className="hidden lg:flex items-center justify-center relative"
-              initial={{ opacity: 0, x: 50, rotateY: -15 }}
-              animate={{ opacity: 1, x: 0, rotateY: 0 }}
+              className="flex items-center justify-center relative mt-8 lg:mt-0"
+              initial={{ opacity: 0, y: 30, rotateY: -10 }}
+              animate={{ opacity: 1, y: 0, rotateY: 0 }}
               transition={{ duration: 0.95, delay: 0.3, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
               style={{ perspective: '800px' }}
             >
@@ -122,11 +122,11 @@ export default function DoiTacPage() {
               >
                 <div className="absolute inset-0 rounded-3xl blur-3xl scale-90 bg-white/15" />
                 <Image
-                  src="/img-partner-driver.png"
+                  src="/img-partner-hero.png"
                   alt="Đối tác tài xế FireGo – thu nhập linh hoạt"
                   width={440}
                   height={380}
-                  className="relative rounded-3xl shadow-2xl object-cover"
+                  className="relative rounded-3xl shadow-2xl object-cover w-full max-w-xs lg:max-w-none"
                   priority
                 />
                 <motion.div

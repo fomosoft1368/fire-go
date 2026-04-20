@@ -261,11 +261,11 @@ export default function HeroSection() {
           </motion.div>
           </div>{/* /Left */}
 
-          {/* Right — 3D floating image */}
+          {/* Right — 3D floating image (visible on all screens) */}
           <motion.div
-            className="hidden lg:flex items-center justify-center relative"
-            initial={{ opacity: 0, x: 60, rotateY: -20 }}
-            animate={{ opacity: 1, x: 0, rotateY: 0 }}
+            className="flex items-center justify-center relative mt-10 lg:mt-0"
+            initial={{ opacity: 0, y: 30, rotateY: -10 }}
+            animate={{ opacity: 1, y: 0, rotateY: 0 }}
             transition={{ duration: 1, delay: 0.3, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
             style={{ perspective: '900px' }}
           >
@@ -289,7 +289,7 @@ export default function HeroSection() {
                 alt="FireGo app – dịch vụ di chuyển thông minh"
                 width={480}
                 height={420}
-                className="relative rounded-3xl shadow-2xl object-cover"
+                className="relative rounded-3xl shadow-2xl object-cover w-full max-w-xs lg:max-w-none"
                 priority
               />
               {/* Floating badge on image */}

@@ -135,12 +135,12 @@ export default function ServicePageClient({ service, activePricing, allServices 
             </motion.div>
           </div>{/* /Left */}
 
-          {/* Right — 3D floating image */}
+          {/* Right — 3D floating image (visible on all screens) */}
           {service.image && (
             <motion.div
-              className="hidden lg:flex items-center justify-center relative"
-              initial={{ opacity: 0, x: 50, rotateY: -18 }}
-              animate={{ opacity: 1, x: 0, rotateY: 0 }}
+              className="flex items-center justify-center relative mt-8 lg:mt-0"
+              initial={{ opacity: 0, y: 30, rotateY: -10 }}
+              animate={{ opacity: 1, y: 0, rotateY: 0 }}
               transition={{ duration: 0.95, delay: 0.3, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
               style={{ perspective: '900px' }}
             >
@@ -160,7 +160,7 @@ export default function ServicePageClient({ service, activePricing, allServices 
                   alt={`Dịch vụ ${service.name} – FireGo`}
                   width={460}
                   height={400}
-                  className="relative rounded-3xl shadow-2xl object-cover"
+                  className="relative rounded-3xl shadow-2xl object-cover w-full max-w-xs lg:max-w-none"
                   priority
                 />
                 {/* Price badge */}

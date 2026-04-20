@@ -22,42 +22,36 @@ const PlayStoreIcon = ({ size = 24 }: { size?: number }) => (
   </svg>
 )
 
+const IOS_URL = process.env.NEXT_PUBLIC_APP_STORE_URL || 'https://apps.apple.com/us/app/firego/id6761891912'
+const ANDROID_URL = process.env.NEXT_PUBLIC_GOOGLE_PLAY_URL || 'https://play.google.com/store/apps/details?id=com.firegotech.customer'
+
 export default function AppDownloadButtons({ variant = 'default', className = '' }: AppDownloadButtonsProps) {
-  const handleClick = async (platform: 'ios' | 'android') => {
-    try {
-      await fetch('/api/tracking/install-click', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform, page: window.location.pathname }),
-      })
-    } catch {}
-    const url = platform === 'ios'
-      ? (process.env.NEXT_PUBLIC_APP_STORE_URL || '#')
-      : (process.env.NEXT_PUBLIC_GOOGLE_PLAY_URL || '#')
-    window.open(url, '_blank')
-  }
+  // Sử dụng <a> thay vì <button> để mobile mở đúng store ngay lập tức
+  // window.open bị block bởi mobile browser
 
   if (variant === 'compact') {
     return (
       <div className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2 ${className}`}>
-        {/* App Store — black brand */}
-        <button
-          onClick={() => handleClick('ios')}
+        <a
+          href={IOS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
           aria-label="Tải ứng dụng trên App Store"
-          className="flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-600 hover:bg-slate-800 transition-all shadow-sm hover:-translate-y-0.5"
+          className="flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-sm font-600 hover:bg-slate-800 transition-all shadow-sm hover:-translate-y-0.5 no-underline"
         >
           <AppleIcon size={18} />
           <span>App Store</span>
-        </button>
-        {/* Google Play — orange brand */}
-        <button
-          onClick={() => handleClick('android')}
+        </a>
+        <a
+          href={ANDROID_URL}
+          target="_blank"
+          rel="noopener noreferrer"
           aria-label="Tải ứng dụng trên Google Play"
-          className="flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-amber-400 text-white px-4 py-2 rounded-xl text-sm font-600 hover:from-orange-600 hover:to-amber-500 transition-all shadow-sm hover:-translate-y-0.5"
+          className="flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-amber-400 text-white px-4 py-2 rounded-xl text-sm font-600 hover:from-orange-600 hover:to-amber-500 transition-all shadow-sm hover:-translate-y-0.5 no-underline"
         >
           <PlayStoreIcon size={18} />
           <span>Google Play</span>
-        </button>
+        </a>
       </div>
     )
   }
@@ -65,28 +59,32 @@ export default function AppDownloadButtons({ variant = 'default', className = ''
   if (variant === 'large') {
     return (
       <div className={`flex flex-col sm:flex-row gap-4 ${className}`}>
-        <button
-          onClick={() => handleClick('ios')}
+        <a
+          href={IOS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
           aria-label="Tải ứng dụng trên App Store"
-          className="flex items-center justify-center gap-3 bg-black text-white px-6 py-4 rounded-2xl font-600 hover:bg-slate-800 transition-all hover:-translate-y-1 shadow-lg hover:shadow-xl w-full sm:w-auto"
+          className="flex items-center justify-center gap-3 bg-black text-white px-6 py-4 rounded-2xl font-600 hover:bg-slate-800 transition-all hover:-translate-y-1 shadow-lg hover:shadow-xl w-full sm:w-auto no-underline"
         >
           <AppleIcon size={32} />
           <div className="text-left">
             <div className="text-xs text-slate-300">Tải xuống trên</div>
             <div className="text-xl font-800 mt-0.5">App Store</div>
           </div>
-        </button>
-        <button
-          onClick={() => handleClick('android')}
+        </a>
+        <a
+          href={ANDROID_URL}
+          target="_blank"
+          rel="noopener noreferrer"
           aria-label="Tải ứng dụng trên Google Play"
-          className="flex items-center justify-center gap-3 bg-gradient-to-r from-orange-500 to-amber-400 text-white px-6 py-4 rounded-2xl font-600 hover:from-orange-600 hover:to-amber-500 transition-all hover:-translate-y-1 shadow-lg hover:shadow-xl w-full sm:w-auto"
+          className="flex items-center justify-center gap-3 bg-gradient-to-r from-orange-500 to-amber-400 text-white px-6 py-4 rounded-2xl font-600 hover:from-orange-600 hover:to-amber-500 transition-all hover:-translate-y-1 shadow-lg hover:shadow-xl w-full sm:w-auto no-underline"
         >
           <PlayStoreIcon size={32} />
           <div className="text-left">
             <div className="text-xs text-white/80">Tải xuống trên</div>
             <div className="text-xl font-800 mt-0.5">Google Play</div>
           </div>
-        </button>
+        </a>
       </div>
     )
   }
@@ -94,28 +92,32 @@ export default function AppDownloadButtons({ variant = 'default', className = ''
   // default
   return (
     <div className={`flex flex-col sm:flex-row gap-3 ${className}`}>
-      <button
-        onClick={() => handleClick('ios')}
+      <a
+        href={IOS_URL}
+        target="_blank"
+        rel="noopener noreferrer"
         aria-label="Tải ứng dụng trên App Store"
-        className="flex items-center justify-center gap-3 bg-black text-white px-5 py-3 rounded-xl font-600 hover:bg-slate-800 transition-all hover:-translate-y-0.5 shadow-md w-full sm:w-auto"
+        className="flex items-center justify-center gap-3 bg-black text-white px-5 py-3 rounded-xl font-600 hover:bg-slate-800 transition-all hover:-translate-y-0.5 shadow-md w-full sm:w-auto no-underline"
       >
         <AppleIcon size={26} />
         <div className="text-left">
           <div className="text-xs text-slate-400 leading-tight">Tải xuống trên</div>
           <div className="text-base font-800 leading-tight mt-0.5">App Store</div>
         </div>
-      </button>
-      <button
-        onClick={() => handleClick('android')}
+      </a>
+      <a
+        href={ANDROID_URL}
+        target="_blank"
+        rel="noopener noreferrer"
         aria-label="Tải ứng dụng trên Google Play"
-        className="flex items-center justify-center gap-3 bg-gradient-to-r from-orange-500 to-amber-400 text-white px-5 py-3 rounded-xl font-600 hover:from-orange-600 hover:to-amber-500 transition-all hover:-translate-y-0.5 shadow-md w-full sm:w-auto"
+        className="flex items-center justify-center gap-3 bg-gradient-to-r from-orange-500 to-amber-400 text-white px-5 py-3 rounded-xl font-600 hover:from-orange-600 hover:to-amber-500 transition-all hover:-translate-y-0.5 shadow-md w-full sm:w-auto no-underline"
       >
         <PlayStoreIcon size={26} />
         <div className="text-left">
           <div className="text-xs text-white/80 leading-tight">Tải xuống trên</div>
           <div className="text-base font-800 leading-tight mt-0.5">Google Play</div>
         </div>
-      </button>
+      </a>
     </div>
   )
 }

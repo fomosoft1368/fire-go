@@ -3,8 +3,9 @@
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
 import { Phone, Mail, MapPin, Clock, MessageCircle } from 'lucide-react'
-import Link from 'next/link'
 import Card3D from '@/components/ui/Card3D'
+import Image from 'next/image'
+import Link from 'next/link'
 
 const contacts = [
   { icon: <Phone className="w-6 h-6" />, label: 'Hotline', value: '09222.33.666', href: 'tel:0922233666', color: 'bg-orange-50 text-orange-600', gradientFrom: 'from-orange-500', gradientTo: 'to-amber-400' },
@@ -208,26 +209,36 @@ export default function LienHePage() {
               </motion.div>
             </motion.div>
 
-            {/* Map placeholder — 3D reveal */}
+            {/* Office image — 3D reveal */}
             <motion.div
               initial={{ opacity: 0, x: 40, rotateY: -12 }}
               animate={mapInView ? { opacity: 1, x: 0, rotateY: 0 } : {}}
-              transition={{ duration: 0.75, delay: 0.1, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
+              transition={{ duration: 0.75, delay: 0.1, ease: [0.23, 1, 0.32, 1] as [number, number, number, number] }}
               style={{ perspective: '700px' }}
             >
               <Card3D intensity={5}>
-                <div className="bg-slate-100 rounded-3xl h-64 lg:h-80 flex items-center justify-center text-slate-400 text-sm">
-                  <div className="text-center">
-                    <motion.div
-                      animate={{ y: [0, -8, 0], rotateZ: [0, 5, -4, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                    >
-                      <MapPin className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-                    </motion.div>
-                    <p>Bản đồ Google Maps</p>
+                <div className="relative rounded-3xl overflow-hidden h-64 lg:h-80">
+                  <Image
+                    src="/img-office.png"
+                    alt="Văn phòng FireGo tại Vinh Heritage, Nghệ An"
+                    fill
+                    className="object-cover"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                    <p className="text-white text-xs font-600">
+                      📍 Số 9, Giảng Hương 3, Vinh Heritage, Nghệ An
+                    </p>
                   </div>
                 </div>
               </Card3D>
+              <a
+                href="https://maps.google.com/?q=Vinh+Heritage+Nghe+An"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 flex items-center justify-center gap-2 text-sm text-orange-600 hover:text-orange-700 font-600"
+              >
+                <MapPin className="w-4 h-4" /> Xem trên Google Maps
+              </a>
             </motion.div>
           </div>
         </div>

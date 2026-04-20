@@ -6,6 +6,7 @@ import { FAQ_ITEMS } from '@/lib/data/faq'
 import FAQAccordion from '@/components/ui/FAQAccordion'
 import Link from 'next/link'
 import AppDownloadButtons from '@/components/ui/AppDownloadButtons'
+import Image from 'next/image'
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -61,39 +62,61 @@ export default function FAQPage() {
             <span className="mx-2">/</span>
             <span className="text-white font-600">FAQ</span>
           </nav>
-          <div className="text-center">
+          <div className="grid lg:grid-cols-2 gap-10 items-center">
+            <div className="text-center lg:text-left">
+              <motion.div
+                className="text-5xl mb-4 inline-block"
+                animate={{
+                  y: [0, -10, 0],
+                  rotateY: [0, 20, -15, 0],
+                  rotateZ: [0, 5, -4, 0],
+                }}
+                transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+                style={{ transformStyle: 'preserve-3d' }}
+              >
+                ❓
+              </motion.div>
+
+              <motion.h1
+                className="text-3xl sm:text-4xl font-900 text-white mb-3"
+                initial={{ opacity: 0, rotateX: 25, y: 35 }}
+                animate={{ opacity: 1, rotateX: 0, y: 0 }}
+                transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
+                style={{ perspective: '600px' }}
+              >
+                Câu hỏi thường gặp
+              </motion.h1>
+
+              <motion.p
+                className="text-slate-400 max-w-xl"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.18 }}
+              >
+                Không tìm được câu trả lời? Hãy liên hệ với chúng tôi qua{' '}
+                <a href="tel:0922233666" className="text-orange-400 hover:text-orange-300 font-600">09222.33.666</a>
+              </motion.p>
+            </div>
+
+            {/* Support illustration */}
             <motion.div
-              className="text-5xl mb-4 inline-block"
-              animate={{
-                y: [0, -10, 0],
-                rotateY: [0, 20, -15, 0],
-                rotateZ: [0, 5, -4, 0],
-              }}
-              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-              style={{ transformStyle: 'preserve-3d' }}
-            >
-              ❓
-            </motion.div>
-
-            <motion.h1
-              className="text-3xl sm:text-4xl font-900 text-white mb-3"
-              initial={{ opacity: 0, rotateX: 25, y: 35 }}
-              animate={{ opacity: 1, rotateX: 0, y: 0 }}
-              transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
-              style={{ perspective: '600px' }}
-            >
-              Câu hỏi thường gặp
-            </motion.h1>
-
-            <motion.p
-              className="text-slate-400 max-w-xl mx-auto"
-              initial={{ opacity: 0, y: 20 }}
+              className="flex items-center justify-center mt-8 lg:mt-0"
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.18 }}
+              transition={{ duration: 0.9, delay: 0.2 }}
             >
-              Không tìm được câu trả lời? Hãy liên hệ với chúng tôi qua{' '}
-              <a href="tel:0922233666" className="text-orange-400 hover:text-orange-300 font-600">09222.33.666</a>
-            </motion.p>
+              <div className="relative w-full max-w-xs lg:max-w-sm">
+                <div className="absolute inset-0 rounded-3xl blur-2xl bg-orange-500/10" />
+                <Image
+                  src="/img-faq-support.png"
+                  alt="Đội hỗ trợ FireGo 24/7"
+                  width={400}
+                  height={320}
+                  className="relative rounded-3xl shadow-xl object-cover w-full"
+                  priority
+                />
+              </div>
+            </motion.div>
           </div>
         </div>
       </div>
