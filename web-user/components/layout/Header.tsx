@@ -12,6 +12,7 @@ const navLinks = [
   { href: '/van-chuyen', label: 'Vận Chuyển' },
   { href: '/ve-sinh', label: 'Vệ Sinh' },
   { href: '/doi-tac', label: 'Đối Tác' },
+  { href: '/tin-tuc', label: 'Tin Tức' },
   { href: '/faq', label: 'FAQ' },
 ]
 
