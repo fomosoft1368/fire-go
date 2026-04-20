@@ -21,11 +21,11 @@ interface Props {
   allServices: Service[]
 }
 
-const containerVariants = {
+const containerVariants: import("framer-motion").Variants = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.1 } },
 }
-const itemVariants = {
+const itemVariants: import("framer-motion").Variants = {
   hidden: { opacity: 0, y: 50, rotateX: 20 },
   visible: {
     opacity: 1, y: 0, rotateX: 0,

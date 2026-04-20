@@ -293,7 +293,8 @@ export async function persistNewsThumbnails(_news: unknown[]): Promise<void> {
     const { IMG_CACHE } = await import('@/lib/utils/imgSlug')
     await connectToDatabase()
 
-    const ops: object[] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ops: any[] = []
     for (const [hash, originalUrl] of IMG_CACHE) {
       ops.push({
         updateOne: {

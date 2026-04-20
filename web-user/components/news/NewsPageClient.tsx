@@ -22,7 +22,7 @@ const SOURCE_COLORS: Record<string, string> = {
 
 const CATEGORIES = ['Tất cả', 'Giao thông', 'Kinh doanh', 'Đời sống', 'Xe cộ', 'Nhịp sống', 'Xã hội']
 
-const cardVariants = {
+const cardVariants: import("framer-motion").Variants = {
   hidden: { opacity: 0, y: 30, scale: 0.97 },
   visible: {
     opacity: 1, y: 0, scale: 1,

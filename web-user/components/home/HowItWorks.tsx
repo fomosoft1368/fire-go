@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { motion, useInView } from 'framer-motion'
+import { motion, useInView, type Variants } from 'framer-motion'
 
 const steps = [
   {
@@ -38,14 +38,14 @@ const steps = [
   },
 ]
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: {},
   visible: {
     transition: { staggerChildren: 0.18 },
   },
 }
 
-const stepVariants = {
+const stepVariants: Variants = {
   hidden: {
     opacity: 0,
     y: 80,
@@ -59,12 +59,12 @@ const stepVariants = {
     scale: 1,
     transition: {
       duration: 0.75,
-      ease: [0.23, 1, 0.32, 1] as [number,number,number,number],
+      ease: [0.23, 1, 0.32, 1] as [number, number, number, number],
     },
   },
 }
 
-const connectorVariants = {
+const connectorVariants: Variants = {
   hidden: { scaleX: 0, originX: 0 },
   visible: {
     scaleX: 1,

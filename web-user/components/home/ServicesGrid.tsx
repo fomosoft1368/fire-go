@@ -17,7 +17,7 @@ interface ServicesGridProps {
   dynamicPricing: PriceMap
 }
 
-const containerVariants = {
+const containerVariants: import("framer-motion").Variants = {
   hidden: {},
   visible: {
     transition: {
@@ -26,7 +26,7 @@ const containerVariants = {
   },
 }
 
-const cardVariants = {
+const cardVariants: import("framer-motion").Variants = {
   hidden: {
     opacity: 0,
     y: 60,

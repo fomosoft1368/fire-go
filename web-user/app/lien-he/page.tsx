@@ -13,7 +13,7 @@ const contacts = [
   { icon: <Clock className="w-6 h-6" />, label: 'Giờ hỗ trợ', value: '24/7 tất cả ngày', href: null, color: 'bg-purple-50 text-purple-600', gradientFrom: 'from-purple-500', gradientTo: 'to-pink-500' },
 ]
 
-const cardVariants = {
+const cardVariants: import("framer-motion").Variants = {
   hidden: { opacity: 0, y: 50, rotateX: 22 },
   visible: {
     opacity: 1, y: 0, rotateX: 0,
@@ -126,7 +126,48 @@ export default function LienHePage() {
             ))}
           </motion.div>
 
+          {/* ── Thông tin pháp lý ── */}
+          <motion.div
+            className="mb-16 bg-gradient-to-br from-slate-50 to-orange-50 rounded-3xl border border-orange-100 p-6 lg:p-8"
+            initial={{ opacity: 0, y: 30 }}
+            animate={cardsInView ? { opacity: 1, y: 0 } : {}}
+            transition={{ duration: 0.6, delay: 0.3 }}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shrink-0">
+                <span className="text-white text-lg">🏢</span>
+              </div>
+              <div>
+                <h2 className="text-lg font-800 text-slate-900">CÔNG TY TNHH FIREGO TECH</h2>
+                <p className="text-sm text-orange-600 font-600">Đơn vị vận hành FireGo</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { label: 'Mã số thuế', value: '2902269764', icon: '#' },
+                { label: 'Người đại diện', value: 'HOÀNG DANH LONG', icon: '👤' },
+                { label: 'Ngày hoạt động', value: '27/03/2026', icon: '📅' },
+                { label: 'Trạng thái', value: 'Đang hoạt động ✓', icon: '✅' },
+                { label: 'Loại hình DN', value: 'Công ty TNHH ngoài NN', icon: '🏛️' },
+                { label: 'Ngành nghề chính', value: 'Lập trình máy tính & Công nghệ', icon: '💻' },
+              ].map((item) => (
+                <div key={item.label} className="bg-white rounded-xl p-4 border border-orange-50 shadow-sm">
+                  <p className="text-xs text-slate-400 mb-0.5 font-600 uppercase tracking-wide">{item.icon} {item.label}</p>
+                  <p className="text-sm font-700 text-slate-800">{item.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 pt-5 border-t border-orange-100 flex items-start gap-2 text-sm text-slate-500">
+              <MapPin className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+              <span>
+                <span className="font-600 text-slate-700">Địa chỉ đăng ký: </span>
+                Số 9, Giảng Hương 3, Khu đô thị Vinh Heritage, Phường Trường Vinh, Tỉnh Nghệ An, Việt Nam
+              </span>
+            </div>
+          </motion.div>
+
           {/* Office info + map */}
+
           <div ref={mapRef} className="grid lg:grid-cols-2 gap-12 items-center">
             <motion.div
               initial={{ opacity: 0, x: -40, rotateY: 12 }}

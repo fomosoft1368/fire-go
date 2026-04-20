@@ -41,17 +41,20 @@ export default function Footer() {
               <div className="w-9 h-9 gradient-primary rounded-xl flex items-center justify-center">
                 <Flame className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-extrabold">
-                <span className="text-orange-400">Fire</span>Go
-              </span>
+              <div>
+                <span className="text-xl font-extrabold">
+                  <span className="text-orange-400">Fire</span>Go
+                </span>
+                <p className="text-xs text-slate-500 leading-none">by FireGo Tech</p>
+              </div>
             </div>
             <p className="text-slate-400 text-sm leading-relaxed mb-4">
               Hệ sinh thái dịch vụ di động toàn diện. Ghép xe, lái hộ, vận chuyển và vệ sinh – mọi nhu cầu trong một app.
             </p>
             <div className="space-y-2 text-sm text-slate-400">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-orange-400 shrink-0" />
-                <span>Số 9, Giáng Hương 3, Vinh Heritage, Nghệ An, Việt Nam</span>
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                <span>Số 9, Giảng Hương 3, Khu đô thị Vinh Heritage, Phường Trường Vinh, Tỉnh Nghệ An</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-orange-400 shrink-0" />
@@ -148,8 +151,12 @@ export default function Footer() {
 
       <div className="border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-slate-500">
-          <p>© 2026 FireGo. Tất cả quyền được bảo lưu.</p>
-          <p className="text-xs">Giấy phép kinh doanh số: 0312XXXXXXXX – Sở KHĐT TP.HCM</p>
+          <div className="space-y-1">
+            <p className="font-600 text-slate-400">© 2026 CÔNG TY TNHH FIREGO TECH. Tất cả quyền được bảo lưu.</p>
+            <p className="text-xs text-slate-600">
+              MST: 2902269764 · Người đại diện: HOÀNG DANH LONG · Ngày hoạt động: 27/03/2026
+            </p>
+          </div>
         </div>
       </div>
     </footer>

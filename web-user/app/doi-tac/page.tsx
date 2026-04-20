@@ -24,7 +24,7 @@ const steps = [
   'Thanh toán đúng hạn mỗi tuần',
 ]
 
-const cardVariants = {
+const cardVariants: import("framer-motion").Variants = {
   hidden: { opacity: 0, y: 55, rotateX: 22, scale: 0.92 },
   visible: {
     opacity: 1, y: 0, rotateX: 0, scale: 1,
