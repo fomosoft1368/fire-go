@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Linking,
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation, useRoute } from '@react-navigation/native'
@@ -23,6 +24,7 @@ export default function ServiceDetailScreen() {
   const [service, setService] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [hasNavigatedToRating, setHasNavigatedToRating] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   useEffect(() => {
     const fetchServiceDetail = async (isInitial = false) => {
@@ -33,29 +35,31 @@ export default function ServiceDetailScreen() {
         console.log('[ServiceDetail] Raw data from API:', data)
 
         // Transform data - driver info is returned at top level (from workerId population)
-        let transformedData = { ...data }
+        let transformedData: any = { ...data }
 
-        // Lấy driver info từ top-level fields của service
-        const hasDriverInfo = data.firstName && data.lastName
+        // Mongoose populates workerId as an object
+        const workerInfo: any = data.workerId
+        const hasDriverInfo = workerInfo && typeof workerInfo === 'object' && workerInfo.firstName
 
         if (hasDriverInfo) {
           transformedData.worker = {
-            _id: data.workerId,
-            name: `${data.firstName} ${data.lastName}`,
-            avatar: data.avatar || 'https://via.placeholder.com/64x64?text=Avatar',
-            rating: data.averageRating || 4.9,
-            ratings: data.totalRides || 0,
-            phone: data.phone,
+            _id: workerInfo._id,
+            name: `${workerInfo.firstName} ${workerInfo.lastName}`,
+            avatar: workerInfo.avatar || 'https://via.placeholder.com/64x64?text=Avatar',
+            rating: workerInfo.averageRating || 4.9,
+            ratings: workerInfo.totalRides || workerInfo.completedRides || 0,
+            phone: workerInfo.phone,
           }
           console.log('[ServiceDetail] Worker info extracted:', transformedData.worker)
         } else {
           // Fallback nếu không có driver info
           transformedData.worker = {
-            _id: data.workerId,
+            _id: typeof data.workerId === 'string' ? data.workerId : '',
             name: 'Nhân viên',
             avatar: 'https://via.placeholder.com/64x64?text=Avatar',
             rating: 4.9,
             ratings: 0,
+            phone: '',
           }
           console.log('[ServiceDetail] Using fallback worker placeholder')
         }
@@ -73,10 +77,11 @@ export default function ServiceDetailScreen() {
       fetchServiceDetail(true)
 
       // Polling only for pending/confirmed status
-      let interval: any = null
-      return () => {
-        if (interval) clearInterval(interval)
-      }
+      const interval = setInterval(() => {
+        fetchServiceDetail(false)
+      }, 5000)
+
+      return () => clearInterval(interval)
     }
   }, [serviceId])
 
@@ -107,6 +112,27 @@ export default function ServiceDetailScreen() {
       }, 500)
     }
   }, [service, hasNavigatedToRating, navigation])
+
+  const handleCall = () => {
+    if (service?.worker?.phone) {
+      Linking.openURL(`tel:${service.worker.phone}`)
+    }
+  }
+
+  const handleChat = () => {
+    if (!service?.worker) return
+    const workerId = service.worker._id || service.worker.id || ''
+    if (!workerId) return
+
+    ;(navigation as any).navigate('ChatScreen', {
+      driver: {
+        id: workerId,
+        name: service.worker.name || 'Nhân viên',
+        phone: service.worker.phone || '',
+      },
+      rideId: service._id,
+    })
+  }
 
   const handleCancel = () => {
     Alert.alert('Hủy dịch vụ', 'Bạn có chắc muốn hủy dịch vụ này?', [
@@ -165,10 +191,21 @@ export default function ServiceDetailScreen() {
         <Text style={styles.logoText}>firego</Text>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.handleBarContainer}>
-          <View style={styles.handleBar} />
-        </View>
+      <View style={[styles.card, { maxHeight: isExpanded ? '90%' : '65%' }]}>
+        <TouchableOpacity 
+          style={styles.expandToggleButton} 
+          onPress={() => setIsExpanded(!isExpanded)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.expandToggleText}>
+            {isExpanded ? 'Thu gọn' : 'Mở rộng'}
+          </Text>
+          <MaterialIcons 
+            name={isExpanded ? "keyboard-arrow-down" : "keyboard-arrow-up"} 
+            size={20} 
+            color="#FF6B00" 
+          />
+        </TouchableOpacity>
 
         <ScrollView
           style={styles.contentOverlay}
@@ -268,13 +305,13 @@ export default function ServiceDetailScreen() {
                 </View>
 
                 <View style={styles.actionButtons}>
-                  <TouchableOpacity style={styles.messageButton}>
+                  <TouchableOpacity style={styles.messageButton} onPress={handleChat}>
                     <View style={styles.buttonIcon}>
                       <MaterialIcons name="chat-bubble-outline" size={20} color="#FF6B00" />
                     </View>
                     <Text style={styles.messageButtonText}>Nhắn tin</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.phoneButton}>
+                  <TouchableOpacity style={styles.phoneButton} onPress={handleCall}>
                     <View style={styles.buttonIcon}>
                       <MaterialIcons name="phone" size={20} color="#fff" />
                     </View>
@@ -361,15 +398,17 @@ export default function ServiceDetailScreen() {
         </ScrollView>
 
         {/* Bottom Actions */}
-        <View style={styles.actionBtn}>
-          <TouchableOpacity
-            style={styles.cancelActionButton}
-            onPress={handleCancel}
-          >
-            <MaterialIcons name="close" size={20} color="#ef4444" />
-            <Text style={styles.cancelActionButtonText}>Hủy dịch vụ</Text>
-          </TouchableOpacity>
-        </View>
+        {(service.status === 'pending' || service.status === 'confirmed') && (
+          <View style={styles.actionBtn}>
+            <TouchableOpacity
+              style={styles.cancelActionButton}
+              onPress={handleCancel}
+            >
+              <MaterialIcons name="close" size={20} color="#ef4444" />
+              <Text style={styles.cancelActionButtonText}>Hủy dịch vụ</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   )
@@ -426,16 +465,30 @@ const styles = StyleSheet.create({
     elevation: 20,
     maxHeight: '65%',
   },
-  handleBarContainer: {
+  expandToggleButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    marginBottom: 12,
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    borderRadius: 20,
+    gap: 6,
+    alignSelf: 'center',
+    marginTop: -4,
+    marginBottom: 16,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  handleBar: {
-    width: 36,
-    height: 4,
-    backgroundColor: '#cbd5e1',
-    borderRadius: 2,
+  expandToggleText: {
+    color: '#FF6B00',
+    fontSize: 14,
+    fontWeight: '700'
   },
   contentOverlay: {
     paddingHorizontal: 20,

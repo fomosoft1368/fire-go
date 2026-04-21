@@ -10,7 +10,7 @@ import {
     Linking,
     ScrollView,
 } from 'react-native'
-import { MaterialIcons } from '@expo/vector-icons'
+import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons'
 import * as Location from 'expo-location'
 import { COLORS, SPACING } from '../constants'
 import { hourlyServiceService, HourlyRequest } from '../services/hourlyServiceService'
@@ -23,6 +23,7 @@ export default function ActiveHourlyServiceScreen({ navigation, route }: any) {
     const [service, setService] = useState<HourlyRequest | null>(null)
     const [loading, setLoading] = useState(true)
     const [updating, setUpdating] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(false)
     const [elapsedTime, setElapsedTime] = useState(0)
     const [hasArrived, setHasArrived] = useState(false)
     const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
@@ -221,8 +222,12 @@ export default function ActiveHourlyServiceScreen({ navigation, route }: any) {
     const handleChat = () => {
         if (!service?.customerId?._id) return
         navigation.navigate('ChatScreen', {
-            recipientId: service.customerId._id,
-            recipientName: `${service.customerId.firstName} ${service.customerId.lastName}`,
+            customer: {
+                id: service.customerId._id,
+                name: `${service.customerId.firstName} ${service.customerId.lastName}`,
+                phone: service.customerId.phone,
+            },
+            rideId: serviceId,
         })
     }
 
@@ -294,10 +299,21 @@ export default function ActiveHourlyServiceScreen({ navigation, route }: any) {
             </View>
 
             {/* Bottom Sheet */}
-            <View style={styles.bottomSheet}>
-                <View style={styles.handleBarContainer}>
-                    <View style={styles.handleBar} />
-                </View>
+            <View style={[styles.bottomSheet, { maxHeight: isExpanded ? '90%' : '55%' }]}>
+                <TouchableOpacity 
+                    style={styles.expandToggleButton} 
+                    onPress={() => setIsExpanded(!isExpanded)}
+                    activeOpacity={0.7}
+                >
+                    <Text style={styles.expandToggleText}>
+                        {isExpanded ? 'Thu gọn' : 'Mở rộng'}
+                    </Text>
+                    <MaterialCommunityIcons 
+                        name={isExpanded ? "chevron-down" : "chevron-up"} 
+                        size={20} 
+                        color="#FF6B00" 
+                    />
+                </TouchableOpacity>
 
                 <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
                     {/* Customer Info */}
@@ -589,15 +605,30 @@ const styles = StyleSheet.create({
         maxHeight: '60%',
         elevation: 8,
     },
-    handleBarContainer: {
+    expandToggleButton: {
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 8,
+        justifyContent: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        backgroundColor: '#FFF7ED',
+        borderWidth: 1,
+        borderColor: '#FFEDD5',
+        borderRadius: 20,
+        gap: 6,
+        alignSelf: 'center',
+        marginTop: -4,
+        marginBottom: 16,
+        shadowColor: '#FF6B00',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
     },
-    handleBar: {
-        width: 40,
-        height: 4,
-        backgroundColor: '#cbd5e1',
-        borderRadius: 2,
+    expandToggleText: {
+        color: '#FF6B00',
+        fontSize: 14,
+        fontWeight: '700'
     },
     scrollContent: {
         paddingHorizontal: 16,

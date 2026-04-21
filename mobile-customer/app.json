@@ -2,7 +2,7 @@
   "expo": {
     "name": "FireGo",
     "slug": "firego-customer",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "sdkVersion": "54.0.0",
@@ -24,16 +24,18 @@
         "policy": "sdkVersion"
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Allow app to access your location for ride booking",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow app to access your location for ride tracking and history",
-        "NSMicrophoneUsageDescription": "App cần quyền micro để thực hiện cuộc gọi thoại với tài xế"
+        "NSLocationWhenInUseUsageDescription": "FireGo cần quyền truy cập vị trí của bạn để xác định nhanh điểm đón, tìm tài xế gần nhất và theo dõi lộ trình di chuyển trên bản đồ nhằm tính cước phí chính xác.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FireGo cần quyền truy cập vị trí ngay cả khi chạy ngầm để tiếp tục giám sát an toàn và cập nhật lộ trình chuyến đi khi bạn đang di chuyển.",
+        "NSMicrophoneUsageDescription": "FireGo cần quyền truy cập Micro để bạn có thể thực hiện cuộc gọi thoại trực tiếp với tài xế nhằm xác nhận điểm đón hoặc thông tin chuyến đi.",
+        "NSCameraUsageDescription": "FireGo cần quyền truy cập Máy ảnh để bạn có thể chụp ảnh đại diện cá nhân hoặc gửi ảnh cho hỗ trợ khách hàng.",
+        "NSPhotoLibraryUsageDescription": "FireGo cần quyền truy cập Thư viện ảnh để bạn chọn ảnh đại diện cá nhân."
       },
       "config": {
         "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo"
       }
     },
     "android": {
-      "package": "com.firegotech.customer",
+      "package": "com.firegotech.mobility",
       "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
@@ -59,7 +61,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow app to access your location"
+          "locationAlwaysAndWhenInUsePermission": "FireGo cần quyền truy cập vị trí của bạn ở chế độ chạy ngầm để liên tục cập nhật lộ trình di chuyển, từ đó đảm bảo chuyến đi an toàn và tính cước phí chuẩn xác."
         }
       ],
       [
@@ -73,9 +75,7 @@
     ],
     "extra": {
       "googleMapsApiKey": "AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo",
-      "eas": {
-        "projectId": "2ceabbe4-e074-45ad-bb40-ffdf4965c0f0"
-      }
+      "eas": {}
     }
   }
 }

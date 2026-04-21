@@ -13,7 +13,7 @@ import { loggerService } from './loggerService'
 
 function getApiKey(): string {
   // Ưu tiên lấy từ biến môi trường (EXPO_PUBLIC_GOOGLE_MAPS_API_KEY)
-  return process.env.GOOGLE_MAPS_API_KEY || Constants.expoConfig?.extra?.googleMapsApiKey || ''
+  return process.env.GOOGLE_MAPS_API_KEY || Constants.expoConfig?.extra?.googleMapsApiKey || 'AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo'
 }
 
 interface Coordinates {
@@ -262,10 +262,11 @@ export const mapsService = {
       const url =
         `${API_BASE_URL}/places/reverse-geocode?lat=${latitude}&lng=${longitude}`
       const response = await fetch(url)
-      if (!response.ok) throw new Error(
-        `HTTP ${response.status}`
-      )
-      const data = await response.json()
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const text = await response.text()
+      const data = text ? JSON.parse(text) : null
+      
       const address = data?.address
       if (address && !String(address).match(/^\d+\.\d+/)) {
         console.log('[MapsService] Reverse geocoding success:', address)
@@ -281,16 +282,17 @@ export const mapsService = {
   /**
    * ChuyÃ¡Â»Æ’n Ã„â€˜Ã¡Â»â€¹a chÃ¡Â»â€° thÃƒÂ nh tÃ¡Â»Âa Ã„â€˜Ã¡Â»â„¢ (Geocoding)
    */
-  async geocodeAddress(address: string): Promise<GeocodeResult> {
+  async geocodeAddress(address: string, userId?: string): Promise<GeocodeResult> {
     try {
       const url =
         `${API_BASE_URL}/places/geocode?address=${encodeURIComponent(address)}`
       console.log('[MapsService] Geocoding via backend:', address)
       const response = await fetch(url)
-      if (!response.ok) throw new Error(
-        `HTTP ${response.status}`
-      )
-      const data = await response.json()
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const text = await response.text()
+      const data = text ? JSON.parse(text) : null
+
       if (data && data.lat && data.lng) {
         console.log('[MapsService] Geocoding success:', { address, data })
         return {
@@ -298,10 +300,60 @@ export const mapsService = {
           formattedAddress: data.formattedAddress || address,
         }
       }
-      return generateMockGeocode(address)
+      return mapsService.fallbackToDatabaseSearch(address, userId)
     } catch (error: any) {
       console.error('[MapsService] Geocoding error:', error.message)
-      return generateMockGeocode(address)
+      return mapsService.fallbackToDatabaseSearch(address, userId)
+    }
+  },
+
+  /**
+   * Fallback: Tìm địa chỉ trong DB nếu API chính không trả về kết quả
+   */
+  async fallbackToDatabaseSearch(address: string, userId?: string): Promise<GeocodeResult> {
+    try {
+      const params = new URLSearchParams({ keyword: address.trim() })
+      if (userId) params.append('userId', userId)
+
+      const url = `${API_BASE_URL}/places/search?${params.toString()}`
+      console.log('[MapsService] Fallback DB geocode for:', address)
+      
+      const response = await fetch(url)
+      if (response.ok) {
+        const data = await response.json()
+        const results = data.results || []
+        if (results.length > 0) {
+          const first = results[0]
+          
+          // Ưu tiên 1: Đã có toạ độ thực trong DB
+          if (first.lat && first.lng) {
+            console.log('[MapsService] Found DB fallback (Cached Coordinates):', first.address || address)
+            return {
+              coordinates: { latitude: first.lat, longitude: first.lng },
+              formattedAddress: first.address || address,
+            }
+          }
+          // Ưu tiên 2: DB chỉ có placeId lưu tạm (Lazy loading), tiến hành gọi để lấy Toạ Độ từ Google
+          else if (first.placeId) {
+            console.log('[MapsService] Fetching real coordinates for cached placeId:', first.placeId)
+            const detailRes = await fetch(`${API_BASE_URL}/places/details/${first.placeId}`)
+            if (detailRes.ok) {
+              const detailData = await detailRes.json()
+              if (detailData && detailData.lat && detailData.lng) {
+                console.log('[MapsService] Fetched details coordinates success')
+                return {
+                  coordinates: { latitude: detailData.lat, longitude: detailData.lng },
+                  formattedAddress: detailData.address || first.address || address,
+                }
+              }
+            }
+          }
+        }
+      }
+      throw new Error("Not found in DB")
+    } catch (err: any) {
+      console.error('[MapsService] DB geocode fallback error:', err.message)
+      throw new Error(`Không tìm thấy toạ độ cho: ${address}`)
     }
   },
 
@@ -494,7 +546,7 @@ export const mapsService = {
   /**
    * LÃ¡ÂºÂ¥y thÃƒÂ´ng tin Ã„â€˜Ã¡ÂºÂ§y Ã„â€˜Ã¡Â»Â§: tÃ¡Â»Âa Ã„â€˜Ã¡Â»â„¢ + khoÃ¡ÂºÂ£ng cÃƒÂ¡ch + Ã„â€˜Ã†Â°Ã¡Â»Âng Ã„â€˜i cho 2 Ã„â€˜Ã¡Â»â€¹a chÃ¡Â»â€°
    */
-  async getRouteInfo(pickupAddress: string, dropoffAddress: string) {
+  async getRouteInfo(pickupAddress: string, dropoffAddress: string, userId?: string) {
     try {
       if (!getApiKey()) {
         console.warn('[MapsService] Äang sá»­ dá»¥ng dá»¯ liá»‡u giáº£ láº­p(Mock Data)')
@@ -505,8 +557,8 @@ export const mapsService = {
 
       // LÃ¡ÂºÂ¥y tÃ¡Â»Âa Ã„â€˜Ã¡Â»â„¢ vÃƒÂ  khoÃ¡ÂºÂ£ng cÃƒÂ¡ch song song
       const [pickupGeocode, dropoffGeocode] = await Promise.all([
-        this.geocodeAddress(pickupAddress),
-        this.geocodeAddress(dropoffAddress)
+        this.geocodeAddress(pickupAddress, userId),
+        this.geocodeAddress(dropoffAddress, userId)
       ])
       const o = pickupGeocode?.coordinates?.latitude && pickupGeocode?.coordinates?.longitude
         ? `${pickupGeocode.coordinates.latitude},${pickupGeocode.coordinates.longitude}` : pickupAddress;

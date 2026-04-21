@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
 import { useSelector } from 'react-redux'
@@ -6,15 +6,22 @@ import { RootState } from '../redux/store'
 import { SPACING, COLORS_DARK, COLORS_LIGHT } from '../constants'
 import { useEffect, useState } from 'react'
 import { legalDocsService, LegalDocument } from '../services/legalDocsService'
+import { LinearGradient } from 'expo-linear-gradient'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export default function TermsOfServiceScreen() {
   const navigation = useNavigation()
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
+  const insets = useSafeAreaInsets()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [document, setDocument] = useState<LegalDocument | null>(null)
+
+  // Accent Colors
+  const accentOrange = colors.primary
+  const accentOrangeDark = '#ea580c'
 
   useEffect(() => {
     loadDocument()
@@ -47,7 +54,7 @@ export default function TermsOfServiceScreen() {
     if (loading) {
       return (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#FF6B00" />
+          <ActivityIndicator size="large" color={accentOrange} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
             Đang tải điều khoản dịch vụ...
           </Text>
@@ -58,14 +65,22 @@ export default function TermsOfServiceScreen() {
     if (error) {
       return (
         <View style={styles.centerContainer}>
-          <MaterialIcons name="error-outline" size={48} color="#dc2626" />
+          <MaterialIcons name="error-outline" size={56} color="#ef4444" />
           <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
           <TouchableOpacity 
             style={styles.retryButton}
             onPress={loadDocument}
+            activeOpacity={0.8}
           >
-            <MaterialIcons name="refresh" size={20} color="#fff" />
-            <Text style={styles.retryButtonText}>Thử lại</Text>
+            <LinearGradient
+              colors={[accentOrange, accentOrangeDark]}
+              style={styles.retryButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <MaterialIcons name="refresh" size={20} color="#ffffff" />
+              <Text style={styles.retryButtonText}>Thử lại</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       )
@@ -81,22 +96,28 @@ export default function TermsOfServiceScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.contentContainer}
       >
-        {/* Last Updated */}
-        <View style={[styles.updateBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <MaterialIcons name="update" size={16} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
-          <Text style={[styles.updateText, { color: themeMode === 'dark' ? '#94a3b8' : '#64748b' }]}>
-            Cập nhật lần cuối: {formatDate(document.updatedAt)}
-          </Text>
-          <View style={styles.versionBadge}>
-            <Text style={styles.versionText}>v{document.version}</Text>
+        {/* Header Details */}
+        <View style={[styles.titleSection]}>
+          <Text style={[styles.mainTitle, { color: colors.text }]}>{document.title}</Text>
+          
+          <View style={[styles.updateBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.updateIconWrap, { backgroundColor: 'rgba(255,107,0,0.1)' }]}>
+              <MaterialIcons name="update" size={18} color={accentOrange} />
+            </View>
+            <View style={styles.updateTextWrap}>
+              <Text style={[styles.updateTextLabel, { color: colors.textSecondary }]}>Cập nhật lần cuối</Text>
+              <Text style={[styles.updateText, { color: colors.text }]}>{formatDate(document.updatedAt)}</Text>
+            </View>
+            <View style={[styles.versionBadge, { backgroundColor: accentOrange }]}>
+              <Text style={styles.versionText}>v{document.version}</Text>
+            </View>
           </View>
         </View>
 
         {/* Introduction */}
         {document.content.introduction && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{document.title}</Text>
-            <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+            <Text style={[styles.paragraph, { color: colors.textSecondary, fontStyle: 'italic' }]}>
               {document.content.introduction}
             </Text>
           </View>
@@ -106,68 +127,77 @@ export default function TermsOfServiceScreen() {
         {document.content.sections.map((section, index) => (
           <View key={index} style={styles.section}>
             <View style={styles.sectionHeader}>
-              <View style={styles.numberBadge}>
-                <Text style={styles.numberBadgeText}>{index + 1}</Text>
+              <View style={[styles.numberBadge, { backgroundColor: 'rgba(255,107,0,0.1)' }]}>
+                <Text style={[styles.numberBadgeText, { color: accentOrange }]}>{index + 1}</Text>
               </View>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
             </View>
             
-            {section.content && (
-              <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-                {section.content}
-              </Text>
-            )}
-
-            {section.bulletPoints && section.bulletPoints.length > 0 && (
-              <View style={styles.bulletList}>
-                {section.bulletPoints.map((bullet, bulletIndex) => (
-                  <View key={bulletIndex} style={styles.bulletItem}>
-                    <View style={styles.bulletDot} />
-                    <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{bullet}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {section.subsections && section.subsections.map((subsection, subIndex) => (
-              <View key={subIndex} style={styles.subsection}>
-                <Text style={[styles.subHeading, { color: colors.text }]}>
-                  {index + 1}.{subIndex + 1}. {subsection.title}
+            <View style={styles.sectionContentWrap}>
+              {section.content && (
+                <Text style={[styles.paragraph, { color: colors.text }]}>
+                  {section.content}
                 </Text>
-                {subsection.content && (
-                  <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-                    {subsection.content}
+              )}
+
+              {section.bulletPoints && section.bulletPoints.length > 0 && (
+                <View style={styles.bulletList}>
+                  {section.bulletPoints.map((bullet, bulletIndex) => (
+                    <View key={bulletIndex} style={styles.bulletItem}>
+                      <View style={[styles.bulletDot, { backgroundColor: accentOrange }]} />
+                      <Text style={[styles.bulletText, { color: colors.text }]}>{bullet}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {section.subsections && section.subsections.map((subsection, subIndex) => (
+                <View key={subIndex} style={styles.subsection}>
+                  <Text style={[styles.subHeading, { color: colors.text }]}>
+                    {index + 1}.{subIndex + 1}. {subsection.title}
                   </Text>
-                )}
-                {subsection.bulletPoints && subsection.bulletPoints.length > 0 && (
-                  <View style={styles.bulletList}>
-                    {subsection.bulletPoints.map((bullet, bulletIndex) => (
-                      <View key={bulletIndex} style={styles.bulletItem}>
-                        <View style={styles.bulletDot} />
-                        <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{bullet}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))}
+                  {subsection.content && (
+                    <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
+                      {subsection.content}
+                    </Text>
+                  )}
+                  {subsection.bulletPoints && subsection.bulletPoints.length > 0 && (
+                    <View style={styles.bulletList}>
+                      {subsection.bulletPoints.map((bullet, bulletIndex) => (
+                        <View key={bulletIndex} style={styles.bulletItem}>
+                          <View style={[styles.bulletDot, { backgroundColor: accentOrange, opacity: 0.8 }]} />
+                          <Text style={[styles.bulletText, { color: colors.textSecondary }]}>{bullet}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
           </View>
         ))}
 
         {/* Contact Section */}
         {document.content.contactInfo && (
-          <View style={[styles.section, styles.contactSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.contactSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <LinearGradient
+              colors={['rgba(255,107,0,0.05)', 'rgba(255,107,0,0)']}
+              style={StyleSheet.absoluteFillObject}
+              borderRadius={20}
+            />
             <View style={styles.contactHeader}>
-              <MaterialIcons name="support-agent" size={24} color="#FF6B00" />
-              <Text style={[styles.contactTitle, { color: colors.text }]}>Liên hệ hỗ trợ</Text>
+              <View style={[styles.contactIconWrap, { backgroundColor: 'rgba(255,107,0,0.1)' }]}>
+                <MaterialIcons name="support-agent" size={24} color={accentOrange} />
+              </View>
+              <Text style={[styles.contactTitle, { color: colors.text }]}>Bạn cần thêm hỗ trợ?</Text>
             </View>
-            <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-              Nếu bạn có bất kỳ câu hỏi nào về điều khoản dịch vụ, vui lòng liên hệ với chúng tôi:
+            <Text style={[styles.paragraph, { color: colors.textSecondary, marginBottom: SPACING.md }]}>
+              Nếu bạn có bất kỳ câu hỏi nào về các điều khoản, vui lòng liên hệ với chúng tôi:
             </Text>
             <View style={styles.contactList}>
               {document.content.contactInfo.email && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="email" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
+                  <MaterialIcons name="email" size={18} color={accentOrange} />
                   <Text style={[styles.contactText, { color: colors.textSecondary }]}>
                     {document.content.contactInfo.email}
                   </Text>
@@ -175,7 +205,7 @@ export default function TermsOfServiceScreen() {
               )}
               {document.content.contactInfo.phone && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="phone" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
+                  <MaterialIcons name="phone" size={18} color={accentOrange} />
                   <Text style={[styles.contactText, { color: colors.textSecondary }]}>
                     {document.content.contactInfo.phone}
                   </Text>
@@ -183,7 +213,7 @@ export default function TermsOfServiceScreen() {
               )}
               {document.content.contactInfo.address && (
                 <View style={styles.contactItem}>
-                  <MaterialIcons name="location-on" size={18} color={themeMode === 'dark' ? '#94a3b8' : '#64748b'} />
+                  <MaterialIcons name="location-on" size={18} color={accentOrange} />
                   <Text style={[styles.contactText, { color: colors.textSecondary }]}>
                     {document.content.contactInfo.address}
                   </Text>
@@ -194,10 +224,12 @@ export default function TermsOfServiceScreen() {
         )}
 
         {/* Footer */}
-        <View style={[styles.footer, { backgroundColor: themeMode === 'dark' ? '#064e3b' : '#f0fdf4', borderColor: themeMode === 'dark' ? '#059669' : '#86efac' }]}>
-          <MaterialIcons name="verified-user" size={20} color={themeMode === 'dark' ? '#34d399' : '#10b981'} />
-          <Text style={[styles.footerText, { color: themeMode === 'dark' ? '#d1fae5' : '#166534' }]}>
-            Bằng việc sử dụng dịch vụ, bạn xác nhận đã đọc và đồng ý với các điều khoản trên.
+        <View style={[styles.footerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.footerIconWrap, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+            <MaterialIcons name="verified-user" size={24} color="#10b981" />
+          </View>
+          <Text style={[styles.footerText, { color: colors.text }]}>
+            Bằng việc sử dụng dịch vụ, bạn xác nhận đã đọc, hiểu và đồng ý với tất cả thuật ngữ và điều khoản trên.
           </Text>
         </View>
       </ScrollView>
@@ -205,31 +237,38 @@ export default function TermsOfServiceScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-          <TouchableOpacity style={[styles.backButton, { backgroundColor: themeMode === 'dark' ? '#1e293b' : '#f1f5f9' }]} onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+    <View style={[styles.container, { backgroundColor: '#ffffff' }]}>
+      {/* Header */}
+      <LinearGradient
+        colors={['#ffffff', '#ffffff']}
+        style={[styles.headerGradient, { paddingTop: insets.top + SPACING.sm }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <MaterialIcons name="arrow-back-ios" size={20} color={colors.text} style={{ marginLeft: 6 }} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Điều khoản dịch vụ</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Điều khoản & Chính sách</Text>
           </View>
           <View style={{ width: 44 }} />
         </View>
+      </LinearGradient>
 
-        {/* Content */}
+      {/* Content */}
+      <View style={styles.mainArea}>
         {renderContent()}
       </View>
-    </SafeAreaView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
   },
-  container: {
+  mainArea: {
     flex: 1,
   },
   centerContainer: {
@@ -237,46 +276,59 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: SPACING.xl,
-    gap: SPACING.lg,
   },
   loadingText: {
     fontSize: 16,
     fontWeight: '600',
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
   },
   errorText: {
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
     marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+    lineHeight: 24,
   },
   retryButton: {
+    width: 140,
+    shadowColor: '#ea580c',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  retryButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: SPACING.sm,
-    backgroundColor: '#FF6B00',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    borderRadius: 12,
-    marginTop: SPACING.md,
+    borderRadius: 16,
   },
   retryButtonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  headerGradient: {
+    paddingBottom: SPACING.md,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+    zIndex: 10,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-    paddingTop: 50,
+    height: 48,
   },
   backButton: {
     width: 44,
@@ -284,6 +336,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.03)',
   },
   headerCenter: {
     flex: 1,
@@ -300,32 +353,53 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
-    paddingBottom: SPACING.xxl,
+    paddingBottom: SPACING.xxl + 40,
+  },
+  titleSection: {
+    marginBottom: SPACING.lg,
+  },
+  mainTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    marginBottom: SPACING.xl,
+    lineHeight: 34,
+    letterSpacing: -0.5,
   },
   updateBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 12,
+    padding: SPACING.md,
+    borderRadius: 16,
     borderWidth: 1,
-    marginBottom: SPACING.lg,
   },
-  updateText: {
-    fontSize: 13,
-    fontWeight: '600',
+  updateIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  updateTextWrap: {
     flex: 1,
   },
+  updateTextLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  updateText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
   versionBadge: {
-    backgroundColor: '#FF6B00',
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   versionText: {
-    color: '#fff',
-    fontSize: 11,
+    color: '#ffffff',
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
@@ -339,54 +413,58 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   numberBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FF6B00',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   numberBadgeText: {
     fontSize: 16,
     fontWeight: '800',
-    color: 'white',
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.3,
     flex: 1,
   },
+  sectionContentWrap: {
+    paddingLeft: 18,
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(0,0,0,0.03)',
+    marginLeft: 17,
+  },
   paragraph: {
     fontSize: 15,
     lineHeight: 24,
-    marginBottom: SPACING.md,
+    marginBottom: 12,
     fontWeight: '500',
   },
   subsection: {
     marginTop: SPACING.md,
-    marginLeft: SPACING.md,
+    backgroundColor: 'rgba(0,0,0,0.01)',
+    padding: SPACING.md,
+    borderRadius: 12,
   },
   subHeading: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: SPACING.sm,
   },
   bulletList: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
     marginBottom: SPACING.md,
   },
   bulletItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: SPACING.sm,
-    paddingLeft: SPACING.sm,
+    marginBottom: 8,
   },
   bulletDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FF6B00',
     marginTop: 9,
     marginRight: SPACING.md,
   },
@@ -396,56 +474,67 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: '500',
   },
-  warningText: {
-    fontSize: 14,
-    fontWeight: '600',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 8,
-    marginTop: SPACING.md,
-    lineHeight: 20,
-  },
   contactSection: {
-    borderRadius: 16,
-    padding: SPACING.lg,
+    borderRadius: 20,
+    padding: SPACING.xl,
     borderWidth: 1,
+    marginTop: SPACING.md,
+    overflow: 'hidden',
   },
   contactHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.md,
     marginBottom: SPACING.md,
   },
+  contactIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   contactTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
   },
   contactList: {
     marginTop: SPACING.sm,
+    gap: SPACING.xs,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: SPACING.sm,
     gap: SPACING.md,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    paddingHorizontal: SPACING.md,
+    borderRadius: 12,
   },
   contactText: {
     fontSize: 15,
     fontWeight: '600',
   },
-  footer: {
+  footerCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.lg,
-    paddingHorizontal: SPACING.lg,
-    borderRadius: 16,
-    borderWidth: 2,
-    marginTop: SPACING.lg,
+    padding: SPACING.lg,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: SPACING.xxl,
+    gap: SPACING.md,
+  },
+  footerIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   footerText: {
     fontSize: 14,
-    textAlign: 'center',
-    marginTop: SPACING.sm,
     fontWeight: '600',
-    lineHeight: 20,
+    lineHeight: 22,
+    flex: 1,
   },
 })

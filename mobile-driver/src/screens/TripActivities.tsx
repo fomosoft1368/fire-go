@@ -61,54 +61,22 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
 
     // Bottom Sheet Animation
     const bottomSheetHeight = useRef(new Animated.Value(MIN_HEIGHT)).current
-    const lastGestureDy = useRef(0)
+    const lastGestureDy = useRef(MIN_HEIGHT)
+    const [isExpanded, setIsExpanded] = useState(false)
+
+    const toggleBottomSheet = () => {
+        const toValue = isExpanded ? MIN_HEIGHT : MAX_HEIGHT
+        lastGestureDy.current = toValue
+        setIsExpanded(!isExpanded)
+        Animated.spring(bottomSheetHeight, {
+            toValue,
+            useNativeDriver: false,
+            damping: 25,
+            stiffness: 120,
+        }).start()
+    }
 
     const rideId = route?.params?.rideId
-
-    // Pan Responder for Bottom Sheet drag
-    const panResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: (_, gestureState) => {
-                // Chỉ bắt gesture khi vuốt dọc
-                return Math.abs(gestureState.dy) > Math.abs(gestureState.dx)
-            },
-            onPanResponderGrant: () => {
-                bottomSheetHeight.setOffset(lastGestureDy.current)
-            },
-            onPanResponderMove: (_, gestureState) => {
-                // Invert dy vì kéo lên là giá trị âm
-                const newValue = -gestureState.dy
-                // Clamp giá trị trong khoảng MIN và MAX
-                if (lastGestureDy.current + newValue < MIN_HEIGHT) {
-                    bottomSheetHeight.setValue(MIN_HEIGHT - lastGestureDy.current)
-                } else if (lastGestureDy.current + newValue > MAX_HEIGHT) {
-                    bottomSheetHeight.setValue(MAX_HEIGHT - lastGestureDy.current)
-                } else {
-                    bottomSheetHeight.setValue(newValue)
-                }
-            },
-            onPanResponderRelease: (_, gestureState) => {
-                bottomSheetHeight.flattenOffset()
-                const currentHeight = lastGestureDy.current - gestureState.dy
-
-                // Tính threshold (giữa MIN và MAX)
-                const threshold = (MIN_HEIGHT + MAX_HEIGHT) / 2
-
-                // Snap tới MIN hoặc MAX dựa vào vị trí hiện tại
-                const toValue = currentHeight > threshold ? MAX_HEIGHT : MIN_HEIGHT
-
-                lastGestureDy.current = toValue
-
-                Animated.spring(bottomSheetHeight, {
-                    toValue,
-                    useNativeDriver: false,
-                    damping: 25,
-                    stiffness: 120,
-                }).start()
-            },
-        })
-    ).current
 
     useEffect(() => {
         if (rideId) {
@@ -583,8 +551,30 @@ export default function TripActivities({ navigation, route }: TripActivitiesProp
                 <Text style={styles.logoText}>firego</Text>
             </View>
             <Animated.View style={[styles.card, { height: bottomSheetHeight }]}>
-                <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-                    <View style={styles.handleBar} />
+                <View style={styles.handleBarContainer} pointerEvents="auto">
+                    <TouchableOpacity 
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#FFF7ED',
+                            paddingVertical: 6,
+                            paddingHorizontal: 16,
+                            borderRadius: 20,
+                            borderWidth: 1,
+                            borderColor: '#FFEDD5',
+                        }} 
+                        onPress={toggleBottomSheet}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#FF6B00', marginRight: 4 }}>
+                            {isExpanded ? "Thu gọn" : "Mở rộng"}
+                        </Text>
+                        <MaterialIcons 
+                            name={isExpanded ? "expand-more" : "expand-less"} 
+                            size={20} 
+                            color="#FF6B00" 
+                        />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView
@@ -897,7 +887,7 @@ const styles = StyleSheet.create({
     },
     logoText: {
         fontSize: 30,
-        fontWeight: '700',
+        fontWeight: '800',
         letterSpacing: -0.5,
         color: '#FF6B00',
     },
@@ -910,9 +900,9 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         paddingBottom: 16,
-        shadowColor: '#FF6B00',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: -6 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.1,
         shadowRadius: 12,
         elevation: 15,
     },
@@ -931,12 +921,12 @@ const styles = StyleSheet.create({
     handleBar: {
         width: 40,
         height: 5,
-        backgroundColor: '#FFB380',
+        backgroundColor: '#E5E7EB',
         borderRadius: 3,
     },
     // Customer Card
     customerCard: {
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#FAFAFA',
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
@@ -944,7 +934,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         borderWidth: 1,
-        borderColor: '#FFB380',
+        borderColor: '#E5E7EB',
     },
     customerInfo: {
         flexDirection: 'row',
@@ -960,15 +950,15 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginRight: 12,
         borderWidth: 2,
-        borderColor: '#FFB380',
+        borderColor: '#FFFFFF',
     },
     customerDetails: {
         flex: 1,
     },
     customerName: {
         fontSize: 16,
-        fontWeight: '700',
-        color: '#1F2937',
+        fontWeight: '800',
+        color: '#111827',
         marginBottom: 4,
     },
     ratingRow: {
@@ -978,12 +968,13 @@ const styles = StyleSheet.create({
     },
     ratingText: {
         fontSize: 13,
-        fontWeight: '600',
+        fontWeight: '700',
         color: '#6B7280',
     },
     tripCount: {
         fontSize: 12,
         color: '#9CA3AF',
+        fontWeight: '500',
     },
     actionButtons: {
         flexDirection: 'row',
@@ -1001,7 +992,7 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#3B82F6',
+        backgroundColor: '#FF6B00',
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
@@ -1022,7 +1013,7 @@ const styles = StyleSheet.create({
     },
     badgeText: {
         fontSize: 10,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#fff',
     },
     // Status Section
@@ -1030,12 +1021,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#FFE5D9',
+        backgroundColor: '#FFF7ED',
         borderRadius: 12,
-        padding: 12,
+        padding: 14,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#FFB380',
+        borderColor: '#FFEDD5',
     },
     statusBadge: {
         flexDirection: 'row',
@@ -1046,21 +1037,21 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#FFB800',
+        backgroundColor: '#FF6B00',
     },
     statusText: {
-        fontSize: 14,
-        fontWeight: '600',
+        fontSize: 15,
+        fontWeight: '700',
         color: '#1F2937',
     },
     etaText: {
         fontSize: 13,
-        fontWeight: '600',
+        fontWeight: '700',
         color: '#FF6B00',
     },
     // Distance to Pickup Card
     distanceToPickupCard: {
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#FAFAFA',
         borderRadius: 16,
         padding: 14,
         marginBottom: 16,
@@ -1068,7 +1059,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         borderWidth: 1,
-        borderColor: '#FFB380',
+        borderColor: '#E5E7EB',
     },
     distanceToPickupLeft: {
         flexDirection: 'row',
@@ -1082,17 +1073,18 @@ const styles = StyleSheet.create({
     distanceToPickupLabel: {
         fontSize: 12,
         color: '#6B7280',
+        fontWeight: '600',
         marginBottom: 4,
     },
     distanceToPickupValue: {
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#1F2937',
     },
     navigationButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: '#FF6B00',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1106,17 +1098,17 @@ const styles = StyleSheet.create({
     },
     sectionTitle: {
         fontSize: 15,
-        fontWeight: '600',
-        color: '#6B7280',
+        fontWeight: '700',
+        color: '#374151',
     },
     // Trip Info Section
     tripInfoSection: {
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#FAFAFA',
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#FFB380',
+        borderColor: '#E5E7EB',
     },
     tripInfoGrid: {
         flexDirection: 'row',
@@ -1129,18 +1121,19 @@ const styles = StyleSheet.create({
     tripInfoLabel: {
         fontSize: 12,
         color: '#6B7280',
+        fontWeight: '600',
         marginBottom: 4,
     },
     tripInfoValue: {
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#1F2937',
     },
     paymentBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: '#FFE5D9',
+        backgroundColor: '#F3F4F6',
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 8,
@@ -1148,17 +1141,17 @@ const styles = StyleSheet.create({
     },
     paymentText: {
         fontSize: 12,
-        color: '#6B7280',
-        fontWeight: '500',
+        color: '#4B5563',
+        fontWeight: '600',
     },
     // Route Section
     routeSection: {
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#FAFAFA',
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#FFB380',
+        borderColor: '#E5E7EB',
     },
     locationItem: {
         flexDirection: 'row',
@@ -1173,14 +1166,14 @@ const styles = StyleSheet.create({
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: '#22C55E',
+        backgroundColor: '#FF6B00',
         borderWidth: 2,
         borderColor: '#FFFFFF',
     },
     routeLine: {
         width: 2,
         height: 40,
-        backgroundColor: '#FFB380',
+        backgroundColor: '#E5E7EB',
         marginTop: 4,
     },
     locationContent: {
@@ -1193,29 +1186,30 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     locationLabel: {
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: 13,
+        fontWeight: '700',
         color: '#6B7280',
-        marginBottom: 4,
+        marginBottom: 2,
     },
     locationAddress: {
-        fontSize: 14,
+        fontSize: 15,
         color: '#1F2937',
         lineHeight: 20,
+        fontWeight: '500',
     },
     distanceBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        backgroundColor: '#FFE5D9',
+        backgroundColor: '#F3F4F6',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
     },
     distanceText: {
         fontSize: 11,
-        color: '#6B7280',
-        fontWeight: '600',
+        color: '#4B5563',
+        fontWeight: '700',
     },
     // Metrics Grid
     metricsGrid: {
@@ -1225,24 +1219,24 @@ const styles = StyleSheet.create({
     },
     metricCard: {
         flex: 1,
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#FAFAFA',
         borderRadius: 12,
         padding: 14,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#FFB380',
+        borderColor: '#E5E7EB',
     },
     metricValue: {
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#1F2937',
         marginTop: 6,
         marginBottom: 2,
     },
     metricLabel: {
-        fontSize: 11,
+        fontSize: 12,
         color: '#6B7280',
-        fontWeight: '500',
+        fontWeight: '600',
         textAlign: 'center',
     },
     // Action Container
@@ -1252,7 +1246,7 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         gap: 12,
         borderTopWidth: 1,
-        borderTopColor: '#FFE5D9',
+        borderTopColor: '#E5E7EB',
         backgroundColor: '#FFFFFF',
     },
     secondaryButton: {
@@ -1288,9 +1282,9 @@ const styles = StyleSheet.create({
         elevation: 6,
     },
     primaryButtonText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#000',
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#fff',
     },
     // Vehicle Check Modal Styles
     modalOverlay: {
@@ -1315,20 +1309,21 @@ const styles = StyleSheet.create({
     },
     modalTitle: {
         fontSize: 20,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#1F2937',
     },
     closeButton: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#F3F4F6',
         alignItems: 'center',
         justifyContent: 'center',
     },
     modalSubtitle: {
         fontSize: 14,
         color: '#6B7280',
+        fontWeight: '500',
         marginBottom: 20,
     },
     photoList: {
@@ -1346,7 +1341,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         overflow: 'hidden',
         position: 'relative',
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#F3F4F6',
     },
     photoImage: {
         width: '100%',
@@ -1372,13 +1367,13 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#FFF7ED',
     },
     addPhotoText: {
         fontSize: 12,
         color: '#FF6B00',
         marginTop: 4,
-        fontWeight: '600',
+        fontWeight: '700',
     },
     photoCounter: {
         flexDirection: 'row',
@@ -1386,14 +1381,14 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 6,
         paddingVertical: 12,
-        backgroundColor: '#FFF5F0',
+        backgroundColor: '#F3F4F6',
         borderRadius: 8,
         marginBottom: 16,
     },
     photoCounterText: {
         fontSize: 14,
-        color: '#6B7280',
-        fontWeight: '600',
+        color: '#4B5563',
+        fontWeight: '700',
     },
     modalActions: {
         flexDirection: 'row',
@@ -1422,17 +1417,16 @@ const styles = StyleSheet.create({
     },
     modalConfirmButtonText: {
         fontSize: 16,
-        fontWeight: '700',
-        color: '#000',
+        fontWeight: '800',
+        color: '#fff',
     },
     depositInfoCard: {
-        backgroundColor: '#faf1edff',
+        backgroundColor: '#FFF7ED',
         borderRadius: 14,
         padding: 16,
-        marginHorizontal: 16,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#FF6B00',
+        borderColor: '#FFEDD5',
     },
     depositInfoHeader: {
         flexDirection: 'row',
@@ -1442,7 +1436,7 @@ const styles = StyleSheet.create({
     },
     depositInfoTitle: {
         fontSize: 14,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#FF6B00',
     },
     depositRow: {
@@ -1453,23 +1447,24 @@ const styles = StyleSheet.create({
     },
     depositRowTotal: {
         borderTopWidth: 1,
-        borderTopColor: '#2D3748',
+        borderTopColor: '#FFEDD5',
         marginTop: 8,
         paddingTop: 10,
     },
     depositLabel: {
         fontSize: 13,
-        color: '#111111ff',
+        color: '#4B5563',
+        fontWeight: '600',
     },
     depositValue: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#0a0a0aff',
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#111827',
     },
     depositLabelBold: {
         fontSize: 14,
-        fontWeight: '700',
-        color: '#0f0f0fff',
+        fontWeight: '800',
+        color: '#FF6B00',
     },
     depositValueBold: {
         fontSize: 16,
@@ -1477,10 +1472,10 @@ const styles = StyleSheet.create({
         color: '#FF6B00',
     },
     depositNote: {
-        fontSize: 11,
-        color: '#9CA3AF',
+        fontSize: 12,
+        color: '#6B7280',
         marginTop: 10,
         fontStyle: 'italic',
-        lineHeight: 16,
+        lineHeight: 18,
     },
 })

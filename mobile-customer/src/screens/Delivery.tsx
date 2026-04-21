@@ -105,6 +105,11 @@ export default function Delivery(props?: DeliveryProps) {
     const [drivers, setDrivers] = useState<any[]>([])
     const [isExpanded, setIsExpanded] = useState(false)
 
+    // Liên hệ
+    const user = useSelector((state: RootState) => state.auth.user)
+    const [senderPhone, setSenderPhone] = useState(user?.phone || '')
+    const [recipientPhone, setRecipientPhone] = useState('')
+
     // Draggable Bottom Sheet
     const screenHeight = Dimensions.get('window').height
     const minHeight = screenHeight * 0.42 // 42%
@@ -229,7 +234,6 @@ export default function Delivery(props?: DeliveryProps) {
     // ============ END GIAO HÀNG ============
 
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
-    const user = useSelector((state: RootState) => state.auth.user)
     const setRideMode = props?.setRideMode
 
     // PanResponder for draggable bottom sheet
@@ -706,7 +710,12 @@ export default function Delivery(props?: DeliveryProps) {
 
     const handleConfirm = async () => {
         if (!pickup || !dropoff || !goodsType || !weight) {
-            Alert.alert('Thiếu thông tin', 'Vui lòng điền đầy đủ thông tin giao hàng')
+            Alert.alert('Thiếu thông tin', 'Vui lòng điền đầy đủ địa chỉ giao nhận và thông tin hàng hóa')
+            return
+        }
+        
+        if (!recipientPhone.trim()) {
+            Alert.alert('Thiếu thông tin', 'Vui lòng điền SĐT người nhận để thuận tiện giao hàng.')
             return
         }
 
@@ -722,6 +731,8 @@ export default function Delivery(props?: DeliveryProps) {
             estimatedPrice,
             distance: routeInfo?.distanceText || '0 km',
             duration: routeInfo?.durationText || '0 phút',
+            senderPhone,
+            recipientPhone,
         })
     }
 
@@ -919,6 +930,43 @@ export default function Delivery(props?: DeliveryProps) {
                                             </ScrollView>
                                         </View>
                                     )}
+                                </View>
+                            </View>
+
+                            {/* Contact Info Inputs */}
+                            <View style={styles.section}>
+                                <Text style={styles.sectionLabel}>Thông tin liên hệ</Text>
+
+                                <View style={[styles.inputGroup, { marginBottom: 12 }]}>
+                                    <View style={[styles.inputRow, { borderColor: '#E5E7EB' }]}>
+                                        <View style={styles.iconWrapper}>
+                                            <MaterialIcons name="phone" size={20} color="#EF4444" />
+                                        </View>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Số điện thoại người nhận (bắt buộc)"
+                                            placeholderTextColor="#9CA3AF"
+                                            keyboardType="phone-pad"
+                                            value={recipientPhone}
+                                            onChangeText={setRecipientPhone}
+                                        />
+                                    </View>
+                                </View>
+                                
+                                <View style={styles.inputGroup}>
+                                    <View style={[styles.inputRow, { borderColor: '#E5E7EB' }]}>
+                                        <View style={styles.iconWrapper}>
+                                            <MaterialIcons name="phone" size={20} color="#22C55E" />
+                                        </View>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Số điện thoại người gửi"
+                                            placeholderTextColor="#9CA3AF"
+                                            keyboardType="phone-pad"
+                                            value={senderPhone}
+                                            onChangeText={setSenderPhone}
+                                        />
+                                    </View>
                                 </View>
                             </View>
 

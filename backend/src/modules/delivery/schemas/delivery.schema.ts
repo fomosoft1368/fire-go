@@ -62,6 +62,18 @@ export class Delivery extends Document {
   estimatedPrice: number;
 
   @Prop({ default: null })
+  senderName: string;
+
+  @Prop({ default: null })
+  senderPhone: string;
+
+  @Prop({ default: null })
+  recipientName: string;
+
+  @Prop({ default: null })
+  recipientPhone: string;
+
+  @Prop({ default: null })
   actualPrice: number;
 
   @Prop({ default: null })

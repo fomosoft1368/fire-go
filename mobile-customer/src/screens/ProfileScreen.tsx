@@ -50,14 +50,14 @@ export default function ProfileScreen() {
       Alert.alert('Chưa có SĐT', 'Vui lòng cập nhật số điện thoại trước khi xác minh.')
       return
     }
-    
+
     setIsLoadingOtp(true)
     try {
       const res = await authService.sendOtp()
       console.log('Send OTP res:', res)
       setIsOtpModalVisible(true)
       setCountdown(60) // 1 phút
-      
+
       const timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) clearInterval(timer)
@@ -76,13 +76,13 @@ export default function ProfileScreen() {
       Alert.alert('Thông báo', 'Mã OTP bao gồm 6 chữ số')
       return
     }
-    
+
     setIsLoadingOtp(true)
     try {
       await authService.verifyOtp(otpCode)
       Alert.alert('Thành công', 'Số điện thoại đã được xác thực')
       setIsOtpModalVisible(false)
-      
+
       // trigger redux update by refreshing the profile
       const updatedUser = await authService.updateProfile(user!.id, { phone: user!.phone })
       // Keep existing token from Redux state since updateProfile does not return token
@@ -132,8 +132,8 @@ export default function ProfileScreen() {
           <View style={styles.menuLeft}>
             <View style={[
               styles.iconContainer,
-              item.isDanger 
-                ? styles.iconContainerDanger 
+              item.isDanger
+                ? styles.iconContainerDanger
                 : { backgroundColor: '#fff5eb' }
             ]}>
               <MaterialIcons
@@ -183,16 +183,16 @@ export default function ProfileScreen() {
     {
       icon: 'person-outline',
       label: 'Thông tin cá nhân',
-      value: user?.firstName && user?.lastName 
-        ? `${user.firstName} ${user.lastName}` 
+      value: user?.firstName && user?.lastName
+        ? `${user.firstName} ${user.lastName}`
         : user?.name || 'N/A',
       onPress: () => navigation.navigate('EditProfile'),
     },
     {
       icon: 'phone',
       label: 'Số điện thoại',
-      value: user?.phone 
-        ? `${user.phone} ${user.isPhoneVerified ? '(✓)' : '(Chưa xác minh)'}` 
+      value: user?.phone
+        ? `${user.phone} ${user.isPhoneVerified ? '(✓)' : '(Chưa xác minh)'}`
         : 'N/A',
       onPress: () => {
         if (!user?.isPhoneVerified) {
@@ -217,11 +217,11 @@ export default function ProfileScreen() {
       value: 'Hà Nội, Việt Nam',
       onPress: () => navigation.navigate('SelectRegion'),
     },
-    {
-      icon: 'lock-outline',
-      label: 'Đổi mật khẩu',
-      onPress: () => navigation.navigate('ChangePassword'),
-    },
+    // {
+    //   icon: 'lock-outline',
+    //   label: 'Đổi mật khẩu',
+    //   onPress: () => navigation.navigate('ChangePassword'),
+    // },
     {
       icon: 'payment',
       label: 'Phương thức thanh toán',
@@ -297,8 +297,8 @@ export default function ProfileScreen() {
           </View>
         </View>
         <Text style={styles.profileName} numberOfLines={1} ellipsizeMode="tail">
-          {user?.firstName && user?.lastName 
-            ? `${user.firstName} ${user.lastName}` 
+          {user?.firstName && user?.lastName
+            ? `${user.firstName} ${user.lastName}`
             : user?.name || 'Khách hàng'}
         </Text>
         <Text style={styles.profileEmail}>{user?.email}</Text>
@@ -312,7 +312,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* Driver Registration Card */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.driverRegistrationCard}
         activeOpacity={0.9}
         onPress={() => Alert.alert('Đăng ký tài xế', 'Chức năng đang được phát triển')}
@@ -320,7 +320,7 @@ export default function ProfileScreen() {
         <View style={styles.driverCardGradient}>
           <View style={styles.driverCardDecor1} />
           <View style={styles.driverCardDecor2} />
-          
+
           <View style={styles.driverCardContent}>
             <View style={styles.driverCardIconBox}>
               <MaterialIcons name="local-taxi" size={32} color="#fff" />
@@ -380,7 +380,7 @@ export default function ProfileScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Xác thực số điện thoại</Text>
             <Text style={styles.modalDesc}>Mã OTP 6 số đã được gửi qua Zalo của số {user?.phone}</Text>
-            
+
             <TextInput
               style={styles.otpInput}
               keyboardType="number-pad"
@@ -390,7 +390,7 @@ export default function ProfileScreen() {
               onChangeText={setOtpCode}
             />
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.primaryButton, (!otpCode || otpCode.length < 6) && styles.disabledButton]}
               onPress={handleVerifyOtp}
               disabled={isLoadingOtp || otpCode.length < 6}
@@ -402,7 +402,7 @@ export default function ProfileScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.resendButton}
               onPress={requestPhoneVerify}
               disabled={countdown > 0 || isLoadingOtp}
@@ -412,7 +412,7 @@ export default function ProfileScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.cancelLink}
               onPress={() => setIsOtpModalVisible(false)}
             >
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.primary,
   },
-  
+
   // Driver Registration Card
   driverRegistrationCard: {
     marginHorizontal: 16,
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  
+
   // Premium Card
   premiumCard: {
     backgroundColor: '#fff',
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748b',
   },
-  
+
   // Menu Section
   section: {
     backgroundColor: '#fff',
@@ -676,7 +676,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
     maxWidth: 120,
   },
-  
+
   // Logout Section
   logoutSection: {
     paddingHorizontal: 16,

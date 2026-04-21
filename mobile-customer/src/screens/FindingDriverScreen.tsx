@@ -101,7 +101,7 @@ export default function FindingDriverScreen({
           {/* Route Section */}
           <View style={styles.routeSection}>
             <View style={styles.sectionHeader}>
-              <MaterialIcons name="route" size={20} color="#9CA3AF" />
+              <MaterialIcons name="route" size={20} color="#FF6B00" />
               <Text style={styles.sectionTitle}>Lộ trình</Text>
             </View>
 
@@ -120,7 +120,7 @@ export default function FindingDriverScreen({
 
             <View style={styles.locationItem}>
               <View style={styles.locationIconWrapper}>
-                <MaterialIcons name="location-on" size={20} color="#EF4444" />
+                <MaterialIcons name="location-on" size={20} color="#FF6B00" />
               </View>
               <View style={styles.locationContent}>
                 <Text style={styles.locationLabel}>Điểm trả</Text>
@@ -135,7 +135,7 @@ export default function FindingDriverScreen({
           {fareEstimate && (
             <View style={styles.tripInfoSection}>
               <View style={styles.sectionHeader}>
-                <MaterialIcons name="payments" size={20} color="#9CA3AF" />
+                <MaterialIcons name="payments" size={20} color="#FF6B00" />
                 <Text style={styles.sectionTitle}>Thông tin thanh toán</Text>
               </View>
 
@@ -149,10 +149,10 @@ export default function FindingDriverScreen({
                     </Text>
                   </View>
                   <View style={paymentStyles.row}>
-                    <Text style={[paymentStyles.label, { color: '#22c55e' }]}>
+                    <Text style={[paymentStyles.label, { color: '#16A34A' }]}>
                       🔒 Đã đặt cọc (trừ từ ví)
                     </Text>
-                    <Text style={[paymentStyles.value, { color: '#22c55e', fontWeight: '700' }]}>
+                    <Text style={[paymentStyles.value, { color: '#16A34A', fontWeight: '700' }]}>
                       -{depositAmount.toLocaleString('vi-VN')}đ
                     </Text>
                   </View>
@@ -166,7 +166,7 @@ export default function FindingDriverScreen({
                   </View>
                 </View>
               ) : (
-                // === Không có cọ: hiển thị đơn giản ===
+                // === Không có cọc: hiển thị đơn giản ===
                 <View style={styles.infoGrid}>
                   <View style={styles.infoCard}>
                     <MaterialIcons name="payments" size={18} color="#FF6B00" />
@@ -178,7 +178,7 @@ export default function FindingDriverScreen({
                     </View>
                   </View>
                   <View style={styles.infoCard}>
-                    <MaterialIcons name="account-balance-wallet" size={18} color="#9CA3AF" />
+                    <MaterialIcons name="account-balance-wallet" size={18} color="#FF6B00" />
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>Thanh toán</Text>
                       <Text style={styles.infoValue}>Tiền mặt</Text>
@@ -191,8 +191,8 @@ export default function FindingDriverScreen({
         </View>
 
         {/* Cancel Button */}
-        <TouchableOpacity style={styles.cancelButtonLarge} onPress={onCancel}>
-          <MaterialIcons name="close" size={20} color="#EF4444" />
+        <TouchableOpacity style={styles.cancelButtonLarge} onPress={onCancel} activeOpacity={0.7}>
+          <MaterialIcons name="close" size={20} color="#DC2626" />
           <Text style={styles.cancelButtonLargeText}>Hủy tìm kiếm</Text>
         </TouchableOpacity>
       </View>
@@ -210,14 +210,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#1a202c',
+    backgroundColor: '#ffffff',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingTop: 12,
     paddingBottom: SPACING.lg,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 15,
   },
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   handleBar: {
     width: 40,
     height: 5,
-    backgroundColor: '#4B5563',
+    backgroundColor: '#E5E7EB',
     borderRadius: 3,
   },
   statusContentWrapper: {
@@ -247,20 +247,20 @@ const styles = StyleSheet.create({
   },
   statusTitleLarge: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: 4,
   },
   statusSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
-    color: '#9CA3AF',
+    color: '#6B7280',
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#374151',
+    backgroundColor: '#FFF7ED',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -269,12 +269,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FFB800',
+    backgroundColor: '#FF6B00',
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: '700',
+    color: '#FF6B00',
   },
   progressSection: {
     gap: 8,
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 6,
-    backgroundColor: '#374151',
+    backgroundColor: '#F3F4F6',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -293,8 +293,8 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   progressText: {
-    fontSize: 11,
-    color: '#9CA3AF',
+    fontSize: 12,
+    color: '#6B7280',
     fontWeight: '500',
   },
   sectionHeader: {
@@ -304,17 +304,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#9CA3AF',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
   },
   routeSection: {
-    backgroundColor: '#374151',
+    backgroundColor: '#FAFAFA',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#E5E7EB',
   },
   locationItem: {
     flexDirection: 'row',
@@ -329,29 +329,30 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#FF6B00',
     borderWidth: 2,
     borderColor: '#fff',
   },
   routeLine: {
     width: 2,
     height: 30,
-    backgroundColor: '#4B5563',
+    backgroundColor: '#E5E7EB',
     marginTop: 4,
   },
   locationContent: {
     flex: 1,
   },
   locationLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: '#6B7280',
     marginBottom: 4,
   },
   locationAddress: {
-    fontSize: 14,
-    color: '#fff',
+    fontSize: 15,
+    color: '#111827',
     lineHeight: 20,
+    fontWeight: '500',
   },
   tripInfoSection: {
     marginBottom: 12,
@@ -362,46 +363,44 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     flex: 1,
-    backgroundColor: '#374151',
+    backgroundColor: '#FAFAFA',
     borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#E5E7EB',
   },
   infoContent: {
     flex: 1,
   },
   infoLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#9CA3AF',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
     marginBottom: 4,
   },
   infoValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
   },
   cancelButtonLarge: {
     marginTop: SPACING.lg,
     marginHorizontal: SPACING.lg,
     height: 56,
     borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#EF4444',
-    backgroundColor: 'transparent',
+    backgroundColor: '#FEF2F2',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
   },
   cancelButtonLargeText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#EF4444',
+    color: '#DC2626',
   },
   header: {
     position: 'absolute',
@@ -418,15 +417,16 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
     elevation: 5,
   },
   logoText: {
     fontSize: 30,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: -0.5,
     color: '#FF6B00',
   },
@@ -435,12 +435,12 @@ const styles = StyleSheet.create({
 // ====== PAYMENT BREAKDOWN STYLES (deposit) ======
 const paymentStyles = StyleSheet.create({
   depositTable: {
-    backgroundColor: '#2d3748',
+    backgroundColor: '#FFF7ED',
     borderRadius: 14,
     padding: 14,
     gap: 10,
     borderWidth: 1,
-    borderColor: '#4B5563',
+    borderColor: '#FFEDD5',
   },
   row: {
     flexDirection: 'row',
@@ -449,18 +449,18 @@ const paymentStyles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    color: '#d1d5db',
-    fontWeight: '500',
+    color: '#4B5563',
+    fontWeight: '600',
     flex: 1,
   },
   value: {
     fontSize: 14,
-    color: '#fff',
-    fontWeight: '600',
+    color: '#111827',
+    fontWeight: '700',
   },
   totalRow: {
     borderTopWidth: 1,
-    borderTopColor: '#4B5563',
+    borderTopColor: '#FFEDD5',
     paddingTop: 10,
     marginTop: 4,
   },

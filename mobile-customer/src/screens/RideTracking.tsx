@@ -63,10 +63,11 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
   // Bottom sheet animation — start at 45%
   const sheetHeight = useRef(new Animated.Value(SNAP_45)).current
-  const lastHeight = useRef(SNAP_45)
+  const [isExpanded, setIsExpanded] = useState(false)
 
-  const snapTo = (target: number) => {
-    lastHeight.current = target
+  const toggleBottomSheet = () => {
+    const target = isExpanded ? SNAP_45 : SNAP_85
+    setIsExpanded(!isExpanded)
     Animated.spring(sheetHeight, {
       toValue: target,
       useNativeDriver: false,
@@ -74,26 +75,6 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
       stiffness: 130,
     }).start()
   }
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderMove: (_, g) => {
-        const next = lastHeight.current - g.dy
-        if (next >= SNAP_25 && next <= SNAP_85) {
-          sheetHeight.setValue(next)
-        }
-      },
-      onPanResponderRelease: (_, g) => {
-        const cur = lastHeight.current - g.dy
-        // Find closest snap
-        const snaps = [SNAP_25, SNAP_45, SNAP_85]
-        const closest = snaps.reduce((a, b) => Math.abs(b - cur) < Math.abs(a - cur) ? b : a)
-        snapTo(closest)
-      },
-    })
-  ).current
 
   useEffect(() => {
     if (pickupCoords && dropoffCoords && routeCoordinates.length === 0) {
@@ -241,8 +222,8 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
       return
     }
 
-    if (ride?.status === 'in_progress') {
-      Alert.alert('Không thể hủy', 'Chuyến đi đang trong quá trình di chuyển, không thể hủy.')
+    if (['arrived_pickup', 'in_progress', 'arrived_dropoff'].includes(ride?.status)) {
+      Alert.alert('Không thể hủy', 'Tài xế đã đến điểm đón hoặc chuyến đi đang diễn ra, bạn không thể hủy chuyến.')
       return
     }
     // ────────────────────────────────────────────────────────────────
@@ -296,7 +277,7 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
               try {
                 const errData = await res.json()
                 if (errData?.message) errMsg = errData.message
-              } catch (_) {}
+              } catch (_) { }
               // Nếu server báo đã hủy rồi → cập nhật UI luôn
               if (res.status === 400) {
                 setRide((prev: any) => prev ? { ...prev, status: 'cancelled' } : prev)
@@ -391,9 +372,31 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
 
       {/* 3-Snap Bottom Sheet */}
       <Animated.View style={[styles.bottomSheet, { height: sheetHeight }]}>
-        {/* Handle Bar — drag area */}
-        <View style={styles.handleBarContainer} {...panResponder.panHandlers}>
-          <View style={styles.handleBar} />
+        {/* Expand / Collapse Button */}
+        <View style={styles.handleBarContainer} pointerEvents="auto">
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#FFF7ED',
+              paddingVertical: 6,
+              paddingHorizontal: 16,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: '#FFEDD5',
+            }}
+            onPress={toggleBottomSheet}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#FF6B00', marginRight: 4 }}>
+              {isExpanded ? "Thu gọn" : "Mở rộng"}
+            </Text>
+            <MaterialIcons
+              name={isExpanded ? "expand-more" : "expand-less"}
+              size={20}
+              color="#FF6B00"
+            />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -477,11 +480,13 @@ export default function RideTracking({ navigation, route }: RideTrackingProps) {
             </View>
           )}
 
-          {/* Cancel Button */}
-          <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRide}>
-            <MaterialIcons name="cancel" size={18} color="#EF4444" />
-            <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
-          </TouchableOpacity>
+          {/* Cancel Button - Ẩn nếu tài xế đã đến hoặc xong chuyến */}
+          {(!ride || !['arrived_pickup', 'in_progress', 'arrived_dropoff', 'completed', 'cancelled'].includes(ride?.status)) && (
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancelRide}>
+              <MaterialIcons name="cancel" size={18} color="#DC2626" />
+              <Text style={styles.cancelButtonText}>Hủy chuyến đi</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={{ height: 20 }} />
         </ScrollView>
@@ -565,19 +570,13 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 15,
   },
   handleBarContainer: {
     alignItems: 'center',
     paddingVertical: 12,
-  },
-  handleBar: {
-    width: 40,
-    height: 5,
-    backgroundColor: '#CBD5E0',
-    borderRadius: 3,
   },
   scrollContent: {
     flex: 1,
@@ -602,14 +601,14 @@ const styles = StyleSheet.create({
     borderColor: '#FF6B00',
   },
   driverInfo: { flex: 1 },
-  driverName: { fontSize: 16, fontWeight: '700', color: '#000', marginBottom: 4 },
-  carInfo: { fontSize: 13, color: '#666', marginBottom: 4 },
+  driverName: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 4 },
+  carInfo: { fontSize: 13, color: '#6B7280', fontWeight: '500', marginBottom: 4 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingText: { fontSize: 12, color: '#666' },
+  ratingText: { fontSize: 13, fontWeight: '700', color: '#6B7280' },
   actionButtons: { flexDirection: 'row', gap: 10 },
   chatButton: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#374151',
+    backgroundColor: '#FF6B00',
     justifyContent: 'center', alignItems: 'center',
     position: 'relative',
   },
@@ -620,74 +619,72 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     paddingHorizontal: 5, borderWidth: 2, borderColor: '#fff',
   },
-  badgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  badgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
   callButton: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#FF6B00',
+    backgroundColor: '#22C55E',
     justifyContent: 'center', alignItems: 'center',
   },
 
   // Route
   routeSection: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FAFAFA',
     borderRadius: 16,
     padding: 16,
     marginHorizontal: SPACING.lg,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#E5E7EB',
   },
   routeItem: { flexDirection: 'row', marginBottom: 12 },
   routeIconWrapper: { width: 24, alignItems: 'center', marginRight: 12 },
   pickupDot: {
     width: 12, height: 12, borderRadius: 6,
-    backgroundColor: '#22C55E', borderWidth: 2, borderColor: '#fff',
+    backgroundColor: '#FF6B00', borderWidth: 2, borderColor: '#fff',
   },
-  routeLine: { width: 2, height: 30, backgroundColor: '#4B5563', marginTop: 4 },
+  routeLine: { width: 2, height: 30, backgroundColor: '#E5E7EB', marginTop: 4 },
   routeContent: { flex: 1 },
-  routeLabel: { fontSize: 10, fontWeight: '600', color: '#999', marginBottom: 4, letterSpacing: 0.5 },
-  routeAddress: { fontSize: 14, fontWeight: '600', color: '#000', marginBottom: 2 },
+  routeLabel: { fontSize: 11, fontWeight: '700', color: '#6B7280', marginBottom: 4, letterSpacing: 0.5 },
+  routeAddress: { fontSize: 15, fontWeight: '600', color: '#111827', marginBottom: 2 },
   routeTime: { fontSize: 12, color: '#FF6B00', fontWeight: '500' },
 
   // Payment Breakdown
   paymentBreakdown: {
-    backgroundColor: '#FFF9F4',
+    backgroundColor: '#FFF7ED',
     borderRadius: 14,
     padding: 14,
     marginHorizontal: SPACING.lg,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#FFE0C0',
+    borderColor: '#FFEDD5',
   },
   paymentBreakdownHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10,
   },
-  paymentBreakdownTitle: { fontSize: 13, fontWeight: '700', color: '#FF6B00' },
+  paymentBreakdownTitle: { fontSize: 14, fontWeight: '800', color: '#FF6B00' },
   paymentRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4,
   },
   paymentRowTotal: {
-    borderTopWidth: 1, borderTopColor: '#FFE0C0', marginTop: 6, paddingTop: 8,
+    borderTopWidth: 1, borderTopColor: '#FFEDD5', marginTop: 6, paddingTop: 8,
   },
-  paymentLabel: { fontSize: 13, color: '#555' },
-  paymentValue: { fontSize: 13, fontWeight: '600', color: '#222' },
-  paymentLabelBold: { fontSize: 14, fontWeight: '700', color: '#222' },
-  paymentValueBold: { fontSize: 15, fontWeight: '800', color: '#FF6B00' },
+  paymentLabel: { fontSize: 13, color: '#4B5563', fontWeight: '600' },
+  paymentValue: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  paymentLabelBold: { fontSize: 14, fontWeight: '800', color: '#FF6B00' },
+  paymentValueBold: { fontSize: 16, fontWeight: '800', color: '#FF6B00' },
 
   // Cancel
   cancelButton: {
     marginHorizontal: SPACING.lg,
     height: 52,
     borderRadius: 14,
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
     gap: 8,
   },
-  cancelButtonText: { fontSize: 15, fontWeight: '700', color: '#EF4444' },
+  cancelButtonText: { fontSize: 16, fontWeight: '700', color: '#DC2626' },
 
   // Loading
   loadingOverlay: {

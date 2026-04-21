@@ -462,6 +462,9 @@ export class RidesController {
     const ride = await this.ridesService.findById(id);
     if (!ride) throw new BadRequestException('Ride not found');
 
+    // Cập nhật trạng thái vào database để app khách hàng cập nhật được
+    await this.rideModel.findByIdAndUpdate(id, { status: 'arrived_pickup' });
+
     const customerId = ride.customerId
       ? (ride.customerId as any)?._id?.toString() ||
         (ride.customerId as any)?.toString()

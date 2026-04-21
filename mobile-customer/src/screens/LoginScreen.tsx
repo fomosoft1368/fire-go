@@ -13,7 +13,9 @@ import {
   ImageBackground,
   Dimensions,
   Image,
+  Modal,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useDispatch, useSelector } from 'react-redux'
 import { loginStart, loginSuccess, loginFailure } from '../redux/slices/authSlice'
@@ -35,6 +37,11 @@ export default function LoginScreen() {
   // Step 2 states
   const [otpCode, setOtpCode] = useState('')
   const [countdown, setCountdown] = useState(0)
+
+  // Name Modal states
+  const [nameModalVisible, setNameModalVisible] = useState(false)
+  const [fullName, setFullName] = useState('')
+  const [tempAuthData, setTempAuthData] = useState<any>(null)
 
   const dispatch = useDispatch()
   const { isLoading, error } = useSelector((state: RootState) => state.auth)
@@ -85,9 +92,43 @@ export default function LoginScreen() {
     dispatch(loginStart())
     try {
       const response = await authService.verifyLoginOtp(phone, otpCode)
-      dispatch(loginSuccess({ token: response.token, user: response.user }))
+      const isNew = response.user.firstName === 'Khách hàng';
+      
+      if (isNew) {
+        dispatch(loginFailure('')) // Đổi state loading thành false
+        setTempAuthData(response)
+        setNameModalVisible(true)
+      } else {
+        dispatch(loginSuccess({ token: response.token, user: response.user }))
+      }
     } catch (err: any) {
       const errorMessage = err.message || 'Mã OTP không hợp lệ'
+      dispatch(loginFailure(errorMessage))
+      Alert.alert('Lỗi', errorMessage)
+    }
+  }
+
+  const handleUpdateName = async () => {
+    const trimmedName = fullName.trim()
+    if (!trimmedName || !trimmedName.includes(' ')) {
+      Alert.alert('Thông báo', 'Vui lòng nhập đầy đủ họ và tên (VD: Nguyễn Văn A)')
+      return
+    }
+
+    dispatch(loginStart())
+    try {
+      const nameParts = trimmedName.split(' ')
+      const lastName = nameParts.pop() || ''
+      const firstName = nameParts.join(' ') || trimmedName
+      
+      const updatedUser = await authService.updateProfile(tempAuthData.user.id, { firstName, lastName })
+      
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser))
+
+      setNameModalVisible(false)
+      dispatch(loginSuccess({ token: tempAuthData.token, user: updatedUser }))
+    } catch (err: any) {
+      const errorMessage = err.message || 'Lỗi cập nhật họ tên'
       dispatch(loginFailure(errorMessage))
       Alert.alert('Lỗi', errorMessage)
     }
@@ -256,6 +297,59 @@ export default function LoginScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Name Input Modal */}
+      <Modal
+        visible={nameModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <KeyboardAvoidingView 
+          style={styles.modalBg} 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <MaterialIcons name="person" size={40} color="#FF6B35" />
+              <Text style={styles.modalTitle}>Cập nhật thông tin</Text>
+              <Text style={styles.modalSubtitle}>Vui lòng nhập họ và tên của bạn để hoàn tất đăng ký</Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Họ và tên *</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons name="badge" size={20} color="#94a3b8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="VD: Nguyễn Văn A"
+                  placeholderTextColor="#64748b"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  editable={!isLoading}
+                  autoCapitalize="words"
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.continueButton, isLoading && styles.buttonDisabled]}
+              onPress={handleUpdateName}
+              disabled={isLoading || !fullName.trim()}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Text style={styles.continueButtonText}>Hoàn tất & Đăng nhập</Text>
+                  <MaterialIcons name="check" size={20} color="#fff" style={styles.buttonIcon} />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </KeyboardAvoidingView>
   )
 }
@@ -289,4 +383,9 @@ const styles = StyleSheet.create({
   buttonIcon: { marginLeft: SPACING.sm },
   errorBox: { backgroundColor: 'rgba(255, 107, 107, 0.1)', borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, marginTop: SPACING.lg, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   errorText: { color: '#ff6b6b', fontSize: 12, fontWeight: '500', flex: 1 },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: SPACING.lg },
+  modalContent: { backgroundColor: '#fff', borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, width: '100%', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 24 },
+  modalHeader: { alignItems: 'center', marginBottom: SPACING.xl },
+  modalTitle: { fontSize: 22, fontWeight: '700', color: '#111418', marginTop: SPACING.md, marginBottom: SPACING.xs },
+  modalSubtitle: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 20 },
 })

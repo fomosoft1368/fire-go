@@ -62,6 +62,22 @@ export class CreateDeliveryDto {
 
   @IsOptional()
   @IsString()
+  senderName?: string;
+
+  @IsOptional()
+  @IsString()
+  senderPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  recipientName?: string;
+
+  @IsOptional()
+  @IsString()
+  recipientPhone?: string;
+
+  @IsOptional()
+  @IsString()
   duration?: string;
 
   @IsOptional()

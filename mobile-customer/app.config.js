@@ -1,7 +1,7 @@
 // app.config.js — đọc .env và inject vào Constants.expoConfig.extra
 // Expo CLI tự load .env trước khi chạy file này (Node context)
-const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.1.20:3000/api'
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ''
+const API_URL = process.env.REACT_APP_API_URL || 'https://api.firego.vn/api'
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyCR0-z2gtK6ax9qhn3Mhz87oclK84QXrIo'
 
 console.log('[app.config.js] 🌐 API_URL from .env:', API_URL)
 console.log('[app.config.js] 🗺️ GOOGLE_MAPS_API_KEY: được quản lý trong DB (remoteConfig sẽ fetch khi app khởi động)')
@@ -28,6 +28,9 @@ module.exports = {
   },
   extra: {
     ...appJson.expo.extra,
+    eas: {
+      projectId: "bf77ea44-b489-4dad-a0b3-da522685112c"
+    },
     apiUrl: API_URL,
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
   },

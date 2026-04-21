@@ -15,10 +15,12 @@ import {
 } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import { useSelector } from 'react-redux'
 import { useEffect } from 'react'
 import * as Location from 'expo-location'
 import type { RootState } from '../redux/store'
+import type { RootStackParamList } from '../types'
 import { hourlyServiceService } from '../services/hourlyServiceService'
 import { mapsService } from '../services/mapsService'
 import MapViewComponent from '@/components/MapView'
@@ -66,7 +68,7 @@ const getIconColor = (backendIcon: string): string => {
 }
 
 export default function HourlyService() {
-    const navigation = useNavigation()
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
     const { user } = useSelector((state: RootState) => state.auth)
     const [hours, setHours] = useState(3)
     const [selectedDate, setSelectedDate] = useState(5)
@@ -79,13 +81,14 @@ export default function HourlyService() {
     const [loadingAddress, setLoadingAddress] = useState(false)
     const [services, setServices] = useState<AddOnService[]>([])
     const [showAllServices, setShowAllServices] = useState(false)
-    
+
     // Calendar month/year state
     const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth())
     const [calendarYear, setCalendarYear] = useState(new Date().getFullYear())
 
     const timeSlots = ['08:00', '09:30', '13:00', '15:30', '17:00']
-    const basePrice = 0
+    const HOURLY_RATE = 250000 // 250,000đ/giờ
+    const basePrice = hours * HOURLY_RATE
     const MAX_VISIBLE_SERVICES = 4
 
     // Fetch addon services từ API khi component mount
@@ -99,7 +102,7 @@ export default function HourlyService() {
         try {
             setLoadingServices(true)
             const addonServices = await hourlyServiceService.getAddonServices()
-            
+
             // Map dữ liệu từ backend sang format của component
             const mappedServices: AddOnService[] = addonServices.map((service: any) => ({
                 id: service._id,
@@ -126,9 +129,9 @@ export default function HourlyService() {
         try {
             setLoadingAddress(true)
             console.log('[HourlyService] 📍 Requesting location permission...')
-            
+
             const { status } = await Location.requestForegroundPermissionsAsync()
-            
+
             if (status !== 'granted') {
                 console.log('[HourlyService] ⚠️ Location permission denied')
                 Alert.alert('Thông báo', 'Vui lòng cấp quyền truy cập vị trí để sử dụng tính năng này')
@@ -146,7 +149,7 @@ export default function HourlyService() {
             // Reverse geocode to get address
             const address = await mapsService.reverseGeocode(latitude, longitude)
             console.log('[HourlyService] 🏠 Address from coordinates:', address)
-            
+
             setAddress(address)
             console.log('[HourlyService] ✅ Address set successfully')
         } catch (error) {
@@ -157,7 +160,7 @@ export default function HourlyService() {
         }
     }
 
-    const totalAddOnPrice = useMemo(() => 
+    const totalAddOnPrice = useMemo(() =>
         services
             .filter(s => s.selected)
             .reduce((sum, s) => sum + s.price, 0),
@@ -165,10 +168,8 @@ export default function HourlyService() {
     )
 
     const totalPrice = useMemo(() => {
-        // Only add basePrice if there are selected services
-        if (totalAddOnPrice === 0) return 0
         return basePrice + totalAddOnPrice
-    }, [totalAddOnPrice])
+    }, [basePrice, totalAddOnPrice])
 
     const handleToggleService = (id: string) => {
         setServices(services.map(s =>
@@ -230,10 +231,10 @@ export default function HourlyService() {
                 {
                     text: 'OK',
                     onPress: () => {
-                        navigation.navigate('FindingService' as never, { 
+                        navigation.navigate('FindingService', {
                             serviceId: response._id,
                             serviceType: 'hourly'
-                        } as never)
+                        })
                     },
                 },
             ])
@@ -306,320 +307,320 @@ export default function HourlyService() {
                 >
                     {/* Duration & Time Section */}
                     <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Thời lượng & Thời gian</Text>
-                    <View style={styles.durationCard}>
-                        <View style={styles.durationLeft}>
-                            <Text style={styles.durationLabel}>Số giờ làm việc</Text>
-                            <Text style={styles.durationSubtext}>Khuyên dùng cho căn hộ 2PN</Text>
-                        </View>
-                        <View style={styles.durationControl}>
-                            <TouchableOpacity
-                                style={styles.minusButton}
-                                onPress={() => setHours(Math.max(1, hours - 1))}
-                            >
-                                <MaterialIcons name="remove" size={20} color="#333" />
-                            </TouchableOpacity>
-                            <TextInput
-                                style={styles.hoursInput}
-                                value={String(hours)}
-                                editable={false}
-                            />
-                            <TouchableOpacity
-                                style={styles.plusButton}
-                                onPress={() => setHours(hours + 1)}
-                            >
-                                <MaterialIcons name="add" size={20} color="#fff" />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    {/* Calendar */}
-                    <View style={styles.calendarCard}>
-                        <View style={styles.calendarHeader}>
-                            <TouchableOpacity 
-                                style={styles.calendarNav}
-                                onPress={handlePreviousMonth}
-                            >
-                                <MaterialIcons name="chevron-left" size={24} color="#FF6B35" />
-                            </TouchableOpacity>
-                            <Text style={styles.monthText}>{monthName}</Text>
-                            <TouchableOpacity 
-                                style={styles.calendarNav}
-                                onPress={handleNextMonth}
-                            >
-                                <MaterialIcons name="chevron-right" size={24} color="#FF6B35" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Day headers */}
-                        <View style={styles.dayHeadersRow}>
-                            {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day) => (
-                                <Text key={day} style={styles.dayHeader}>{day}</Text>
-                            ))}
-                        </View>
-
-                        {/* Calendar days */}
-                        <View style={styles.daysGrid}>
-                            {Array.from({ length: firstDay }).map((_, i) => (
-                                <View key={`empty-${i}`} />
-                            ))}
-                            {Array.from({ length: daysInMonth }).map((_, i) => {
-                                const day = i + 1
-                                const isSelected = day === selectedDate
-                                return (
-                                    <TouchableOpacity
-                                        key={day}
-                                        style={[
-                                            styles.dayButton,
-                                            isSelected && styles.dayButtonSelected,
-                                        ]}
-                                        onPress={() => setSelectedDate(day)}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.dayText,
-                                                isSelected && styles.dayTextSelected,
-                                            ]}
-                                        >
-                                            {day}
-                                        </Text>
-                                    </TouchableOpacity>
-                                )
-                            })}
-                        </View>
-                    </View>
-
-                    {/* Time Slots */}
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.timeSlotScroll}
-                    >
-                        {timeSlots.map((time) => (
-                            <TouchableOpacity
-                                key={time}
-                                style={[
-                                    styles.timeSlot,
-                                    selectedTime === time && styles.timeSlotSelected,
-                                ]}
-                                onPress={() => setSelectedTime(time)}
-                            >
-                                <Text
-                                    style={[
-                                        styles.timeSlotText,
-                                        selectedTime === time && styles.timeSlotTextSelected,
-                                    ]}
+                        <Text style={styles.sectionTitle}>Thời lượng & Thời gian</Text>
+                        <View style={styles.durationCard}>
+                            <View style={styles.durationLeft}>
+                                <Text style={styles.durationLabel}>Số giờ làm việc</Text>
+                                <Text style={styles.durationSubtext}>Khuyên dùng cho căn hộ 2PN</Text>
+                            </View>
+                            <View style={styles.durationControl}>
+                                <TouchableOpacity
+                                    style={styles.minusButton}
+                                    onPress={() => setHours(Math.max(1, hours - 1))}
                                 >
-                                    {time}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
-
-                {/* Divider */}
-                <View style={styles.divider} />
-
-                {/* Property Type Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Loại hình nhà ở</Text>
-                    <View style={styles.propertyTypeContainer}>
-                        <TouchableOpacity
-                            style={[
-                                styles.propertyTypeButton,
-                                propertyType === 'apartment' && styles.propertyTypeButtonSelected,
-                            ]}
-                            onPress={() => setPropertyType('apartment')}
-                        >
-                            <View style={[
-                                styles.propertyTypeIcon,
-                                propertyType === 'apartment' && styles.propertyTypeIconSelected,
-                            ]}>
-                                <MaterialIcons 
-                                    name="apartment" 
-                                    size={28} 
-                                    color={propertyType === 'apartment' ? '#FF6B35' : '#64748b'} 
-                                />
-                            </View>
-                            <Text style={[
-                                styles.propertyTypeText,
-                                propertyType === 'apartment' && styles.propertyTypeTextSelected,
-                            ]}>
-                                Chung cư
-                            </Text>
-                            <Text style={styles.propertyTypeSubtext}>
-                                Căn hộ, chung cư
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.propertyTypeButton,
-                                propertyType === 'house' && styles.propertyTypeButtonSelected,
-                            ]}
-                            onPress={() => setPropertyType('house')}
-                        >
-                            <View style={[
-                                styles.propertyTypeIcon,
-                                propertyType === 'house' && styles.propertyTypeIconSelected,
-                            ]}>
-                                <MaterialIcons 
-                                    name="home" 
-                                    size={28} 
-                                    color={propertyType === 'house' ? '#FF6B35' : '#64748b'} 
-                                />
-                            </View>
-                            <Text style={[
-                                styles.propertyTypeText,
-                                propertyType === 'house' && styles.propertyTypeTextSelected,
-                            ]}>
-                                Nhà ở
-                            </Text>
-                            <Text style={styles.propertyTypeSubtext}>
-                                Nhà riêng, biệt thự
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
-                {/* Divider */}
-                <View style={styles.divider} />
-
-                {/* Address Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Địa điểm làm việc</Text>
-                    <View style={styles.addressCard}>
-                        <MapViewComponent height={220}/>
-                        <View style={styles.addressInputContainer}>
-                            <MaterialIcons name="home" size={20} color="#FF6B35" />
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.inputLabelRow}>
-                                    <Text style={styles.inputLabel}>Địa chỉ chi tiết</Text>
-                                    <TouchableOpacity
-                                        style={styles.currentLocationButton}
-                                        onPress={getCurrentLocation}
-                                        disabled={loadingAddress}
-                                    >
-                                        {loadingAddress ? (
-                                            <ActivityIndicator size="small" color="#FF6B35" />
-                                        ) : (
-                                            <>
-                                                <MaterialIcons name="my-location" size={14} color="#FF6B35" />
-                                                <Text style={styles.currentLocationText}>Lấy vị trí</Text>
-                                            </>
-                                        )}
-                                    </TouchableOpacity>
-                                </View>
+                                    <MaterialIcons name="remove" size={20} color="#333" />
+                                </TouchableOpacity>
                                 <TextInput
-                                    style={styles.addressInput}
-                                    value={address}
-                                    onChangeText={setAddress}
-                                    placeholder="Nhập địa chỉ..."
-                                    editable={!loadingAddress}
+                                    style={styles.hoursInput}
+                                    value={String(hours)}
+                                    editable={false}
                                 />
+                                <TouchableOpacity
+                                    style={styles.plusButton}
+                                    onPress={() => setHours(hours + 1)}
+                                >
+                                    <MaterialIcons name="add" size={20} color="#fff" />
+                                </TouchableOpacity>
                             </View>
                         </View>
-                    </View>
-                </View>
 
-                {/* Divider */}
-                <View style={styles.divider} />
+                        {/* Calendar */}
+                        <View style={styles.calendarCard}>
+                            <View style={styles.calendarHeader}>
+                                <TouchableOpacity
+                                    style={styles.calendarNav}
+                                    onPress={handlePreviousMonth}
+                                >
+                                    <MaterialIcons name="chevron-left" size={24} color="#FF6B35" />
+                                </TouchableOpacity>
+                                <Text style={styles.monthText}>{monthName}</Text>
+                                <TouchableOpacity
+                                    style={styles.calendarNav}
+                                    onPress={handleNextMonth}
+                                >
+                                    <MaterialIcons name="chevron-right" size={24} color="#FF6B35" />
+                                </TouchableOpacity>
+                            </View>
 
-                {/* Add-on Services */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Dịch vụ</Text>
-                    {loadingServices ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                            <ActivityIndicator size="large" color="#FF6B35" />
-                            <Text style={{ marginTop: 8, color: '#999' }}>Đang tải dịch vụ...</Text>
-                        </View>
-                    ) : services.length === 0 ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                            <MaterialIcons name="inbox" size={48} color="#ddd" />
-                            <Text style={{ marginTop: 8, color: '#999', textAlign: 'center' }}>
-                                Không có dịch vụ bổ sung nào
-                            </Text>
-                        </View>
-                    ) : (
-                        <>
-                            <View style={styles.serviceGridContainer}>
-                                {(showAllServices ? services : services.slice(0, MAX_VISIBLE_SERVICES)).map((service) => (
-                                    <TouchableOpacity
-                                        key={service.id}
-                                        style={[
-                                            styles.serviceGridCard,
-                                            service.selected && styles.serviceGridCardSelected,
-                                        ]}
-                                        onPress={() => handleToggleService(service.id)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <View
-                                            style={[
-                                                styles.serviceGridIcon,
-                                                { backgroundColor: service.color + '15' },
-                                            ]}
-                                        >
-                                            <MaterialIcons
-                                                name={service.icon as any}
-                                                size={32}
-                                                color={service.color}
-                                            />
-                                        </View>
-                                        <Text style={styles.serviceGridName} numberOfLines={2}>
-                                            {service.name}
-                                        </Text>
-                                        <Text style={styles.serviceGridDuration}>
-                                            +{service.duration} phút
-                                        </Text>
-                                        <Text style={styles.serviceGridPrice}>
-                                            {service.price.toLocaleString('vi-VN')}đ
-                                        </Text>
-                                        {service.selected && (
-                                            <View style={styles.serviceGridCheckmark}>
-                                                <MaterialIcons name="check-circle" size={24} color="#FF6B35" />
-                                            </View>
-                                        )}
-                                    </TouchableOpacity>
+                            {/* Day headers */}
+                            <View style={styles.dayHeadersRow}>
+                                {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day) => (
+                                    <Text key={day} style={styles.dayHeader}>{day}</Text>
                                 ))}
                             </View>
-                            
-                            {services.length > MAX_VISIBLE_SERVICES && (
+
+                            {/* Calendar days */}
+                            <View style={styles.daysGrid}>
+                                {Array.from({ length: firstDay }).map((_, i) => (
+                                    <View key={`empty-${i}`} />
+                                ))}
+                                {Array.from({ length: daysInMonth }).map((_, i) => {
+                                    const day = i + 1
+                                    const isSelected = day === selectedDate
+                                    return (
+                                        <TouchableOpacity
+                                            key={day}
+                                            style={[
+                                                styles.dayButton,
+                                                isSelected && styles.dayButtonSelected,
+                                            ]}
+                                            onPress={() => setSelectedDate(day)}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.dayText,
+                                                    isSelected && styles.dayTextSelected,
+                                                ]}
+                                            >
+                                                {day}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )
+                                })}
+                            </View>
+                        </View>
+
+                        {/* Time Slots */}
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            style={styles.timeSlotScroll}
+                        >
+                            {timeSlots.map((time) => (
                                 <TouchableOpacity
-                                    style={styles.viewAllButton}
-                                    onPress={() => setShowAllServices(!showAllServices)}
+                                    key={time}
+                                    style={[
+                                        styles.timeSlot,
+                                        selectedTime === time && styles.timeSlotSelected,
+                                    ]}
+                                    onPress={() => setSelectedTime(time)}
                                 >
-                                    <Text style={styles.viewAllButtonText}>
-                                        {showAllServices 
-                                            ? `Ẩn bớt ⋀`
-                                            : `Xem tất cả (${services.length})`
-                                        }
+                                    <Text
+                                        style={[
+                                            styles.timeSlotText,
+                                            selectedTime === time && styles.timeSlotTextSelected,
+                                        ]}
+                                    >
+                                        {time}
                                     </Text>
-                                    <MaterialIcons 
-                                        name={showAllServices ? "expand-less" : "expand-more"} 
-                                        size={20} 
-                                        color="#FF6B35" 
-                                    />
                                 </TouchableOpacity>
-                            )}
-                        </>
-                    )}
-                </View>
+                            ))}
+                        </ScrollView>
+                    </View>
 
-                {/* Notes Section */}
-                <View style={styles.section}>
-                    <Text style={styles.notesLabel}>Ghi chú cho nhân viên</Text>
-                    <TextInput
-                        style={styles.notesInput}
-                        placeholder="Ví dụ: Nhà có chó nhỏ, vui lòng mang theo máy hút bụi..."
-                        multiline
-                        value={notes}
-                        onChangeText={setNotes}
-                        numberOfLines={5}
-                    />
-                </View>
+                    {/* Divider */}
+                    <View style={styles.divider} />
 
-                {/* Bottom spacing for fixed button */}
-                <View style={{ height: 150 }} />
+                    {/* Property Type Section */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Loại hình nhà ở</Text>
+                        <View style={styles.propertyTypeContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.propertyTypeButton,
+                                    propertyType === 'apartment' && styles.propertyTypeButtonSelected,
+                                ]}
+                                onPress={() => setPropertyType('apartment')}
+                            >
+                                <View style={[
+                                    styles.propertyTypeIcon,
+                                    propertyType === 'apartment' && styles.propertyTypeIconSelected,
+                                ]}>
+                                    <MaterialIcons
+                                        name="apartment"
+                                        size={28}
+                                        color={propertyType === 'apartment' ? '#FF6B35' : '#64748b'}
+                                    />
+                                </View>
+                                <Text style={[
+                                    styles.propertyTypeText,
+                                    propertyType === 'apartment' && styles.propertyTypeTextSelected,
+                                ]}>
+                                    Chung cư
+                                </Text>
+                                <Text style={styles.propertyTypeSubtext}>
+                                    Căn hộ, chung cư
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.propertyTypeButton,
+                                    propertyType === 'house' && styles.propertyTypeButtonSelected,
+                                ]}
+                                onPress={() => setPropertyType('house')}
+                            >
+                                <View style={[
+                                    styles.propertyTypeIcon,
+                                    propertyType === 'house' && styles.propertyTypeIconSelected,
+                                ]}>
+                                    <MaterialIcons
+                                        name="home"
+                                        size={28}
+                                        color={propertyType === 'house' ? '#FF6B35' : '#64748b'}
+                                    />
+                                </View>
+                                <Text style={[
+                                    styles.propertyTypeText,
+                                    propertyType === 'house' && styles.propertyTypeTextSelected,
+                                ]}>
+                                    Nhà ở
+                                </Text>
+                                <Text style={styles.propertyTypeSubtext}>
+                                    Nhà riêng, biệt thự
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Divider */}
+                    <View style={styles.divider} />
+
+                    {/* Address Section */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Địa điểm làm việc</Text>
+                        <View style={styles.addressCard}>
+                            <MapViewComponent height={220} />
+                            <View style={styles.addressInputContainer}>
+                                <MaterialIcons name="home" size={20} color="#FF6B35" />
+                                <View style={styles.inputWrapper}>
+                                    <View style={styles.inputLabelRow}>
+                                        <Text style={styles.inputLabel}>Địa chỉ chi tiết</Text>
+                                        <TouchableOpacity
+                                            style={styles.currentLocationButton}
+                                            onPress={getCurrentLocation}
+                                            disabled={loadingAddress}
+                                        >
+                                            {loadingAddress ? (
+                                                <ActivityIndicator size="small" color="#FF6B35" />
+                                            ) : (
+                                                <>
+                                                    <MaterialIcons name="my-location" size={14} color="#FF6B35" />
+                                                    <Text style={styles.currentLocationText}>Lấy vị trí</Text>
+                                                </>
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                    <TextInput
+                                        style={styles.addressInput}
+                                        value={address}
+                                        onChangeText={setAddress}
+                                        placeholder="Nhập địa chỉ..."
+                                        editable={!loadingAddress}
+                                    />
+                                </View>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Divider */}
+                    <View style={styles.divider} />
+
+                    {/* Add-on Services */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Dịch vụ</Text>
+                        {loadingServices ? (
+                            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                                <ActivityIndicator size="large" color="#FF6B35" />
+                                <Text style={{ marginTop: 8, color: '#999' }}>Đang tải dịch vụ...</Text>
+                            </View>
+                        ) : services.length === 0 ? (
+                            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                                <MaterialIcons name="inbox" size={48} color="#ddd" />
+                                <Text style={{ marginTop: 8, color: '#999', textAlign: 'center' }}>
+                                    Không có dịch vụ bổ sung nào
+                                </Text>
+                            </View>
+                        ) : (
+                            <>
+                                <View style={styles.serviceGridContainer}>
+                                    {(showAllServices ? services : services.slice(0, MAX_VISIBLE_SERVICES)).map((service) => (
+                                        <TouchableOpacity
+                                            key={service.id}
+                                            style={[
+                                                styles.serviceGridCard,
+                                                service.selected && styles.serviceGridCardSelected,
+                                            ]}
+                                            onPress={() => handleToggleService(service.id)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <View
+                                                style={[
+                                                    styles.serviceGridIcon,
+                                                    { backgroundColor: service.color + '15' },
+                                                ]}
+                                            >
+                                                <MaterialIcons
+                                                    name={service.icon as any}
+                                                    size={32}
+                                                    color={service.color}
+                                                />
+                                            </View>
+                                            <Text style={styles.serviceGridName} numberOfLines={2}>
+                                                {service.name}
+                                            </Text>
+                                            <Text style={styles.serviceGridDuration}>
+                                                +{service.duration} phút
+                                            </Text>
+                                            <Text style={styles.serviceGridPrice}>
+                                                {service.price.toLocaleString('vi-VN')}đ
+                                            </Text>
+                                            {service.selected && (
+                                                <View style={styles.serviceGridCheckmark}>
+                                                    <MaterialIcons name="check-circle" size={24} color="#FF6B35" />
+                                                </View>
+                                            )}
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {services.length > MAX_VISIBLE_SERVICES && (
+                                    <TouchableOpacity
+                                        style={styles.viewAllButton}
+                                        onPress={() => setShowAllServices(!showAllServices)}
+                                    >
+                                        <Text style={styles.viewAllButtonText}>
+                                            {showAllServices
+                                                ? `Ẩn bớt ⋀`
+                                                : `Xem tất cả (${services.length})`
+                                            }
+                                        </Text>
+                                        <MaterialIcons
+                                            name={showAllServices ? "expand-less" : "expand-more"}
+                                            size={20}
+                                            color="#FF6B35"
+                                        />
+                                    </TouchableOpacity>
+                                )}
+                            </>
+                        )}
+                    </View>
+
+                    {/* Notes Section */}
+                    <View style={styles.section}>
+                        <Text style={styles.notesLabel}>Ghi chú cho nhân viên</Text>
+                        <TextInput
+                            style={styles.notesInput}
+                            placeholder="Ví dụ: Nhà có chó nhỏ, vui lòng mang theo máy hút bụi..."
+                            multiline
+                            value={notes}
+                            onChangeText={setNotes}
+                            numberOfLines={5}
+                        />
+                    </View>
+
+                    {/* Bottom spacing for fixed button */}
+                    <View style={{ height: 150 }} />
                 </ScrollView>
             </KeyboardAvoidingView>
 

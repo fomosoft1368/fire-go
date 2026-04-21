@@ -10,6 +10,7 @@ export type RideDocument = Ride & Document;
 export enum RideStatus {
   PENDING = 'pending',
   ACCEPTED = 'accepted',
+  ARRIVED_PICKUP = 'arrived_pickup',
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',

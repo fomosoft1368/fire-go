@@ -1,16 +1,29 @@
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, Platform, UIManager, LayoutAnimation } from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useNavigation } from '@react-navigation/native'
 import { useSelector } from 'react-redux'
 import { RootState } from '../redux/store'
 import { SPACING, COLORS_DARK, COLORS_LIGHT } from '../constants'
 import { useState } from 'react'
+import { LinearGradient } from 'expo-linear-gradient'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+
+if (Platform.OS === 'android') {
+  if (UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  }
+}
 
 export default function SupportScreen() {
   const navigation = useNavigation()
   const themeMode = useSelector((state: RootState) => state.theme.mode)
   const colors = themeMode === 'dark' ? COLORS_DARK : COLORS_LIGHT
+  const insets = useSafeAreaInsets()
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null)
+
+  // Accent Colors
+  const accentOrange = colors.primary
+  const accentOrangeDark = '#ea580c' // A slight gradient step down from primary
 
   const handleCall = () => {
     Linking.openURL('tel:1900xxxx')
@@ -28,72 +41,32 @@ export default function SupportScreen() {
     )
   }
 
-  const handleReportIssue = () => {
-    Alert.alert(
-      'Báo cáo sự cố',
-      'Vui lòng mô tả chi tiết sự cố bạn gặp phải. Chúng tôi sẽ phản hồi trong vòng 24 giờ.',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Gửi email', onPress: () => Linking.openURL('mailto:support@firego.vn?subject=Báo cáo sự cố') }
-      ]
-    )
+  const handleFAQPress = (index: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedFAQ(expandedFAQ === index ? null : index);
   }
 
   const contactMethods = [
     {
-      icon: 'phone',
+      icon: 'support-agent',
       title: 'Hotline 24/7',
       subtitle: '1900 xxxx',
       description: 'Gọi miễn phí mọi lúc',
-      color: '#10b981',
       onPress: handleCall
     },
     {
       icon: 'email',
-      title: 'Email',
+      title: 'Gửi Email',
       subtitle: 'support@firego.vn',
       description: 'Phản hồi trong 24h',
-      color: '#3b82f6',
       onPress: handleEmail
     },
     {
-      icon: 'chat',
+      icon: 'chat-bubble',
       title: 'Chat trực tuyến',
       subtitle: 'Hỗ trợ nhanh',
-      description: 'Thời gian: 8:00 - 22:00',
-      color: '#8b5cf6',
+      description: 'Từ 8:00 đến 22:00',
       onPress: handleChat
-    }
-  ]
-
-  const quickActions = [
-    {
-      icon: 'history',
-      title: 'Lịch sử chuyến đi',
-      description: 'Xem chi tiết các chuyến đã đi',
-      color: '#f59e0b',
-      route: 'History'
-    },
-    {
-      icon: 'receipt-long',
-      title: 'Hóa đơn & Thanh toán',
-      description: 'Quản lý giao dịch',
-      color: '#ec4899',
-      route: 'Wallet'
-    },
-    {
-      icon: 'account-circle',
-      title: 'Tài khoản của tôi',
-      description: 'Cập nhật thông tin cá nhân',
-      color: '#06b6d4',
-      route: 'Profile'
-    },
-    {
-      icon: 'bug-report',
-      title: 'Báo cáo sự cố',
-      description: 'Gặp vấn đề? Hãy cho chúng tôi biết',
-      color: '#ef4444',
-      onPress: handleReportIssue
     }
   ]
 
@@ -141,186 +114,159 @@ export default function SupportScreen() {
   ]
 
   const SafetyCard = () => (
-    <View style={[styles.safetyCard, { backgroundColor: themeMode === 'dark' ? '#1e293b' : '#fef2f2', borderColor: themeMode === 'dark' ? '#ef4444' : '#fecaca' }]}>
+    <View style={[styles.safetyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <LinearGradient
+        colors={['rgba(255,107,0,0.05)', 'rgba(255,107,0,0)']}
+        style={StyleSheet.absoluteFillObject}
+        borderRadius={24}
+      />
       <View style={styles.safetyHeader}>
-        <MaterialIcons name="shield" size={32} color="#ef4444" />
+        <View style={[styles.safetyIconWrapper, { backgroundColor: 'rgba(255,107,0,0.1)' }]}>
+          <MaterialIcons name="security" size={28} color={accentOrange} />
+        </View>
         <View style={{ flex: 1, marginLeft: SPACING.md }}>
           <Text style={[styles.safetyTitle, { color: colors.text }]}>An toàn & Bảo mật</Text>
           <Text style={[styles.safetySubtitle, { color: colors.textSecondary }]}>
-            Chúng tôi luôn đảm bảo an toàn cho bạn
+            Chúng tôi luôn ưu tiên an toàn của bạn
           </Text>
         </View>
       </View>
       <View style={styles.safetyFeatures}>
-        <View style={styles.safetyFeature}>
-          <MaterialIcons name="verified-user" size={20} color="#10b981" />
-          <Text style={[styles.safetyFeatureText, { color: colors.textSecondary }]}>
-            Tài xế xác thực danh tính
-          </Text>
-        </View>
-        <View style={styles.safetyFeature}>
-          <MaterialIcons name="gps-fixed" size={20} color="#10b981" />
-          <Text style={[styles.safetyFeatureText, { color: colors.textSecondary }]}>
-            Theo dõi hành trình thời gian thực
-          </Text>
-        </View>
-        <View style={styles.safetyFeature}>
-          <MaterialIcons name="share-location" size={20} color="#10b981" />
-          <Text style={[styles.safetyFeatureText, { color: colors.textSecondary }]}>
-            Chia sẻ vị trí với người thân
-          </Text>
-        </View>
-        <View style={styles.safetyFeature}>
-          <MaterialIcons name="support-agent" size={20} color="#10b981" />
-          <Text style={[styles.safetyFeatureText, { color: colors.textSecondary }]}>
-            Hỗ trợ khẩn cấp 24/7
-          </Text>
-        </View>
+        {[
+          { icon: 'verified-user', text: 'Tài xế xác thực danh tính' },
+          { icon: 'gps-fixed', text: 'Theo dõi hành trình thời gian thực' },
+          { icon: 'share-location', text: 'Chia sẻ chuyến đi với người thân' },
+          { icon: 'emergency', text: 'Hỗ trợ khẩn cấp 24/7' }
+        ].map((item, idx) => (
+          <View key={idx} style={styles.safetyFeatureItem}>
+            <View style={[styles.safetyCheckIcon, { backgroundColor: accentOrange }]}>
+              <MaterialIcons name="check" size={14} color="#ffffff" />
+            </View>
+            <Text style={[styles.safetyFeatureText, { color: colors.text }]}>{item.text}</Text>
+          </View>
+        ))}
       </View>
     </View>
   )
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.card }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: COLORS_LIGHT.primary, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hỗ trợ</Text>
-        <View style={{ width: 44 }} />
-      </View>
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
-          {/* Hero Section */}
-          <View style={styles.heroSection}>
-            <MaterialIcons name="support-agent" size={64} color={COLORS_LIGHT.primary} />
-            <Text style={[styles.heroTitle, { color: colors.text }]}>
-              Chúng tôi có thể giúp gì cho bạn?
-            </Text>
-            <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
-              Đội ngũ hỗ trợ 24/7 luôn sẵn sàng giải đáp thắc mắc
-            </Text>
+    <View style={[styles.container, { backgroundColor: '#ffffff' }]}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} bounces={false}>
+        {/* Dynamic Header & Hero */}
+        <LinearGradient
+          colors={['#ffffff', '#ffffff']}
+          style={[styles.headerGradient, { paddingTop: insets.top + SPACING.sm }]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <MaterialIcons name="arrow-back-ios" size={20} color={colors.text} style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Hỗ trợ & CSKH</Text>
+            <View style={{ width: 44 }} />
           </View>
 
-          {/* Contact Methods */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Liên hệ với chúng tôi</Text>
+          <View style={styles.heroSection}>
+            <View style={[styles.heroIconWrapper, { backgroundColor: colors.card }]}>
+              <MaterialIcons name="headset-mic" size={50} color={accentOrange} />
+            </View>
+            <Text style={[styles.heroTitle, { color: colors.text }]}>Chúng tôi có thể giúp gì?</Text>
+            <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
+              Mọi thắc mắc của bạn đều sẽ được giải quyết nhanh chóng và tận tâm nhất.
+            </Text>
+          </View>
+        </LinearGradient>
+
+        <View style={styles.content}>
+
+          {/* Support Contacts */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.contactListWrapper} contentContainerStyle={styles.contactList}>
             {contactMethods.map((method, index) => (
               <TouchableOpacity
                 key={index}
-                style={[styles.contactCard, { backgroundColor: themeMode === 'dark' ? '#1e293b' : '#fff', borderColor: colors.border }]}
+                style={[styles.contactCard, { backgroundColor: colors.card, shadowColor: colors.text, borderColor: colors.border, borderWidth: 1 }]}
                 onPress={method.onPress}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
-                <View style={[styles.contactIconContainer, { backgroundColor: `${method.color}15` }]}>
-                  <MaterialIcons name={method.icon as any} size={28} color={method.color} />
+                <View style={[styles.contactIconGradient, { backgroundColor: 'rgba(255,107,0,0.08)' }]}>
+                  <MaterialIcons name={method.icon as any} size={28} color={accentOrange} />
                 </View>
-                <View style={styles.contactInfo}>
-                  <Text style={[styles.contactTitle, { color: colors.text }]}>{method.title}</Text>
-                  <Text style={[styles.contactSubtitle, { color: method.color }]}>{method.subtitle}</Text>
-                  <Text style={[styles.contactDescription, { color: colors.textSecondary }]}>
-                    {method.description}
-                  </Text>
-                </View>
-                <MaterialIcons name="chevron-right" size={24} color={colors.textSecondary} />
+                <Text style={[styles.contactTitle, { color: colors.text }]}>{method.title}</Text>
+                <Text style={[styles.contactDesc, { color: colors.textSecondary }]}>{method.description}</Text>
               </TouchableOpacity>
             ))}
-          </View>
-
-          {/* Quick Actions */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Truy cập nhanh</Text>
-            <View style={styles.quickActionsGrid}>
-              {quickActions.map((action, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.quickActionCard, { backgroundColor: themeMode === 'dark' ? '#1e293b' : '#fff', borderColor: colors.border }]}
-                  onPress={() => action.route ? navigation.navigate(action.route as never) : action.onPress?.()}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.quickActionIcon, { backgroundColor: `${action.color}15` }]}>
-                    <MaterialIcons name={action.icon as any} size={24} color={action.color} />
-                  </View>
-                  <Text style={[styles.quickActionTitle, { color: colors.text }]} numberOfLines={2}>
-                    {action.title}
-                  </Text>
-                  <Text style={[styles.quickActionDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-                    {action.description}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          </ScrollView>
 
           {/* FAQ Section */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Câu hỏi thường gặp</Text>
-            {faqs.map((faq, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[styles.faqCard, { backgroundColor: themeMode === 'dark' ? '#1e293b' : '#fff', borderColor: colors.border }]}
-                onPress={() => setExpandedFAQ(expandedFAQ === index ? null : index)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.faqHeader}>
-                  <View style={styles.faqIconContainer}>
-                    <MaterialIcons name="help-outline" size={20} color={COLORS_LIGHT.primary} />
-                  </View>
-                  <Text style={[styles.faqQuestion, { color: colors.text }]}>{faq.question}</Text>
-                  <MaterialIcons
-                    name={expandedFAQ === index ? 'expand-less' : 'expand-more'}
-                    size={24}
-                    color={colors.textSecondary}
-                  />
-                </View>
-                {expandedFAQ === index && (
-                  <View style={styles.faqAnswerContainer}>
-                    <View style={[styles.faqDivider, { backgroundColor: colors.border }]} />
-                    <Text style={[styles.faqAnswer, { color: colors.textSecondary }]}>
-                      {faq.answer}
-                    </Text>
-                  </View>
-                )}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Câu hỏi thường gặp</Text>
+              <TouchableOpacity>
+                <Text style={[styles.viewAllText, { color: accentOrange }]}>Xem tất cả</Text>
               </TouchableOpacity>
-            ))}
+            </View>
+            <View style={[styles.faqListWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {faqs.map((faq, index) => {
+                const isExpanded = expandedFAQ === index;
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[styles.faqCard, index !== faqs.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                    onPress={() => handleFAQPress(index)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.faqHeader}>
+                      <Text style={[styles.faqQuestion, { color: isExpanded ? accentOrange : colors.text }]}>{faq.question}</Text>
+                      <View style={[styles.faqToggleIcon, { backgroundColor: isExpanded ? `${accentOrange}15` : colors.background }]}>
+                        <MaterialIcons
+                          name={isExpanded ? 'remove' : 'add'}
+                          size={20}
+                          color={isExpanded ? accentOrange : colors.textSecondary}
+                        />
+                      </View>
+                    </View>
+                    {isExpanded && (
+                      <Text style={[styles.faqAnswer, { color: colors.textSecondary }]}>
+                        {faq.answer}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
           </View>
 
-          {/* Safety Card */}
+          {/* Safety Context */}
           <SafetyCard />
 
-          {/* Help Center Link */}
-          <TouchableOpacity
-            style={[styles.helpCenterCard, { backgroundColor: `${COLORS_LIGHT.primary}10`, borderColor: COLORS_LIGHT.primary }]}
-            onPress={() => Alert.alert('Trung tâm trợ giúp', 'Tính năng đang được phát triển')}
-          >
-            <MaterialIcons name="menu-book" size={32} color={COLORS_LIGHT.primary} />
-            <View style={{ flex: 1, marginLeft: SPACING.md }}>
-              <Text style={[styles.helpCenterTitle, { color: colors.text }]}>
-                Trung tâm trợ giúp
-              </Text>
-              <Text style={[styles.helpCenterSubtitle, { color: colors.textSecondary }]}>
-                Tìm hiểu thêm về các tính năng và dịch vụ
-              </Text>
-            </View>
-            <MaterialIcons name="arrow-forward" size={24} color={COLORS_LIGHT.primary} />
-          </TouchableOpacity>
-
-          {/* Footer */}
+          {/* Footer Area */}
           <View style={styles.footer}>
-            <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-              Bạn không tìm thấy câu trả lời?
+            <View style={[styles.footerIconWrap, { backgroundColor: 'rgba(255,107,0,0.05)' }]}>
+              <MaterialIcons name="help-outline" size={32} color={accentOrange} />
+            </View>
+            <Text style={[styles.footerText, { color: colors.text }]}>
+              Vẫn cần thêm trợ giúp?
             </Text>
-            <TouchableOpacity style={styles.footerButton} onPress={handleEmail}>
-              <Text style={styles.footerButtonText}>Liên hệ hỗ trợ</Text>
+            <Text style={[styles.footerSubText, { color: colors.textSecondary }]}>
+              Chia sẻ vấn đề của bạn, chúng tôi sẽ hỗ trợ ngay!
+            </Text>
+            <TouchableOpacity style={styles.footerButton} onPress={handleEmail} activeOpacity={0.8}>
+              <LinearGradient
+                colors={[accentOrange, accentOrangeDark]}
+                style={styles.footerButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <MaterialIcons name="edit-square" size={20} color="#ffffff" />
+                <Text style={styles.footerButtonText}>Gửi yêu cầu hỗ trợ</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
 
-          <View style={{ height: SPACING.xxl }} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -328,18 +274,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
+  headerGradient: {
+    paddingBottom: 40,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-    paddingTop: 50,
+    height: 56,
   },
   backButton: {
     width: 44,
@@ -347,228 +300,231 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.05)',
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#fff',
-    letterSpacing: -0.5,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: SPACING.lg,
+    fontWeight: '700',
   },
   heroSection: {
     alignItems: 'center',
-    paddingVertical: SPACING.xxl,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
+  },
+  heroIconWrapper: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+    shadowColor: '#ff6b00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
   heroTitle: {
     fontSize: 24,
     fontWeight: '800',
     textAlign: 'center',
-    marginTop: SPACING.lg,
-    marginBottom: SPACING.sm,
-    letterSpacing: -0.5,
+    marginBottom: SPACING.xs,
   },
   heroSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     textAlign: 'center',
     fontWeight: '500',
-    paddingHorizontal: SPACING.xl,
     lineHeight: 22,
   },
-  section: {
-    marginBottom: SPACING.xl,
+  content: {
+    flex: 1,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: SPACING.md,
-    letterSpacing: -0.3,
+  contactListWrapper: {
+    marginTop: -30,
+    marginBottom: SPACING.xxl,
+  },
+  contactList: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    gap: SPACING.sm,
   },
   contactCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: 140,
     padding: SPACING.lg,
-    borderRadius: 16,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    shadowColor: '#000',
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 14,
+    elevation: 4,
+    marginRight: SPACING.sm,
   },
-  contactIconContainer: {
+  contactIconGradient: {
     width: 56,
     height: 56,
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  contactInfo: {
-    flex: 1,
-    marginLeft: SPACING.md,
+    marginBottom: SPACING.md,
   },
   contactTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    marginBottom: 2,
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
   },
-  contactSubtitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  contactDescription: {
-    fontSize: 13,
+  contactDesc: {
+    fontSize: 12,
     fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 16,
   },
-  quickActionsGrid: {
+  section: {
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.xxl,
+  },
+  sectionTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    marginBottom: SPACING.md,
+  },
+  sectionHeaderRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.md,
-  },
-  quickActionCard: {
-    width: '48%',
-    padding: SPACING.lg,
-    borderRadius: 16,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    minHeight: 140,
-  },
-  quickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  quickActionTitle: {
+  viewAllText: {
     fontSize: 14,
     fontWeight: '700',
-    marginBottom: SPACING.xs,
-    lineHeight: 18,
   },
-  quickActionDescription: {
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 16,
+  faqListWrapper: {
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   faqCard: {
     padding: SPACING.lg,
-    borderRadius: 16,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
   faqHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  faqIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: `${COLORS_LIGHT.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.sm,
   },
   faqQuestion: {
     flex: 1,
     fontSize: 15,
     fontWeight: '700',
-    lineHeight: 20,
+    lineHeight: 22,
+    marginRight: SPACING.md,
   },
-  faqAnswerContainer: {
-    marginTop: SPACING.md,
-  },
-  faqDivider: {
-    height: 1,
-    marginBottom: SPACING.md,
+  faqToggleIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   faqAnswer: {
+    marginTop: SPACING.md,
     fontSize: 14,
-    lineHeight: 22,
+    lineHeight: 24,
     fontWeight: '500',
   },
   safetyCard: {
-    padding: SPACING.lg,
-    borderRadius: 16,
+    marginHorizontal: SPACING.lg,
+    borderRadius: 24,
+    padding: SPACING.xl,
+    borderWidth: 1,
     marginBottom: SPACING.xl,
-    borderWidth: 2,
+    overflow: 'hidden',
   },
   safetyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
+  safetyIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   safetyTitle: {
     fontSize: 18,
     fontWeight: '800',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   safetySubtitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
   },
   safetyFeatures: {
     gap: SPACING.md,
   },
-  safetyFeature: {
+  safetyFeatureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
+  },
+  safetyCheckIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
   },
   safetyFeatureText: {
     fontSize: 14,
     fontWeight: '600',
-    flex: 1,
-  },
-  helpCenterCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.lg,
-    borderRadius: 16,
-    marginBottom: SPACING.xl,
-    borderWidth: 2,
-  },
-  helpCenterTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  helpCenterSubtitle: {
-    fontSize: 13,
-    fontWeight: '500',
   },
   footer: {
     alignItems: 'center',
-    paddingVertical: SPACING.xl,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xxl + 40,
+    paddingTop: SPACING.lg,
   },
-  footerText: {
-    fontSize: 14,
-    fontWeight: '600',
+  footerIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: SPACING.md,
   },
+  footerText: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: SPACING.xs,
+  },
+  footerSubText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: SPACING.xl,
+    fontWeight: '500',
+  },
   footerButton: {
-    backgroundColor: COLORS_LIGHT.primary,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-    borderRadius: 24,
+    width: '100%',
+    shadowColor: '#ff6b00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  footerButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    borderRadius: 20,
+    gap: SPACING.sm,
   },
   footerButtonText: {
-    color: '#fff',
-    fontSize: 15,
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '700',
   },
 })

@@ -106,7 +106,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   const [pickupSearchTimeout, setPickupSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [dropoffSearchTimeout, setDropoffSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [isLoadingCurrentLocation, setIsLoadingCurrentLocation] = useState(true)
-  // ====== DEPOSIT (Cá»ŒC) STATES ======
+  // ====== DEPOSIT (CỌC) STATES ======
   const [depositMinKm, setDepositMinKm] = useState(50)         // km // km tối thiểu bắt đặt cọc
   const [depositPercent, setDepositPercent] = useState(30)     // % tiền cọc
   const [depositAmount, setDepositAmount] = useState(0)        // Số tiền cọc (VNĐ)
@@ -115,6 +115,29 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
   const [walletBalance, setWalletBalance] = useState<number | null>(null) // Số dư ví
   const [isExpanded, setIsExpanded] = useState(false)
 
+  // ====================================
+  // Auto-save & reload license plate
+  useEffect(() => {
+    const loadSavedLicensePlate = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('saved_license_plate')
+        if (saved && !props?.licensePlate && !localLicensePlate) {
+          setLocalLicensePlate(saved)
+          if (props?.setLicensePlate) {
+            props.setLicensePlate(saved)
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+    loadSavedLicensePlate()
+  }, [])
+
+  const handleLicensePlateChange = (val: string) => {
+    setLicensePlate(val)
+    AsyncStorage.setItem('saved_license_plate', val).catch(() => {})
+  }
   // ====================================
 
   // Draggable Bottom Sheet
@@ -248,10 +271,10 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       clearTimeout(pickupSearchTimeout)
     }
 
-    // Chá»‰ search náº¿u text >= 5 kÃ½ tá»±
+    // Chỉ search nếu text >= 5 ký tự
     if (text.trim().length >= 5) {
       setShowPickupSuggestions(true)
-      // Debounce 800ms Ä‘á»ƒ giáº£m request
+      // Debounce 800ms để giảm request
       const timeout = setTimeout(async () => {
         try {
           console.log('[Search] Pickup search for:', text)
@@ -280,10 +303,10 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       clearTimeout(dropoffSearchTimeout)
     }
 
-    // Chá»‰ search náº¿u text >= 3 kÃ½ tá»±
+    // Chỉ search nếu text >= 3 ký tự
     if (text.trim().length >= 3) {
       setShowDropoffSuggestions(true)
-      // Debounce 500ms Ä‘á»ƒ giáº£m request
+      // Debounce 500ms để giảm request
       const timeout = setTimeout(async () => {
         try {
           console.log('[Search] Dropoff search for:', text)
@@ -330,32 +353,32 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     const initializePickupLocation = async () => {
       setIsLoadingCurrentLocation(true)
       try {
-        console.log('[HireDriverScreen] ðŸ“ Requesting location permission...')
+        console.log('[HireDriverScreen] 📍 Requesting location permission...')
         const { status } = await Location.requestForegroundPermissionsAsync()
 
         if (status !== 'granted') {
-          console.log('[HireDriverScreen] âš ï¸ Location permission denied')
+          console.log('[HireDriverScreen] ⚠️ Location permission denied')
           setIsLoadingCurrentLocation(false)
           return
         }
 
-        console.log('[HireDriverScreen] âœ… Getting current position...')
+        console.log('[HireDriverScreen] ✅ Getting current position...')
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         })
 
         const { latitude, longitude } = location.coords
-        console.log('[HireDriverScreen] ðŸ“ Current position:', { latitude, longitude })
+        console.log('[HireDriverScreen] 📍 Current position:', { latitude, longitude })
 
         // Reverse geocode to get address
         const address = await mapsService.reverseGeocode(latitude, longitude)
-        console.log('[HireDriverScreen] ðŸ  Address from coordinates:', address)
+        console.log('[HireDriverScreen] 🏠 Address from coordinates:', address)
 
         setPickupLocation(address)
       } catch (error) {
-        console.error('[HireDriverScreen] âŒ Error getting location:', error)
+        console.error('[HireDriverScreen] ❌ Error getting location:', error)
         // Fallback to default location
-        setPickupLocation('HÃ  Ná»™i, Viá»‡t Nam')
+        setPickupLocation('Hà Nội, Việt Nam')
       } finally {
         setIsLoadingCurrentLocation(false)
       }
@@ -369,20 +392,20 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     setShowScheduleModal(false)
   }
 
-  // Polling Ä‘á»ƒ láº¥y thÃ´ng tin tÃ i xáº¿ khi driver nháº­n cuá»‘c
+  // Polling để lấy thông tin tài xế khi driver nhận cuốc
   useEffect(() => {
     if (!isSearching || !rideId) {
       return
     }
 
-    console.log('[HireDriverScreen] ðŸ”„ Starting polling for rideId:', rideId)
+    console.log('[HireDriverScreen] 🔄 Starting polling for rideId:', rideId)
 
     const pollInterval = setInterval(async () => {
       try {
         const token = await AsyncStorage.getItem('token')
         const rideData = await rideService.getRideById(rideId, token || undefined)
 
-        console.log('[HireDriverScreen] ðŸ“Š Polling result:', {
+        console.log('[HireDriverScreen] 📊 Polling result:', {
           hasDriverId: !!rideData?.driverId,
           driverType: typeof rideData?.driverId,
         })
@@ -394,7 +417,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         const driverData = rideData.driverId
 
         if (driverData && typeof driverData === 'object' && driverData._id) {
-          console.log('[HireDriverScreen] âœ… Driver found!', driverData._id)
+          console.log('[HireDriverScreen] ✅ Driver found!', driverData._id)
 
           // Extract driver location
           let driverLat = 21.0285 // Default Hanoi
@@ -402,7 +425,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
           if (driverData.currentLocation?.coordinates) {
             driverLat = driverData.currentLocation.coordinates[1]
             driverLng = driverData.currentLocation.coordinates[0]
-            console.log('[HireDriverScreen] ðŸ“ Driver location:', { lat: driverLat, lng: driverLng })
+            console.log('[HireDriverScreen] 📍 Driver location:', { lat: driverLat, lng: driverLng })
           }
 
           setDriver({
@@ -436,7 +459,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
           clearInterval(pollInterval)
         }
       } catch (error) {
-        console.error('[HireDriverScreen] âŒ Polling error:', error)
+        console.error('[HireDriverScreen] ❌ Polling error:', error)
       }
     }, 2000)
 
@@ -464,7 +487,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
     return () => clearTimeout(timer)
   }, [pickupLocation, dropoffLocation, carType, isSearching, driverFound])
 
-  // TÃ­nh giÃ¡ cÆ°á»›c khi có Ä‘á»§ thÃ´ng tin
+  // Tính giá cước khi có đủ thông tin
   const calculateEstimate = async () => {
     if (!pickupLocation.trim() || !dropoffLocation.trim()) {
       return
@@ -472,15 +495,15 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
 
     setCalculating(true)
     try {
-      console.log('[HireDriverScreen] ðŸš— ===== Báº®T Äáº¦U TÃNH GIÃ =====')
-      console.log('[HireDriverScreen] ðŸ“ Input:', {
+      console.log('[HireDriverScreen] 🚗 ===== BẮT ĐẦU TÍNH GIÁ =====')
+      console.log('[HireDriverScreen] 📍 Input:', {
         pickup: pickupLocation,
         dropoff: dropoffLocation,
         carType,
       })
 
-      const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation)
-      console.log('[HireDriverScreen] ðŸ—ºï¸ Route info:', {
+      const route = await mapsService.getRouteInfo(pickupLocation, dropoffLocation, user?.id)
+      console.log('[HireDriverScreen] 🗺️ Route info:', {
         distance: route.distance + ' km',
         duration: route.duration + ' phút',
         pickup: route.pickup?.formattedAddress,
@@ -488,30 +511,30 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       })
       setRouteInfo(route)
 
-      // ============ LÃI XE Há»˜ - TÃ­nh giÃ¡ theo nghiá»‡p vá»¥ phÃ­ má»Ÿ cá»­a + km miá»…n phÃ­ ============
-      console.log('[HireDriverScreen] ðŸ’° Calling calculateHireDriverFare with:', {
+      // ============ LÁI XE HỘ - Tính giá theo nghiệp vụ phí mở cửa + km miễn phí ============
+      console.log('[HireDriverScreen] 💰 Calling calculateHireDriverFare with:', {
         distance: route.distance,
         carType,
       })
 
       const fare = await calculateHireDriverFare(route.distance, carType)
 
-      console.log('[HireDriverScreen] âœ… Hire Driver Fare calculated:', {
-        total: fare.total + 'Ä‘',
-        openingFee: fare.openingFee + 'Ä‘',
+      console.log('[HireDriverScreen] ✅ Hire Driver Fare calculated:', {
+        total: fare.total + 'đ',
+        openingFee: fare.openingFee + 'đ',
         freeKm: fare.freeKm + 'km',
         extraKm: fare.extraKm + 'km',
-        extraKmFee: fare.extraKmFee + 'Ä‘',
-        pricePerExtraKm: fare.pricePerExtraKm + 'Ä‘/km',
-        breakdown: `${fare.openingFee}Ä‘ + ${fare.extraKm}km Ã— ${fare.pricePerExtraKm}Ä‘ = ${fare.total}Ä‘`,
+        extraKmFee: fare.extraKmFee + 'đ',
+        pricePerExtraKm: fare.pricePerExtraKm + 'đ/km',
+        breakdown: `${fare.openingFee}đ + ${fare.extraKm}km × ${fare.pricePerExtraKm}đ = ${fare.total}đ`,
       })
 
       setFareEstimate(fare)
 
-      // ====== DEPOSIT: Cáº­p nháº­t tÃ¬nh tráº¡ng Ä‘áº·t cá»c sau khi tÃ­nh giÃ¡ ======
+      // ====== DEPOSIT: Cập nhật tình trạng đặt cọc sau khi tính giá ======
       try {
         const token = await AsyncStorage.getItem('token')
-        // Fetch deposit config vÃ  sá»‘ dÆ° vÃ­ cá»§a khÃ¡ch
+        // Fetch deposit config và số dư ví của khách
         const [configRes, walletRes] = await Promise.all([
           fetch(`${require('../constants/config').API_BASE_URL}/pricing/config`, {
             headers: { 'Content-Type': 'application/json' },
@@ -522,7 +545,7 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
         ])
         if (configRes.ok) {
           const config = await configRes.json()
-          // Láº¥y config lÃ¡i xe há»™ theo loáº¡i xe Ä‘ang chá»n
+          // Lấy config lái xe hộ theo loại xe đang chọn
           const hireConfig = (config?.hireDriverPricing || []).find((h: any) => h.vehicleType === carType) ||
             (config?.hireDriverPricing || [])[0]
           const minKm = hireConfig?.depositMinKm ?? 50
@@ -550,60 +573,60 @@ export default function HireDriverScreen(props?: HireDriverScreenProps) {
       }
       // =============================================================
 
-      console.log('[HireDriverScreen] ðŸŽ¯ Tá»”NG Káº¾T:', {
+      console.log('[HireDriverScreen] 🎯 TỔNG KẾT:', {
         distance: route.distance + ' km',
-        finalPrice: fare.total + 'Ä‘',
+        finalPrice: fare.total + 'đ',
         formula: route.distance <= fare.freeKm
-          ? `Trong ${fare.freeKm}km miá»…n phÃ­ â†’ Chá»‰ tÃ­nh phÃ­ má»Ÿ cá»­a ${fare.openingFee}Ä‘`
-          : `${fare.openingFee}Ä‘ + (${route.distance} - ${fare.freeKm})km Ã— ${fare.pricePerExtraKm}Ä‘/km = ${fare.total}Ä‘`,
+          ? `Trong ${fare.freeKm}km miễn phí → Chỉ tính phí mở cửa ${fare.openingFee}đ`
+          : `${fare.openingFee}đ + (${route.distance} - ${fare.freeKm})km × ${fare.pricePerExtraKm}đ/km = ${fare.total}đ`,
       })
-      console.log('[HireDriverScreen] ===== Káº¾T THÃšC TÃNH GIÃ =====\n')
+      console.log('[HireDriverScreen] ===== KẾT THÚC TÍNH GIÁ =====\n')
 
-      // ThÃ´ng bÃ¡o náº¿u Ä‘ang dÃ¹ng mock data
+      // Thông báo nếu đang dùng mock data
       if (route.isMockData) {
         Alert.alert(
-          'âš ï¸ Cháº¿ Ä‘á»™ Demo',
-          'Hiá»‡n Ä‘ang sá»­ dá»¥ng dá»¯ liá»‡u giáº£ láº­p.\n\nÄá»ƒ sá»­ dá»¥ng Google Maps tháº­t, vui lÃ²ng cáº¥u hÃ¬nh API key trong file .env',
+          '⚠️ Chế độ Demo',
+          'Hiện đang sử dụng dữ liệu giả lập.\n\nĐể sử dụng Google Maps thật, vui lòng cấu hình API key trong file .env',
           [{ text: 'OK' }]
         )
       }
     } catch (err: any) {
       console.error('[HireDriverScreen] Calculate error:', err)
-      Alert.alert('Lá»—i', err.message || 'KhÃ´ng thá»ƒ tÃ­nh toÃ¡n tuyáº¿n Ä‘Æ°á»ng')
+      Alert.alert('Lỗi', err.message || 'Không thể tính toán tuyến đường')
     } finally {
       setCalculating(false)
     }
   }
 
-  // Validation vÃ  táº¡o cuá»‘c xe
+  // Validation và tạo cuốc xe
   const handleCreateRide = async () => {
-    // Kiá»ƒm tra Ä‘Äƒng nháº­p
+    // Kiểm tra đăng nhập
     if (!user) {
-      Alert.alert('YÃªu cáº§u Ä‘Äƒng nháº­p', 'Báº¡n cáº§n Ä‘Äƒng nháº­p Ä‘á»ƒ Ä‘áº·t xe!')
+      Alert.alert('Yêu cầu đăng nhập', 'Bạn cần đăng nhập để đặt xe!')
       return
     }
 
     // Validation cÃ¡c trÆ°á»ng báº¯t buá»™c
     if (!pickupLocation.trim()) {
-      Alert.alert('Thiáº¿u thÃ´ng tin', 'Vui lÃ²ng nháº­p Ä‘iá»ƒm Ä‘Ã³n!')
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đón!')
       return
     }
 
     if (!dropoffLocation.trim()) {
-      Alert.alert('Thiáº¿u thÃ´ng tin', 'Vui lÃ²ng nháº­p Ä‘iá»ƒm Ä‘áº¿n!')
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập điểm đến!')
       return
     }
 
     if (!licensePlate.trim()) {
-      Alert.alert('Thiáº¿u thÃ´ng tin', 'Vui lÃ²ng nháº­p biá»ƒn sá»‘ xe!')
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập biển số xe!')
       return
     }
 
-    // Náº¿u chÆ°a tÃ­nh giÃ¡, tÃ­nh trÆ°á»›c
+    // Nếu chưa tính giá, tính trước
     if (!routeInfo || !fareEstimate) {
       Alert.alert(
         'Chưa tính giá',
-        'Vui lÃ²ng nháº¥n "TÃ­nh giÃ¡" trÆ°á»›c khi Ä‘áº·t xe!',
+        'Vui lòng nhấn "Tính giá" trước khi đặt xe!',
         [
           {
             text: 'Tính giá ngay',
@@ -806,7 +829,7 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
       >
         <View style={styles.card} pointerEvents="auto">
           <View style={{ alignItems: 'center', width: '100%', paddingVertical: 12 }}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -816,17 +839,17 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                 borderRadius: 20,
                 borderWidth: 1,
                 borderColor: '#E4E4E7',
-              }} 
+              }}
               onPress={() => isExpanded ? snapToMinRef.current() : snapToMaxRef.current()}
               activeOpacity={0.7}
             >
               <Text style={{ color: '#52525B', fontSize: 13, fontWeight: '600', marginRight: 4 }}>
                 {isExpanded ? "Thu gọn" : "Mở rộng"}
               </Text>
-              <MaterialIcons 
-                name={isExpanded ? "expand-more" : "expand-less"} 
-                size={20} 
-                color="#52525B" 
+              <MaterialIcons
+                name={isExpanded ? "expand-more" : "expand-less"}
+                size={20}
+                color="#52525B"
               />
             </TouchableOpacity>
           </View>
@@ -1051,7 +1074,7 @@ Vui lòng nạp tiền vào ví trước khi tiếp tục.`,
                         placeholder="Ví dụ: 30A-123.45"
                         placeholderTextColor="#9CA3AF"
                         value={licensePlate}
-                        onChangeText={setLicensePlate}
+                        onChangeText={handleLicensePlateChange}
                         onFocus={snapToMax}
                       />
                     </View>

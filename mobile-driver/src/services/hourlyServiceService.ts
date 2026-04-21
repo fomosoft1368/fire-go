@@ -200,18 +200,14 @@ class HourlyServiceService {
   }
 
   /**
-   * Get completed hourly services for driver
-   * GET /api/hourly-services/worker-services?status=completed
+   * Get all hourly services for driver
+   * GET /api/hourly-services/worker-services
    */
   async getCompletedServices(driverId: string): Promise<HourlyRequest[]> {
     try {
-      console.log('[HourlyServiceService] Fetching completed services for driver:', driverId)
+      console.log('[HourlyServiceService] Fetching all services for worker:', driverId)
 
-      const response = await this.api.get<GetHourlyRequestsResponse>('/worker-services', {
-        params: { 
-          status: 'completed'
-        },
-      })
+      const response = await this.api.get<GetHourlyRequestsResponse>('/worker-services')
 
       if (response.data.success) {
         const driverServices = response.data.data || []

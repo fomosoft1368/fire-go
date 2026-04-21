@@ -33,7 +33,9 @@ export default function ConfirmDelivery() {
     vehicle,
     estimatedPrice,
     distance,
-    duration
+    duration,
+    senderPhone,
+    recipientPhone
   } = route.params || {}
   const [loading, setLoading] = useState(false)
 
@@ -93,6 +95,12 @@ export default function ConfirmDelivery() {
           icon="inventory-2"
           title={weight || 'Chưa chọn'}
           subtitle="Trọng lượng hàng hóa"
+        />
+
+        <DetailRow
+          icon="phone"
+          title={recipientPhone || 'Chưa nhập SĐT'}
+          subtitle="Số điện thoại người nhận"
           noBorder
         />
       </View>
@@ -138,6 +146,8 @@ export default function ConfirmDelivery() {
                 estimatedPrice,
                 distance: distance || '0 km',
                 duration: duration || '0',
+                senderPhone,
+                recipientPhone
               }
 
               console.log('[ConfirmDelivery] Creating delivery:', deliveryData)

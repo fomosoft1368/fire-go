@@ -23,6 +23,8 @@ export interface Delivery {
   actualPrice?: number
   distance?: string
   duration?: string
+  senderPhone?: string
+  recipientPhone?: string
   status: 'pending' | 'finding_driver' | 'driver_assigned' | 'picking_up' | 'delivering' | 'delivered' | 'cancelled'
   notes?: string
   rating?: number

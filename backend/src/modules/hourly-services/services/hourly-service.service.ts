@@ -277,6 +277,14 @@ export class HourlyServiceService {
    */
   async cancel(id: string, cancelReason: string): Promise<HourlyService> {
     try {
+      const existing = await this.hourlyServiceModel.findById(id).exec();
+      if (!existing) {
+        throw new NotFoundException('Service not found');
+      }
+      if (existing.status === 'in_progress' || existing.status === 'completed') {
+        throw new BadRequestException('Không thể hủy khi người dọn đã bắt đầu làm việc hoặc đã hoàn thành!');
+      }
+
       const service = await this.hourlyServiceModel
         .findByIdAndUpdate(
           id,

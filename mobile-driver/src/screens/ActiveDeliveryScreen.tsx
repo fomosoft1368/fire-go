@@ -23,6 +23,7 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
   const [delivery, setDelivery] = useState<Delivery | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null)
   const [currentStatus, setCurrentStatus] = useState<'picking_up' | 'delivering' | 'delivered'>('picking_up')
   const [pickupCoords, setPickupCoords] = useState<{ latitude: number; longitude: number } | null>(null)
@@ -400,10 +401,21 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
         </View>
       </View>
       {/* Bottom Sheet */}
-      <View style={styles.card}>
-        <View style={styles.handleBarContainer}>
-          <View style={styles.handleBar} />
-        </View>
+      <View style={[styles.card, { maxHeight: isExpanded ? '90%' : '50%' }]}>
+        <TouchableOpacity 
+          style={styles.expandToggleButton} 
+          onPress={() => setIsExpanded(!isExpanded)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.expandToggleText}>
+            {isExpanded ? 'Thu gọn' : 'Mở rộng'}
+          </Text>
+          <MaterialCommunityIcons 
+            name={isExpanded ? "chevron-down" : "chevron-up"} 
+            size={20} 
+            color="#FF6B00" 
+          />
+        </TouchableOpacity>
         {/* Progress Timeline */}
         <View style={styles.timeline}>
           <View style={styles.timelineStep}>
@@ -446,6 +458,44 @@ export default function ActiveDeliveryScreen({ navigation, route }: any) {
                 </TouchableOpacity>
               </View>
             </View>
+          </View>
+
+          {/* Contact Info (Gửi & Nhận) */}
+          <View style={styles.goodsCard}>
+            <Text style={styles.sectionTitle}>Thông tin liên hệ</Text>
+            
+            {/* Người gửi */}
+            <View style={styles.contactRow}>
+              <View style={styles.contactInfo}>
+                <Text style={styles.contactLabel}>Người gửi</Text>
+                <Text style={styles.contactValue}>{delivery.senderPhone || delivery.customerId?.phone}</Text>
+              </View>
+              <TouchableOpacity 
+                onPress={() => {
+                  const phone = delivery.senderPhone || delivery.customerId?.phone
+                  if (phone) Linking.openURL(`tel:${phone}`)
+                }} 
+                style={styles.callBtnSmall}
+              >
+                  <MaterialIcons name="phone" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Người nhận (Chỉ hiện khi đã lấy hàng hoặc đang giao hàng) */}
+            {currentStatus !== 'picking_up' && delivery.recipientPhone && (
+              <View style={[styles.contactRow, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#f0f0f0' }]}>
+                <View style={styles.contactInfo}>
+                  <Text style={styles.contactLabel}>Người nhận</Text>
+                  <Text style={styles.contactValue}>{delivery.recipientPhone}</Text>
+                </View>
+                <TouchableOpacity 
+                  onPress={() => Linking.openURL(`tel:${delivery.recipientPhone}`)} 
+                  style={[styles.callBtnSmall, { backgroundColor: '#E74C3C' }]}
+                >
+                    <MaterialIcons name="phone" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* Goods Info */}
@@ -790,6 +840,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#16A34A',
   },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactLabel: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 4,
+  },
+  contactValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111',
+  },
   addressCard: {
     backgroundColor: '#F9F9F9',
     borderRadius: 12,
@@ -806,6 +874,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#111',
+  },
+  expandToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    borderRadius: 20,
+    gap: 6,
+    alignSelf: 'center',
+    marginTop: -4,
+    marginBottom: 16,
+    shadowColor: '#FF6B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  expandToggleText: {
+    color: '#FF6B00',
+    fontSize: 14,
+    fontWeight: '700'
   },
   addressText: {
     fontSize: 14,

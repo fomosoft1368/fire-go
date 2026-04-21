@@ -147,6 +147,8 @@ export type RootStackParamList = {
     estimatedPrice: number
     distance?: string
     duration?: string
+    senderPhone?: string
+    recipientPhone?: string
   }
   FindingDelivery: {
     deliveryId: string
