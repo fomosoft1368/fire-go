@@ -1,12 +1,12 @@
-import type { Metadata } from 'next'
-import PartnerForm from '@/components/ui/PartnerForm'
-import { CheckCircle } from 'lucide-react'
-import Link from 'next/link'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'Đăng Ký Làm Đối Tác Tài Xế FireGo – Thu Nhập Linh Hoạt',
-  description: 'Tham gia cộng đồng đối tác FireGo. Thu nhập cao, lịch làm việc linh hoạt, hỗ trợ 24/7. Đăng ký ngay!',
-}
+import { useRef } from 'react'
+import { motion, useInView } from 'framer-motion'
+import { CheckCircle } from 'lucide-react'
+import PartnerForm from '@/components/ui/PartnerForm'
+import Link from 'next/link'
+import Card3D from '@/components/ui/Card3D'
+import Image from 'next/image'
 
 const benefits = [
   { icon: '💰', title: 'Thu nhập cao', description: 'Tài xế kiếm trung bình 8–15 triệu/tháng tùy khu vực và giờ hoạt động' },
@@ -17,75 +17,234 @@ const benefits = [
   { icon: '🌟', title: 'Chương trình thưởng', description: 'Nhận thưởng theo hiệu suất và đánh giá cao từ khách hàng mỗi tháng' },
 ]
 
+const steps = [
+  'Xét duyệt hồ sơ nhanh chóng',
+  'Đào tạo miễn phí trước khi ra mắt',
+  'Hỗ trợ kỹ thuật 24/7',
+  'Thanh toán đúng hạn mỗi tuần',
+]
+
+const cardVariants: import("framer-motion").Variants = {
+  hidden: { opacity: 0, y: 55, rotateX: 22, scale: 0.92 },
+  visible: {
+    opacity: 1, y: 0, rotateX: 0, scale: 1,
+    transition: { duration: 0.7, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] },
+  },
+}
+
 export default function DoiTacPage() {
+  const benefitsRef = useRef<HTMLElement>(null)
+  const formRef = useRef<HTMLElement>(null)
+  const benefitsInView = useInView(benefitsRef, { once: true, margin: '-60px' })
+  const formInView = useInView(formRef, { once: true, margin: '-60px' })
+
   return (
     <>
-      {/* Hero */}
+      {/* ── Hero ── */}
       <div className="bg-gradient-to-br from-orange-600 to-amber-500 py-20 relative overflow-hidden">
-        <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+        {/* 3D mesh */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)
+            `,
+            backgroundSize: '55px 55px',
+            transform: 'perspective(400px) rotateX(22deg) scale(2)',
+            transformOrigin: '50% 0%',
+          }}
+        />
+        <motion.div
+          className="absolute -top-16 -right-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.85, 0.5] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-0 -left-10 w-48 h-48 bg-amber-300/20 rounded-full blur-2xl"
+          animate={{ scale: [1, 1.3, 1] }}
+          transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+        />
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <nav className="text-sm text-orange-200 mb-6">
             <Link href="/" className="hover:text-white">Trang chủ</Link>
             <span className="mx-2">/</span>
             <span className="text-white font-600">Đăng ký Đối Tác</span>
           </nav>
-          <div className="max-w-2xl">
-            <h1 className="text-4xl sm:text-5xl font-900 text-white mb-4">
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left — text */}
+            <div className="max-w-xl">
+            {/* floating icon */}
+            <motion.div
+              className="text-6xl mb-5 inline-block"
+              animate={{ y: [0, -10, 0], rotateZ: [0, 5, -4, 0], rotateY: [0, 12, -8, 0] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ transformStyle: 'preserve-3d' }}
+            >
+              🤝
+            </motion.div>
+
+            <motion.h1
+              className="text-4xl sm:text-5xl font-900 text-white mb-4"
+              initial={{ opacity: 0, rotateX: 28, y: 40 }}
+              animate={{ opacity: 1, rotateX: 0, y: 0 }}
+              transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
+              style={{ perspective: '700px' }}
+            >
               Cùng FireGo xây dựng thu nhập bền vững
-            </h1>
-            <p className="text-orange-100 text-lg leading-relaxed">
+            </motion.h1>
+            <motion.p
+              className="text-orange-100 text-lg leading-relaxed"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
               Hàng nghìn đối tác đang kiếm thu nhập ổn định với lịch làm việc hoàn toàn tự do.
               Gia nhập ngay hôm nay!
-            </p>
-          </div>
+            </motion.p>
+            </div>{/* /Left hero text */}
+
+            {/* Right — partner photo (visible all screens) */}
+            <motion.div
+              className="flex items-center justify-center relative mt-8 lg:mt-0"
+              initial={{ opacity: 0, y: 30, rotateY: -10 }}
+              animate={{ opacity: 1, y: 0, rotateY: 0 }}
+              transition={{ duration: 0.95, delay: 0.3, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
+              style={{ perspective: '800px' }}
+            >
+              <motion.div
+                animate={{ y: [0, -10, 0], rotateY: [0, 3, -2, 0] }}
+                transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+                style={{ transformStyle: 'preserve-3d' }}
+                className="relative"
+              >
+                <div className="absolute inset-0 rounded-3xl blur-3xl scale-90 bg-white/15" />
+                <Image
+                  src="/img-partner-hero.png"
+                  alt="Đối tác tài xế FireGo – thu nhập linh hoạt"
+                  width={440}
+                  height={380}
+                  className="relative rounded-3xl shadow-2xl object-cover w-full max-w-xs lg:max-w-none"
+                  priority
+                />
+                <motion.div
+                  className="absolute -bottom-4 -left-4 glass rounded-2xl px-4 py-3 shadow-xl"
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <p className="text-xs text-slate-500">Thu nhập trung bình</p>
+                  <p className="text-sm font-800 text-orange-600">8–15 triệu/tháng</p>
+                </motion.div>
+              </motion.div>
+            </motion.div>
+          </div>{/* /hero grid */}
         </div>
       </div>
 
-      {/* Benefits */}
-      <section className="py-20 bg-white">
+      {/* ── Benefits ── */}
+      <section ref={benefitsRef} className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <motion.div
+            className="text-center mb-12"
+            initial={{ opacity: 0, rotateX: 18, y: 30 }}
+            animate={benefitsInView ? { opacity: 1, rotateX: 0, y: 0 } : {}}
+            transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
+            style={{ perspective: '600px' }}
+          >
             <h2 className="section-title mb-3">Tại sao chọn FireGo?</h2>
             <p className="section-subtitle">Chúng tôi cam kết đồng hành cùng sự thành công của bạn</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          </motion.div>
+
+          <motion.div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            initial="hidden"
+            animate={benefitsInView ? 'visible' : 'hidden'}
+            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
+            style={{ perspective: '1000px' }}
+          >
             {benefits.map((b, i) => (
-              <div key={i} className="card p-6">
-                <div className="text-4xl mb-4">{b.icon}</div>
-                <h3 className="text-lg font-800 text-slate-900 mb-2">{b.title}</h3>
-                <p className="text-slate-500 text-sm leading-relaxed">{b.description}</p>
-              </div>
+              <motion.div key={i} variants={cardVariants} style={{ transformStyle: 'preserve-3d' }}>
+                <Card3D className="h-full" intensity={7}>
+                  <div className="card p-6 h-full">
+                    <motion.div
+                      className="text-4xl mb-4 inline-block"
+                      animate={{ y: [0, -6, 0], rotateZ: [0, 4, -3, 0] }}
+                      transition={{ duration: 3 + i * 0.4, repeat: Infinity, ease: 'easeInOut' }}
+                    >
+                      {b.icon}
+                    </motion.div>
+                    <h3 className="text-lg font-800 text-slate-900 mb-2">{b.title}</h3>
+                    <p className="text-slate-500 text-sm leading-relaxed">{b.description}</p>
+                  </div>
+                </Card3D>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* Form */}
-      <section className="py-20 bg-orange-50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ── Form ── */}
+      <section ref={formRef} className="py-20 bg-orange-50 relative overflow-hidden">
+        {/* bottom perspective grid */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-40"
+          style={{
+            backgroundImage: `
+              linear-gradient(rgba(249,115,22,0.08) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(249,115,22,0.08) 1px, transparent 1px)
+            `,
+            backgroundSize: '64px 64px',
+            transform: 'perspective(500px) rotateX(30deg) scale(1.5)',
+            transformOrigin: '50% 100%',
+          }}
+        />
+
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-5 gap-12">
-            <div className="lg:col-span-2">
+            {/* Left info */}
+            <motion.div
+              className="lg:col-span-2"
+              initial={{ opacity: 0, x: -40, rotateY: 15 }}
+              animate={formInView ? { opacity: 1, x: 0, rotateY: 0 } : {}}
+              transition={{ duration: 0.75, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
+              style={{ perspective: '600px' }}
+            >
               <h2 className="section-title mb-4">Điền thông tin đăng ký</h2>
               <p className="text-slate-500 mb-6 leading-relaxed">
                 Điền form bên dưới, chúng tôi sẽ liên hệ trong vòng 24–48 giờ làm việc.
               </p>
               <div className="space-y-3">
-                {[
-                  'Xét duyệt hồ sơ nhanh chóng',
-                  'Đào tạo miễn phí trước khi ra mắt',
-                  'Hỗ trợ kỹ thuật 24/7',
-                  'Thanh toán đúng hạn mỗi tuần',
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm text-slate-700">
+                {steps.map((item, i) => (
+                  <motion.div
+                    key={i}
+                    className="flex items-center gap-2 text-sm text-slate-700"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={formInView ? { opacity: 1, x: 0 } : {}}
+                    transition={{ duration: 0.4, delay: 0.1 + i * 0.08 }}
+                  >
                     <CheckCircle className="w-4 h-4 text-orange-500 shrink-0" />
                     {item}
-                  </div>
+                  </motion.div>
                 ))}
               </div>
-            </div>
-            <div className="lg:col-span-3 bg-white rounded-3xl p-6 sm:p-8 shadow-brand-lg border border-orange-100">
-              <PartnerForm />
-            </div>
+            </motion.div>
+
+            {/* Form card */}
+            <motion.div
+              className="lg:col-span-3"
+              initial={{ opacity: 0, x: 40, rotateY: -15 }}
+              animate={formInView ? { opacity: 1, x: 0, rotateY: 0 } : {}}
+              transition={{ duration: 0.75, delay: 0.1, ease: [0.23, 1, 0.32, 1] as [number,number,number,number] }}
+              style={{ perspective: '700px' }}
+            >
+              <Card3D intensity={5}>
+                <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-brand-lg border border-orange-100">
+                  <PartnerForm />
+                </div>
+              </Card3D>
+            </motion.div>
           </div>
         </div>
       </section>

@@ -20,6 +20,7 @@ export const SERVICES = [
     color: 'from-orange-500 to-amber-400',
     bgColor: 'bg-orange-50',
     textColor: 'text-orange-600',
+    image: '/img-hero-rideshare.png',
     pricing: {
       base: 1500,       // backend default: bike.pricePerKm = 1.500đ/km
       perKm: 1500,
@@ -53,6 +54,7 @@ export const SERVICES = [
     color: 'from-blue-600 to-indigo-500',
     bgColor: 'bg-blue-50',
     textColor: 'text-blue-600',
+    image: '/img-service-driver.png',
     pricing: {
       base: 100000,     // backend default: sedan.openingFee = 100.000đ (bao gồm 10km đầu)
       perKm: 10000,
@@ -86,6 +88,7 @@ export const SERVICES = [
     color: 'from-green-500 to-emerald-400',
     bgColor: 'bg-green-50',
     textColor: 'text-green-600',
+    image: '/img-service-delivery.png',
     pricing: {
       base: 1500,       // backend default: bike.pricePerKm = 1.500đ/km
       perKm: 1500,
@@ -119,6 +122,7 @@ export const SERVICES = [
     color: 'from-purple-500 to-pink-500',
     bgColor: 'bg-purple-50',
     textColor: 'text-purple-600',
+    image: '/img-service-cleaning.png',
     pricing: {
       base: 120000,
       perKm: 0,
